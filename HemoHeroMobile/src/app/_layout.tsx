@@ -63,6 +63,12 @@ export default function RootLayout() {
       <Stack.Screen
         name="dashboard"
       />
+
+      {/* Blood request */}
+
+      <Stack.Screen
+        name="blood-request"
+        />
     </Stack>
   );
 }

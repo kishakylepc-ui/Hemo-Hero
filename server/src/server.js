@@ -1,101 +1,243 @@
 require('dotenv').config();
 
-const express = require('express');
-const cors = require('cors');
+const express =
+  require('express');
 
-const authRoutes = require('./routes/authRoutes');
+const cors =
+  require('cors');
 
-const app = express();
+// ============================================================
+// ROUTES
+// ============================================================
 
-// ------------------------------------------------------------
-// BASIC SECURITY / APP CONFIGURATION
-// ------------------------------------------------------------
+const authRoutes =
+  require('./routes/authRoutes');
 
-// Avoid advertising that the API is powered by Express.
-app.disable('x-powered-by');
+const facilitiesRoutes =
+  require('./routes/facilitiesRoutes');
 
-// ------------------------------------------------------------
-// MIDDLEWARE
-// ------------------------------------------------------------
+const nearbyBloodRequestRoutes =
+  require('./routes/nearbyBloodRequestRoutes');
 
-// Development CORS configuration.
-//
-// This is intentionally open while developing Hemo-Hero.
-// We can restrict allowed origins later before deployment.
-app.use(cors());
+const bloodRequestRoutes =
+  require('./routes/bloodRequestRoutes');
 
-// Parse incoming JSON requests.
-// A size limit prevents unnecessarily large request bodies.
+const donorApplicationRoutes =
+  require('./routes/donorApplicationRoutes');
+
+const adminDonorRoutes =
+  require('./routes/adminDonorRoutes');
+
+// ============================================================
+// APP
+// ============================================================
+
+const app =
+  express();
+
+const PORT =
+  process.env.PORT ||
+  5000;
+
+// ============================================================
+// CORS
+// ============================================================
+
 app.use(
-  express.json({
-    limit: '1mb'
+  cors({
+    origin: true,
+
+    credentials: true,
   })
 );
 
-// ------------------------------------------------------------
-// DEVELOPMENT REQUEST LOGGER
-// ------------------------------------------------------------
+// ============================================================
+// JSON
+// ============================================================
 
-app.use((req, res, next) => {
-  console.log(`${req.method} ${req.path}`);
-  next();
-});
+app.use(
+  express.json()
+);
 
-// ------------------------------------------------------------
-// HEALTH CHECK
-// ------------------------------------------------------------
+// ============================================================
+// REQUEST LOGGER
+// ============================================================
 
-app.get('/health', (req, res) => {
-  return res.status(200).json({
-    status: 'ok',
-    service: 'hemo-hero-server'
-  });
-});
+app.use(
+  (
+    req,
+    res,
+    next
+  ) => {
+    console.log(
+      `${req.method} ${req.originalUrl}`
+    );
 
-// ------------------------------------------------------------
+    next();
+  }
+);
+
+// ============================================================
+// HEALTH
+// ============================================================
+
+app.get(
+  '/health',
+  (
+    req,
+    res
+  ) => {
+    res.json({
+      status:
+        'ok',
+
+      service:
+        'hemo-hero-server',
+    });
+  }
+);
+
+// ============================================================
 // API ROUTES
+// ============================================================
+
+// ------------------------------------------------------------
+// AUTH
 // ------------------------------------------------------------
 
-app.use('/api/auth', authRoutes);
+app.use(
+  '/api/auth',
+  authRoutes
+);
 
-// Future modules will go here:
+// ------------------------------------------------------------
+// FACILITIES
+// ------------------------------------------------------------
+
+app.use(
+  '/api/facilities',
+  facilitiesRoutes
+);
+
+// ============================================================
+// DONOR APPLICATIONS
 //
-// app.use('/api/donors', donorRoutes);
-// app.use('/api/requests', requestRoutes);
-// app.use('/api/matches', matchRoutes);
-// app.use('/api/notifications', notificationRoutes);
+// User / donor-facing routes:
+//
+// GET   /api/donors/me
+// POST  /api/donors/verification-id
+// POST  /api/donors/apply
+// PATCH /api/donors/me/withdraw
+// ============================================================
 
-// ------------------------------------------------------------
-// 404 HANDLER
-// Must remain AFTER all valid routes.
-// ------------------------------------------------------------
+app.use(
+  '/api/donors',
+  donorApplicationRoutes
+);
 
-app.use((req, res) => {
-  return res.status(404).json({
-    error: 'Route not found'
-  });
-});
+// ============================================================
+// ADMIN DONOR APPLICATION REVIEW
+//
+// Every route inside adminDonorRoutes must pass:
+//
+// requireAuth
+// requireAdmin
+//
+// Available routes:
+//
+// GET  /api/admin/donor-applications/summary
+//
+// GET  /api/admin/donor-applications
+//
+// GET  /api/admin/donor-applications?status=pending
+//
+// GET  /api/admin/donor-applications/:id
+//
+// POST /api/admin/donor-applications/:id/approve
+//
+// POST /api/admin/donor-applications/:id/reject
+// ============================================================
 
-// ------------------------------------------------------------
-// GLOBAL ERROR HANDLER
-// Must have four parameters so Express recognizes it as an
-// error-handling middleware.
-// ------------------------------------------------------------
+app.use(
+  '/api/admin/donor-applications',
+  adminDonorRoutes
+);
 
-app.use((err, req, res, next) => {
-  console.error('Unhandled server error:', err);
+// ============================================================
+// NEARBY BLOOD REQUESTS
+//
+// Keep this before the general request route.
+// ============================================================
 
-  return res.status(500).json({
-    error: 'Internal server error'
-  });
-});
+app.use(
+  '/api/requests/nearby',
+  nearbyBloodRequestRoutes
+);
 
-// ------------------------------------------------------------
+// ============================================================
+// BLOOD REQUESTS
+// ============================================================
+
+app.use(
+  '/api/requests',
+  bloodRequestRoutes
+);
+
+// ============================================================
+// 404
+// ============================================================
+
+app.use(
+  (
+    req,
+    res
+  ) => {
+    res
+      .status(404)
+      .json({
+        error:
+          'Route not found',
+      });
+  }
+);
+
+// ============================================================
 // START SERVER
-// ------------------------------------------------------------
+// ============================================================
 
-const PORT = Number(process.env.PORT) || 5000;
+app.listen(
+  PORT,
+  () => {
+    console.log(
+      '========================================'
+    );
 
-app.listen(PORT, () => {
-  console.log(`Hemo-Hero server running on port ${PORT}`);
-});
+    console.log(
+      `Hemo-Hero server running on port ${PORT}`
+    );
+
+    console.log(
+      `Health: http://localhost:${PORT}/health`
+    );
+
+    console.log(
+      `Donors: http://localhost:${PORT}/api/donors`
+    );
+
+    console.log(
+      `Admin Donor Reviews: http://localhost:${PORT}/api/admin/donor-applications`
+    );
+
+    console.log(
+      `Blood Requests: http://localhost:${PORT}/api/requests`
+    );
+
+    console.log(
+      `Nearby Requests: http://localhost:${PORT}/api/requests/nearby`
+    );
+
+    console.log(
+      '========================================'
+    );
+  }
+);

@@ -7,16 +7,26 @@ import {
   View,
 } from 'react-native';
 
-import { MaterialIcons } from '@expo/vector-icons';
-import { LinearGradient } from 'expo-linear-gradient';
+import {
+  MaterialIcons,
+} from '@expo/vector-icons';
+
+import {
+  LinearGradient,
+} from 'expo-linear-gradient';
 
 import {
   router,
   useLocalSearchParams,
 } from 'expo-router';
 
-import { StatusBar } from 'expo-status-bar';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import {
+  StatusBar,
+} from 'expo-status-bar';
+
+import {
+  SafeAreaView,
+} from 'react-native-safe-area-context';
 
 const COLORS = {
   red: '#DB0A0A',
@@ -68,18 +78,15 @@ export default function ProfileSuccessScreen() {
 
   function handleDashboard() {
     /*
-      Dashboard does not exist yet.
+      Profile completion is finished and the
+      login session is still stored in AsyncStorage.
 
-      Later:
-
-      router.replace(
-        '/(user)/dashboard'
-      );
-
-      For now we return to Sign In.
+      Go directly to the authenticated dashboard.
     */
 
-    router.replace('/');
+    router.replace(
+      '/dashboard'
+    );
   }
 
   // ==========================================================
