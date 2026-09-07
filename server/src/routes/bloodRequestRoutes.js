@@ -3,21 +3,46 @@ const express =
 
 const {
   createBloodRequest,
+
   getMyBloodRequests,
+
   getMyActiveBloodRequest,
+
   getBloodRequestById,
+
   getDonorViewBloodRequestById,
+
+  fulfillBloodRequest,
+
   cancelBloodRequest
 } =
   require('../controllers/bloodRequestController');
 
 const {
   respondToBloodRequest,
+
   getMyDonorResponse,
+
   withdrawDonorResponse,
-  getResponsesForMyBloodRequest
+
+  getResponsesForMyBloodRequest,
+
+  acceptDonorResponse,
+
+  rejectDonorResponse
 } =
   require('../controllers/donorResponseController');
+
+const {
+  getCoordination,
+
+  getCoordinationMessages,
+
+  sendCoordinationMessage,
+
+  setCoordinationSchedule
+} =
+  require('../controllers/coordinationController');
 
 const {
   requireAuth
@@ -74,9 +99,6 @@ router.get(
 
 // ============================================================
 // DONOR RESPONSE
-//
-// IMPORTANT:
-// Only APPROVED donor applications may respond.
 // ============================================================
 
 router.post(
@@ -84,6 +106,10 @@ router.post(
   requireApprovedDonor,
   respondToBloodRequest
 );
+
+// ============================================================
+// CURRENT DONOR RESPONSE
+// ============================================================
 
 router.get(
   '/:id/my-response',
@@ -102,6 +128,57 @@ router.patch(
 router.get(
   '/:id/responses',
   getResponsesForMyBloodRequest
+);
+
+// ============================================================
+// REQUEST OWNER - ACCEPT / REJECT
+// ============================================================
+
+router.patch(
+  '/:id/responses/:responseId/accept',
+  acceptDonorResponse
+);
+
+router.patch(
+  '/:id/responses/:responseId/reject',
+  rejectDonorResponse
+);
+
+// ============================================================
+// DONATION COORDINATION
+//
+// Accessible ONLY by:
+// - request owner
+// - accepted donor
+// ============================================================
+
+router.get(
+  '/:id/responses/:responseId/coordination',
+  getCoordination
+);
+
+router.get(
+  '/:id/responses/:responseId/messages',
+  getCoordinationMessages
+);
+
+router.post(
+  '/:id/responses/:responseId/messages',
+  sendCoordinationMessage
+);
+
+router.put(
+  '/:id/responses/:responseId/schedule',
+  setCoordinationSchedule
+);
+
+// ============================================================
+// REQUEST OWNER - FULFILL
+// ============================================================
+
+router.patch(
+  '/:id/fulfill',
+  fulfillBloodRequest
 );
 
 // ============================================================

@@ -54,6 +54,13 @@ function getAuthenticatedUserId(req) {
   );
 }
 
+function getRequestId(req) {
+  return String(
+    req.params.id ||
+    ''
+  ).trim();
+}
+
 function isValidLatitude(value) {
   return (
     Number.isFinite(value) &&
@@ -775,10 +782,6 @@ async function getMyActiveBloodRequest(
 // GET /api/requests/:id
 //
 // OWNER-ONLY REQUEST DETAILS
-//
-// IMPORTANT:
-// Keep this endpoint private to the request owner.
-// Donors use /:id/donor-view instead.
 // ============================================================
 
 async function getBloodRequestById(
@@ -801,10 +804,9 @@ async function getBloodRequestById(
     }
 
     const requestId =
-      String(
-        req.params.id ||
-        ''
-      ).trim();
+      getRequestId(
+        req
+      );
 
     if (!requestId) {
       return res
@@ -882,16 +884,6 @@ async function getBloodRequestById(
 // GET /api/requests/:id/donor-view
 //
 // SAFE VIEW FOR OTHER USERS / DONORS
-//
-// Does NOT expose:
-// - requester_id
-// - patient profile
-// - home coordinates
-// - email
-// - phone
-//
-// Facility coordinates are okay because the donation
-// location is intentionally shared.
 // ============================================================
 
 async function getDonorViewBloodRequestById(
@@ -914,10 +906,9 @@ async function getDonorViewBloodRequestById(
     }
 
     const requestId =
-      String(
-        req.params.id ||
-        ''
-      ).trim();
+      getRequestId(
+        req
+      );
 
     if (!requestId) {
       return res
@@ -982,10 +973,6 @@ async function getDonorViewBloodRequestById(
         });
     }
 
-    // --------------------------------------------------------
-    // USER CANNOT RESPOND TO OWN REQUEST
-    // --------------------------------------------------------
-
     if (
       data.requester_id ===
       viewerId
@@ -998,10 +985,6 @@ async function getDonorViewBloodRequestById(
         });
     }
 
-    // --------------------------------------------------------
-    // ONLY ACTIVE REQUESTS ARE DONOR-VISIBLE
-    // --------------------------------------------------------
-
     if (
       data.status !==
       'active'
@@ -1013,10 +996,6 @@ async function getDonorViewBloodRequestById(
             'This blood request is no longer active.'
         });
     }
-
-    // --------------------------------------------------------
-    // REMOVE INTERNAL REQUESTER ID
-    // --------------------------------------------------------
 
     const {
       requester_id,
@@ -1032,6 +1011,267 @@ async function getDonorViewBloodRequestById(
   } catch (error) {
     console.error(
       'GET DONOR REQUEST VIEW ERROR:',
+      error
+    );
+
+    return res
+      .status(500)
+      .json({
+        error:
+          'Internal server error'
+      });
+  }
+}
+
+// ============================================================
+// PATCH /api/requests/:id/fulfill
+//
+// REQUEST OWNER ONLY
+//
+// A request may only be fulfilled after at least one donor
+// offer has been accepted.
+//
+// We do NOT automatically require accepted donor count to
+// equal units_needed because the requester confirms actual
+// completion manually.
+// ============================================================
+
+async function fulfillBloodRequest(
+  req,
+  res
+) {
+  try {
+    const requesterId =
+      getAuthenticatedUserId(
+        req
+      );
+
+    if (!requesterId) {
+      return res
+        .status(401)
+        .json({
+          error:
+            'Unauthorized'
+        });
+    }
+
+    const requestId =
+      getRequestId(
+        req
+      );
+
+    if (!requestId) {
+      return res
+        .status(400)
+        .json({
+          error:
+            'Request ID is required.'
+        });
+    }
+
+    // --------------------------------------------------------
+    // FIND OWNER'S REQUEST
+    // --------------------------------------------------------
+
+    const {
+      data:
+        existingRequest,
+      error:
+        requestError
+    } =
+      await supabaseAdmin
+        .from(
+          'blood_requests'
+        )
+        .select(`
+          id,
+          requester_id,
+          status,
+          blood_type,
+          units_needed,
+          facility_name
+        `)
+        .eq(
+          'id',
+          requestId
+        )
+        .eq(
+          'requester_id',
+          requesterId
+        )
+        .maybeSingle();
+
+    if (requestError) {
+      console.error(
+        'FULFILL REQUEST LOOKUP ERROR:',
+        requestError
+      );
+
+      return res
+        .status(500)
+        .json({
+          error:
+            'Unable to retrieve blood request.'
+        });
+    }
+
+    if (!existingRequest) {
+      return res
+        .status(404)
+        .json({
+          error:
+            'Blood request not found.'
+        });
+    }
+
+    // --------------------------------------------------------
+    // MUST STILL BE ACTIVE
+    // --------------------------------------------------------
+
+    if (
+      existingRequest.status !==
+      'active'
+    ) {
+      return res
+        .status(409)
+        .json({
+          error:
+            existingRequest.status ===
+              'fulfilled'
+              ? 'This blood request has already been fulfilled.'
+              : 'Only active blood requests can be marked as fulfilled.'
+        });
+    }
+
+    // --------------------------------------------------------
+    // REQUIRE AT LEAST ONE ACCEPTED DONOR
+    // --------------------------------------------------------
+
+    const {
+      data:
+        acceptedResponses,
+      error:
+        acceptedResponsesError
+    } =
+      await supabaseAdmin
+        .from(
+          'blood_request_responses'
+        )
+        .select(
+          'id,donor_id,status'
+        )
+        .eq(
+          'request_id',
+          requestId
+        )
+        .eq(
+          'status',
+          'accepted'
+        );
+
+    if (
+      acceptedResponsesError
+    ) {
+      console.error(
+        'FULFILL REQUEST ACCEPTED DONORS ERROR:',
+        acceptedResponsesError
+      );
+
+      return res
+        .status(500)
+        .json({
+          error:
+            'Unable to verify accepted donors.'
+        });
+    }
+
+    const acceptedDonorCount =
+      acceptedResponses?.length ||
+      0;
+
+    if (
+      acceptedDonorCount ===
+      0
+    ) {
+      return res
+        .status(409)
+        .json({
+          error:
+            'Accept at least one donor offer before marking this request as fulfilled.'
+        });
+    }
+
+    // --------------------------------------------------------
+    // MARK FULFILLED
+    // --------------------------------------------------------
+
+    const {
+      data:
+        updatedRequest,
+      error:
+        updateError
+    } =
+      await supabaseAdmin
+        .from(
+          'blood_requests'
+        )
+        .update({
+          status:
+            'fulfilled'
+        })
+        .eq(
+          'id',
+          requestId
+        )
+        .eq(
+          'requester_id',
+          requesterId
+        )
+        .eq(
+          'status',
+          'active'
+        )
+        .select()
+        .maybeSingle();
+
+    if (updateError) {
+      console.error(
+        'FULFILL REQUEST UPDATE ERROR:',
+        updateError
+      );
+
+      return res
+        .status(500)
+        .json({
+          error:
+            'Unable to mark blood request as fulfilled.'
+        });
+    }
+
+    if (!updatedRequest) {
+      return res
+        .status(409)
+        .json({
+          error:
+            'This blood request is no longer active.'
+        });
+    }
+
+    return res
+      .status(200)
+      .json({
+        message:
+          'Blood request marked as fulfilled successfully.',
+
+        accepted_donor_count:
+          acceptedDonorCount,
+
+        request:
+          updatedRequest
+      });
+  } catch (error) {
+    console.error(
+      'FULFILL BLOOD REQUEST ERROR:',
       error
     );
 
@@ -1068,10 +1308,9 @@ async function cancelBloodRequest(
     }
 
     const requestId =
-      String(
-        req.params.id ||
-        ''
-      ).trim();
+      getRequestId(
+        req
+      );
 
     if (!requestId) {
       return res
@@ -1081,10 +1320,6 @@ async function cancelBloodRequest(
             'Request ID is required.'
         });
     }
-
-    // --------------------------------------------------------
-    // FIND REQUEST
-    // --------------------------------------------------------
 
     const {
       data:
@@ -1145,10 +1380,6 @@ async function cancelBloodRequest(
             'Only active blood requests can be cancelled.'
         });
     }
-
-    // --------------------------------------------------------
-    // CANCEL
-    // --------------------------------------------------------
 
     const {
       data:
@@ -1219,9 +1450,16 @@ async function cancelBloodRequest(
 
 module.exports = {
   createBloodRequest,
+
   getMyBloodRequests,
+
   getMyActiveBloodRequest,
+
   getBloodRequestById,
+
   getDonorViewBloodRequestById,
+
+  fulfillBloodRequest,
+
   cancelBloodRequest
 };

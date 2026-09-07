@@ -36,6 +36,324 @@ function getRequestId(req) {
   ).trim();
 }
 
+function getResponseId(req) {
+  return String(
+    req.params.responseId ||
+    ''
+  ).trim();
+}
+
+// ============================================================
+// SAFE DONOR PROFILE
+//
+// Do not expose private donor information here.
+// Contact information can be added later only after the
+// recipient accepts the donor.
+// ============================================================
+
+function buildSafeDonorProfile(
+  user,
+  donorApplication
+) {
+  const firstName =
+    user?.first_name ||
+    null;
+
+  const middleName =
+    user?.middle_name ||
+    null;
+
+  const lastName =
+    user?.last_name ||
+    null;
+
+  const suffix =
+    user?.suffix ||
+    null;
+
+  const fullName =
+    [
+      firstName,
+      middleName,
+      lastName,
+      suffix
+    ]
+      .filter(Boolean)
+      .join(' ')
+      .replace(/\s+/g, ' ')
+      .trim() ||
+    'Hemo-Hero Donor';
+
+  return {
+    id:
+      user?.id ||
+      donorApplication?.user_id ||
+      null,
+
+    first_name:
+      firstName,
+
+    middle_name:
+      middleName,
+
+    last_name:
+      lastName,
+
+    suffix,
+
+    full_name:
+      fullName,
+
+    city:
+      user?.city ??
+      null,
+
+    province:
+      user?.province ??
+      null,
+
+    blood_type:
+      donorApplication?.blood_type ||
+      null,
+
+    verification_status:
+      donorApplication?.status ||
+      'not_registered',
+
+    is_verified:
+      donorApplication?.status ===
+      'approved',
+
+    availability_status:
+      donorApplication
+        ?.availability_status ||
+      null,
+
+    travel_radius_km:
+      donorApplication
+        ?.travel_radius_km ??
+      null,
+
+    allow_urgent_requests:
+      Boolean(
+        donorApplication
+          ?.allow_urgent_requests
+      )
+  };
+}
+
+// ============================================================
+// ENRICH RESPONSES
+//
+// Adds safe donor profile and approved donor information.
+// ============================================================
+
+async function enrichDonorResponses(
+  responses
+) {
+  if (
+    !Array.isArray(responses) ||
+    responses.length === 0
+  ) {
+    return [];
+  }
+
+  const donorIds =
+    [
+      ...new Set(
+        responses
+          .map(
+            response =>
+              response.donor_id
+          )
+          .filter(Boolean)
+      )
+    ];
+
+  if (
+    donorIds.length === 0
+  ) {
+    return responses.map(
+      response => ({
+        ...response,
+
+        donor:
+          null
+      })
+    );
+  }
+
+  // ----------------------------------------------------------
+  // USER PROFILES
+  // ----------------------------------------------------------
+
+  const {
+    data:
+      users,
+    error:
+      usersError
+  } =
+    await supabaseAdmin
+      .from('users')
+      .select('*')
+      .in(
+        'id',
+        donorIds
+      );
+
+  if (usersError) {
+    console.error(
+      'DONOR RESPONSE USERS ERROR:',
+      usersError
+    );
+
+    throw new Error(
+      'Unable to load donor profile information.'
+    );
+  }
+
+  // ----------------------------------------------------------
+  // DONOR APPLICATIONS
+  // ----------------------------------------------------------
+
+  const {
+    data:
+      donorApplications,
+    error:
+      donorApplicationsError
+  } =
+    await supabaseAdmin
+      .from(
+        'donor_applications'
+      )
+      .select('*')
+      .in(
+        'user_id',
+        donorIds
+      );
+
+  if (
+    donorApplicationsError
+  ) {
+    console.error(
+      'DONOR RESPONSE APPLICATIONS ERROR:',
+      donorApplicationsError
+    );
+
+    throw new Error(
+      'Unable to load donor verification information.'
+    );
+  }
+
+  // ----------------------------------------------------------
+  // MAPS
+  // ----------------------------------------------------------
+
+  const userMap =
+    new Map();
+
+  for (
+    const user of
+      users || []
+  ) {
+    userMap.set(
+      user.id,
+      user
+    );
+  }
+
+  const donorApplicationMap =
+    new Map();
+
+  for (
+    const application of
+      donorApplications || []
+  ) {
+    donorApplicationMap.set(
+      application.user_id,
+      application
+    );
+  }
+
+  // ----------------------------------------------------------
+  // RESULT
+  // ----------------------------------------------------------
+
+  return responses.map(
+    response => {
+      const user =
+        userMap.get(
+          response.donor_id
+        );
+
+      const donorApplication =
+        donorApplicationMap.get(
+          response.donor_id
+        );
+
+      return {
+        ...response,
+
+        donor:
+          buildSafeDonorProfile(
+            user,
+            donorApplication
+          )
+      };
+    }
+  );
+}
+
+// ============================================================
+// VERIFY REQUEST OWNER
+// ============================================================
+
+async function getOwnedBloodRequest(
+  requestId,
+  requesterId
+) {
+  const {
+    data:
+      bloodRequest,
+    error:
+      requestError
+  } =
+    await supabaseAdmin
+      .from(
+        'blood_requests'
+      )
+      .select(`
+        id,
+        requester_id,
+        status,
+        blood_type,
+        units_needed,
+        facility_name
+      `)
+      .eq(
+        'id',
+        requestId
+      )
+      .eq(
+        'requester_id',
+        requesterId
+      )
+      .maybeSingle();
+
+  if (requestError) {
+    console.error(
+      'VERIFY REQUEST OWNER ERROR:',
+      requestError
+    );
+
+    throw new Error(
+      'Unable to retrieve blood request.'
+    );
+  }
+
+  return bloodRequest;
+}
+
 // ============================================================
 // POST /api/requests/:id/respond
 //
@@ -239,7 +557,7 @@ async function respondToBloodRequest(
     }
 
     // --------------------------------------------------------
-    // REACTIVATE PREVIOUS WITHDRAWN / REJECTED RESPONSE
+    // REACTIVATE WITHDRAWN / REJECTED RESPONSE
     // --------------------------------------------------------
 
     if (existingResponse) {
@@ -258,7 +576,11 @@ async function respondToBloodRequest(
               'pending',
 
             message:
-              message || null
+              message || null,
+
+            updated_at:
+              new Date()
+                .toISOString()
           })
           .eq(
             'id',
@@ -559,7 +881,11 @@ async function withdrawDonorResponse(
         )
         .update({
           status:
-            'withdrawn'
+            'withdrawn',
+
+          updated_at:
+            new Date()
+              .toISOString()
         })
         .eq(
           'id',
@@ -611,7 +937,7 @@ async function withdrawDonorResponse(
 //
 // REQUEST OWNER ONLY
 //
-// We will use this on the requester side next.
+// Returns donor response + SAFE donor profile.
 // ============================================================
 
 async function getResponsesForMyBloodRequest(
@@ -649,42 +975,11 @@ async function getResponsesForMyBloodRequest(
     // VERIFY OWNERSHIP
     // --------------------------------------------------------
 
-    const {
-      data:
-        bloodRequest,
-      error:
-        requestError
-    } =
-      await supabaseAdmin
-        .from(
-          'blood_requests'
-        )
-        .select(
-          'id,requester_id,status'
-        )
-        .eq(
-          'id',
-          requestId
-        )
-        .eq(
-          'requester_id',
-          requesterId
-        )
-        .maybeSingle();
-
-    if (requestError) {
-      console.error(
-        'VERIFY REQUEST OWNER ERROR:',
-        requestError
+    const bloodRequest =
+      await getOwnedBloodRequest(
+        requestId,
+        requesterId
       );
-
-      return res
-        .status(500)
-        .json({
-          error:
-            'Unable to retrieve blood request.'
-        });
-    }
 
     if (!bloodRequest) {
       return res
@@ -736,14 +1031,75 @@ async function getResponsesForMyBloodRequest(
         });
     }
 
+    const enrichedResponses =
+      await enrichDonorResponses(
+        responses || []
+      );
+
+    const counts = {
+      total:
+        enrichedResponses.length,
+
+      pending:
+        0,
+
+      accepted:
+        0,
+
+      rejected:
+        0,
+
+      withdrawn:
+        0
+    };
+
+    for (
+      const response of
+        enrichedResponses
+    ) {
+      if (
+        response.status ===
+        'pending'
+      ) {
+        counts.pending +=
+          1;
+      }
+
+      if (
+        response.status ===
+        'accepted'
+      ) {
+        counts.accepted +=
+          1;
+      }
+
+      if (
+        response.status ===
+        'rejected'
+      ) {
+        counts.rejected +=
+          1;
+      }
+
+      if (
+        response.status ===
+        'withdrawn'
+      ) {
+        counts.withdrawn +=
+          1;
+      }
+    }
+
     return res
       .status(200)
       .json({
         count:
-          responses?.length || 0,
+          enrichedResponses.length,
+
+        counts,
 
         responses:
-          responses || []
+          enrichedResponses
       });
   } catch (error) {
     console.error(
@@ -755,6 +1111,535 @@ async function getResponsesForMyBloodRequest(
       .status(500)
       .json({
         error:
+          error.message ||
+          'Internal server error'
+      });
+  }
+}
+
+// ============================================================
+// PATCH /api/requests/:id/responses/:responseId/accept
+//
+// REQUEST OWNER ACCEPTS A DONOR OFFER
+//
+// IMPORTANT:
+// Accepting one donor DOES NOT reject the others.
+// A blood request can require multiple donors/units.
+// ============================================================
+
+async function acceptDonorResponse(
+  req,
+  res
+) {
+  try {
+    const requesterId =
+      getAuthenticatedUserId(
+        req
+      );
+
+    if (!requesterId) {
+      return res
+        .status(401)
+        .json({
+          error:
+            'Unauthorized'
+        });
+    }
+
+    const requestId =
+      getRequestId(req);
+
+    const responseId =
+      getResponseId(req);
+
+    if (!requestId) {
+      return res
+        .status(400)
+        .json({
+          error:
+            'Request ID is required.'
+        });
+    }
+
+    if (!responseId) {
+      return res
+        .status(400)
+        .json({
+          error:
+            'Response ID is required.'
+        });
+    }
+
+    // --------------------------------------------------------
+    // VERIFY REQUEST OWNER
+    // --------------------------------------------------------
+
+    const bloodRequest =
+      await getOwnedBloodRequest(
+        requestId,
+        requesterId
+      );
+
+    if (!bloodRequest) {
+      return res
+        .status(404)
+        .json({
+          error:
+            'Blood request not found.'
+        });
+    }
+
+    if (
+      bloodRequest.status !==
+      'active'
+    ) {
+      return res
+        .status(409)
+        .json({
+          error:
+            'Only active blood requests can accept donor offers.'
+        });
+    }
+
+    // --------------------------------------------------------
+    // FIND RESPONSE
+    // --------------------------------------------------------
+
+    const {
+      data:
+        response,
+      error:
+        responseError
+    } =
+      await supabaseAdmin
+        .from(
+          'blood_request_responses'
+        )
+        .select('*')
+        .eq(
+          'id',
+          responseId
+        )
+        .eq(
+          'request_id',
+          requestId
+        )
+        .maybeSingle();
+
+    if (responseError) {
+      console.error(
+        'ACCEPT DONOR RESPONSE LOOKUP ERROR:',
+        responseError
+      );
+
+      return res
+        .status(500)
+        .json({
+          error:
+            'Unable to retrieve donor response.'
+        });
+    }
+
+    if (!response) {
+      return res
+        .status(404)
+        .json({
+          error:
+            'Donor response not found.'
+        });
+    }
+
+    if (
+      response.status ===
+      'accepted'
+    ) {
+      return res
+        .status(409)
+        .json({
+          error:
+            'This donor offer has already been accepted.'
+        });
+    }
+
+    if (
+      response.status !==
+      'pending'
+    ) {
+      return res
+        .status(409)
+        .json({
+          error:
+            'Only pending donor offers can be accepted.'
+        });
+    }
+
+    // --------------------------------------------------------
+    // DONOR MUST STILL BE VERIFIED
+    // --------------------------------------------------------
+
+    const {
+      data:
+        donorApplication,
+      error:
+        donorApplicationError
+    } =
+      await supabaseAdmin
+        .from(
+          'donor_applications'
+        )
+        .select(`
+          user_id,
+          status,
+          blood_type,
+          availability_status
+        `)
+        .eq(
+          'user_id',
+          response.donor_id
+        )
+        .maybeSingle();
+
+    if (
+      donorApplicationError
+    ) {
+      console.error(
+        'ACCEPT DONOR VERIFICATION ERROR:',
+        donorApplicationError
+      );
+
+      return res
+        .status(500)
+        .json({
+          error:
+            'Unable to verify donor status.'
+        });
+    }
+
+    if (
+      !donorApplication ||
+      donorApplication.status !==
+        'approved'
+    ) {
+      return res
+        .status(409)
+        .json({
+          error:
+            'This donor is no longer a verified donor.'
+        });
+    }
+
+    // --------------------------------------------------------
+    // ACCEPT
+    // --------------------------------------------------------
+
+    const {
+      data:
+        updatedResponse,
+      error:
+        updateError
+    } =
+      await supabaseAdmin
+        .from(
+          'blood_request_responses'
+        )
+        .update({
+          status:
+            'accepted',
+
+          updated_at:
+            new Date()
+              .toISOString()
+        })
+        .eq(
+          'id',
+          responseId
+        )
+        .eq(
+          'status',
+          'pending'
+        )
+        .select()
+        .maybeSingle();
+
+    if (updateError) {
+      console.error(
+        'ACCEPT DONOR RESPONSE ERROR:',
+        updateError
+      );
+
+      return res
+        .status(500)
+        .json({
+          error:
+            'Unable to accept donor offer.'
+        });
+    }
+
+    if (!updatedResponse) {
+      return res
+        .status(409)
+        .json({
+          error:
+            'This donor offer is no longer pending.'
+        });
+    }
+
+    const enriched =
+      await enrichDonorResponses([
+        updatedResponse
+      ]);
+
+    return res
+      .status(200)
+      .json({
+        message:
+          'Donor offer accepted successfully.',
+
+        response:
+          enriched[0] ||
+          updatedResponse
+      });
+  } catch (error) {
+    console.error(
+      'ACCEPT DONOR RESPONSE ERROR:',
+      error
+    );
+
+    return res
+      .status(500)
+      .json({
+        error:
+          error.message ||
+          'Internal server error'
+      });
+  }
+}
+
+// ============================================================
+// PATCH /api/requests/:id/responses/:responseId/reject
+//
+// REQUEST OWNER REJECTS A PENDING DONOR OFFER
+// ============================================================
+
+async function rejectDonorResponse(
+  req,
+  res
+) {
+  try {
+    const requesterId =
+      getAuthenticatedUserId(
+        req
+      );
+
+    if (!requesterId) {
+      return res
+        .status(401)
+        .json({
+          error:
+            'Unauthorized'
+        });
+    }
+
+    const requestId =
+      getRequestId(req);
+
+    const responseId =
+      getResponseId(req);
+
+    if (!requestId) {
+      return res
+        .status(400)
+        .json({
+          error:
+            'Request ID is required.'
+        });
+    }
+
+    if (!responseId) {
+      return res
+        .status(400)
+        .json({
+          error:
+            'Response ID is required.'
+        });
+    }
+
+    // --------------------------------------------------------
+    // VERIFY REQUEST OWNER
+    // --------------------------------------------------------
+
+    const bloodRequest =
+      await getOwnedBloodRequest(
+        requestId,
+        requesterId
+      );
+
+    if (!bloodRequest) {
+      return res
+        .status(404)
+        .json({
+          error:
+            'Blood request not found.'
+        });
+    }
+
+    if (
+      bloodRequest.status !==
+      'active'
+    ) {
+      return res
+        .status(409)
+        .json({
+          error:
+            'Only active blood requests can manage donor offers.'
+        });
+    }
+
+    // --------------------------------------------------------
+    // RESPONSE
+    // --------------------------------------------------------
+
+    const {
+      data:
+        response,
+      error:
+        responseError
+    } =
+      await supabaseAdmin
+        .from(
+          'blood_request_responses'
+        )
+        .select('*')
+        .eq(
+          'id',
+          responseId
+        )
+        .eq(
+          'request_id',
+          requestId
+        )
+        .maybeSingle();
+
+    if (responseError) {
+      console.error(
+        'REJECT DONOR RESPONSE LOOKUP ERROR:',
+        responseError
+      );
+
+      return res
+        .status(500)
+        .json({
+          error:
+            'Unable to retrieve donor response.'
+        });
+    }
+
+    if (!response) {
+      return res
+        .status(404)
+        .json({
+          error:
+            'Donor response not found.'
+        });
+    }
+
+    if (
+      response.status !==
+      'pending'
+    ) {
+      return res
+        .status(409)
+        .json({
+          error:
+            response.status ===
+              'accepted'
+              ? 'An accepted donor offer cannot be rejected here.'
+              : 'Only pending donor offers can be rejected.'
+        });
+    }
+
+    // --------------------------------------------------------
+    // REJECT
+    // --------------------------------------------------------
+
+    const {
+      data:
+        updatedResponse,
+      error:
+        updateError
+    } =
+      await supabaseAdmin
+        .from(
+          'blood_request_responses'
+        )
+        .update({
+          status:
+            'rejected',
+
+          updated_at:
+            new Date()
+              .toISOString()
+        })
+        .eq(
+          'id',
+          responseId
+        )
+        .eq(
+          'status',
+          'pending'
+        )
+        .select()
+        .maybeSingle();
+
+    if (updateError) {
+      console.error(
+        'REJECT DONOR RESPONSE ERROR:',
+        updateError
+      );
+
+      return res
+        .status(500)
+        .json({
+          error:
+            'Unable to reject donor offer.'
+        });
+    }
+
+    if (!updatedResponse) {
+      return res
+        .status(409)
+        .json({
+          error:
+            'This donor offer is no longer pending.'
+        });
+    }
+
+    const enriched =
+      await enrichDonorResponses([
+        updatedResponse
+      ]);
+
+    return res
+      .status(200)
+      .json({
+        message:
+          'Donor offer rejected successfully.',
+
+        response:
+          enriched[0] ||
+          updatedResponse
+      });
+  } catch (error) {
+    console.error(
+      'REJECT DONOR RESPONSE ERROR:',
+      error
+    );
+
+    return res
+      .status(500)
+      .json({
+        error:
+          error.message ||
           'Internal server error'
       });
   }
@@ -766,7 +1651,14 @@ async function getResponsesForMyBloodRequest(
 
 module.exports = {
   respondToBloodRequest,
+
   getMyDonorResponse,
+
   withdrawDonorResponse,
-  getResponsesForMyBloodRequest
+
+  getResponsesForMyBloodRequest,
+
+  acceptDonorResponse,
+
+  rejectDonorResponse
 };
