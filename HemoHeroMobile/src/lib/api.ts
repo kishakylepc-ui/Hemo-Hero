@@ -332,19 +332,17 @@ export async function forgotPassword(
 }
 
 // ------------------------------------------------------------
-// RESET PASSWORD
+// VERIFY PASSWORD RECOVERY CODE
 //
-// POST /api/auth/reset-password
+// POST /api/auth/verify-recovery-code
 // ------------------------------------------------------------
 
-export async function resetPassword(
+export async function verifyRecoveryCode(
   email: string,
-  code: string,
-  password: string,
-  confirmPassword: string
+  code: string
 ) {
   return request(
-    '/api/auth/reset-password',
+    '/api/auth/verify-recovery-code',
     {
       method: 'POST',
 
@@ -357,6 +355,31 @@ export async function resetPassword(
 
           code:
             code.trim(),
+        }),
+    }
+  );
+}
+
+// ------------------------------------------------------------
+// RESET PASSWORD
+//
+// POST /api/auth/reset-password
+// ------------------------------------------------------------
+
+export async function resetPassword(
+  recoveryToken: string,
+  password: string,
+  confirmPassword: string
+) {
+  return request(
+    '/api/auth/reset-password',
+    {
+      method: 'POST',
+
+      body:
+        JSON.stringify({
+          recovery_token:
+            recoveryToken,
 
           password,
 

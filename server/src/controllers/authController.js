@@ -1095,7 +1095,17 @@ async function forgotPassword(
 // Verify recovery OTP and update the user's password.
 // ============================================================
 
-async function resetPassword(
+// ============================================================
+// POST /api/auth/verify-recovery-code
+//
+// STEP 1:
+// Verify the password recovery OTP.
+//
+// If valid, return the temporary Supabase access token.
+// The client keeps this only while resetting the password.
+// ============================================================
+
+async function verifyRecoveryCode(
   req,
   res
 ) {
@@ -1103,8 +1113,6 @@ async function resetPassword(
     const {
       email,
       code,
-      password,
-      confirm_password,
     } = req.body;
 
     // --------------------------------------------------------
@@ -1113,29 +1121,25 @@ async function resetPassword(
 
     if (
       !email ||
-      !code ||
-      !password ||
-      !confirm_password
+      !code
     ) {
       return res
         .status(400)
         .json({
           error:
-            'email, code, password, and confirm_password are required',
+            'email and code are required',
         });
     }
 
     if (
       typeof email !== 'string' ||
-      typeof code !== 'string' ||
-      typeof password !== 'string' ||
-      typeof confirm_password !== 'string'
+      typeof code !== 'string'
     ) {
       return res
         .status(400)
         .json({
           error:
-            'All password reset fields must be text',
+            'email and code must be text',
         });
     }
 
@@ -1168,7 +1172,7 @@ async function resetPassword(
     }
 
     // --------------------------------------------------------
-    // OTP
+    // CODE
     // --------------------------------------------------------
 
     if (
@@ -1185,7 +1189,143 @@ async function resetPassword(
     }
 
     // --------------------------------------------------------
-    // PASSWORD
+    // VERIFY RECOVERY OTP
+    // --------------------------------------------------------
+
+    const {
+      data,
+      error,
+    } =
+      await supabaseAnon
+        .auth
+        .verifyOtp({
+          email:
+            cleanEmail,
+
+          token:
+            cleanCode,
+
+          type:
+            'recovery',
+        });
+
+    if (
+      error ||
+      !data?.user ||
+      !data?.session?.access_token
+    ) {
+      console.error(
+        'VERIFY RECOVERY CODE ERROR:',
+        error?.message
+      );
+
+      return res
+        .status(400)
+        .json({
+          error:
+            'Invalid or expired password reset code',
+        });
+    }
+
+    // --------------------------------------------------------
+    // SECURITY CHECK
+    // --------------------------------------------------------
+
+    const verifiedEmail =
+      data.user.email
+        ?.trim()
+        .toLowerCase();
+
+    if (
+      verifiedEmail !==
+      cleanEmail
+    ) {
+      return res
+        .status(400)
+        .json({
+          error:
+            'Verification email does not match',
+        });
+    }
+
+    // --------------------------------------------------------
+    // SUCCESS
+    // --------------------------------------------------------
+
+    return res
+      .status(200)
+      .json({
+        message:
+          'Verification code confirmed.',
+
+        recovery_token:
+          data.session.access_token,
+      });
+  } catch (error) {
+    console.error(
+      'VERIFY RECOVERY CODE ERROR:',
+      error
+    );
+
+    return res
+      .status(500)
+      .json({
+        error:
+          'Unable to verify password reset code',
+      });
+  }
+}
+
+// ============================================================
+// POST /api/auth/reset-password
+//
+// STEP 2:
+// Change password only after a valid recovery token exists.
+// ============================================================
+
+async function resetPassword(
+  req,
+  res
+) {
+  try {
+    const {
+      recovery_token,
+      password,
+      confirm_password,
+    } = req.body;
+
+    // --------------------------------------------------------
+    // REQUIRED
+    // --------------------------------------------------------
+
+    if (
+      !recovery_token ||
+      !password ||
+      !confirm_password
+    ) {
+      return res
+        .status(400)
+        .json({
+          error:
+            'Recovery verification is required before changing the password',
+        });
+    }
+
+    if (
+      typeof recovery_token !== 'string' ||
+      typeof password !== 'string' ||
+      typeof confirm_password !== 'string'
+    ) {
+      return res
+        .status(400)
+        .json({
+          error:
+            'Invalid password reset information',
+        });
+    }
+
+    // --------------------------------------------------------
+    // PASSWORD VALIDATION
     // --------------------------------------------------------
 
     if (
@@ -1234,63 +1374,33 @@ async function resetPassword(
     }
 
     // --------------------------------------------------------
-    // VERIFY RECOVERY OTP
+    // VALIDATE RECOVERY TOKEN
     // --------------------------------------------------------
 
     const {
-      data: verificationData,
-      error: verificationError,
+      data: userData,
+      error: userError,
     } =
       await supabaseAnon
         .auth
-        .verifyOtp({
-          email:
-            cleanEmail,
-
-          token:
-            cleanCode,
-
-          type:
-            'recovery',
-        });
+        .getUser(
+          recovery_token
+        );
 
     if (
-      verificationError ||
-      !verificationData?.user
+      userError ||
+      !userData?.user
     ) {
       console.error(
-        'RESET PASSWORD OTP ERROR:',
-        verificationError?.message
+        'RESET PASSWORD TOKEN ERROR:',
+        userError?.message
       );
 
       return res
-        .status(400)
+        .status(401)
         .json({
           error:
-            'Invalid or expired password reset code',
-        });
-    }
-
-    // --------------------------------------------------------
-    // SECURITY CHECK
-    // --------------------------------------------------------
-
-    const verifiedEmail =
-      verificationData
-        .user
-        .email
-        ?.trim()
-        .toLowerCase();
-
-    if (
-      verifiedEmail !==
-      cleanEmail
-    ) {
-      return res
-        .status(400)
-        .json({
-          error:
-            'Verification email does not match',
+            'Your password reset session has expired. Please request a new code.',
         });
     }
 
@@ -1305,9 +1415,7 @@ async function resetPassword(
         .auth
         .admin
         .updateUserById(
-          verificationData
-            .user
-            .id,
+          userData.user.id,
           {
             password,
           }
@@ -1996,6 +2104,7 @@ module.exports = {
   login,
   logout,
   forgotPassword,
+  verifyRecoveryCode,
   resetPassword,
   getProfile,
   updateProfile,

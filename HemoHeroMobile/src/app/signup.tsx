@@ -684,61 +684,79 @@ export default function SignUpScreen() {
 
                     {/* TERMS */}
 
-                    <TouchableOpacity
-                      style={
-                        styles.agreementRow
-                      }
-                      activeOpacity={0.7}
-                      disabled={loading}
-                      onPress={() =>
-                        setAccepted(
-                          current =>
-                            !current
-                        )
-                      }
-                    >
-                      <View
-                        style={[
-                          styles.checkbox,
+<View
+  style={
+    styles.agreementRow
+  }
+>
+  <TouchableOpacity
+    activeOpacity={0.7}
+    disabled={loading}
+    onPress={() =>
+      setAccepted(
+        current =>
+          !current
+      )
+    }
+  >
+    <View
+      style={[
+        styles.checkbox,
 
-                          accepted &&
-                            styles.checkboxChecked,
-                        ]}
-                      >
-                        {accepted && (
-                          <MaterialIcons
-                            name="check"
-                            size={13}
-                            color={
-                              COLORS.white
-                            }
-                          />
-                        )}
-                      </View>
+        accepted &&
+          styles.checkboxChecked,
+      ]}
+    >
+      {accepted && (
+        <MaterialIcons
+          name="check"
+          size={13}
+          color={
+            COLORS.white
+          }
+        />
+      )}
+    </View>
+  </TouchableOpacity>
 
-                      <Text
-                        style={
-                          styles.agreementText
-                        }
-                      >
-                        I agree to the{' '}
-                        <Text
-                          style={
-                            styles.linkText
-                          }
-                        >
-                          Terms of Service
-                        </Text>{' '}
-                        and{' '}
-                        <Text
-                          style={
-                            styles.linkText
-                          }
-                        >
-                          Privacy Policy.
-                        </Text>
-                      </Text>
-                    </TouchableOpacity>
+  <Text
+    style={
+      styles.agreementText
+    }
+  >
+    I agree to the{' '}
+
+    <Text
+      style={
+        styles.linkText
+      }
+      onPress={() =>
+        router.push(
+          '/terms-of-service'
+        )
+      }
+    >
+      Terms of Service
+    </Text>
+
+    {' '}and{' '}
+
+    <Text
+      style={
+        styles.linkText
+      }
+      onPress={() =>
+        router.push(
+          '/privacy-policy'
+        )
+      }
+    >
+      Privacy Policy
+    </Text>
+
+    .
+  </Text>
+</View>
 
                     {/* CREATE ACCOUNT */}
 
@@ -1279,19 +1297,19 @@ const styles = StyleSheet.create({
   },
 
   checkbox: {
-    width: 15,
-    height: 15,
+  width: 15,
+  height: 15,
 
-    marginRight: 9,
+  marginRight: 9,
 
-    borderWidth: 1,
+  borderWidth: 1,
 
-    borderColor:
-      '#CCCCCC',
+  borderColor:
+    '#CCCCCC',
 
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
+  alignItems: 'center',
+  justifyContent: 'center',
+},
 
   checkboxChecked: {
     borderColor:

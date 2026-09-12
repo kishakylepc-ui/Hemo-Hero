@@ -1,8 +1,4 @@
 import {
-  resetPassword,
-} from '../lib/api';
-
-import {
   useRef,
   useState,
 } from 'react';
@@ -20,16 +16,32 @@ import {
   View,
 } from 'react-native';
 
-import { LinearGradient } from 'expo-linear-gradient';
+import {
+  MaterialIcons,
+} from '@expo/vector-icons';
+
+import {
+  LinearGradient,
+} from 'expo-linear-gradient';
 
 import {
   router,
   useLocalSearchParams,
 } from 'expo-router';
 
-import { StatusBar } from 'expo-status-bar';
+import {
+  StatusBar,
+} from 'expo-status-bar';
 
-import { SafeAreaView } from 'react-native-safe-area-context';
+import {
+  SafeAreaView,
+} from 'react-native-safe-area-context';
+
+import {
+  forgotPassword,
+  resetPassword,
+  verifyRecoveryCode,
+} from '../lib/api';
 
 // ============================================================
 // CONSTANTS
@@ -53,10 +65,15 @@ const COLORS = {
   errorBackground: '#FDECEC',
   errorBorder: '#F5BABA',
 
+  successBackground: '#EAF7EE',
+  successBorder: '#A8DAB5',
+  successText: '#237A3B',
+
   codeActive: '#FDECEC',
 };
 
-const CODE_LENGTH = 6;
+const CODE_LENGTH =
+  6;
 
 // ============================================================
 // SCREEN
@@ -95,6 +112,16 @@ export default function ResetPasswordScreen() {
   ] = useState('');
 
   const [
+    codeVerified,
+    setCodeVerified,
+  ] = useState(false);
+
+  const [
+    recoveryToken,
+    setRecoveryToken,
+  ] = useState('');
+
+  const [
     password,
     setPassword,
   ] = useState('');
@@ -115,8 +142,18 @@ export default function ResetPasswordScreen() {
   ] = useState(false);
 
   const [
-    loading,
-    setLoading,
+    verifying,
+    setVerifying,
+  ] = useState(false);
+
+  const [
+    resetting,
+    setResetting,
+  ] = useState(false);
+
+  const [
+    resending,
+    setResending,
   ] = useState(false);
 
   const [
@@ -150,7 +187,7 @@ export default function ResetPasswordScreen() {
   }
 
   // ==========================================================
-  // CODE
+  // CODE INPUT
   // ==========================================================
 
   function handleCodeChange(
@@ -171,201 +208,354 @@ export default function ResetPasswordScreen() {
       digitsOnly
     );
 
+    setErrorMessage('');
+  }
+
+  // ==========================================================
+  // VERIFY CODE
+  // ==========================================================
+
+  async function handleVerifyCode() {
+    setErrorMessage('');
+
+    if (!email) {
+      const message =
+        'Your email address is missing. Please start the password reset process again.';
+
+      setErrorMessage(
+        message
+      );
+
+      showMessage(
+        'Email Missing',
+        message
+      );
+
+      return;
+    }
+
     if (
-      errorMessage
+      code.length !==
+      CODE_LENGTH
     ) {
+      const message =
+        'Please finish entering the 6-digit verification code.';
+
+      setErrorMessage(
+        message
+      );
+
+      showMessage(
+        'Incomplete Code',
+        message
+      );
+
+      inputRef
+        .current
+        ?.focus();
+
+      return;
+    }
+
+    try {
+      setVerifying(
+        true
+      );
+
+      const data =
+        await verifyRecoveryCode(
+          email,
+          code
+        );
+
+      if (
+        !data?.recovery_token
+      ) {
+        throw new Error(
+          'Verification succeeded, but no recovery session was returned.'
+        );
+      }
+
+      setRecoveryToken(
+        data.recovery_token
+      );
+
+      setCodeVerified(
+        true
+      );
+
       setErrorMessage('');
+
+      showMessage(
+        'Code Verified',
+        'Your verification code is correct. You can now create a new password.'
+      );
+    } catch (error) {
+      console.log(
+        'VERIFY RECOVERY CODE ERROR:',
+        error
+      );
+
+      let message =
+        'Invalid or expired password reset code.';
+
+      if (
+        error instanceof Error
+      ) {
+        message =
+          error.message;
+      }
+
+      setErrorMessage(
+        message
+      );
+
+      setCodeVerified(
+        false
+      );
+
+      setRecoveryToken(
+        ''
+      );
+
+      showMessage(
+        'Verification Failed',
+        message
+      );
+    } finally {
+      setVerifying(
+        false
+      );
     }
   }
 
   // ==========================================================
-  // RESET PASSWORD
+  // RESEND CODE
+  // ==========================================================
+
+  async function handleResendCode() {
+    if (
+      !email ||
+      resending ||
+      verifying ||
+      resetting
+    ) {
+      return;
+    }
+
+    try {
+      setResending(
+        true
+      );
+
+      await forgotPassword(
+        email
+      );
+
+      setCode('');
+      setCodeVerified(false);
+      setRecoveryToken('');
+      setPassword('');
+      setConfirmPassword('');
+      setErrorMessage('');
+
+      showMessage(
+        'Code Sent',
+        'A new password reset code has been sent to your email.'
+      );
+
+      setTimeout(
+        () => {
+          inputRef
+            .current
+            ?.focus();
+        },
+        150
+      );
+    } catch (error) {
+      let message =
+        'Unable to resend the password reset code.';
+
+      if (
+        error instanceof Error
+      ) {
+        message =
+          error.message;
+      }
+
+      setErrorMessage(
+        message
+      );
+
+      showMessage(
+        'Unable to Resend',
+        message
+      );
+    } finally {
+      setResending(
+        false
+      );
+    }
+  }
+
+  // ==========================================================
+  // CHANGE PASSWORD
   // ==========================================================
 
   async function handleResetPassword() {
-  setErrorMessage('');
-
-  if (!email) {
-    const message =
-      'Your email address is missing. Please start the password reset process again.';
-
-    setErrorMessage(
-      message
-    );
-
-    showMessage(
-      'Email Missing',
-      message
-    );
-
-    return;
-  }
-
-  if (
-    code.length !==
-    CODE_LENGTH
-  ) {
-    const message =
-      'Please enter the 6-digit verification code sent to your email.';
-
-    setErrorMessage(
-      message
-    );
-
-    showMessage(
-      'Invalid Code',
-      message
-    );
-
-    inputRef
-      .current
-      ?.focus();
-
-    return;
-  }
-
-  if (
-    !password ||
-    !confirmPassword
-  ) {
-    const message =
-      'Please enter and confirm your new password.';
-
-    setErrorMessage(
-      message
-    );
-
-    showMessage(
-      'Missing Information',
-      message
-    );
-
-    return;
-  }
-
-  if (
-    password.length < 8
-  ) {
-    const message =
-      'Password must be at least 8 characters.';
-
-    setErrorMessage(
-      message
-    );
-
-    showMessage(
-      'Invalid Password',
-      message
-    );
-
-    return;
-  }
-
-  const hasLetter =
-    /[A-Za-z]/.test(
-      password
-    );
-
-  const hasNumber =
-    /[0-9]/.test(
-      password
-    );
-
-  if (
-    !hasLetter ||
-    !hasNumber
-  ) {
-    const message =
-      'Password must contain at least one letter and one number.';
-
-    setErrorMessage(
-      message
-    );
-
-    showMessage(
-      'Invalid Password',
-      message
-    );
-
-    return;
-  }
-
-  if (
-    password !==
-    confirmPassword
-  ) {
-    const message =
-      'Passwords do not match.';
-
-    setErrorMessage(
-      message
-    );
-
-    showMessage(
-      'Passwords Do Not Match',
-      message
-    );
-
-    return;
-  }
-
-  try {
-    setLoading(
-      true
-    );
-
-    const data =
-      await resetPassword(
-        email,
-        code,
-        password,
-        confirmPassword
-      );
-
-    setCode('');
-    setPassword('');
-    setConfirmPassword('');
     setErrorMessage('');
 
-    showMessage(
-      'Password Reset',
-      data?.message ||
-        'Your password has been reset successfully. You can now sign in.'
-    );
-
-    router.replace(
-      '/'
-    );
-  } catch (error) {
-    console.log(
-      'RESET PASSWORD ERROR:',
-      error
-    );
-
-    let message =
-      'Unable to reset your password. Please try again.';
-
     if (
-      error instanceof Error
+      !codeVerified ||
+      !recoveryToken
     ) {
-      message =
-        error.message;
+      const message =
+        'Please verify your recovery code first.';
+
+      setErrorMessage(
+        message
+      );
+
+      return;
     }
 
-    setErrorMessage(
-      message
-    );
+    if (
+      !password ||
+      !confirmPassword
+    ) {
+      const message =
+        'Please enter and confirm your new password.';
 
-    showMessage(
-      'Reset Failed',
-      message
-    );
-  } finally {
-    setLoading(
-      false
-    );
+      setErrorMessage(
+        message
+      );
+
+      showMessage(
+        'Missing Information',
+        message
+      );
+
+      return;
+    }
+
+    if (
+      password.length <
+      8
+    ) {
+      const message =
+        'Password must be at least 8 characters.';
+
+      setErrorMessage(
+        message
+      );
+
+      showMessage(
+        'Invalid Password',
+        message
+      );
+
+      return;
+    }
+
+    const hasLetter =
+      /[A-Za-z]/.test(
+        password
+      );
+
+    const hasNumber =
+      /[0-9]/.test(
+        password
+      );
+
+    if (
+      !hasLetter ||
+      !hasNumber
+    ) {
+      const message =
+        'Password must contain at least one letter and one number.';
+
+      setErrorMessage(
+        message
+      );
+
+      showMessage(
+        'Invalid Password',
+        message
+      );
+
+      return;
+    }
+
+    if (
+      password !==
+      confirmPassword
+    ) {
+      const message =
+        'Passwords do not match.';
+
+      setErrorMessage(
+        message
+      );
+
+      showMessage(
+        'Passwords Do Not Match',
+        message
+      );
+
+      return;
+    }
+
+    try {
+      setResetting(
+        true
+      );
+
+      const data =
+        await resetPassword(
+          recoveryToken,
+          password,
+          confirmPassword
+        );
+
+      showMessage(
+        'Password Changed',
+        data?.message ||
+          'Your password has been changed successfully.'
+      );
+
+      router.replace(
+        '/'
+      );
+    } catch (error) {
+      console.log(
+        'RESET PASSWORD ERROR:',
+        error
+      );
+
+      let message =
+        'Unable to change your password. Please try again.';
+
+      if (
+        error instanceof Error
+      ) {
+        message =
+          error.message;
+      }
+
+      setErrorMessage(
+        message
+      );
+
+      showMessage(
+        'Reset Failed',
+        message
+      );
+    } finally {
+      setResetting(
+        false
+      );
+    }
   }
-}
 
   // ==========================================================
   // UI
@@ -386,7 +576,9 @@ export default function ResetPasswordScreen() {
           style={
             styles.safeArea
           }
-          edges={['top']}
+          edges={[
+            'top',
+          ]}
         >
           <StatusBar
             style="light"
@@ -397,7 +589,8 @@ export default function ResetPasswordScreen() {
               styles.flex
             }
             behavior={
-              Platform.OS === 'ios'
+              Platform.OS ===
+              'ios'
                 ? 'padding'
                 : undefined
             }
@@ -504,27 +697,65 @@ export default function ResetPasswordScreen() {
                   >
                     <Text
                       style={
+                        styles.stepLabel
+                      }
+                    >
+                      {codeVerified
+                        ? 'STEP 2 OF 2'
+                        : 'STEP 1 OF 2'}
+                    </Text>
+
+                    <Text
+                      style={
                         styles.title
                       }
                     >
-                      Reset Password
+                      {codeVerified
+                        ? 'Create New Password'
+                        : 'Verify Reset Code'}
                     </Text>
 
-                    <Text
-                      style={
-                        styles.description
-                      }
-                    >
-                      Enter the 6-digit code sent to
-                    </Text>
+                    {!codeVerified ? (
+                      <>
+                        <Text
+                          style={
+                            styles.description
+                          }
+                        >
+                          Enter the 6-digit code sent to
+                        </Text>
 
-                    <Text
-                      style={
-                        styles.emailText
-                      }
-                    >
-                      {email}
-                    </Text>
+                        <Text
+                          style={
+                            styles.emailText
+                          }
+                        >
+                          {email}
+                        </Text>
+                      </>
+                    ) : (
+                      <View
+                        style={
+                          styles.verifiedBox
+                        }
+                      >
+                        <MaterialIcons
+                          name="check-circle"
+                          size={20}
+                          color={
+                            COLORS.successText
+                          }
+                        />
+
+                        <Text
+                          style={
+                            styles.verifiedText
+                          }
+                        >
+                          Verification code confirmed
+                        </Text>
+                      </View>
+                    )}
 
                     {/* ERROR */}
 
@@ -544,232 +775,353 @@ export default function ResetPasswordScreen() {
                       </View>
                     ) : null}
 
-                    {/* OTP */}
+                    {/* ==================================================
+                        STEP 1 - OTP
+                    ================================================== */}
 
-                    <TouchableOpacity
-                      style={
-                        styles.codeArea
-                      }
-                      activeOpacity={1}
-                      onPress={() =>
-                        inputRef
-                          .current
-                          ?.focus()
-                      }
-                    >
-                      {Array.from({
-                        length:
-                          CODE_LENGTH,
-                      }).map(
-                        (
-                          _,
-                          index
-                        ) => {
-                          const digit =
-                            code[
+                    {!codeVerified && (
+                      <>
+                        <TouchableOpacity
+                          style={
+                            styles.codeArea
+                          }
+                          activeOpacity={
+                            1
+                          }
+                          onPress={() =>
+                            inputRef
+                              .current
+                              ?.focus()
+                          }
+                        >
+                          {Array.from({
+                            length:
+                              CODE_LENGTH,
+                          }).map(
+                            (
+                              _,
                               index
-                            ] || '';
+                            ) => {
+                              const digit =
+                                code[
+                                  index
+                                ] || '';
 
-                          const isActive =
-                            index ===
-                              code.length &&
-                            code.length <
-                              CODE_LENGTH;
+                              const isActive =
+                                index ===
+                                  code.length &&
+                                code.length <
+                                  CODE_LENGTH;
 
-                          return (
-                            <View
-                              key={
-                                index
+                              return (
+                                <View
+                                  key={
+                                    index
+                                  }
+                                  style={[
+                                    styles.codeBox,
+
+                                    isActive &&
+                                      styles.codeBoxActive,
+                                  ]}
+                                >
+                                  <Text
+                                    style={
+                                      styles.codeDigit
+                                    }
+                                  >
+                                    {digit}
+                                  </Text>
+                                </View>
+                              );
+                            }
+                          )}
+
+                          <TextInput
+                            ref={
+                              inputRef
+                            }
+                            value={
+                              code
+                            }
+                            onChangeText={
+                              handleCodeChange
+                            }
+                            keyboardType="number-pad"
+                            maxLength={
+                              CODE_LENGTH
+                            }
+                            autoFocus
+                            caretHidden
+                            editable={
+                              !verifying &&
+                              !resending
+                            }
+                            autoComplete="one-time-code"
+                            style={
+                              styles.hiddenInput
+                            }
+                          />
+                        </TouchableOpacity>
+
+                        <TouchableOpacity
+                          style={[
+                            styles.primaryButton,
+
+                            (
+                              verifying ||
+                              code.length !==
+                                CODE_LENGTH
+                            ) &&
+                              styles.disabledButton,
+                          ]}
+                          disabled={
+                            verifying ||
+                            code.length !==
+                              CODE_LENGTH
+                          }
+                          onPress={
+                            handleVerifyCode
+                          }
+                        >
+                          <Text
+                            style={
+                              styles.primaryButtonText
+                            }
+                          >
+                            {verifying
+                              ? 'Verifying Code...'
+                              : 'Verify Code'}
+                          </Text>
+                        </TouchableOpacity>
+
+                        <View
+                          style={
+                            styles.resendRow
+                          }
+                        >
+                          <Text
+                            style={
+                              styles.resendLabel
+                            }
+                          >
+                            Didn't receive the code?{' '}
+                          </Text>
+
+                          <TouchableOpacity
+                            disabled={
+                              resending ||
+                              verifying
+                            }
+                            onPress={
+                              handleResendCode
+                            }
+                          >
+                            <Text
+                              style={
+                                styles.resendText
                               }
-                              style={[
-                                styles.codeBox,
-
-                                isActive &&
-                                  styles.codeBoxActive,
-                              ]}
                             >
-                              <Text
-                                style={
-                                  styles.codeDigit
-                                }
-                              >
-                                {digit}
-                              </Text>
-                            </View>
-                          );
-                        }
-                      )}
+                              {resending
+                                ? 'Sending...'
+                                : 'Resend Code'}
+                            </Text>
+                          </TouchableOpacity>
+                        </View>
+                      </>
+                    )}
 
-                      <TextInput
-                        ref={
-                          inputRef
-                        }
-                        value={
-                          code
-                        }
-                        onChangeText={
-                          handleCodeChange
-                        }
-                        keyboardType="number-pad"
-                        maxLength={
-                          CODE_LENGTH
-                        }
-                        autoFocus
-                        caretHidden
-                        style={
-                          styles.hiddenInput
-                        }
-                      />
-                    </TouchableOpacity>
+                    {/* ==================================================
+                        STEP 2 - PASSWORD
+                    ================================================== */}
 
-                    {/* NEW PASSWORD */}
-
-                    <Text
-                      style={
-                        styles.label
-                      }
-                    >
-                      New Password
-                    </Text>
-
-                    <View
-                      style={
-                        styles.passwordBox
-                      }
-                    >
-                      <TextInput
-                        style={
-                          styles.passwordInput
-                        }
-                        placeholder="Enter new password"
-                        placeholderTextColor={
-                          COLORS.placeholder
-                        }
-                        value={
-                          password
-                        }
-                        secureTextEntry={
-                          !showPassword
-                        }
-                        autoCapitalize="none"
-                        autoCorrect={
-                          false
-                        }
-                        onChangeText={
-                          setPassword
-                        }
-                      />
-
-                      <TouchableOpacity
-                        onPress={() =>
-                          setShowPassword(
-                            current =>
-                              !current
-                          )
-                        }
-                      >
+                    {codeVerified && (
+                      <>
                         <Text
                           style={
-                            styles.showText
+                            styles.label
                           }
                         >
-                          {showPassword
-                            ? 'Hide'
-                            : 'Show'}
+                          New Password
                         </Text>
-                      </TouchableOpacity>
-                    </View>
 
-                    {/* CONFIRM PASSWORD */}
+                        <View
+                          style={
+                            styles.passwordBox
+                          }
+                        >
+                          <TextInput
+                            style={
+                              styles.passwordInput
+                            }
+                            placeholder="Enter new password"
+                            placeholderTextColor={
+                              COLORS.placeholder
+                            }
+                            value={
+                              password
+                            }
+                            secureTextEntry={
+                              !showPassword
+                            }
+                            autoCapitalize="none"
+                            autoCorrect={
+                              false
+                            }
+                            autoComplete="new-password"
+                            editable={
+                              !resetting
+                            }
+                            onChangeText={value => {
+                              setPassword(
+                                value
+                              );
 
-                    <Text
-                      style={
-                        styles.confirmLabel
-                      }
-                    >
-                      Confirm Password
-                    </Text>
+                              setErrorMessage(
+                                ''
+                              );
+                            }}
+                          />
 
-                    <View
-                      style={
-                        styles.passwordBox
-                      }
-                    >
-                      <TextInput
-                        style={
-                          styles.passwordInput
-                        }
-                        placeholder="Confirm new password"
-                        placeholderTextColor={
-                          COLORS.placeholder
-                        }
-                        value={
-                          confirmPassword
-                        }
-                        secureTextEntry={
-                          !showConfirmPassword
-                        }
-                        autoCapitalize="none"
-                        autoCorrect={
-                          false
-                        }
-                        onChangeText={
-                          setConfirmPassword
-                        }
-                      />
+                          <TouchableOpacity
+                            disabled={
+                              resetting
+                            }
+                            onPress={() =>
+                              setShowPassword(
+                                current =>
+                                  !current
+                              )
+                            }
+                          >
+                            <Text
+                              style={
+                                styles.showText
+                              }
+                            >
+                              {showPassword
+                                ? 'Hide'
+                                : 'Show'}
+                            </Text>
+                          </TouchableOpacity>
+                        </View>
 
-                      <TouchableOpacity
-                        onPress={() =>
-                          setShowConfirmPassword(
-                            current =>
-                              !current
-                          )
-                        }
-                      >
                         <Text
                           style={
-                            styles.showText
+                            styles.passwordHint
                           }
                         >
-                          {showConfirmPassword
-                            ? 'Hide'
-                            : 'Show'}
+                          At least 8 characters with one letter and one number.
                         </Text>
-                      </TouchableOpacity>
-                    </View>
 
-                    {/* BUTTON */}
+                        <Text
+                          style={
+                            styles.confirmLabel
+                          }
+                        >
+                          Confirm Password
+                        </Text>
 
-                    <TouchableOpacity
-                      style={[
-                        styles.primaryButton,
+                        <View
+                          style={
+                            styles.passwordBox
+                          }
+                        >
+                          <TextInput
+                            style={
+                              styles.passwordInput
+                            }
+                            placeholder="Confirm new password"
+                            placeholderTextColor={
+                              COLORS.placeholder
+                            }
+                            value={
+                              confirmPassword
+                            }
+                            secureTextEntry={
+                              !showConfirmPassword
+                            }
+                            autoCapitalize="none"
+                            autoCorrect={
+                              false
+                            }
+                            autoComplete="new-password"
+                            editable={
+                              !resetting
+                            }
+                            onChangeText={value => {
+                              setConfirmPassword(
+                                value
+                              );
 
-                        loading &&
-                          styles.disabledButton,
-                      ]}
-                      disabled={
-                        loading
-                      }
-                      onPress={
-                        handleResetPassword
-                      }
-                    >
-                      <Text
-                        style={
-                          styles.primaryButtonText
-                        }
-                      >
-                        {loading
-                          ? 'Resetting Password...'
-                          : 'Reset Password'}
-                      </Text>
-                    </TouchableOpacity>
+                              setErrorMessage(
+                                ''
+                              );
+                            }}
+                            onSubmitEditing={
+                              handleResetPassword
+                            }
+                          />
+
+                          <TouchableOpacity
+                            disabled={
+                              resetting
+                            }
+                            onPress={() =>
+                              setShowConfirmPassword(
+                                current =>
+                                  !current
+                              )
+                            }
+                          >
+                            <Text
+                              style={
+                                styles.showText
+                              }
+                            >
+                              {showConfirmPassword
+                                ? 'Hide'
+                                : 'Show'}
+                            </Text>
+                          </TouchableOpacity>
+                        </View>
+
+                        <TouchableOpacity
+                          style={[
+                            styles.primaryButton,
+
+                            resetting &&
+                              styles.disabledButton,
+                          ]}
+                          disabled={
+                            resetting
+                          }
+                          onPress={
+                            handleResetPassword
+                          }
+                        >
+                          <Text
+                            style={
+                              styles.primaryButtonText
+                            }
+                          >
+                            {resetting
+                              ? 'Changing Password...'
+                              : 'Change Password'}
+                          </Text>
+                        </TouchableOpacity>
+                      </>
+                    )}
 
                     {/* BACK */}
 
                     <TouchableOpacity
                       style={
                         styles.backButton
+                      }
+                      disabled={
+                        verifying ||
+                        resetting
                       }
                       onPress={() =>
                         router.replace(
@@ -986,8 +1338,7 @@ const styles =
 
       minHeight: 644,
 
-      paddingHorizontal:
-        24,
+      paddingHorizontal: 24,
 
       paddingTop: 91,
 
@@ -1002,14 +1353,29 @@ const styles =
 
       borderRadius: 25,
 
-      paddingHorizontal:
-        22,
+      paddingHorizontal: 22,
 
-      paddingTop: 25,
+      paddingTop: 23,
 
       paddingBottom: 22,
 
       elevation: 2,
+    },
+
+    stepLabel: {
+      marginBottom: 6,
+
+      color:
+        COLORS.redButton,
+
+      fontFamily:
+        'Poppins_600SemiBold',
+
+      fontSize: 9,
+
+      letterSpacing: 1,
+
+      textAlign: 'center',
     },
 
     title: {
@@ -1019,10 +1385,9 @@ const styles =
       fontFamily:
         'Poppins_700Bold',
 
-      fontSize: 21,
+      fontSize: 20,
 
-      textAlign:
-        'center',
+      textAlign: 'center',
     },
 
     description: {
@@ -1036,14 +1401,13 @@ const styles =
 
       fontSize: 11,
 
-      textAlign:
-        'center',
+      textAlign: 'center',
     },
 
     emailText: {
       marginTop: 3,
 
-      marginBottom: 13,
+      marginBottom: 16,
 
       color:
         COLORS.redButton,
@@ -1053,8 +1417,42 @@ const styles =
 
       fontSize: 11,
 
-      textAlign:
-        'center',
+      textAlign: 'center',
+    },
+
+    verifiedBox: {
+      flexDirection: 'row',
+
+      alignItems: 'center',
+      justifyContent: 'center',
+
+      marginTop: 15,
+      marginBottom: 20,
+
+      paddingVertical: 10,
+      paddingHorizontal: 12,
+
+      borderWidth: 1,
+
+      borderColor:
+        COLORS.successBorder,
+
+      borderRadius: 8,
+
+      backgroundColor:
+        COLORS.successBackground,
+    },
+
+    verifiedText: {
+      marginLeft: 6,
+
+      color:
+        COLORS.successText,
+
+      fontFamily:
+        'Inter_500Medium',
+
+      fontSize: 11,
     },
 
     errorContainer: {
@@ -1083,21 +1481,20 @@ const styles =
 
       fontSize: 10,
 
-      textAlign:
-        'center',
+      lineHeight: 15,
+
+      textAlign: 'center',
     },
 
     codeArea: {
-      position:
-        'relative',
+      position: 'relative',
 
-      flexDirection:
-        'row',
+      flexDirection: 'row',
 
       justifyContent:
         'space-between',
 
-      marginBottom: 22,
+      marginBottom: 5,
     },
 
     codeBox: {
@@ -1111,14 +1508,16 @@ const styles =
 
       borderRadius: 10,
 
-      alignItems:
-        'center',
+      alignItems: 'center',
+      justifyContent: 'center',
 
-      justifyContent:
-        'center',
+      backgroundColor:
+        COLORS.white,
     },
 
     codeBoxActive: {
+      borderWidth: 1.5,
+
       borderColor:
         COLORS.redButton,
 
@@ -1137,13 +1536,40 @@ const styles =
     },
 
     hiddenInput: {
-      position:
-        'absolute',
+      position: 'absolute',
 
       width: 1,
       height: 1,
 
       opacity: 0,
+    },
+
+    resendRow: {
+      flexDirection: 'row',
+
+      justifyContent: 'center',
+
+      marginTop: 16,
+    },
+
+    resendLabel: {
+      color:
+        COLORS.muted,
+
+      fontFamily:
+        'Inter_400Regular',
+
+      fontSize: 10,
+    },
+
+    resendText: {
+      color:
+        COLORS.redButton,
+
+      fontFamily:
+        'Inter_600SemiBold',
+
+      fontSize: 10,
     },
 
     label: {
@@ -1174,11 +1600,9 @@ const styles =
     passwordBox: {
       height: 43,
 
-      flexDirection:
-        'row',
+      flexDirection: 'row',
 
-      alignItems:
-        'center',
+      alignItems: 'center',
 
       paddingLeft: 15,
       paddingRight: 13,
@@ -1211,6 +1635,20 @@ const styles =
           : undefined,
     } as any,
 
+    passwordHint: {
+      marginTop: 6,
+
+      color:
+        COLORS.muted,
+
+      fontFamily:
+        'Inter_400Regular',
+
+      fontSize: 9,
+
+      lineHeight: 13,
+    },
+
     showText: {
       color:
         COLORS.muted,
@@ -1224,22 +1662,20 @@ const styles =
     primaryButton: {
       height: 50,
 
-      marginTop: 24,
+      marginTop: 22,
 
       borderRadius: 7,
 
       backgroundColor:
         COLORS.redButton,
 
-      alignItems:
-        'center',
+      alignItems: 'center',
 
-      justifyContent:
-        'center',
+      justifyContent: 'center',
     },
 
     disabledButton: {
-      opacity: 0.6,
+      opacity: 0.5,
     },
 
     primaryButtonText: {
@@ -1253,13 +1689,11 @@ const styles =
     },
 
     backButton: {
-      alignSelf:
-        'center',
+      alignSelf: 'center',
 
       marginTop: 18,
 
       paddingVertical: 5,
-
       paddingHorizontal: 8,
     },
 

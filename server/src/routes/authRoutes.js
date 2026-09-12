@@ -9,6 +9,7 @@ const {
   login,
   logout,
   forgotPassword,
+  verifyRecoveryCode,
   resetPassword,
   getProfile,
   updateProfile,
@@ -26,38 +27,39 @@ const {
 // PUBLIC AUTH ROUTES
 // ============================================================
 
-// Create account
 router.post(
   '/register',
   register
 );
 
-// Verify signup OTP
 router.post(
   '/verify-email',
   verifyEmail
 );
 
-// Resend signup verification OTP
 router.post(
   '/resend-verification',
   resendVerification
 );
 
-// Login
 router.post(
   '/login',
   loginLimiter,
   login
 );
 
-// Send password recovery OTP
 router.post(
   '/forgot-password',
   forgotPassword
 );
 
-// Verify recovery OTP and change password
+// Verify recovery OTP FIRST
+router.post(
+  '/verify-recovery-code',
+  verifyRecoveryCode
+);
+
+// Change password only AFTER OTP verification
 router.post(
   '/reset-password',
   resetPassword
@@ -67,21 +69,18 @@ router.post(
 // PROTECTED AUTH ROUTES
 // ============================================================
 
-// Logout
 router.post(
   '/logout',
   requireAuth,
   logout
 );
 
-// Current profile
 router.get(
   '/me',
   requireAuth,
   getProfile
 );
 
-// Update profile
 router.patch(
   '/me',
   requireAuth,
