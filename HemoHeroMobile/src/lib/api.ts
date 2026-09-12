@@ -2,9 +2,12 @@
 // HEMO-HERO API CLIENT
 // ============================================================
 
+import { Platform } from 'react-native';
+
 const API_URL =
-  process.env.EXPO_PUBLIC_API_URL ||
-  'http://localhost:5000';
+  Platform.OS === 'web'
+    ? 'http://localhost:5000'
+    : process.env.EXPO_PUBLIC_API_URL || 'http://localhost:5000';
 
 // ============================================================
 // TYPES

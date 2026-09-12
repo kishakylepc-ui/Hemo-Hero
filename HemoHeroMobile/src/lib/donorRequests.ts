@@ -1,8 +1,10 @@
-const API_URL =
-  (
-    process.env.EXPO_PUBLIC_API_URL ||
-    'http://localhost:5000'
-  ).replace(/\/$/, '');
+import { Platform } from 'react-native';
+
+const API_URL = (
+  Platform.OS === 'web'
+    ? 'http://localhost:5000'
+    : process.env.EXPO_PUBLIC_API_URL || 'http://localhost:5000'
+).replace(/\/+$/, '');
 
 // ============================================================
 // TYPES
@@ -10,37 +12,18 @@ const API_URL =
 
 export type DonorBloodRequest = {
   id: string;
-
   blood_type: string;
-
   units_needed: number;
-
   facility_name: string;
-
   facility_type?: string | null;
-
   facility_address?: string | null;
-
   facility_latitude?: number | null;
-
   facility_longitude?: number | null;
-
-  urgency:
-    | 'urgent'
-    | 'needed';
-
+  urgency: 'urgent' | 'needed';
   needed_date?: string | null;
-
   needed_time?: string | null;
-
   message?: string | null;
-
-  status:
-    | 'active'
-    | 'fulfilled'
-    | 'cancelled'
-    | 'expired';
-
+  status: 'active' | 'fulfilled' | 'cancelled' | 'expired';
   created_at: string;
 };
 
@@ -52,18 +35,11 @@ export type DonorResponseStatus =
 
 export type DonorResponse = {
   id: string;
-
   request_id: string;
-
   donor_id: string;
-
-  status:
-    DonorResponseStatus;
-
+  status: DonorResponseStatus;
   message?: string | null;
-
   created_at: string;
-
   updated_at: string;
 };
 
@@ -75,38 +51,26 @@ async function request(
   path: string,
   options: RequestInit = {}
 ) {
-  const response =
-    await fetch(
-      `${API_URL}${path}`,
-      {
-        ...options,
-
-        headers: {
-          Accept:
-            'application/json',
-
-          'Content-Type':
-            'application/json',
-
-          ...(options.headers ||
-            {}),
-        },
-      }
-    );
+  const response = await fetch(`${API_URL}${path}`, {
+    ...options,
+    headers: {
+      Accept: 'application/json',
+      'Content-Type': 'application/json',
+      ...(options.headers || {}),
+    },
+  });
 
   let data: any = null;
 
   try {
-    data =
-      await response.json();
+    data = await response.json();
   } catch {
     data = null;
   }
 
   if (!response.ok) {
     throw new Error(
-      data?.error ||
-        'Unable to complete request.'
+      data?.error || 'Unable to complete request.'
     );
   }
 
@@ -122,15 +86,11 @@ export async function getDonorViewBloodRequest(
   requestId: string
 ) {
   return request(
-    `/api/requests/${encodeURIComponent(
-      requestId
-    )}/donor-view`,
+    `/api/requests/${encodeURIComponent(requestId)}/donor-view`,
     {
       method: 'GET',
-
       headers: {
-        Authorization:
-          `Bearer ${accessToken}`,
+        Authorization: `Bearer ${accessToken}`,
       },
     }
   );
@@ -145,15 +105,11 @@ export async function getMyDonorResponse(
   requestId: string
 ) {
   return request(
-    `/api/requests/${encodeURIComponent(
-      requestId
-    )}/my-response`,
+    `/api/requests/${encodeURIComponent(requestId)}/my-response`,
     {
       method: 'GET',
-
       headers: {
-        Authorization:
-          `Bearer ${accessToken}`,
+        Authorization: `Bearer ${accessToken}`,
       },
     }
   );
@@ -169,23 +125,15 @@ export async function respondToBloodRequest(
   message?: string
 ) {
   return request(
-    `/api/requests/${encodeURIComponent(
-      requestId
-    )}/respond`,
+    `/api/requests/${encodeURIComponent(requestId)}/respond`,
     {
       method: 'POST',
-
       headers: {
-        Authorization:
-          `Bearer ${accessToken}`,
+        Authorization: `Bearer ${accessToken}`,
       },
-
-      body:
-        JSON.stringify({
-          message:
-            message?.trim() ||
-            null,
-        }),
+      body: JSON.stringify({
+        message: message?.trim() || null,
+      }),
     }
   );
 }
@@ -199,15 +147,11 @@ export async function withdrawDonorResponse(
   requestId: string
 ) {
   return request(
-    `/api/requests/${encodeURIComponent(
-      requestId
-    )}/response/withdraw`,
+    `/api/requests/${encodeURIComponent(requestId)}/response/withdraw`,
     {
       method: 'PATCH',
-
       headers: {
-        Authorization:
-          `Bearer ${accessToken}`,
+        Authorization: `Bearer ${accessToken}`,
       },
     }
   );

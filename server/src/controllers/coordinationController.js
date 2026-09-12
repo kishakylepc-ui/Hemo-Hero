@@ -1179,7 +1179,178 @@ async function setCoordinationSchedule(
 // EXPORTS
 // ============================================================
 
+// ============================================================
+// ACCEPTED DONATION CONVERSATIONS
+// GET /api/requests/coordination/inbox
+// Uses existing tables and explicit safe fields; no client-supplied user ID.
+// ============================================================
+
+const INBOX_RESPONSE_FIELDS = 'id,request_id,donor_id,status,created_at,updated_at';
+const INBOX_REQUEST_FIELDS = 'id,requester_id,blood_type,units_needed,facility_name,status,created_at';
+const INBOX_PERSON_FIELDS = 'id,first_name,middle_name,last_name,suffix,city,province';
+const INBOX_SCHEDULE_FIELDS = 'id,request_id,response_id,scheduled_at,note,created_by,updated_by,created_at,updated_at';
+
+async function readInboxRows(makeQuery) {
+  const rows = [];
+  let offset = 0;
+  // Continue until empty, including when Supabase applies a smaller row cap.
+  while (true) {
+    const { data, error } = await makeQuery().range(offset, offset + 199);
+    if (error) throw error;
+    if (!data?.length) return rows;
+    rows.push(...data);
+    offset += data.length;
+  }
+}
+
+async function readInboxRowsByIds(ids, makeQuery) {
+  const uniqueIds = [...new Set(ids.filter(Boolean))];
+  const rows = [];
+  // Keep PostgREST IN filters reasonably sized.
+  for (let start = 0; start < uniqueIds.length; start += 100) {
+    const batch = uniqueIds.slice(start, start + 100);
+    rows.push(...await readInboxRows(() => makeQuery(batch)));
+  }
+  return rows;
+}
+
+async function mapInboxWithConcurrency(items, mapItem) {
+  const results = new Array(items.length);
+  let next = 0;
+  await Promise.all(Array.from({ length: Math.min(6, items.length) }, async () => {
+    while (next < items.length) {
+      const index = next++;
+      results[index] = await mapItem(items[index]);
+    }
+  }));
+  return results;
+}
+
+function inboxTimestamp(value) {
+  const timestamp = Date.parse(value || '');
+  return Number.isFinite(timestamp) ? timestamp : 0;
+}
+
+async function getCoordinationInbox(req, res) {
+  const viewerId = getAuthenticatedUserId(req);
+  if (!viewerId) return res.status(401).json({ error: 'Unauthorized' });
+
+  try {
+    // Scope both entry queries to the authenticated user. Never scan all offers.
+    const [ownedRequests, donorResponses] = await Promise.all([
+      readInboxRows(() => supabaseAdmin.from('blood_requests')
+        .select('id').eq('requester_id', viewerId).order('id', { ascending: true })),
+      readInboxRows(() => supabaseAdmin.from('blood_request_responses')
+        .select(INBOX_RESPONSE_FIELDS).eq('donor_id', viewerId)
+        .eq('status', 'accepted').order('id', { ascending: true })),
+    ]);
+
+    const requesterResponses = await readInboxRowsByIds(ownedRequests.map(row => row.id),
+      ids => supabaseAdmin.from('blood_request_responses').select(INBOX_RESPONSE_FIELDS)
+        .in('request_id', ids).eq('status', 'accepted').order('id', { ascending: true }));
+
+    const responses = [...new Map([...donorResponses, ...requesterResponses]
+      .map(response => [response.id, response])).values()];
+    if (!responses.length) return res.status(200).json({ count: 0, conversations: [] });
+
+    const requests = await readInboxRowsByIds(responses.map(row => row.request_id),
+      ids => supabaseAdmin.from('blood_requests').select(INBOX_REQUEST_FIELDS)
+        .in('id', ids).order('id', { ascending: true }));
+    const requestMap = new Map(requests.map(row => [row.id, row]));
+
+    // Recheck membership before loading messages, profiles, or schedules.
+    const visibleResponses = responses.filter(response => {
+      const request = requestMap.get(response.request_id);
+      return request && response.status === 'accepted' &&
+        (request.requester_id === viewerId || response.donor_id === viewerId);
+    });
+    if (!visibleResponses.length) return res.status(200).json({ count: 0, conversations: [] });
+
+    const personIds = visibleResponses.map(response => {
+      const request = requestMap.get(response.request_id);
+      return request.requester_id === viewerId ? response.donor_id : request.requester_id;
+    });
+    const donorIds = visibleResponses.filter(response =>
+      requestMap.get(response.request_id).requester_id === viewerId).map(row => row.donor_id);
+
+    const [people, applications, schedules] = await Promise.all([
+      readInboxRowsByIds(personIds, ids => supabaseAdmin.from('users')
+        .select(INBOX_PERSON_FIELDS).in('id', ids).order('id', { ascending: true })),
+      readInboxRowsByIds(donorIds, ids => supabaseAdmin.from('donor_applications')
+        .select('user_id,status,blood_type').in('user_id', ids).order('user_id', { ascending: true })),
+      readInboxRowsByIds(visibleResponses.map(row => row.id), ids =>
+        supabaseAdmin.from('blood_request_coordination_schedules').select(INBOX_SCHEDULE_FIELDS)
+          .in('response_id', ids).order('id', { ascending: true })),
+    ]);
+    const personMap = new Map(people.map(row => [row.id, row]));
+    const applicationMap = new Map(applications.map(row => [row.user_id, row]));
+    const scheduleMap = new Map(schedules.map(row => [row.response_id, row]));
+
+    const conversations = await mapInboxWithConcurrency(visibleResponses, async response => {
+      const request = requestMap.get(response.request_id);
+      const viewerRole = request.requester_id === viewerId ? 'requester' : 'donor';
+      const otherId = viewerRole === 'requester' ? response.donor_id : request.requester_id;
+      const otherRole = viewerRole === 'requester' ? 'donor' : 'requester';
+      const application = applicationMap.get(otherId);
+      const otherParticipant = {
+        ...buildSafeProfile(personMap.get(otherId) || { id: otherId }),
+        role: otherRole,
+        ...(otherRole === 'donor' ? {
+          verified: application?.status === 'approved',
+          blood_type: application?.blood_type || null,
+        } : {}),
+      };
+      const candidateSchedule = scheduleMap.get(response.id);
+      const schedule = candidateSchedule?.request_id === request.id ? candidateSchedule : null;
+
+      // One latest row per conversation: no full chat-history download or global limit
+      // that could omit quieter conversations. Both IDs must match.
+      const { data: message, error: messageError } = await supabaseAdmin
+        .from('blood_request_coordination_messages')
+        .select('id,message,created_at,sender_id')
+        .eq('request_id', request.id).eq('response_id', response.id)
+        .order('created_at', { ascending: false }).order('id', { ascending: false })
+        .limit(1).maybeSingle();
+      if (messageError) throw messageError;
+
+      const latestMessage = message ? {
+        id: message.id,
+        message: message.message,
+        created_at: message.created_at,
+        is_mine: message.sender_id === viewerId,
+      } : null;
+      const activity = [message?.created_at, schedule?.updated_at, schedule?.created_at,
+        response.updated_at, response.created_at, request.created_at]
+        .filter(value => inboxTimestamp(value) > 0)
+        .sort((a, b) => inboxTimestamp(b) - inboxTimestamp(a))[0] || null;
+
+      return {
+        request_id: request.id,
+        response_id: response.id,
+        viewer_role: viewerRole,
+        other_participant: otherParticipant,
+        blood_type: request.blood_type,
+        units_needed: request.units_needed,
+        facility_name: request.facility_name,
+        request_status: request.status,
+        response_status: response.status,
+        latest_message: latestMessage,
+        schedule,
+        last_activity_at: activity,
+      };
+    });
+    conversations.sort((a, b) => inboxTimestamp(b.last_activity_at) - inboxTimestamp(a.last_activity_at)
+      || a.response_id.localeCompare(b.response_id));
+    return res.status(200).json({ count: conversations.length, conversations });
+  } catch (error) {
+    // Do not return database errors, profile values, or tokens to the client.
+    console.error('GET COORDINATION INBOX ERROR:', error?.code || 'QUERY_FAILED');
+    return res.status(500).json({ error: 'Unable to load donation conversations. Please try again.' });
+  }
+}
+
 module.exports = {
+  getCoordinationInbox,
   getCoordination,
 
   getCoordinationMessages,

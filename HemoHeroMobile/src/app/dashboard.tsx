@@ -64,10 +64,6 @@ import type {
 } from '../lib/donorRequests';
 
 import {
-  getRequestDonorResponses,
-} from '../lib/requestResponses';
-
-import {
   getMyDonorApplication,
 } from '../lib/donorApplication';
 
@@ -882,79 +878,9 @@ export default function DashboardScreen() {
     );
   }
 
-  // ==========================================================
-  // CHAT
-  //
-  // For now the Chat tab opens the active accepted coordination.
-  // The dedicated multi-conversation inbox is the next screen.
-  // ==========================================================
-
-  async function handleChat() {
-    try {
-      const donorAccepted =
-        respondedRequests.find(
-          item =>
-            item.response.status ===
-            'accepted'
-        );
-
-      if (donorAccepted) {
-        router.push(
-          `/blood-request/${donorAccepted.request.id}/coordination/${donorAccepted.response.id}` as any
-        );
-
-        return;
-      }
-
-      if (activeRequest) {
-        const token =
-          await getAccessToken();
-
-        if (!token) {
-          router.replace('/');
-
-          return;
-        }
-
-        const responseData =
-          await getRequestDonorResponses(
-            token,
-            activeRequest.id
-          );
-
-        const acceptedResponse =
-          responseData.responses?.find(
-            response =>
-              response.status ===
-              'accepted'
-          );
-
-        if (acceptedResponse) {
-          router.push(
-            `/blood-request/${activeRequest.id}/coordination/${acceptedResponse.id}` as any
-          );
-
-          return;
-        }
-      }
-
-      showMessage(
-        'No Active Chats',
-        'A chat becomes available after a donor offer is accepted.'
-      );
-    } catch (error) {
-      console.log(
-        'DASHBOARD CHAT ERROR:',
-        error
-      );
-
-      showMessage(
-        'Unable to Open Chat',
-        error instanceof Error
-          ? error.message
-          : 'Unable to open your active coordination.'
-      );
-    }
+  // The Chat tab opens the full inbox. Per-request Open Chat actions stay direct.
+  function handleChat() {
+    router.push('/chat' as any);
   }
 
   // ==========================================================

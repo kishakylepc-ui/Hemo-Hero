@@ -34,6 +34,8 @@ const {
   require('../controllers/donorResponseController');
 
 const {
+  getCoordinationInbox,
+
   getCoordination,
 
   getCoordinationMessages,
@@ -64,6 +66,9 @@ const router =
 router.use(
   requireAuth
 );
+
+// Inbox belongs before parameterized routes and after requireAuth.
+router.get('/coordination/inbox', getCoordinationInbox);
 
 // ============================================================
 // CREATE BLOOD REQUEST

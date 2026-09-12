@@ -1,12 +1,14 @@
+import { Platform } from 'react-native';
+
 // ============================================================
 // API URL
 // ============================================================
 
-const API_URL =
-  (
-    process.env.EXPO_PUBLIC_API_URL ||
-    'http://localhost:5000'
-  ).replace(/\/$/, '');
+const API_URL = (
+  Platform.OS === 'web'
+    ? 'http://localhost:5000'
+    : process.env.EXPO_PUBLIC_API_URL || 'http://localhost:5000'
+).replace(/\/+$/, '');
 
 // ============================================================
 // TYPES
@@ -14,50 +16,26 @@ const API_URL =
 
 export type NearbyBloodRequest = {
   id: string;
-
   requester_id: string;
-
   blood_type: string;
-
   units_needed: number;
-
   facility_name: string;
-
   facility_type?: string | null;
-
   facility_address?: string | null;
-
   facility_latitude: number;
-
   facility_longitude: number;
-
-  urgency:
-    | 'urgent'
-    | 'needed';
-
+  urgency: 'urgent' | 'needed';
   needed_date?: string | null;
-
   needed_time?: string | null;
-
   message?: string | null;
-
-  status:
-    | 'active'
-    | 'fulfilled'
-    | 'cancelled'
-    | 'expired';
-
+  status: 'active' | 'fulfilled' | 'cancelled' | 'expired';
   created_at: string;
-
   distance_km: number;
 };
 
 export type NearbyBloodRequestResponse = {
-  requests:
-    NearbyBloodRequest[];
-
+  requests: NearbyBloodRequest[];
   count: number;
-
   search: {
     latitude: number;
     longitude: number;
@@ -83,66 +61,35 @@ export async function getNearbyBloodRequests(
     `&radius=${encodeURIComponent(radiusKm)}` +
     `&limit=${encodeURIComponent(limit)}`;
 
-  const response =
-    await fetch(url, {
-      method: 'GET',
-
-      headers: {
-        Accept:
-          'application/json',
-
-        Authorization:
-          `Bearer ${accessToken}`,
-      },
-    });
+  const response = await fetch(url, {
+    method: 'GET',
+    headers: {
+      Accept: 'application/json',
+      Authorization: `Bearer ${accessToken}`,
+    },
+  });
 
   let data: any = null;
 
   try {
-    data =
-      await response.json();
+    data = await response.json();
   } catch {
     data = null;
   }
 
   if (!response.ok) {
     throw new Error(
-      data?.error ||
-        'Unable to load nearby blood requests.'
+      data?.error || 'Unable to load nearby blood requests.'
     );
   }
 
   return {
-    requests:
-      Array.isArray(
-        data?.requests
-      )
-        ? data.requests
-        : [],
-
-    count:
-      Number(
-        data?.count || 0
-      ),
-
+    requests: Array.isArray(data?.requests) ? data.requests : [],
+    count: Number(data?.count || 0),
     search: {
-      latitude:
-        Number(
-          data?.search?.latitude ||
-            latitude
-        ),
-
-      longitude:
-        Number(
-          data?.search?.longitude ||
-            longitude
-        ),
-
-      radius_km:
-        Number(
-          data?.search?.radius_km ||
-            radiusKm
-        ),
+      latitude: Number(data?.search?.latitude || latitude),
+      longitude: Number(data?.search?.longitude || longitude),
+      radius_km: Number(data?.search?.radius_km || radiusKm),
     },
   };
 }
