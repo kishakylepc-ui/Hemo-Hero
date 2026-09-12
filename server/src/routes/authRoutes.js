@@ -1,6 +1,15 @@
-const express = require('express');
+const express =
+  require('express');
 
-const router = express.Router();
+const multer =
+  require('multer');
+
+const router =
+  express.Router();
+
+// ============================================================
+// AUTH CONTROLLER
+// ============================================================
 
 const {
   register,
@@ -13,15 +22,130 @@ const {
   resetPassword,
   getProfile,
   updateProfile,
-} = require('../controllers/authController');
+} = require(
+  '../controllers/authController'
+);
+
+// ============================================================
+// PROFILE PHOTO CONTROLLER
+// ============================================================
+
+const {
+  uploadProfilePhoto,
+  deleteProfilePhoto,
+} = require(
+  '../controllers/profilePhotoController'
+);
+
+// ============================================================
+// MIDDLEWARE
+// ============================================================
 
 const {
   requireAuth,
-} = require('../middleware/authMiddleware');
+} = require(
+  '../middleware/authMiddleware'
+);
 
 const {
   loginLimiter,
-} = require('../middleware/loginRateLimiter');
+} = require(
+  '../middleware/loginRateLimiter'
+);
+
+// ============================================================
+// PROFILE PHOTO UPLOAD
+// ============================================================
+
+const MAX_PROFILE_PHOTO_SIZE =
+  5 * 1024 * 1024;
+
+const profilePhotoUploader =
+  multer({
+    storage:
+      multer.memoryStorage(),
+
+    limits: {
+      fileSize:
+        MAX_PROFILE_PHOTO_SIZE,
+
+      files:
+        1,
+    },
+  });
+
+// ------------------------------------------------------------
+// MULTER ERROR HANDLER
+// ------------------------------------------------------------
+
+function handleProfilePhotoUpload(
+  req,
+  res,
+  next
+) {
+  const middleware =
+    profilePhotoUploader.single(
+      'photo'
+    );
+
+  middleware(
+    req,
+    res,
+    error => {
+      if (!error) {
+        return next();
+      }
+
+      // ------------------------------------------------------
+      // FILE TOO LARGE
+      // ------------------------------------------------------
+
+      if (
+        error instanceof
+          multer.MulterError &&
+        error.code ===
+          'LIMIT_FILE_SIZE'
+      ) {
+        return res
+          .status(413)
+          .json({
+            error:
+              'Profile photo must be 5 MB or smaller.',
+          });
+      }
+
+      // ------------------------------------------------------
+      // TOO MANY FILES
+      // ------------------------------------------------------
+
+      if (
+        error instanceof
+          multer.MulterError &&
+        error.code ===
+          'LIMIT_FILE_COUNT'
+      ) {
+        return res
+          .status(400)
+          .json({
+            error:
+              'Please upload only one profile photo.',
+          });
+      }
+
+      console.error(
+        'PROFILE PHOTO MULTER ERROR:',
+        error
+      );
+
+      return res
+        .status(400)
+        .json({
+          error:
+            'Unable to process the selected profile photo.',
+        });
+    }
+  );
+}
 
 // ============================================================
 // PUBLIC AUTH ROUTES
@@ -53,13 +177,15 @@ router.post(
   forgotPassword
 );
 
-// Verify recovery OTP FIRST
+// Verify recovery OTP first.
+
 router.post(
   '/verify-recovery-code',
   verifyRecoveryCode
 );
 
-// Change password only AFTER OTP verification
+// Change password only after OTP verification.
+
 router.post(
   '/reset-password',
   resetPassword
@@ -87,4 +213,38 @@ router.patch(
   updateProfile
 );
 
-module.exports = router;
+// ============================================================
+// PROFILE PHOTO
+// ============================================================
+
+// ------------------------------------------------------------
+// UPLOAD / REPLACE
+//
+// multipart/form-data
+// field name: photo
+// max size: 5 MB
+// ------------------------------------------------------------
+
+router.post(
+  '/profile-photo',
+  requireAuth,
+  handleProfilePhotoUpload,
+  uploadProfilePhoto
+);
+
+// ------------------------------------------------------------
+// REMOVE
+// ------------------------------------------------------------
+
+router.delete(
+  '/profile-photo',
+  requireAuth,
+  deleteProfilePhoto
+);
+
+// ============================================================
+// EXPORT
+// ============================================================
+
+module.exports =
+  router;

@@ -7,7 +7,9 @@ import {
 
 import {
   Alert,
+  Image,
   KeyboardAvoidingView,
+  Modal,
   Platform,
   ScrollView,
   StyleSheet,
@@ -20,6 +22,8 @@ import {
 import {
   MaterialIcons,
 } from '@expo/vector-icons';
+
+import * as ImagePicker from 'expo-image-picker';
 
 import {
   LinearGradient,
@@ -38,8 +42,10 @@ import {
 } from 'react-native-safe-area-context';
 
 import {
+  deleteProfilePhoto,
   getCurrentUser,
   updateProfile,
+  uploadProfilePhoto,
 } from '../lib/api';
 
 import {
@@ -106,6 +112,42 @@ const BLOOD_TYPES = [
   'O-',
 ] as const;
 
+const MONTH_NAMES = [
+  'January',
+  'February',
+  'March',
+  'April',
+  'May',
+  'June',
+  'July',
+  'August',
+  'September',
+  'October',
+  'November',
+  'December',
+];
+
+const WEEK_DAYS = [
+  'S',
+  'M',
+  'T',
+  'W',
+  'T',
+  'F',
+  'S',
+];
+
+// ============================================================
+// DATE CONSTANTS
+// ============================================================
+
+const DEFAULT_BIRTHDAY =
+  new Date(
+    2000,
+    0,
+    1
+  );
+
 // ============================================================
 // EDIT PROFILE SCREEN
 // ============================================================
@@ -136,6 +178,11 @@ export default function EditProfileScreen() {
   const [
     saving,
     setSaving,
+  ] = useState(false);
+
+  const [
+    photoBusy,
+    setPhotoBusy,
   ] = useState(false);
 
   const [
@@ -201,6 +248,40 @@ export default function EditProfileScreen() {
     bloodType,
     setBloodType,
   ] = useState('');
+
+  const [
+    profilePhotoUrl,
+    setProfilePhotoUrl,
+  ] = useState('');
+
+  // ==========================================================
+  // BIRTHDAY CALENDAR
+  // ==========================================================
+
+  const [
+    showBirthdayPicker,
+    setShowBirthdayPicker,
+  ] = useState(false);
+
+  const [
+    birthdayDraft,
+    setBirthdayDraft,
+  ] =
+    useState<Date>(
+      DEFAULT_BIRTHDAY
+    );
+
+  const [
+    calendarMonth,
+    setCalendarMonth,
+  ] =
+    useState<Date>(
+      new Date(
+        DEFAULT_BIRTHDAY.getFullYear(),
+        DEFAULT_BIRTHDAY.getMonth(),
+        1
+      )
+    );
 
   // ==========================================================
   // DONOR STATE
@@ -311,6 +392,11 @@ export default function EditProfileScreen() {
 
         setProvince(
           user.province || ''
+        );
+
+        setProfilePhotoUrl(
+          user.profile_photo_url ||
+            ''
         );
 
         if (
@@ -429,7 +515,7 @@ export default function EditProfileScreen() {
   }
 
   // ==========================================================
-  // DATE VALIDATION
+  // DATE HELPERS
   // ==========================================================
 
   function isValidDateString(
@@ -474,12 +560,627 @@ export default function EditProfileScreen() {
     );
   }
 
+  function parseBirthday(
+    value: string
+  ) {
+    const match =
+      /^(\d{4})-(\d{2})-(\d{2})$/.exec(
+        value
+      );
+
+    if (!match) {
+      return DEFAULT_BIRTHDAY;
+    }
+
+    return new Date(
+      Number(
+        match[1]
+      ),
+      Number(
+        match[2]
+      ) - 1,
+      Number(
+        match[3]
+      )
+    );
+  }
+
+  function formatBirthdayForApi(
+    date: Date
+  ) {
+    const year =
+      date.getFullYear();
+
+    const month =
+      String(
+        date.getMonth() + 1
+      ).padStart(
+        2,
+        '0'
+      );
+
+    const day =
+      String(
+        date.getDate()
+      ).padStart(
+        2,
+        '0'
+      );
+
+    return `${year}-${month}-${day}`;
+  }
+
+  function formatBirthdayForDisplay(
+    value: string
+  ) {
+    if (
+      !value ||
+      !isValidDateString(
+        value
+      )
+    ) {
+      return 'Select your birthday';
+    }
+
+    return parseBirthday(
+      value
+    ).toLocaleDateString(
+      'en-US',
+      {
+        month:
+          'long',
+
+        day:
+          'numeric',
+
+        year:
+          'numeric',
+      }
+    );
+  }
+
+  function isSameDate(
+    first: Date,
+    second: Date
+  ) {
+    return (
+      first.getFullYear() ===
+        second.getFullYear() &&
+      first.getMonth() ===
+        second.getMonth() &&
+      first.getDate() ===
+        second.getDate()
+    );
+  }
+
+  function isFutureDate(
+    date: Date
+  ) {
+    const today =
+      new Date();
+
+    today.setHours(
+      0,
+      0,
+      0,
+      0
+    );
+
+    const compareDate =
+      new Date(
+        date.getFullYear(),
+        date.getMonth(),
+        date.getDate()
+      );
+
+    return (
+      compareDate >
+      today
+    );
+  }
+
   // ==========================================================
-  // SAVE
+  // CALENDAR DAYS
+  // ==========================================================
+
+  const calendarDays =
+    useMemo(() => {
+      const year =
+        calendarMonth
+          .getFullYear();
+
+      const month =
+        calendarMonth
+          .getMonth();
+
+      const firstDay =
+        new Date(
+          year,
+          month,
+          1
+        ).getDay();
+
+      const daysInMonth =
+        new Date(
+          year,
+          month + 1,
+          0
+        ).getDate();
+
+      const cells:
+        Array<
+          number | null
+        > = [];
+
+      for (
+        let index = 0;
+        index < firstDay;
+        index += 1
+      ) {
+        cells.push(
+          null
+        );
+      }
+
+      for (
+        let day = 1;
+        day <= daysInMonth;
+        day += 1
+      ) {
+        cells.push(
+          day
+        );
+      }
+
+      while (
+        cells.length %
+          7 !==
+        0
+      ) {
+        cells.push(
+          null
+        );
+      }
+
+      return cells;
+    }, [
+      calendarMonth,
+    ]);
+
+  // ==========================================================
+  // CALENDAR CONTROLS
+  // ==========================================================
+
+  function openBirthdayPicker() {
+    const initialDate =
+      dateOfBirth &&
+      isValidDateString(
+        dateOfBirth
+      )
+        ? parseBirthday(
+            dateOfBirth
+          )
+        : DEFAULT_BIRTHDAY;
+
+    setBirthdayDraft(
+      initialDate
+    );
+
+    setCalendarMonth(
+      new Date(
+        initialDate
+          .getFullYear(),
+
+        initialDate
+          .getMonth(),
+
+        1
+      )
+    );
+
+    setShowBirthdayPicker(
+      true
+    );
+  }
+
+  function closeBirthdayPicker() {
+    setShowBirthdayPicker(
+      false
+    );
+  }
+
+  function goPreviousMonth() {
+    setCalendarMonth(
+      current =>
+        new Date(
+          current
+            .getFullYear(),
+
+          current
+            .getMonth() -
+            1,
+
+          1
+        )
+    );
+  }
+
+  function goNextMonth() {
+    const nextMonth =
+      new Date(
+        calendarMonth
+          .getFullYear(),
+
+        calendarMonth
+          .getMonth() +
+          1,
+
+        1
+      );
+
+    const currentMonth =
+      new Date(
+        new Date()
+          .getFullYear(),
+
+        new Date()
+          .getMonth(),
+
+        1
+      );
+
+    if (
+      nextMonth >
+      currentMonth
+    ) {
+      return;
+    }
+
+    setCalendarMonth(
+      nextMonth
+    );
+  }
+
+  function canGoNextMonth() {
+    const nextMonth =
+      new Date(
+        calendarMonth
+          .getFullYear(),
+
+        calendarMonth
+          .getMonth() +
+          1,
+
+        1
+      );
+
+    const currentMonth =
+      new Date(
+        new Date()
+          .getFullYear(),
+
+        new Date()
+          .getMonth(),
+
+        1
+      );
+
+    return (
+      nextMonth <=
+      currentMonth
+    );
+  }
+
+  function selectCalendarDay(
+    day: number
+  ) {
+    const selected =
+      new Date(
+        calendarMonth
+          .getFullYear(),
+
+        calendarMonth
+          .getMonth(),
+
+        day
+      );
+
+    if (
+      isFutureDate(
+        selected
+      )
+    ) {
+      return;
+    }
+
+    setBirthdayDraft(
+      selected
+    );
+  }
+
+  function confirmBirthday() {
+    setDateOfBirth(
+      formatBirthdayForApi(
+        birthdayDraft
+      )
+    );
+
+    setShowBirthdayPicker(
+      false
+    );
+  }
+
+  // ==========================================================
+  // PROFILE PHOTO
+  // ==========================================================
+
+  async function handleChooseProfilePhoto() {
+    if (
+      photoBusy ||
+      saving
+    ) {
+      return;
+    }
+
+    try {
+      setPhotoBusy(true);
+      setErrorMessage('');
+
+      if (
+        Platform.OS !==
+        'web'
+      ) {
+        const permission =
+          await ImagePicker
+            .requestMediaLibraryPermissionsAsync();
+
+        if (
+          !permission.granted
+        ) {
+          showMessage(
+            'Permission Required',
+            'Please allow Hemo-Hero to access your photos so you can choose a profile picture.'
+          );
+
+          return;
+        }
+      }
+
+      const result =
+        await ImagePicker
+          .launchImageLibraryAsync({
+            mediaTypes: [
+              'images',
+            ],
+
+            allowsEditing:
+              true,
+
+            aspect: [
+              1,
+              1,
+            ],
+
+            quality:
+              0.8,
+          });
+
+      if (
+        result.canceled ||
+        !result.assets?.length
+      ) {
+        return;
+      }
+
+      const asset =
+        result.assets[0];
+
+      const accessToken =
+        await getAccessToken();
+
+      if (!accessToken) {
+        router.replace('/');
+        return;
+      }
+
+      const uploadResult =
+        await uploadProfilePhoto(
+          accessToken,
+          {
+            uri:
+              asset.uri,
+
+            fileName:
+              asset.fileName ||
+              `profile-${Date.now()}.jpg`,
+
+            mimeType:
+              asset.mimeType ||
+              'image/jpeg',
+
+            webFile:
+              (asset as any)
+                .file ||
+              null,
+          }
+        );
+
+      const newPhotoUrl =
+        uploadResult
+          ?.profile_photo_url ||
+        uploadResult
+          ?.user
+          ?.profile_photo_url ||
+        '';
+
+      if (!newPhotoUrl) {
+        throw new Error(
+          'Profile photo uploaded, but no photo URL was returned.'
+        );
+      }
+
+      setProfilePhotoUrl(
+        newPhotoUrl
+      );
+
+      if (
+        uploadResult?.user
+      ) {
+        setOriginalProfile(
+          uploadResult.user
+        );
+      }
+
+      showMessage(
+        'Profile Photo Updated',
+        'Your new profile photo has been saved.'
+      );
+    } catch (error) {
+      console.log(
+        'PROFILE PHOTO UPLOAD ERROR:',
+        error
+      );
+
+      const message =
+        error instanceof Error
+          ? error.message
+          : 'Unable to upload your profile photo.';
+
+      setErrorMessage(
+        message
+      );
+
+      showMessage(
+        'Upload Failed',
+        message
+      );
+    } finally {
+      setPhotoBusy(false);
+    }
+  }
+
+  async function performRemoveProfilePhoto() {
+    try {
+      setPhotoBusy(true);
+      setErrorMessage('');
+
+      const accessToken =
+        await getAccessToken();
+
+      if (!accessToken) {
+        router.replace('/');
+        return;
+      }
+
+      const result =
+        await deleteProfilePhoto(
+          accessToken
+        );
+
+      setProfilePhotoUrl(
+        ''
+      );
+
+      if (
+        result?.user
+      ) {
+        setOriginalProfile(
+          result.user
+        );
+      }
+
+      showMessage(
+        'Profile Photo Removed',
+        'Your profile photo has been removed.'
+      );
+    } catch (error) {
+      console.log(
+        'PROFILE PHOTO REMOVE ERROR:',
+        error
+      );
+
+      const message =
+        error instanceof Error
+          ? error.message
+          : 'Unable to remove your profile photo.';
+
+      setErrorMessage(
+        message
+      );
+
+      showMessage(
+        'Remove Failed',
+        message
+      );
+    } finally {
+      setPhotoBusy(false);
+    }
+  }
+
+  function handleRemoveProfilePhoto() {
+    if (
+      !profilePhotoUrl ||
+      photoBusy ||
+      saving
+    ) {
+      return;
+    }
+
+    if (
+      Platform.OS ===
+        'web' &&
+      typeof window !==
+        'undefined'
+    ) {
+      const confirmed =
+        window.confirm(
+          'Remove your current profile photo?'
+        );
+
+      if (
+        confirmed
+      ) {
+        performRemoveProfilePhoto();
+      }
+
+      return;
+    }
+
+    Alert.alert(
+      'Remove Profile Photo',
+      'Remove your current profile photo?',
+      [
+        {
+          text:
+            'Cancel',
+
+          style:
+            'cancel',
+        },
+
+        {
+          text:
+            'Remove',
+
+          style:
+            'destructive',
+
+          onPress:
+            performRemoveProfilePhoto,
+        },
+      ]
+    );
+  }
+
+  // ==========================================================
+  // SAVE PROFILE
   // ==========================================================
 
   async function handleSave() {
-    if (saving) {
+    if (
+      saving ||
+      photoBusy
+    ) {
       return;
     }
 
@@ -503,10 +1204,6 @@ export default function EditProfileScreen() {
     const cleanProvince =
       province.trim();
 
-    // --------------------------------------------------------
-    // NAME
-    // --------------------------------------------------------
-
     if (
       !cleanFirstName ||
       !cleanLastName
@@ -525,10 +1222,6 @@ export default function EditProfileScreen() {
 
       return;
     }
-
-    // --------------------------------------------------------
-    // DATE OF BIRTH
-    // --------------------------------------------------------
 
     if (!cleanDate) {
       const message =
@@ -552,7 +1245,7 @@ export default function EditProfileScreen() {
       )
     ) {
       const message =
-        'Enter your birthday using YYYY-MM-DD format.';
+        'Please select a valid date of birth.';
 
       setErrorMessage(
         message
@@ -565,10 +1258,6 @@ export default function EditProfileScreen() {
 
       return;
     }
-
-    // --------------------------------------------------------
-    // GENDER
-    // --------------------------------------------------------
 
     if (!gender) {
       const message =
@@ -585,10 +1274,6 @@ export default function EditProfileScreen() {
 
       return;
     }
-
-    // --------------------------------------------------------
-    // ADDRESS
-    // --------------------------------------------------------
 
     if (
       !cleanBarangay ||
@@ -609,10 +1294,6 @@ export default function EditProfileScreen() {
 
       return;
     }
-
-    // --------------------------------------------------------
-    // UPDATE
-    // --------------------------------------------------------
 
     try {
       setSaving(true);
@@ -663,20 +1344,16 @@ export default function EditProfileScreen() {
           cleanProvince,
       };
 
-      // ------------------------------------------------------
-      // VERIFIED DONOR BLOOD TYPE
-      // ------------------------------------------------------
-
-      if (!isApprovedDonor) {
+      if (
+        !isApprovedDonor
+      ) {
         payload.blood_type =
           bloodType || null;
       }
 
-      // ------------------------------------------------------
-      // LOCATION CHANGED
-      // ------------------------------------------------------
-
-      if (addressChanged) {
+      if (
+        addressChanged
+      ) {
         payload.latitude =
           null;
 
@@ -725,7 +1402,9 @@ export default function EditProfileScreen() {
   // LOADING
   // ==========================================================
 
-  if (loading) {
+  if (
+    loading
+  ) {
     return (
       <View
         style={
@@ -855,7 +1534,8 @@ export default function EditProfileScreen() {
                   0.7
                 }
                 disabled={
-                  saving
+                  saving ||
+                  photoBusy
                 }
                 onPress={() =>
                   router.back()
@@ -892,17 +1572,12 @@ export default function EditProfileScreen() {
                 </Text>
               </View>
 
-              {/* Keeps title centered */}
               <View
                 style={
                   styles.headerRightSpacer
                 }
               />
             </LinearGradient>
-
-            {/* ==================================================
-                CONTENT
-            ================================================== */}
 
             <ScrollView
               style={
@@ -1036,7 +1711,8 @@ export default function EditProfileScreen() {
                   }
                   placeholder="First name"
                   editable={
-                    !saving
+                    !saving &&
+                    !photoBusy
                   }
                   onChangeText={
                     setFirstName
@@ -1050,7 +1726,8 @@ export default function EditProfileScreen() {
                   }
                   placeholder="Optional"
                   editable={
-                    !saving
+                    !saving &&
+                    !photoBusy
                   }
                   onChangeText={
                     setMiddleName
@@ -1064,7 +1741,8 @@ export default function EditProfileScreen() {
                   }
                   placeholder="Last name"
                   editable={
-                    !saving
+                    !saving &&
+                    !photoBusy
                   }
                   onChangeText={
                     setLastName
@@ -1078,7 +1756,8 @@ export default function EditProfileScreen() {
                   }
                   placeholder="Jr., Sr., III, etc. (optional)"
                   editable={
-                    !saving
+                    !saving &&
+                    !photoBusy
                   }
                   onChangeText={
                     setSuffix
@@ -1110,37 +1789,100 @@ export default function EditProfileScreen() {
                   placeholder="Enter phone number"
                   keyboardType="phone-pad"
                   editable={
-                    !saving
+                    !saving &&
+                    !photoBusy
                   }
                   onChangeText={
                     setPhone
                   }
                 />
 
-                <Field
-                  label="Date of Birth"
-                  value={
-                    dateOfBirth
+                {/* ================================================
+                    DATE OF BIRTH
+                ================================================ */}
+
+                <View
+                  style={
+                    styles.fieldContainer
                   }
-                  placeholder="YYYY-MM-DD"
-                  keyboardType="numbers-and-punctuation"
-                  editable={
-                    !saving
-                  }
-                  onChangeText={value =>
-                    setDateOfBirth(
-                      value
-                        .replace(
-                          /[^0-9-]/g,
-                          ''
-                        )
-                        .slice(
-                          0,
-                          10
-                        )
-                    )
-                  }
-                />
+                >
+                  <Text
+                    style={
+                      styles.fieldLabel
+                    }
+                  >
+                    Date of Birth
+                  </Text>
+
+                  <TouchableOpacity
+                    style={
+                      styles.birthdayButton
+                    }
+                    activeOpacity={
+                      0.8
+                    }
+                    disabled={
+                      saving ||
+                      photoBusy
+                    }
+                    onPress={
+                      openBirthdayPicker
+                    }
+                  >
+                    <View
+                      style={
+                        styles.birthdayIcon
+                      }
+                    >
+                      <MaterialIcons
+                        name="calendar-month"
+                        size={20}
+                        color={
+                          COLORS.redButton
+                        }
+                      />
+                    </View>
+
+                    <View
+                      style={
+                        styles.birthdayContent
+                      }
+                    >
+                      <Text
+                        style={
+                          styles.birthdayLabel
+                        }
+                      >
+                        Birthday
+                      </Text>
+
+                      <Text
+                        style={[
+                          styles.birthdayValue,
+
+                          !dateOfBirth &&
+                            styles.birthdayPlaceholder,
+                        ]}
+                      >
+                        {formatBirthdayForDisplay(
+                          dateOfBirth
+                        )}
+                      </Text>
+                    </View>
+
+                    <MaterialIcons
+                      name="chevron-right"
+                      size={22}
+                      color={
+                        COLORS.lightMuted
+                      }
+                    />
+                  </TouchableOpacity>
+                </View>
+
+                {/* ================================================
+                    GENDER
+                ================================================ */}
 
                 <View
                   style={
@@ -1181,7 +1923,8 @@ export default function EditProfileScreen() {
                               0.8
                             }
                             disabled={
-                              saving
+                              saving ||
+                              photoBusy
                             }
                             onPress={() =>
                               setGender(
@@ -1229,7 +1972,8 @@ export default function EditProfileScreen() {
                   }
                   placeholder="Enter barangay"
                   editable={
-                    !saving
+                    !saving &&
+                    !photoBusy
                   }
                   onChangeText={
                     setBarangay
@@ -1243,7 +1987,8 @@ export default function EditProfileScreen() {
                   }
                   placeholder="Enter city or municipality"
                   editable={
-                    !saving
+                    !saving &&
+                    !photoBusy
                   }
                   onChangeText={
                     setCity
@@ -1257,7 +2002,8 @@ export default function EditProfileScreen() {
                   }
                   placeholder="Enter province"
                   editable={
-                    !saving
+                    !saving &&
+                    !photoBusy
                   }
                   onChangeText={
                     setProvince
@@ -1408,7 +2154,8 @@ export default function EditProfileScreen() {
                               0.8
                             }
                             disabled={
-                              saving
+                              saving ||
+                              photoBusy
                             }
                             onPress={() =>
                               setBloodType(
@@ -1443,36 +2190,40 @@ export default function EditProfileScreen() {
               <SectionHeader
                 icon="photo-camera"
                 title="Profile Photo"
-                subtitle="Profile image upload will be connected next."
+                subtitle="Choose a photo that will appear on your Hemo-Hero profile."
               />
 
-              <TouchableOpacity
+              <View
                 style={
                   styles.photoCard
                 }
-                activeOpacity={
-                  0.7
-                }
-                onPress={() =>
-                  showMessage(
-                    'Profile Photo',
-                    'Profile photo upload will be connected next.'
-                  )
-                }
               >
-                <View
-                  style={
-                    styles.photoIcon
-                  }
-                >
-                  <MaterialIcons
-                    name="photo-camera"
-                    size={22}
-                    color={
-                      COLORS.redButton
+                {profilePhotoUrl ? (
+                  <Image
+                    source={{
+                      uri:
+                        profilePhotoUrl,
+                    }}
+                    style={
+                      styles.profilePhotoPreview
                     }
+                    resizeMode="cover"
                   />
-                </View>
+                ) : (
+                  <View
+                    style={
+                      styles.photoIcon
+                    }
+                  >
+                    <MaterialIcons
+                      name="person"
+                      size={24}
+                      color={
+                        COLORS.redButton
+                      }
+                    />
+                  </View>
+                )}
 
                 <View
                   style={
@@ -1484,7 +2235,9 @@ export default function EditProfileScreen() {
                       styles.photoTitle
                     }
                   >
-                    Change Profile Photo
+                    {profilePhotoUrl
+                      ? 'Profile Photo'
+                      : 'Add Profile Photo'}
                   </Text>
 
                   <Text
@@ -1492,33 +2245,107 @@ export default function EditProfileScreen() {
                       styles.photoDescription
                     }
                   >
-                    Choose a photo for your Hemo-Hero profile.
+                    JPG, PNG or WEBP. Maximum 5 MB.
                   </Text>
-                </View>
 
-                <MaterialIcons
-                  name="chevron-right"
-                  size={22}
-                  color="#B5B5BA"
-                />
-              </TouchableOpacity>
+                  <View
+                    style={
+                      styles.photoActions
+                    }
+                  >
+                    <TouchableOpacity
+                      style={
+                        styles.photoActionButton
+                      }
+                      activeOpacity={
+                        0.8
+                      }
+                      disabled={
+                        photoBusy ||
+                        saving
+                      }
+                      onPress={
+                        handleChooseProfilePhoto
+                      }
+                    >
+                      <MaterialIcons
+                        name="photo-library"
+                        size={15}
+                        color={
+                          COLORS.redButton
+                        }
+                      />
+
+                      <Text
+                        style={
+                          styles.photoActionText
+                        }
+                      >
+                        {photoBusy
+                          ? 'Please wait...'
+                          : profilePhotoUrl
+                            ? 'Change'
+                            : 'Choose Photo'}
+                      </Text>
+                    </TouchableOpacity>
+
+                    {profilePhotoUrl ? (
+                      <TouchableOpacity
+                        style={
+                          styles.removePhotoButton
+                        }
+                        activeOpacity={
+                          0.8
+                        }
+                        disabled={
+                          photoBusy ||
+                          saving
+                        }
+                        onPress={
+                          handleRemoveProfilePhoto
+                        }
+                      >
+                        <MaterialIcons
+                          name="delete-outline"
+                          size={15}
+                          color={
+                            COLORS.muted
+                          }
+                        />
+
+                        <Text
+                          style={
+                            styles.removePhotoText
+                          }
+                        >
+                          Remove
+                        </Text>
+                      </TouchableOpacity>
+                    ) : null}
+                  </View>
+                </View>
+              </View>
 
               {/* ==================================================
-                  SAVE CHANGES
+                  SAVE
               ================================================== */}
 
               <TouchableOpacity
                 style={[
                   styles.saveButton,
 
-                  saving &&
+                  (
+                    saving ||
+                    photoBusy
+                  ) &&
                     styles.saveButtonDisabled,
                 ]}
                 activeOpacity={
                   0.85
                 }
                 disabled={
-                  saving
+                  saving ||
+                  photoBusy
                 }
                 onPress={
                   handleSave
@@ -1539,7 +2366,9 @@ export default function EditProfileScreen() {
                 >
                   {saving
                     ? 'Saving Changes...'
-                    : 'Save Changes'}
+                    : photoBusy
+                      ? 'Updating Photo...'
+                      : 'Save Changes'}
                 </Text>
               </TouchableOpacity>
 
@@ -1551,7 +2380,8 @@ export default function EditProfileScreen() {
                   0.7
                 }
                 disabled={
-                  saving
+                  saving ||
+                  photoBusy
                 }
                 onPress={() =>
                   router.back()
@@ -1569,6 +2399,363 @@ export default function EditProfileScreen() {
           </KeyboardAvoidingView>
         </SafeAreaView>
       </View>
+
+      {/* ======================================================
+          BIRTHDAY CALENDAR MODAL
+      ====================================================== */}
+
+      <Modal
+        visible={
+          showBirthdayPicker
+        }
+        transparent
+        animationType="fade"
+        statusBarTranslucent
+        onRequestClose={
+          closeBirthdayPicker
+        }
+      >
+        <View
+          style={
+            styles.calendarOverlay
+          }
+        >
+          <TouchableOpacity
+            style={
+              styles.calendarBackdrop
+            }
+            activeOpacity={1}
+            onPress={
+              closeBirthdayPicker
+            }
+          />
+
+          <View
+            style={
+              styles.calendarModal
+            }
+          >
+            {/* ==================================================
+                TITLE
+            ================================================== */}
+
+            <View
+              style={
+                styles.calendarTitleRow
+              }
+            >
+              <View>
+                <Text
+                  style={
+                    styles.calendarTitle
+                  }
+                >
+                  Select Date
+                </Text>
+
+                <Text
+                  style={
+                    styles.calendarSubtitle
+                  }
+                >
+                  Choose your date of birth
+                </Text>
+              </View>
+
+              <TouchableOpacity
+                style={
+                  styles.calendarClose
+                }
+                activeOpacity={
+                  0.75
+                }
+                onPress={
+                  closeBirthdayPicker
+                }
+              >
+                <MaterialIcons
+                  name="close"
+                  size={20}
+                  color={
+                    COLORS.black
+                  }
+                />
+              </TouchableOpacity>
+            </View>
+
+            {/* ==================================================
+                MONTH NAVIGATION
+            ================================================== */}
+
+            <View
+              style={
+                styles.calendarMonthRow
+              }
+            >
+              <TouchableOpacity
+                style={
+                  styles.calendarArrow
+                }
+                activeOpacity={
+                  0.75
+                }
+                onPress={
+                  goPreviousMonth
+                }
+              >
+                <MaterialIcons
+                  name="chevron-left"
+                  size={22}
+                  color={
+                    COLORS.red
+                  }
+                />
+              </TouchableOpacity>
+
+              <Text
+                style={
+                  styles.calendarMonthText
+                }
+              >
+                {
+                  MONTH_NAMES[
+                    calendarMonth
+                      .getMonth()
+                  ]
+                }{' '}
+                {calendarMonth
+                  .getFullYear()}
+              </Text>
+
+              <TouchableOpacity
+                style={[
+                  styles.calendarArrow,
+
+                  !canGoNextMonth() &&
+                    styles.calendarArrowDisabled,
+                ]}
+                activeOpacity={
+                  0.75
+                }
+                disabled={
+                  !canGoNextMonth()
+                }
+                onPress={
+                  goNextMonth
+                }
+              >
+                <MaterialIcons
+                  name="chevron-right"
+                  size={22}
+                  color={
+                    canGoNextMonth()
+                      ? COLORS.red
+                      : '#C9C9CD'
+                  }
+                />
+              </TouchableOpacity>
+            </View>
+
+            {/* ==================================================
+                WEEKDAYS
+            ================================================== */}
+
+            <View
+              style={
+                styles.weekRow
+              }
+            >
+              {WEEK_DAYS.map(
+                (
+                  day,
+                  index
+                ) => (
+                  <View
+                    key={`${day}-${index}`}
+                    style={
+                      styles.weekCell
+                    }
+                  >
+                    <Text
+                      style={
+                        styles.weekText
+                      }
+                    >
+                      {day}
+                    </Text>
+                  </View>
+                )
+              )}
+            </View>
+
+            {/* ==================================================
+                DAYS
+            ================================================== */}
+
+            <View
+              style={
+                styles.calendarGrid
+              }
+            >
+              {calendarDays.map(
+                (
+                  day,
+                  index
+                ) => {
+                  if (!day) {
+                    return (
+                      <View
+                        key={`empty-${index}`}
+                        style={
+                          styles.calendarDayCell
+                        }
+                      />
+                    );
+                  }
+
+                  const currentDate =
+                    new Date(
+                      calendarMonth
+                        .getFullYear(),
+
+                      calendarMonth
+                        .getMonth(),
+
+                      day
+                    );
+
+                  const selected =
+                    isSameDate(
+                      currentDate,
+                      birthdayDraft
+                    );
+
+                  const future =
+                    isFutureDate(
+                      currentDate
+                    );
+
+                  return (
+                    <View
+                      key={
+                        `${calendarMonth.getFullYear()}-${calendarMonth.getMonth()}-${day}`
+                      }
+                      style={
+                        styles.calendarDayCell
+                      }
+                    >
+                      <TouchableOpacity
+                        style={[
+                          styles.calendarDayButton,
+
+                          selected &&
+                            styles.calendarDaySelected,
+                        ]}
+                        activeOpacity={
+                          0.75
+                        }
+                        disabled={
+                          future
+                        }
+                        onPress={() =>
+                          selectCalendarDay(
+                            day
+                          )
+                        }
+                      >
+                        <Text
+                          style={[
+                            styles.calendarDayText,
+
+                            future &&
+                              styles.calendarDayDisabled,
+
+                            selected &&
+                              styles.calendarDaySelectedText,
+                          ]}
+                        >
+                          {day}
+                        </Text>
+                      </TouchableOpacity>
+                    </View>
+                  );
+                }
+              )}
+            </View>
+
+            {/* ==================================================
+                SELECTED DATE
+            ================================================== */}
+
+            <View
+              style={
+                styles.calendarSelectedInfo
+              }
+            >
+              <MaterialIcons
+                name="event"
+                size={17}
+                color={
+                  COLORS.redButton
+                }
+              />
+
+              <Text
+                style={
+                  styles.calendarSelectedLabel
+                }
+              >
+                Selected:
+              </Text>
+
+              <Text
+                style={
+                  styles.calendarSelectedValue
+                }
+              >
+                {birthdayDraft
+                  .toLocaleDateString(
+                    'en-US',
+                    {
+                      month:
+                        'short',
+
+                      day:
+                        'numeric',
+
+                      year:
+                        'numeric',
+                    }
+                  )}
+              </Text>
+            </View>
+
+            {/* ==================================================
+                CONFIRM
+            ================================================== */}
+
+            <TouchableOpacity
+              style={
+                styles.confirmDateButton
+              }
+              activeOpacity={
+                0.85
+              }
+              onPress={
+                confirmBirthday
+              }
+            >
+              <Text
+                style={
+                  styles.confirmDateText
+                }
+              >
+                Confirm Date
+              </Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -2065,7 +3252,7 @@ const styles =
     },
 
     // ========================================================
-    // CARDS
+    // CARD
     // ========================================================
 
     card: {
@@ -2160,7 +3347,83 @@ const styles =
     },
 
     // ========================================================
-    // READ ONLY EMAIL
+    // BIRTHDAY FIELD
+    // ========================================================
+
+    birthdayButton: {
+      minHeight: 58,
+
+      paddingHorizontal: 11,
+
+      flexDirection:
+        'row',
+
+      alignItems:
+        'center',
+
+      borderWidth: 1,
+
+      borderColor:
+        '#DDDDE2',
+
+      borderRadius: 12,
+
+      backgroundColor:
+        '#FCFCFD',
+    },
+
+    birthdayIcon: {
+      width: 38,
+
+      height: 38,
+
+      marginRight: 10,
+
+      borderRadius: 19,
+
+      alignItems:
+        'center',
+
+      justifyContent:
+        'center',
+
+      backgroundColor:
+        COLORS.pinkSoft,
+    },
+
+    birthdayContent: {
+      flex: 1,
+    },
+
+    birthdayLabel: {
+      color:
+        COLORS.muted,
+
+      fontFamily:
+        'Inter_400Regular',
+
+      fontSize: 9,
+    },
+
+    birthdayValue: {
+      marginTop: 2,
+
+      color:
+        COLORS.black,
+
+      fontFamily:
+        'Inter_600SemiBold',
+
+      fontSize: 11.5,
+    },
+
+    birthdayPlaceholder: {
+      color:
+        COLORS.lightMuted,
+    },
+
+    // ========================================================
+    // READ ONLY
     // ========================================================
 
     readOnlyInput: {
@@ -2268,7 +3531,7 @@ const styles =
     },
 
     // ========================================================
-    // LOCATION NOTICE
+    // LOCATION
     // ========================================================
 
     locationNotice: {
@@ -2326,7 +3589,7 @@ const styles =
     },
 
     // ========================================================
-    // BLOOD TYPE GRID
+    // BLOOD TYPE
     // ========================================================
 
     bloodTypeGrid: {
@@ -2484,11 +3747,13 @@ const styles =
     // ========================================================
 
     photoCard: {
-      minHeight: 76,
+      minHeight: 104,
 
       marginBottom: 22,
 
       paddingHorizontal: 14,
+
+      paddingVertical: 14,
 
       flexDirection:
         'row',
@@ -2522,14 +3787,27 @@ const styles =
       elevation: 1,
     },
 
+    profilePhotoPreview: {
+      width: 68,
+
+      height: 68,
+
+      marginRight: 13,
+
+      borderRadius: 34,
+
+      backgroundColor:
+        COLORS.graySoft,
+    },
+
     photoIcon: {
-      width: 40,
+      width: 68,
 
-      height: 40,
+      height: 68,
 
-      marginRight: 11,
+      marginRight: 13,
 
-      borderRadius: 20,
+      borderRadius: 34,
 
       alignItems:
         'center',
@@ -2566,9 +3844,95 @@ const styles =
       fontFamily:
         'Inter_400Regular',
 
-      fontSize: 10,
+      fontSize: 9.5,
 
       lineHeight: 14,
+    },
+
+    photoActions: {
+      marginTop: 9,
+
+      flexDirection:
+        'row',
+
+      flexWrap:
+        'wrap',
+
+      gap: 7,
+    },
+
+    photoActionButton: {
+      minHeight: 31,
+
+      paddingHorizontal: 10,
+
+      flexDirection:
+        'row',
+
+      alignItems:
+        'center',
+
+      justifyContent:
+        'center',
+
+      gap: 5,
+
+      borderWidth: 1,
+
+      borderColor:
+        '#E8C4C5',
+
+      borderRadius: 9,
+
+      backgroundColor:
+        COLORS.pinkSoft,
+    },
+
+    photoActionText: {
+      color:
+        COLORS.redButton,
+
+      fontFamily:
+        'Inter_600SemiBold',
+
+      fontSize: 9.5,
+    },
+
+    removePhotoButton: {
+      minHeight: 31,
+
+      paddingHorizontal: 10,
+
+      flexDirection:
+        'row',
+
+      alignItems:
+        'center',
+
+      justifyContent:
+        'center',
+
+      gap: 4,
+
+      borderWidth: 1,
+
+      borderColor:
+        COLORS.border,
+
+      borderRadius: 9,
+
+      backgroundColor:
+        COLORS.white,
+    },
+
+    removePhotoText: {
+      color:
+        COLORS.muted,
+
+      fontFamily:
+        'Inter_500Medium',
+
+      fontSize: 9.5,
     },
 
     // ========================================================
@@ -2642,6 +4006,344 @@ const styles =
 
       fontFamily:
         'Inter_500Medium',
+
+      fontSize: 10.5,
+    },
+
+    // ========================================================
+    // CALENDAR MODAL
+    // ========================================================
+
+    calendarOverlay: {
+      flex: 1,
+
+      alignItems:
+        'center',
+
+      justifyContent:
+        'center',
+
+      paddingHorizontal: 16,
+    },
+
+    calendarBackdrop: {
+      ...StyleSheet.absoluteFillObject,
+
+      backgroundColor:
+        'rgba(0,0,0,0.42)',
+    },
+
+    calendarModal: {
+      width: '100%',
+
+      maxWidth: 380,
+
+      paddingHorizontal: 18,
+
+      paddingTop: 18,
+
+      paddingBottom: 20,
+
+      borderRadius: 22,
+
+      backgroundColor:
+        COLORS.white,
+
+      shadowColor:
+        '#000000',
+
+      shadowOffset: {
+        width: 0,
+
+        height: 8,
+      },
+
+      shadowOpacity: 0.18,
+
+      shadowRadius: 22,
+
+      elevation: 12,
+    },
+
+    // ========================================================
+    // CALENDAR TITLE
+    // ========================================================
+
+    calendarTitleRow: {
+      flexDirection:
+        'row',
+
+      alignItems:
+        'center',
+
+      justifyContent:
+        'space-between',
+
+      marginBottom: 15,
+    },
+
+    calendarTitle: {
+      color:
+        COLORS.black,
+
+      fontFamily:
+        'Poppins_700Bold',
+
+      fontSize: 16,
+    },
+
+    calendarSubtitle: {
+      marginTop: 1,
+
+      color:
+        COLORS.muted,
+
+      fontFamily:
+        'Inter_400Regular',
+
+      fontSize: 9,
+    },
+
+    calendarClose: {
+      width: 38,
+
+      height: 38,
+
+      borderRadius: 19,
+
+      alignItems:
+        'center',
+
+      justifyContent:
+        'center',
+
+      backgroundColor:
+        '#F5F5F6',
+    },
+
+    // ========================================================
+    // MONTH
+    // ========================================================
+
+    calendarMonthRow: {
+      marginTop: 2,
+
+      marginBottom: 8,
+
+      flexDirection:
+        'row',
+
+      alignItems:
+        'center',
+
+      justifyContent:
+        'space-between',
+    },
+
+    calendarArrow: {
+      width: 40,
+
+      height: 40,
+
+      borderRadius: 14,
+
+      alignItems:
+        'center',
+
+      justifyContent:
+        'center',
+
+      backgroundColor:
+        COLORS.pinkSoft,
+    },
+
+    calendarArrowDisabled: {
+      backgroundColor:
+        '#F5F5F6',
+    },
+
+    calendarMonthText: {
+      color:
+        COLORS.black,
+
+      fontFamily:
+        'Poppins_600SemiBold',
+
+      fontSize: 12,
+    },
+
+    // ========================================================
+    // WEEK DAYS
+    // ========================================================
+
+    weekRow: {
+      flexDirection:
+        'row',
+
+      marginBottom: 4,
+    },
+
+    weekCell: {
+      width:
+        `${100 / 7}%`,
+
+      height: 30,
+
+      alignItems:
+        'center',
+
+      justifyContent:
+        'center',
+    },
+
+    weekText: {
+      color:
+        COLORS.muted,
+
+      fontFamily:
+        'Inter_600SemiBold',
+
+      fontSize: 9,
+    },
+
+    // ========================================================
+    // CALENDAR GRID
+    // ========================================================
+
+    calendarGrid: {
+      flexDirection:
+        'row',
+
+      flexWrap:
+        'wrap',
+    },
+
+    calendarDayCell: {
+      width:
+        `${100 / 7}%`,
+
+      height: 42,
+
+      alignItems:
+        'center',
+
+      justifyContent:
+        'center',
+    },
+
+    calendarDayButton: {
+      width: 34,
+
+      height: 34,
+
+      borderRadius: 17,
+
+      alignItems:
+        'center',
+
+      justifyContent:
+        'center',
+    },
+
+    calendarDaySelected: {
+      backgroundColor:
+        COLORS.red,
+    },
+
+    calendarDayText: {
+      color:
+        COLORS.black,
+
+      fontFamily:
+        'Inter_600SemiBold',
+
+      fontSize: 10,
+    },
+
+    calendarDayDisabled: {
+      color:
+        '#C6C6CA',
+    },
+
+    calendarDaySelectedText: {
+      color:
+        COLORS.white,
+    },
+
+    // ========================================================
+    // SELECTED DATE
+    // ========================================================
+
+    calendarSelectedInfo: {
+      minHeight: 40,
+
+      marginTop: 8,
+
+      paddingHorizontal: 11,
+
+      flexDirection:
+        'row',
+
+      alignItems:
+        'center',
+
+      borderRadius: 11,
+
+      backgroundColor:
+        COLORS.pinkSoft,
+    },
+
+    calendarSelectedLabel: {
+      marginLeft: 7,
+
+      color:
+        COLORS.muted,
+
+      fontFamily:
+        'Inter_400Regular',
+
+      fontSize: 9.5,
+    },
+
+    calendarSelectedValue: {
+      marginLeft: 4,
+
+      color:
+        COLORS.redButton,
+
+      fontFamily:
+        'Inter_600SemiBold',
+
+      fontSize: 9.5,
+    },
+
+    // ========================================================
+    // CONFIRM DATE
+    // ========================================================
+
+    confirmDateButton: {
+      height: 47,
+
+      marginTop: 14,
+
+      borderRadius: 11,
+
+      alignItems:
+        'center',
+
+      justifyContent:
+        'center',
+
+      backgroundColor:
+        COLORS.red,
+    },
+
+    confirmDateText: {
+      color:
+        COLORS.white,
+
+      fontFamily:
+        'Poppins_600SemiBold',
 
       fontSize: 10.5,
     },

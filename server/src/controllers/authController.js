@@ -46,7 +46,8 @@ function cleanOptionalText(value) {
     return null;
   }
 
-  const cleaned = value.trim();
+  const cleaned =
+    value.trim();
 
   return cleaned || null;
 }
@@ -59,7 +60,8 @@ function validateDateOfBirth(
   dateOfBirth
 ) {
   if (
-    typeof dateOfBirth !== 'string'
+    typeof dateOfBirth !==
+    'string'
   ) {
     return {
       valid: false,
@@ -90,9 +92,10 @@ function validateDateOfBirth(
     year,
     month,
     day,
-  ] = cleanDate
-    .split('-')
-    .map(Number);
+  ] =
+    cleanDate
+      .split('-')
+      .map(Number);
 
   const birthDate =
     new Date(
@@ -302,10 +305,6 @@ async function register(
       confirm_password,
     } = req.body;
 
-    // --------------------------------------------------------
-    // REQUIRED
-    // --------------------------------------------------------
-
     if (
       !email ||
       !password ||
@@ -340,10 +339,6 @@ async function register(
         .trim()
         .toLowerCase();
 
-    // --------------------------------------------------------
-    // EMAIL
-    // --------------------------------------------------------
-
     const emailPattern =
       /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -359,10 +354,6 @@ async function register(
             'Please enter a valid email address',
         });
     }
-
-    // --------------------------------------------------------
-    // PASSWORD
-    // --------------------------------------------------------
 
     if (
       password.length < 8
@@ -408,10 +399,6 @@ async function register(
             'Passwords do not match',
         });
     }
-
-    // --------------------------------------------------------
-    // CREATE SUPABASE ACCOUNT
-    // --------------------------------------------------------
 
     const frontendUrl =
       process.env.FRONTEND_URL ||
@@ -500,11 +487,6 @@ async function register(
 
 // ============================================================
 // POST /api/auth/verify-email
-//
-// Verify the 6-digit email OTP.
-//
-// Supabase replaces {{ .Token }} in the signup email template
-// with the verification code.
 // ============================================================
 
 async function verifyEmail(
@@ -516,10 +498,6 @@ async function verifyEmail(
       email,
       code,
     } = req.body;
-
-    // --------------------------------------------------------
-    // REQUIRED
-    // --------------------------------------------------------
 
     if (
       !email ||
@@ -555,10 +533,6 @@ async function verifyEmail(
     const cleanCode =
       code.trim();
 
-    // --------------------------------------------------------
-    // EMAIL
-    // --------------------------------------------------------
-
     const emailPattern =
       /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -575,10 +549,6 @@ async function verifyEmail(
         });
     }
 
-    // --------------------------------------------------------
-    // CODE
-    // --------------------------------------------------------
-
     if (
       !/^\d{6}$/.test(
         cleanCode
@@ -591,10 +561,6 @@ async function verifyEmail(
             'Verification code must be 6 digits',
         });
     }
-
-    // --------------------------------------------------------
-    // VERIFY WITH SUPABASE
-    // --------------------------------------------------------
 
     const {
       data,
@@ -667,8 +633,6 @@ async function verifyEmail(
 
 // ============================================================
 // POST /api/auth/resend-verification
-//
-// Resend the signup verification OTP.
 // ============================================================
 
 async function resendVerification(
@@ -785,6 +749,10 @@ async function login(
       password,
     } = req.body;
 
+    // --------------------------------------------------------
+    // REQUIRED
+    // --------------------------------------------------------
+
     if (
       !email ||
       !password
@@ -816,6 +784,10 @@ async function login(
         .trim()
         .toLowerCase();
 
+    // --------------------------------------------------------
+    // SUPABASE LOGIN
+    // --------------------------------------------------------
+
     const {
       data,
       error,
@@ -829,10 +801,21 @@ async function login(
           password,
         });
 
+    // --------------------------------------------------------
+    // LOGIN FAILED
+    // --------------------------------------------------------
+
     if (error) {
       const message =
-        error.message ||
-        '';
+        String(
+          error.message || ''
+        );
+
+      // ------------------------------------------------------
+      // EMAIL NOT VERIFIED
+      //
+      // Does NOT use one of the five attempts.
+      // ------------------------------------------------------
 
       if (
         message
@@ -846,15 +829,134 @@ async function login(
           .json({
             error:
               'Please verify your email before signing in.',
+
+            code:
+              'EMAIL_NOT_VERIFIED',
           });
+      }
+
+      // ------------------------------------------------------
+      // RECORD FAILED ATTEMPT
+      //
+      // Attached by loginRateLimiter.js.
+      // ------------------------------------------------------
+
+      const attemptResult =
+        typeof req
+          .recordFailedLogin ===
+        'function'
+          ? req
+              .recordFailedLogin()
+          : null;
+
+      const attemptsRemaining =
+        Number(
+          attemptResult
+            ?.attempts_remaining
+        );
+
+      // ------------------------------------------------------
+      // FIFTH FAILED ATTEMPT
+      // ------------------------------------------------------
+
+      if (
+        attemptResult
+          ?.locked === true
+      ) {
+        const retryMinutes =
+          Number(
+            attemptResult
+              ?.retry_after_minutes
+          );
+
+        const safeRetryMinutes =
+          Number.isFinite(
+            retryMinutes
+          ) &&
+          retryMinutes > 0
+            ? retryMinutes
+            : 15;
+
+        return res
+          .status(429)
+          .json({
+            error:
+              `Too many failed login attempts. Please try again in ${safeRetryMinutes} minute${safeRetryMinutes === 1 ? '' : 's'}.`,
+
+            code:
+              'LOGIN_ACCOUNT_RATE_LIMIT',
+
+            attempts_remaining:
+              0,
+
+            retry_after_minutes:
+              safeRetryMinutes,
+          });
+      }
+
+      // ------------------------------------------------------
+      // NORMAL WRONG PASSWORD
+      //
+      // IMPORTANT:
+      // Remaining attempts are included directly inside error.
+      //
+      // Even if the frontend only reads error.message,
+      // the warning will still be shown.
+      // ------------------------------------------------------
+
+      let loginError =
+        'Invalid email or password.';
+
+      if (
+        Number.isFinite(
+          attemptsRemaining
+        )
+      ) {
+        if (
+          attemptsRemaining ===
+          1
+        ) {
+          loginError =
+            'Invalid email or password. 1 attempt remaining before a 15-minute cooldown.';
+        } else if (
+          attemptsRemaining > 1
+        ) {
+          loginError =
+            `Invalid email or password. ${attemptsRemaining} attempts remaining.`;
+        }
       }
 
       return res
         .status(401)
         .json({
           error:
-            'Invalid email or password',
+            loginError,
+
+          code:
+            'INVALID_CREDENTIALS',
+
+          attempts_remaining:
+            Number.isFinite(
+              attemptsRemaining
+            )
+              ? attemptsRemaining
+              : null,
         });
+    }
+
+    // --------------------------------------------------------
+    // SUCCESSFUL LOGIN
+    //
+    // Clear failed attempts for this email.
+    // --------------------------------------------------------
+
+    if (
+      typeof req
+        .resetLoginAttempts ===
+      'function'
+    ) {
+      req
+        .resetLoginAttempts();
     }
 
     // --------------------------------------------------------
@@ -1056,9 +1158,9 @@ async function forgotPassword(
 
     if (error) {
       /*
-        Keep public response generic
-        so we do not reveal whether
-        an account exists.
+        Keep this generic so the API
+        does not reveal whether the
+        account exists.
       */
 
       console.error(
@@ -1088,21 +1190,8 @@ async function forgotPassword(
   }
 }
 
-
-// ============================================================
-// POST /api/auth/reset-password
-//
-// Verify recovery OTP and update the user's password.
-// ============================================================
-
 // ============================================================
 // POST /api/auth/verify-recovery-code
-//
-// STEP 1:
-// Verify the password recovery OTP.
-//
-// If valid, return the temporary Supabase access token.
-// The client keeps this only while resetting the password.
 // ============================================================
 
 async function verifyRecoveryCode(
@@ -1114,10 +1203,6 @@ async function verifyRecoveryCode(
       email,
       code,
     } = req.body;
-
-    // --------------------------------------------------------
-    // REQUIRED
-    // --------------------------------------------------------
 
     if (
       !email ||
@@ -1132,8 +1217,10 @@ async function verifyRecoveryCode(
     }
 
     if (
-      typeof email !== 'string' ||
-      typeof code !== 'string'
+      typeof email !==
+        'string' ||
+      typeof code !==
+        'string'
     ) {
       return res
         .status(400)
@@ -1151,10 +1238,6 @@ async function verifyRecoveryCode(
     const cleanCode =
       code.trim();
 
-    // --------------------------------------------------------
-    // EMAIL
-    // --------------------------------------------------------
-
     const emailPattern =
       /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -1171,10 +1254,6 @@ async function verifyRecoveryCode(
         });
     }
 
-    // --------------------------------------------------------
-    // CODE
-    // --------------------------------------------------------
-
     if (
       !/^\d{6}$/.test(
         cleanCode
@@ -1187,10 +1266,6 @@ async function verifyRecoveryCode(
             'Verification code must be 6 digits',
         });
     }
-
-    // --------------------------------------------------------
-    // VERIFY RECOVERY OTP
-    // --------------------------------------------------------
 
     const {
       data,
@@ -1227,10 +1302,6 @@ async function verifyRecoveryCode(
         });
     }
 
-    // --------------------------------------------------------
-    // SECURITY CHECK
-    // --------------------------------------------------------
-
     const verifiedEmail =
       data.user.email
         ?.trim()
@@ -1247,10 +1318,6 @@ async function verifyRecoveryCode(
             'Verification email does not match',
         });
     }
-
-    // --------------------------------------------------------
-    // SUCCESS
-    // --------------------------------------------------------
 
     return res
       .status(200)
@@ -1278,9 +1345,6 @@ async function verifyRecoveryCode(
 
 // ============================================================
 // POST /api/auth/reset-password
-//
-// STEP 2:
-// Change password only after a valid recovery token exists.
 // ============================================================
 
 async function resetPassword(
@@ -1293,10 +1357,6 @@ async function resetPassword(
       password,
       confirm_password,
     } = req.body;
-
-    // --------------------------------------------------------
-    // REQUIRED
-    // --------------------------------------------------------
 
     if (
       !recovery_token ||
@@ -1312,9 +1372,12 @@ async function resetPassword(
     }
 
     if (
-      typeof recovery_token !== 'string' ||
-      typeof password !== 'string' ||
-      typeof confirm_password !== 'string'
+      typeof recovery_token !==
+        'string' ||
+      typeof password !==
+        'string' ||
+      typeof confirm_password !==
+        'string'
     ) {
       return res
         .status(400)
@@ -1323,10 +1386,6 @@ async function resetPassword(
             'Invalid password reset information',
         });
     }
-
-    // --------------------------------------------------------
-    // PASSWORD VALIDATION
-    // --------------------------------------------------------
 
     if (
       password.length < 8
@@ -1373,10 +1432,6 @@ async function resetPassword(
         });
     }
 
-    // --------------------------------------------------------
-    // VALIDATE RECOVERY TOKEN
-    // --------------------------------------------------------
-
     const {
       data: userData,
       error: userError,
@@ -1403,10 +1458,6 @@ async function resetPassword(
             'Your password reset session has expired. Please request a new code.',
         });
     }
-
-    // --------------------------------------------------------
-    // UPDATE PASSWORD
-    // --------------------------------------------------------
 
     const {
       error: updateError,
@@ -1456,7 +1507,6 @@ async function resetPassword(
   }
 }
 
-
 // ============================================================
 // GET /api/auth/me
 // ============================================================
@@ -1478,17 +1528,7 @@ async function getProfile(
 //
 // SAFE PROFILE UPDATE
 //
-// IMPORTANT:
-// The user CANNOT change:
-//
-// - email
-// - role
-// - password
-//
-// through this endpoint.
-//
-// Admin role changes will later use
-// protected admin endpoints.
+// User CANNOT change email, role, or password here.
 // ============================================================
 
 async function updateProfile(

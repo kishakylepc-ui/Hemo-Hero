@@ -19,7 +19,10 @@ import { router } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { loginUser } from '../lib/api';
+import {
+  ApiError,
+  loginUser,
+} from '../lib/api';
 import { saveSession } from '../lib/session';
 
 // ============================================================
@@ -136,172 +139,264 @@ export default function SignInScreen() {
   // SIGN IN
   // ==========================================================
 
-  async function handleSignIn() {
+ async function handleSignIn() {
+  setErrorMessage('');
+
+  const cleanEmail =
+    email
+      .trim()
+      .toLowerCase();
+
+  // --------------------------------------------------------
+  // VALIDATION
+  // --------------------------------------------------------
+
+  if (
+    !cleanEmail ||
+    !password
+  ) {
+    const message =
+      'Please enter your email address and password.';
+
+    setErrorMessage(
+      message
+    );
+
+    showMessage(
+      'Missing Information',
+      message
+    );
+
+    return;
+  }
+
+  // --------------------------------------------------------
+  // EMAIL FORMAT
+  // --------------------------------------------------------
+
+  const emailPattern =
+    /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+  if (
+    !emailPattern.test(
+      cleanEmail
+    )
+  ) {
+    const message =
+      'Please enter a valid email address.';
+
+    setErrorMessage(
+      message
+    );
+
+    showMessage(
+      'Invalid Email',
+      message
+    );
+
+    return;
+  }
+
+  try {
+    setLoading(true);
+
+    // ------------------------------------------------------
+    // LOGIN
+    // ------------------------------------------------------
+
+    const data =
+      await loginUser(
+        cleanEmail,
+        password
+      );
+
+    // ------------------------------------------------------
+    // VERIFY SESSION
+    // ------------------------------------------------------
+
+    if (
+      !data?.session?.access_token
+    ) {
+      throw new Error(
+        'Login succeeded, but no session was returned.'
+      );
+    }
+
+    // ------------------------------------------------------
+    // SAVE LOGIN SESSION
+    // ------------------------------------------------------
+
+    await saveSession(
+      data.session
+    );
+
     setErrorMessage('');
+    setPassword('');
 
-    const cleanEmail =
-      email
-        .trim()
-        .toLowerCase();
+    // ------------------------------------------------------
+    // VERIFY PROFILE
+    // ------------------------------------------------------
 
-    // --------------------------------------------------------
-    // VALIDATION
-    // --------------------------------------------------------
-
-    if (
-      !cleanEmail ||
-      !password
-    ) {
-      const message =
-        'Please enter your email address and password.';
-
-      setErrorMessage(
-        message
+    if (!data?.profile) {
+      throw new Error(
+        'Your account profile could not be loaded.'
       );
-
-      showMessage(
-        'Missing Information',
-        message
-      );
-
-      return;
     }
 
-    // --------------------------------------------------------
-    // EMAIL FORMAT
-    // --------------------------------------------------------
+    console.log(
+      'LOGIN PROFILE:',
+      data.profile
+    );
 
-    const emailPattern =
-      /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    console.log(
+      'ONBOARDING COMPLETE:',
+      data.profile
+        .onboarding_complete
+    );
+
+    // ------------------------------------------------------
+    // ROUTE COMPLETED USER
+    // ------------------------------------------------------
 
     if (
-      !emailPattern.test(
-        cleanEmail
-      )
+      data.profile
+        .onboarding_complete ===
+      true
     ) {
-      const message =
-        'Please enter a valid email address.';
-
-      setErrorMessage(
-        message
-      );
-
-      showMessage(
-        'Invalid Email',
-        message
-      );
-
-      return;
-    }
-
-    try {
-      setLoading(true);
-
-      // ------------------------------------------------------
-      // LOGIN
-      // ------------------------------------------------------
-
-      const data =
-        await loginUser(
-          cleanEmail,
-          password
-        );
-
-      // ------------------------------------------------------
-      // VERIFY SESSION
-      // ------------------------------------------------------
-
-      if (
-        !data?.session?.access_token
-      ) {
-        throw new Error(
-          'Login succeeded, but no session was returned.'
-        );
-      }
-
-      // ------------------------------------------------------
-      // SAVE LOGIN SESSION
-      // ------------------------------------------------------
-
-      await saveSession(
-        data.session
-      );
-
-      setErrorMessage('');
-      setPassword('');
-
-      // ------------------------------------------------------
-      // VERIFY PROFILE
-      // ------------------------------------------------------
-
-      if (!data?.profile) {
-        throw new Error(
-          'Your account profile could not be loaded.'
-        );
-      }
-
-      console.log(
-        'LOGIN PROFILE:',
-        data.profile
-      );
-
-      console.log(
-        'ONBOARDING COMPLETE:',
-        data.profile
-          .onboarding_complete
-      );
-
-      // ------------------------------------------------------
-      // ROUTE COMPLETED USER
-      // ------------------------------------------------------
-
-      if (
-        data.profile
-          .onboarding_complete ===
-        true
-      ) {
-        router.replace(
-          '/dashboard'
-        );
-
-        return;
-      }
-
-      // ------------------------------------------------------
-      // ROUTE INCOMPLETE USER
-      // ------------------------------------------------------
-
       router.replace(
-        '/complete-profile/personal'
-      );
-    } catch (error) {
-      console.log(
-        'LOGIN ERROR:',
-        error
+        '/dashboard'
       );
 
-      let message =
-        'Unable to sign in. Please try again.';
+      return;
+    }
+
+    // ------------------------------------------------------
+    // ROUTE INCOMPLETE USER
+    // ------------------------------------------------------
+
+    router.replace(
+      '/complete-profile/personal'
+    );
+  } catch (error) {
+    console.log(
+      'LOGIN ERROR:',
+      error
+    );
+
+    let message =
+      'Unable to sign in. Please try again.';
+
+    // ------------------------------------------------------
+    // STRUCTURED API ERRORS
+    // ------------------------------------------------------
+
+    if (
+      error instanceof
+      ApiError
+    ) {
+      const apiData =
+        error.data || {};
+
+      // ----------------------------------------------------
+      // WRONG EMAIL / PASSWORD
+      // ----------------------------------------------------
 
       if (
-        error instanceof Error
+        apiData.code ===
+        'INVALID_CREDENTIALS'
       ) {
+        const remaining =
+          Number(
+            apiData
+              .attempts_remaining
+          );
+
+        if (
+          Number.isFinite(
+            remaining
+          )
+        ) {
+          const attemptText =
+            remaining === 1
+              ? '1 attempt remaining before a 15-minute cooldown.'
+              : `${remaining} attempts remaining.`;
+
+          message =
+            `Invalid email or password.\n${attemptText}`;
+        } else {
+          message =
+            'Invalid email or password.';
+        }
+      }
+
+      // ----------------------------------------------------
+      // ACCOUNT COOLDOWN
+      // ----------------------------------------------------
+
+      else if (
+        apiData.code ===
+        'LOGIN_ACCOUNT_RATE_LIMIT'
+      ) {
+        const retryMinutes =
+          Number(
+            apiData
+              .retry_after_minutes
+          );
+
+        message =
+          Number.isFinite(
+            retryMinutes
+          )
+            ? `Too many failed login attempts.\nPlease try again in ${retryMinutes} minute${retryMinutes === 1 ? '' : 's'}.`
+            : 'Too many failed login attempts. Please try again later.';
+      }
+
+      // ----------------------------------------------------
+      // NETWORK/IP COOLDOWN
+      // ----------------------------------------------------
+
+      else if (
+        apiData.code ===
+        'LOGIN_IP_RATE_LIMIT'
+      ) {
+        const retryMinutes =
+          Number(
+            apiData
+              .retry_after_minutes
+          );
+
+        message =
+          Number.isFinite(
+            retryMinutes
+          )
+            ? `Too many login attempts from this network.\nPlease try again in ${retryMinutes} minute${retryMinutes === 1 ? '' : 's'}.`
+            : 'Too many login attempts from this network. Please try again later.';
+      }
+
+      // ----------------------------------------------------
+      // OTHER API ERROR
+      // ----------------------------------------------------
+
+      else {
         message =
           error.message;
       }
-
-      setErrorMessage(
-        message
-      );
-
-      showMessage(
-        'Sign In Failed',
-        message
-      );
-    } finally {
-      setLoading(false);
+    } else if (
+      error instanceof Error
+    ) {
+      message =
+        error.message;
     }
+
+    // Login errors stay inside the red error box.
+    // No popup for every incorrect password.
+    setErrorMessage(
+      message
+    );
+  } finally {
+    setLoading(false);
   }
+}
 
   // ==========================================================
   // UI

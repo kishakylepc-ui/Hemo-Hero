@@ -6,6 +6,10 @@ import {
   Platform,
 } from 'react-native';
 
+// ============================================================
+// API URL
+// ============================================================
+
 const API_URL =
   Platform.OS === 'web'
     ? 'http://localhost:5000'
@@ -13,8 +17,59 @@ const API_URL =
       'http://localhost:5000';
 
 // ============================================================
+// API ERROR
+// ============================================================
+
+export class ApiError
+  extends Error {
+  status: number;
+
+  data: any;
+
+  constructor(
+    message: string,
+    status: number,
+    data: any
+  ) {
+    super(message);
+
+    this.name =
+      'ApiError';
+
+    this.status =
+      status;
+
+    this.data =
+      data;
+
+    Object.setPrototypeOf(
+      this,
+      ApiError.prototype
+    );
+  }
+}
+
+// ============================================================
 // TYPES
 // ============================================================
+
+export type ProfilePhotoFile = {
+  uri: string;
+
+  fileName?:
+    | string
+    | null;
+
+  mimeType?:
+    | string
+    | null;
+
+  webFile?: any;
+};
+
+// ------------------------------------------------------------
+// FACILITY
+// ------------------------------------------------------------
 
 export type NearbyFacility = {
   id: string;
@@ -28,7 +83,9 @@ export type NearbyFacility = {
     | 'medical_facility'
     | string;
 
-  address?: string | null;
+  address?:
+    | string
+    | null;
 
   latitude: number;
 
@@ -38,6 +95,10 @@ export type NearbyFacility = {
 
   category_label?: string;
 };
+
+// ------------------------------------------------------------
+// BLOOD REQUEST
+// ------------------------------------------------------------
 
 export type BloodRequestStatus =
   | 'active'
@@ -61,26 +122,42 @@ export type CreateBloodRequestInput = {
   facility_source:
     BloodRequestFacilitySource;
 
-  facility_id?: string | null;
+  facility_id?:
+    | string
+    | null;
 
   facility_name: string;
 
-  facility_type?: string | null;
+  facility_type?:
+    | string
+    | null;
 
-  facility_address?: string | null;
+  facility_address?:
+    | string
+    | null;
 
-  facility_latitude?: number | null;
+  facility_latitude?:
+    | number
+    | null;
 
-  facility_longitude?: number | null;
+  facility_longitude?:
+    | number
+    | null;
 
   urgency:
     BloodRequestUrgency;
 
-  needed_date?: string | null;
+  needed_date?:
+    | string
+    | null;
 
-  needed_time?: string | null;
+  needed_time?:
+    | string
+    | null;
 
-  message?: string | null;
+  message?:
+    | string
+    | null;
 };
 
 export type BloodRequest = {
@@ -95,33 +172,53 @@ export type BloodRequest = {
   facility_source:
     BloodRequestFacilitySource;
 
-  facility_id?: string | null;
+  facility_id?:
+    | string
+    | null;
 
   facility_name: string;
 
-  facility_type?: string | null;
+  facility_type?:
+    | string
+    | null;
 
-  facility_address?: string | null;
+  facility_address?:
+    | string
+    | null;
 
-  facility_latitude?: number | null;
+  facility_latitude?:
+    | number
+    | null;
 
-  facility_longitude?: number | null;
+  facility_longitude?:
+    | number
+    | null;
 
   urgency:
     BloodRequestUrgency;
 
-  needed_date?: string | null;
+  needed_date?:
+    | string
+    | null;
 
-  needed_time?: string | null;
+  needed_time?:
+    | string
+    | null;
 
-  message?: string | null;
+  message?:
+    | string
+    | null;
 
   status:
     BloodRequestStatus;
 
-  fulfilled_at?: string | null;
+  fulfilled_at?:
+    | string
+    | null;
 
-  cancelled_at?: string | null;
+  cancelled_at?:
+    | string
+    | null;
 
   created_at: string;
 
@@ -183,10 +280,14 @@ async function request(
       data
     );
 
-    throw new Error(
+    throw new ApiError(
       data?.error ||
         data?.message ||
-        `Request failed (${response.status})`
+        `Request failed (${response.status})`,
+
+      response.status,
+
+      data
     );
   }
 
@@ -256,7 +357,7 @@ export async function registerUser(
 }
 
 // ------------------------------------------------------------
-// VERIFY EMAIL OTP
+// VERIFY EMAIL
 // ------------------------------------------------------------
 
 export async function verifyEmail(
@@ -284,7 +385,7 @@ export async function verifyEmail(
 }
 
 // ------------------------------------------------------------
-// RESEND VERIFICATION OTP
+// RESEND VERIFICATION
 // ------------------------------------------------------------
 
 export async function resendVerification(
@@ -332,9 +433,7 @@ export async function forgotPassword(
 }
 
 // ------------------------------------------------------------
-// VERIFY PASSWORD RECOVERY CODE
-//
-// POST /api/auth/verify-recovery-code
+// VERIFY RECOVERY CODE
 // ------------------------------------------------------------
 
 export async function verifyRecoveryCode(
@@ -344,7 +443,8 @@ export async function verifyRecoveryCode(
   return request(
     '/api/auth/verify-recovery-code',
     {
-      method: 'POST',
+      method:
+        'POST',
 
       body:
         JSON.stringify({
@@ -362,8 +462,6 @@ export async function verifyRecoveryCode(
 
 // ------------------------------------------------------------
 // RESET PASSWORD
-//
-// POST /api/auth/reset-password
 // ------------------------------------------------------------
 
 export async function resetPassword(
@@ -374,7 +472,8 @@ export async function resetPassword(
   return request(
     '/api/auth/reset-password',
     {
-      method: 'POST',
+      method:
+        'POST',
 
       body:
         JSON.stringify({
@@ -389,7 +488,6 @@ export async function resetPassword(
     }
   );
 }
-
 
 // ------------------------------------------------------------
 // CURRENT USER
@@ -413,7 +511,7 @@ export async function getCurrentUser(
 }
 
 // ------------------------------------------------------------
-// UPDATE CURRENT USER PROFILE
+// UPDATE PROFILE
 // ------------------------------------------------------------
 
 export async function updateProfile(
@@ -454,6 +552,156 @@ export async function logoutUser(
     {
       method:
         'POST',
+
+      headers: {
+        Authorization:
+          `Bearer ${accessToken}`,
+      },
+    }
+  );
+}
+
+// ============================================================
+// PROFILE PHOTO
+// ============================================================
+
+// ------------------------------------------------------------
+// UPLOAD / REPLACE PROFILE PHOTO
+// ------------------------------------------------------------
+
+export async function uploadProfilePhoto(
+  accessToken: string,
+  photo: ProfilePhotoFile
+) {
+  const formData =
+    new FormData();
+
+  // ----------------------------------------------------------
+  // WEB
+  // ----------------------------------------------------------
+
+  if (
+    Platform.OS === 'web' &&
+    photo.webFile
+  ) {
+    formData.append(
+      'photo',
+      photo.webFile,
+      photo.fileName ||
+        photo.webFile?.name ||
+        'profile-photo.jpg'
+    );
+  } else {
+    // --------------------------------------------------------
+    // IOS / ANDROID
+    // --------------------------------------------------------
+
+    const fileName =
+      photo.fileName ||
+      `profile-${Date.now()}.jpg`;
+
+    const mimeType =
+      photo.mimeType ||
+      'image/jpeg';
+
+    formData.append(
+      'photo',
+      {
+        uri:
+          photo.uri,
+
+        name:
+          fileName,
+
+        type:
+          mimeType,
+      } as any
+    );
+  }
+
+  let response: Response;
+
+  try {
+    response =
+      await fetch(
+        `${API_URL}/api/auth/profile-photo`,
+        {
+          method:
+            'POST',
+
+          headers: {
+            Authorization:
+              `Bearer ${accessToken}`,
+          },
+
+          /*
+            IMPORTANT:
+
+            Do not manually set Content-Type here.
+
+            fetch will automatically create the proper
+            multipart/form-data boundary.
+          */
+
+          body:
+            formData,
+        }
+      );
+  } catch (error) {
+    console.log(
+      'PROFILE PHOTO NETWORK ERROR:',
+      error
+    );
+
+    throw new Error(
+      'Unable to connect to the Hemo-Hero server.'
+    );
+  }
+
+  let data: any =
+    null;
+
+  try {
+    data =
+      await response.json();
+  } catch {
+    data =
+      null;
+  }
+
+  if (!response.ok) {
+    console.log(
+      'PROFILE PHOTO API ERROR:',
+      response.status,
+      data
+    );
+
+    throw new ApiError(
+      data?.error ||
+        data?.message ||
+        `Profile photo upload failed (${response.status})`,
+
+      response.status,
+
+      data
+    );
+  }
+
+  return data;
+}
+
+// ------------------------------------------------------------
+// DELETE PROFILE PHOTO
+// ------------------------------------------------------------
+
+export async function deleteProfilePhoto(
+  accessToken: string
+) {
+  return request(
+    '/api/auth/profile-photo',
+    {
+      method:
+        'DELETE',
 
       headers: {
         Authorization:
@@ -574,7 +822,7 @@ export async function getMyActiveBloodRequest(
 }
 
 // ------------------------------------------------------------
-// GET REQUEST BY ID
+// GET BLOOD REQUEST BY ID
 // ------------------------------------------------------------
 
 export async function getBloodRequestById(
