@@ -1,0 +1,2793 @@
+import { useCallback, useState } from 'react';
+
+import {
+  Alert,
+  Image,
+  Platform,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
+} from 'react-native';
+
+import { MaterialIcons } from '@expo/vector-icons';
+import { LinearGradient } from 'expo-linear-gradient';
+import { router, useFocusEffect } from 'expo-router';
+import { StatusBar } from 'expo-status-bar';
+import { SafeAreaView } from 'react-native-safe-area-context';
+
+import {
+  getCurrentUser,
+  logoutUser,
+} from '../lib/api';
+
+import {
+  getMyDonorApplication,
+} from '../lib/donorApplication';
+
+import type {
+  DonorApplication,
+} from '../lib/donorApplication';
+
+import {
+  clearSession,
+  getAccessToken,
+} from '../lib/session';
+
+// ============================================================
+// COLORS
+// ============================================================
+
+const COLORS = {
+  red: '#D31217',
+  redDark: '#8F1014',
+  redButton: '#B42323',
+
+  white: '#FFFFFF',
+  black: '#1D1D1F',
+
+  page: '#F7F7F8',
+  card: '#FFFFFF',
+
+  muted: '#6E6E73',
+  lightMuted: '#A0A0A5',
+
+  border: '#ECECEF',
+
+  pinkSoft: '#FFF1F2',
+
+  green: '#178B49',
+  greenSoft: '#EAF7EF',
+
+  orange: '#DD7A20',
+  orangeSoft: '#FFF3E7',
+
+  graySoft: '#F2F2F4',
+};
+
+// ============================================================
+// PROFILE SCREEN
+// ============================================================
+
+export default function ProfileScreen() {
+  // ==========================================================
+  // PROFILE
+  // ==========================================================
+
+  const [profile, setProfile] = useState<any>(null);
+
+  const [loading, setLoading] =
+    useState(true);
+
+  const [
+    errorMessage,
+    setErrorMessage,
+  ] = useState('');
+
+  // ==========================================================
+  // DONOR
+  // ==========================================================
+
+  const [
+    donorApplication,
+    setDonorApplication,
+  ] =
+    useState<DonorApplication | null>(
+      null
+    );
+
+  const [
+    loadingDonorStatus,
+    setLoadingDonorStatus,
+  ] = useState(true);
+
+  // ==========================================================
+  // LOGOUT
+  // ==========================================================
+
+  const [
+    signingOut,
+    setSigningOut,
+  ] = useState(false);
+
+  // ==========================================================
+  // LOAD PROFILE
+  // ==========================================================
+
+  const loadProfile =
+    useCallback(async () => {
+      const token =
+        await getAccessToken();
+
+      if (!token) {
+        router.replace('/');
+        return;
+      }
+
+      // ------------------------------------------------------
+      // USER PROFILE
+      // ------------------------------------------------------
+
+      try {
+        setLoading(true);
+        setErrorMessage('');
+
+        const data =
+          await getCurrentUser(
+            token
+          );
+
+        if (!data?.user) {
+          throw new Error(
+            'Unable to load your profile.'
+          );
+        }
+
+        setProfile(
+          data.user
+        );
+      } catch (error) {
+        console.log(
+          'PROFILE LOAD ERROR:',
+          error
+        );
+
+        setErrorMessage(
+          error instanceof Error
+            ? error.message
+            : 'Unable to load your profile.'
+        );
+      } finally {
+        setLoading(false);
+      }
+
+      // ------------------------------------------------------
+      // DONOR APPLICATION
+      // ------------------------------------------------------
+
+      try {
+        setLoadingDonorStatus(
+          true
+        );
+
+        const data =
+          await getMyDonorApplication(
+            token
+          );
+
+        setDonorApplication(
+          data?.application ||
+            null
+        );
+      } catch (error) {
+        console.log(
+          'PROFILE DONOR STATUS ERROR:',
+          error
+        );
+
+        setDonorApplication(
+          null
+        );
+      } finally {
+        setLoadingDonorStatus(
+          false
+        );
+      }
+    }, []);
+
+  // ==========================================================
+  // REFRESH WHEN SCREEN OPENS
+  // ==========================================================
+
+  useFocusEffect(
+    useCallback(() => {
+      loadProfile();
+    }, [loadProfile])
+  );
+
+  // ==========================================================
+  // MESSAGE
+  // ==========================================================
+
+  function showMessage(
+    title: string,
+    message: string
+  ) {
+    if (
+      Platform.OS === 'web' &&
+      typeof window !==
+        'undefined'
+    ) {
+      window.alert(
+        `${title}\n\n${message}`
+      );
+
+      return;
+    }
+
+    Alert.alert(
+      title,
+      message
+    );
+  }
+
+  // ==========================================================
+  // DISPLAY DATA
+  // ==========================================================
+
+  const fullName =
+    [
+      profile?.first_name,
+      profile?.middle_name,
+      profile?.last_name,
+      profile?.suffix,
+    ]
+      .filter(Boolean)
+      .join(' ') ||
+    'Hemo-Hero User';
+
+  const email =
+    profile?.email ||
+    'Email unavailable';
+
+  const phone =
+    profile?.phone ||
+    'Not provided';
+
+  // ==========================================================
+  // BLOOD TYPE
+  //
+  // Approved donor application is the trusted source.
+  // If not approved, fall back to the user's profile.
+  // If the profile has no blood type but an application does,
+  // use the application value.
+  // ==========================================================
+
+  const bloodType =
+    donorApplication?.status ===
+      'approved' &&
+    donorApplication?.blood_type
+      ? donorApplication.blood_type
+      : profile?.blood_type ||
+        donorApplication?.blood_type ||
+        'Not provided';
+
+  const gender =
+    profile?.gender ||
+    'Not provided';
+
+  const completeLocation =
+    [
+      profile?.barangay,
+      profile?.city,
+      profile?.province,
+    ]
+      .filter(Boolean)
+      .join(', ') ||
+    'Location not provided';
+
+  const shortLocation =
+    [
+      profile?.city,
+      profile?.province,
+    ]
+      .filter(Boolean)
+      .join(', ') ||
+    'Location not added';
+
+  const profilePhotoUrl =
+    profile?.profile_photo_url ||
+    '';
+
+  // ==========================================================
+  // DATE OF BIRTH
+  // ==========================================================
+
+  function formatDateOfBirth(
+    value?: string | null
+  ) {
+    if (!value) {
+      return 'Not provided';
+    }
+
+    const date = new Date(
+      `${value}T00:00:00`
+    );
+
+    if (
+      Number.isNaN(
+        date.getTime()
+      )
+    ) {
+      return value;
+    }
+
+    return date.toLocaleDateString(
+      'en-US',
+      {
+        month: 'long',
+        day: 'numeric',
+        year: 'numeric',
+      }
+    );
+  }
+
+  // ==========================================================
+  // DONOR STATUS
+  // ==========================================================
+
+  function getDonorStatusLabel() {
+    if (!donorApplication) {
+      return '';
+    }
+
+    switch (
+      donorApplication.status
+    ) {
+      case 'approved':
+        return 'Verified Donor';
+
+      case 'pending':
+        return 'Application Pending';
+
+      case 'rejected':
+        return 'Application Rejected';
+
+      case 'withdrawn':
+        return 'Application Withdrawn';
+
+      default:
+        return 'Donor';
+    }
+  }
+
+  function getDonorStatusColor() {
+    switch (
+      donorApplication?.status
+    ) {
+      case 'approved':
+        return COLORS.green;
+
+      case 'pending':
+        return COLORS.orange;
+
+      default:
+        return COLORS.muted;
+    }
+  }
+
+  function getDonorStatusBackground() {
+    switch (
+      donorApplication?.status
+    ) {
+      case 'approved':
+        return COLORS.greenSoft;
+
+      case 'pending':
+        return COLORS.orangeSoft;
+
+      default:
+        return COLORS.graySoft;
+    }
+  }
+
+  // ==========================================================
+  // EDIT PROFILE
+  // ==========================================================
+
+  function handleEditProfile() {
+    router.push('/edit-profile');
+  }
+
+  // ==========================================================
+  // BLOOD REQUESTS
+  // ==========================================================
+
+  function handleBloodRequests() {
+    router.replace(
+      '/dashboard'
+    );
+  }
+
+  // ==========================================================
+  // DONOR ACTIVITY
+  // ==========================================================
+
+  function handleDonorActivity() {
+    if (!donorApplication) {
+      return;
+    }
+
+    if (
+      donorApplication.status ===
+      'pending'
+    ) {
+      router.push({
+        pathname:
+          '/donor-application/success',
+
+        params: {
+          status:
+            'pending',
+        },
+      } as any);
+
+      return;
+    }
+
+    if (
+      donorApplication.status ===
+      'approved'
+    ) {
+      showMessage(
+        'Donor Activity',
+        'Your donation history and donor activity will be connected next.'
+      );
+
+      return;
+    }
+
+    router.push(
+      '/donor-application/blood' as any
+    );
+  }
+
+  // ==========================================================
+  // ACCOUNT SECURITY
+  // ==========================================================
+
+  function handleAccountSecurity() {
+    showMessage(
+      'Account & Security',
+      'Password and security settings will be connected next.'
+    );
+  }
+
+  // ==========================================================
+  // NOTIFICATIONS
+  // ==========================================================
+
+  function handleNotifications() {
+    showMessage(
+      'Notifications',
+      'Notification preferences will be connected later.'
+    );
+  }
+
+  // ==========================================================
+  // SUPPORT
+  // ==========================================================
+
+  function handleHelpCenter() {
+    showMessage(
+      'Help Center',
+      'The Hemo-Hero Help Center will be connected later.'
+    );
+  }
+
+  function handleAbout() {
+    showMessage(
+      'About Hemo-Hero',
+      'Hemo-Hero helps connect people requesting blood with compatible nearby donors.'
+    );
+  }
+
+  // ==========================================================
+  // LOGOUT
+  // ==========================================================
+
+  async function performLogout() {
+    if (signingOut) {
+      return;
+    }
+
+    try {
+      setSigningOut(true);
+
+      const token =
+        await getAccessToken();
+
+      if (token) {
+        try {
+          await logoutUser(
+            token
+          );
+        } catch (error) {
+          console.log(
+            'SERVER LOGOUT ERROR:',
+            error
+          );
+        }
+      }
+
+      await clearSession();
+
+      router.replace('/');
+    } catch (error) {
+      console.log(
+        'PROFILE LOGOUT ERROR:',
+        error
+      );
+
+      showMessage(
+        'Sign Out Failed',
+        'Unable to sign out. Please try again.'
+      );
+    } finally {
+      setSigningOut(false);
+    }
+  }
+
+  function handleLogout() {
+    if (
+      Platform.OS === 'web'
+    ) {
+      const confirmed =
+        typeof window !==
+        'undefined'
+          ? window.confirm(
+              'Are you sure you want to sign out of Hemo-Hero?'
+            )
+          : false;
+
+      if (confirmed) {
+        performLogout();
+      }
+
+      return;
+    }
+
+    Alert.alert(
+      'Sign Out',
+      'Are you sure you want to sign out of Hemo-Hero?',
+      [
+        {
+          text: 'Cancel',
+          style: 'cancel',
+        },
+        {
+          text: 'Sign Out',
+          style:
+            'destructive',
+          onPress:
+            performLogout,
+        },
+      ]
+    );
+  }
+
+  // ==========================================================
+  // UI
+  // ==========================================================
+
+  return (
+    <View
+      style={
+        styles.desktopBackground
+      }
+    >
+      <View
+        style={
+          styles.phone
+        }
+      >
+        <SafeAreaView
+          style={
+            styles.safeArea
+          }
+          edges={[
+            'top',
+            'bottom',
+          ]}
+        >
+          <StatusBar
+            style="light"
+          />
+
+          {/* ==================================================
+              HEADER AREA
+          ================================================== */}
+
+          <View
+            style={
+              styles.headerArea
+            }
+          >
+            <LinearGradient
+              colors={[
+                '#D9191E',
+                COLORS.redDark,
+              ]}
+              style={
+                styles.hero
+              }
+            >
+              <View
+                style={
+                  styles.heroCircleLeft
+                }
+              />
+
+              <View
+                style={
+                  styles.heroCircleRight
+                }
+              />
+
+              {/* TOP BAR */}
+
+              <View
+                style={
+                  styles.topBar
+                }
+              >
+                <TouchableOpacity
+                  style={
+                    styles.topButton
+                  }
+                  activeOpacity={
+                    0.7
+                  }
+                  onPress={() =>
+                    router.replace(
+                      '/dashboard'
+                    )
+                  }
+                >
+                  <MaterialIcons
+                    name="arrow-back"
+                    size={24}
+                    color={
+                      COLORS.white
+                    }
+                  />
+                </TouchableOpacity>
+
+                <Text
+                  style={
+                    styles.topTitle
+                  }
+                >
+                  My Profile
+                </Text>
+
+                <TouchableOpacity
+                  style={
+                    styles.topButton
+                  }
+                  activeOpacity={
+                    0.7
+                  }
+                  onPress={
+                    handleEditProfile
+                  }
+                >
+                  <MaterialIcons
+                    name="edit"
+                    size={21}
+                    color={
+                      COLORS.white
+                    }
+                  />
+                </TouchableOpacity>
+              </View>
+
+              {/* USER IDENTITY */}
+
+              <View
+                style={
+                  styles.identityRow
+                }
+              >
+                {/* AVATAR */}
+
+                <View
+                  style={
+                    styles.avatarContainer
+                  }
+                >
+                  <View
+                    style={
+                      styles.avatar
+                    }
+                  >
+                    {profilePhotoUrl ? (
+                      <Image
+                        source={{
+                          uri:
+                            profilePhotoUrl,
+                        }}
+                        style={
+                          styles.avatarImage
+                        }
+                        resizeMode="cover"
+                      />
+                    ) : (
+                      <MaterialIcons
+                        name="person"
+                        size={44}
+                        color={
+                          COLORS.redDark
+                        }
+                      />
+                    )}
+                  </View>
+
+                  <TouchableOpacity
+                    style={
+                      styles.cameraButton
+                    }
+                    activeOpacity={
+                      0.8
+                    }
+                    onPress={
+                      handleEditProfile
+                    }
+                  >
+                    <MaterialIcons
+                      name="photo-camera"
+                      size={13}
+                      color={
+                        COLORS.redButton
+                      }
+                    />
+                  </TouchableOpacity>
+                </View>
+
+                {/* IDENTITY CONTENT */}
+
+                <View
+                  style={
+                    styles.identityContent
+                  }
+                >
+                  <Text
+                    numberOfLines={1}
+                    style={
+                      styles.profileName
+                    }
+                  >
+                    {loading
+                      ? 'Loading...'
+                      : fullName}
+                  </Text>
+
+                  <Text
+                    numberOfLines={1}
+                    style={
+                      styles.profileEmail
+                    }
+                  >
+                    {loading
+                      ? 'Loading account...'
+                      : email}
+                  </Text>
+
+                  {/* DONOR BADGE */}
+
+                  {!loadingDonorStatus &&
+                  donorApplication ? (
+                    <View
+                      style={[
+                        styles.donorBadge,
+
+                        {
+                          backgroundColor:
+                            getDonorStatusBackground(),
+                        },
+                      ]}
+                    >
+                      {donorApplication.status ===
+                      'approved' ? (
+                        <MaterialIcons
+                          name="verified"
+                          size={13}
+                          color={
+                            getDonorStatusColor()
+                          }
+                        />
+                      ) : (
+                        <View
+                          style={[
+                            styles.statusDot,
+
+                            {
+                              backgroundColor:
+                                getDonorStatusColor(),
+                            },
+                          ]}
+                        />
+                      )}
+
+                      <Text
+                        style={[
+                          styles.donorBadgeText,
+
+                          {
+                            color:
+                              getDonorStatusColor(),
+                          },
+                        ]}
+                      >
+                        {getDonorStatusLabel()}
+                      </Text>
+                    </View>
+                  ) : null}
+                </View>
+              </View>
+            </LinearGradient>
+
+            {/* ==================================================
+                FLOATING BLOOD TYPE + LOCATION
+            ================================================== */}
+
+            <View
+              style={
+                styles.quickCard
+              }
+            >
+              {/* BLOOD TYPE */}
+
+              <View
+                style={
+                  styles.quickItem
+                }
+              >
+                <View
+                  style={
+                    styles.quickIcon
+                  }
+                >
+                  <MaterialIcons
+                    name="bloodtype"
+                    size={20}
+                    color={
+                      COLORS.redButton
+                    }
+                  />
+                </View>
+
+                <View
+                  style={
+                    styles.quickContent
+                  }
+                >
+                  <Text
+                    numberOfLines={1}
+                    style={
+                      styles.quickValue
+                    }
+                  >
+                    {loading ||
+                    loadingDonorStatus
+                      ? '...'
+                      : bloodType}
+                  </Text>
+
+                  <Text
+                    style={
+                      styles.quickLabel
+                    }
+                  >
+                    Blood Type
+                  </Text>
+                </View>
+              </View>
+
+              <View
+                style={
+                  styles.quickDivider
+                }
+              />
+
+              {/* LOCATION */}
+
+              <View
+                style={
+                  styles.quickItem
+                }
+              >
+                <View
+                  style={
+                    styles.quickIcon
+                  }
+                >
+                  <MaterialIcons
+                    name="location-on"
+                    size={20}
+                    color={
+                      COLORS.redButton
+                    }
+                  />
+                </View>
+
+                <View
+                  style={
+                    styles.quickContent
+                  }
+                >
+                  <Text
+                    numberOfLines={1}
+                    style={
+                      styles.quickValue
+                    }
+                  >
+                    {loading
+                      ? '...'
+                      : shortLocation}
+                  </Text>
+
+                  <Text
+                    style={
+                      styles.quickLabel
+                    }
+                  >
+                    Location
+                  </Text>
+                </View>
+              </View>
+            </View>
+          </View>
+
+          {/* ==================================================
+              SCROLL CONTENT
+          ================================================== */}
+
+          <ScrollView
+            style={
+              styles.content
+            }
+            contentContainerStyle={
+              styles.contentContainer
+            }
+            showsVerticalScrollIndicator={
+              false
+            }
+            bounces={
+              false
+            }
+          >
+            {/* ERROR */}
+
+            {errorMessage ? (
+              <TouchableOpacity
+                style={
+                  styles.errorCard
+                }
+                activeOpacity={
+                  0.8
+                }
+                onPress={
+                  loadProfile
+                }
+              >
+                <MaterialIcons
+                  name="error-outline"
+                  size={20}
+                  color={
+                    COLORS.redButton
+                  }
+                />
+
+                <View
+                  style={
+                    styles.errorContent
+                  }
+                >
+                  <Text
+                    style={
+                      styles.errorTitle
+                    }
+                  >
+                    Unable to load profile
+                  </Text>
+
+                  <Text
+                    style={
+                      styles.errorText
+                    }
+                  >
+                    Tap to try again.
+                  </Text>
+                </View>
+              </TouchableOpacity>
+            ) : null}
+
+            {/* ==================================================
+                MY ACTIVITY
+            ================================================== */}
+
+            <SectionTitle
+              title="My Activity"
+            />
+
+            <View
+              style={
+                styles.card
+              }
+            >
+              <MenuRow
+                icon="assignment"
+                title="My Blood Requests"
+                subtitle="Manage your blood requests"
+                onPress={
+                  handleBloodRequests
+                }
+              />
+
+              {/* ONLY SHOW IF USER HAS DONOR APPLICATION */}
+
+              {donorApplication ? (
+                <>
+                  <Divider />
+
+                  <MenuRow
+                    icon="volunteer-activism"
+                    iconColor={
+                      COLORS.orange
+                    }
+                    title="Donor Activity"
+                    subtitle={
+                      donorApplication.status ===
+                      'approved'
+                        ? 'View your donor activity'
+                        : donorApplication.status ===
+                            'pending'
+                          ? 'Application under review'
+                          : 'View donor application'
+                    }
+                    onPress={
+                      handleDonorActivity
+                    }
+                  />
+                </>
+              ) : null}
+            </View>
+
+            {/* ==================================================
+                PERSONAL INFORMATION
+            ================================================== */}
+
+            <SectionTitle
+              title="Personal Information"
+            />
+
+            <View
+              style={
+                styles.card
+              }
+            >
+              <InfoRow
+                icon="person-outline"
+                label="Full Name"
+                value={
+                  loading
+                    ? 'Loading...'
+                    : fullName
+                }
+              />
+
+              <Divider />
+
+              <InfoRow
+                icon="phone"
+                label="Phone"
+                value={
+                  loading
+                    ? 'Loading...'
+                    : phone
+                }
+              />
+
+              <Divider />
+
+              <InfoRow
+                icon="cake"
+                label="Birthday"
+                value={
+                  loading
+                    ? 'Loading...'
+                    : formatDateOfBirth(
+                        profile?.date_of_birth
+                      )
+                }
+              />
+
+              <Divider />
+
+              <InfoRow
+                icon="wc"
+                label="Gender"
+                value={
+                  loading
+                    ? 'Loading...'
+                    : gender
+                }
+              />
+
+              <Divider />
+
+              <InfoRow
+                icon="email"
+                label="Email"
+                value={
+                  loading
+                    ? 'Loading...'
+                    : email
+                }
+              />
+
+              <Divider />
+
+              <InfoRow
+                icon="location-on"
+                label="Location"
+                value={
+                  loading
+                    ? 'Loading...'
+                    : completeLocation
+                }
+                multiline
+              />
+            </View>
+
+            {/* ==================================================
+                MEDICAL INFORMATION
+            ================================================== */}
+
+            <SectionTitle
+              title="Medical Information"
+            />
+
+            <View
+              style={
+                styles.card
+              }
+            >
+              <View
+                style={
+                  styles.medicalRow
+                }
+              >
+                <View
+                  style={
+                    styles.medicalLeft
+                  }
+                >
+                  <View
+                    style={
+                      styles.medicalIcon
+                    }
+                  >
+                    <MaterialIcons
+                      name="bloodtype"
+                      size={20}
+                      color={
+                        COLORS.redButton
+                      }
+                    />
+                  </View>
+
+                  <View>
+                    <Text
+                      style={
+                        styles.medicalLabel
+                      }
+                    >
+                      Blood Type
+                    </Text>
+
+                    <Text
+                      style={
+                        styles.medicalHelper
+                      }
+                    >
+                      Your registered blood group
+                    </Text>
+                  </View>
+                </View>
+
+                <View
+                  style={
+                    styles.bloodBadge
+                  }
+                >
+                  <Text
+                    style={
+                      styles.bloodBadgeText
+                    }
+                  >
+                    {loading ||
+                    loadingDonorStatus
+                      ? '...'
+                      : bloodType}
+                  </Text>
+                </View>
+              </View>
+            </View>
+
+            {/* ==================================================
+                ACCOUNT STATUS
+            ================================================== */}
+
+            <SectionTitle
+              title="Account Status"
+            />
+
+            <View
+              style={
+                styles.card
+              }
+            >
+              <StatusRow
+                icon="check-circle"
+                label="Profile Completed"
+                value={
+                  profile?.onboarding_complete
+                    ? 'Complete'
+                    : 'Incomplete'
+                }
+                active={
+                  Boolean(
+                    profile?.onboarding_complete
+                  )
+                }
+              />
+
+              {/* DONOR STATUS ONLY WHEN USER HAS APPLIED */}
+
+              {donorApplication ? (
+                <>
+                  <Divider />
+
+                  <StatusRow
+                    icon={
+                      donorApplication.status ===
+                      'approved'
+                        ? 'verified'
+                        : 'hourglass-top'
+                    }
+                    label="Donor Account"
+                    value={
+                      getDonorStatusLabel()
+                    }
+                    active={
+                      donorApplication.status ===
+                      'approved'
+                    }
+                  />
+                </>
+              ) : null}
+            </View>
+
+            {/* ==================================================
+                SETTINGS
+            ================================================== */}
+
+            <SectionTitle
+              title="Settings"
+            />
+
+            <View
+              style={
+                styles.card
+              }
+            >
+              <MenuRow
+                icon="security"
+                title="Account & Security"
+                subtitle="Password and security settings"
+                onPress={
+                  handleAccountSecurity
+                }
+              />
+
+              <Divider />
+
+              <MenuRow
+                icon="privacy-tip"
+                title="Privacy Policy"
+                subtitle="How Hemo-Hero handles your data"
+                onPress={() =>
+                  router.push(
+                    '/privacy-policy'
+                  )
+                }
+              />
+
+              <Divider />
+
+              <MenuRow
+                icon="description"
+                title="Terms of Service"
+                subtitle="Review Hemo-Hero terms"
+                onPress={() =>
+                  router.push(
+                    '/terms-of-service'
+                  )
+                }
+              />
+
+              <Divider />
+
+              <MenuRow
+                icon="notifications-none"
+                title="Notifications"
+                subtitle="Manage alerts and notifications"
+                onPress={
+                  handleNotifications
+                }
+              />
+            </View>
+
+            {/* ==================================================
+                SUPPORT
+            ================================================== */}
+
+            <SectionTitle
+              title="Support"
+            />
+
+            <View
+              style={
+                styles.card
+              }
+            >
+              <MenuRow
+                icon="help-outline"
+                title="Help Center"
+                subtitle="Get help using Hemo-Hero"
+                onPress={
+                  handleHelpCenter
+                }
+              />
+
+              <Divider />
+
+              <MenuRow
+                icon="info-outline"
+                title="About Hemo-Hero"
+                subtitle="Learn about the Hemo-Hero project"
+                onPress={
+                  handleAbout
+                }
+              />
+            </View>
+
+            {/* ==================================================
+                SIGN OUT
+            ================================================== */}
+
+            <TouchableOpacity
+              style={
+                styles.logoutButton
+              }
+              activeOpacity={
+                0.85
+              }
+              disabled={
+                signingOut
+              }
+              onPress={
+                handleLogout
+              }
+            >
+              <MaterialIcons
+                name="logout"
+                size={18}
+                color={
+                  COLORS.white
+                }
+              />
+
+              <Text
+                style={
+                  styles.logoutText
+                }
+              >
+                {signingOut
+                  ? 'Signing Out...'
+                  : 'Sign Out'}
+              </Text>
+            </TouchableOpacity>
+
+            <Text
+              style={
+                styles.footerText
+              }
+            >
+              Hemo-Hero
+            </Text>
+          </ScrollView>
+
+          {/* ==================================================
+              BOTTOM NAV
+          ================================================== */}
+
+          <View
+            style={
+              styles.bottomNav
+            }
+          >
+            <TouchableOpacity
+              style={
+                styles.navItem
+              }
+              onPress={() =>
+                router.replace(
+                  '/dashboard'
+                )
+              }
+            >
+              <MaterialIcons
+                name="home"
+                size={27}
+                color="#D89191"
+              />
+
+              <Text
+                style={
+                  styles.navText
+                }
+              >
+                Home
+              </Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={
+                styles.navItem
+              }
+              onPress={() =>
+                showMessage(
+                  'Search',
+                  'Search will be connected later.'
+                )
+              }
+            >
+              <MaterialIcons
+                name="person-search"
+                size={27}
+                color="#D89191"
+              />
+
+              <Text
+                style={
+                  styles.navText
+                }
+              >
+                Search
+              </Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={
+                styles.navItem
+              }
+              onPress={() =>
+                router.push(
+                  '/chat' as any
+                )
+              }
+            >
+              <MaterialIcons
+                name="chat-bubble-outline"
+                size={26}
+                color="#D89191"
+              />
+
+              <Text
+                style={
+                  styles.navText
+                }
+              >
+                Chat
+              </Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={
+                styles.navItem
+              }
+              onPress={
+                handleNotifications
+              }
+            >
+              <MaterialIcons
+                name="notifications-none"
+                size={27}
+                color="#D89191"
+              />
+
+              <Text
+                style={
+                  styles.navText
+                }
+              >
+                Notifications
+              </Text>
+            </TouchableOpacity>
+
+            <View
+              style={
+                styles.navItem
+              }
+            >
+              <MaterialIcons
+                name="person"
+                size={27}
+                color={
+                  COLORS.white
+                }
+              />
+
+              <Text
+                style={
+                  styles.navTextActive
+                }
+              >
+                Profile
+              </Text>
+            </View>
+          </View>
+        </SafeAreaView>
+      </View>
+    </View>
+  );
+}
+
+// ============================================================
+// SECTION TITLE
+// ============================================================
+
+function SectionTitle({
+  title,
+}: {
+  title: string;
+}) {
+  return (
+    <Text
+      style={
+        styles.sectionTitle
+      }
+    >
+      {title}
+    </Text>
+  );
+}
+
+// ============================================================
+// MENU ROW
+// ============================================================
+
+type MenuRowProps = {
+  icon:
+    keyof typeof MaterialIcons.glyphMap;
+
+  iconColor?: string;
+
+  title: string;
+
+  subtitle: string;
+
+  onPress: () => void;
+};
+
+function MenuRow({
+  icon,
+  iconColor =
+    COLORS.redButton,
+  title,
+  subtitle,
+  onPress,
+}: MenuRowProps) {
+  return (
+    <TouchableOpacity
+      style={
+        styles.menuRow
+      }
+      activeOpacity={
+        0.65
+      }
+      onPress={
+        onPress
+      }
+    >
+      <View
+        style={
+          styles.menuIcon
+        }
+      >
+        <MaterialIcons
+          name={icon}
+          size={20}
+          color={
+            iconColor
+          }
+        />
+      </View>
+
+      <View
+        style={
+          styles.menuContent
+        }
+      >
+        <Text
+          style={
+            styles.menuTitle
+          }
+        >
+          {title}
+        </Text>
+
+        <Text
+          numberOfLines={1}
+          style={
+            styles.menuSubtitle
+          }
+        >
+          {subtitle}
+        </Text>
+      </View>
+
+      <MaterialIcons
+        name="chevron-right"
+        size={21}
+        color="#B5B5BA"
+      />
+    </TouchableOpacity>
+  );
+}
+
+// ============================================================
+// INFO ROW
+// ============================================================
+
+type InfoRowProps = {
+  icon:
+    keyof typeof MaterialIcons.glyphMap;
+
+  label: string;
+
+  value: string;
+
+  multiline?: boolean;
+};
+
+function InfoRow({
+  icon,
+  label,
+  value,
+  multiline = false,
+}: InfoRowProps) {
+  return (
+    <View
+      style={
+        styles.infoRow
+      }
+    >
+      <View
+        style={
+          styles.infoIcon
+        }
+      >
+        <MaterialIcons
+          name={icon}
+          size={18}
+          color={
+            COLORS.redButton
+          }
+        />
+      </View>
+
+      <View
+        style={
+          styles.infoContent
+        }
+      >
+        <Text
+          style={
+            styles.infoLabel
+          }
+        >
+          {label}
+        </Text>
+
+        <Text
+          numberOfLines={
+            multiline
+              ? 3
+              : 1
+          }
+          style={
+            styles.infoValue
+          }
+        >
+          {value}
+        </Text>
+      </View>
+    </View>
+  );
+}
+
+// ============================================================
+// STATUS ROW
+// ============================================================
+
+function StatusRow({
+  icon,
+  label,
+  value,
+  active,
+}: {
+  icon:
+    keyof typeof MaterialIcons.glyphMap;
+
+  label: string;
+
+  value: string;
+
+  active: boolean;
+}) {
+  return (
+    <View
+      style={
+        styles.statusRow
+      }
+    >
+      <View
+        style={
+          styles.statusLeft
+        }
+      >
+        <View
+          style={
+            styles.statusIcon
+          }
+        >
+          <MaterialIcons
+            name={icon}
+            size={18}
+            color={
+              active
+                ? COLORS.green
+                : COLORS.muted
+            }
+          />
+        </View>
+
+        <Text
+          style={
+            styles.statusLabel
+          }
+        >
+          {label}
+        </Text>
+      </View>
+
+      <View
+        style={[
+          styles.statusBadge,
+
+          active
+            ? styles.statusBadgeActive
+            : styles.statusBadgeNeutral,
+        ]}
+      >
+        <Text
+          style={[
+            styles.statusBadgeText,
+
+            active
+              ? styles.statusBadgeTextActive
+              : styles.statusBadgeTextNeutral,
+          ]}
+        >
+          {value}
+        </Text>
+      </View>
+    </View>
+  );
+}
+
+// ============================================================
+// DIVIDER
+// ============================================================
+
+function Divider() {
+  return (
+    <View
+      style={
+        styles.divider
+      }
+    />
+  );
+}
+
+// ============================================================
+// STYLES
+// ============================================================
+
+const styles =
+  StyleSheet.create({
+    // ========================================================
+    // PAGE
+    // ========================================================
+
+    desktopBackground: {
+      flex: 1,
+      alignItems: 'center',
+      justifyContent: 'center',
+
+      backgroundColor:
+        Platform.OS === 'web'
+          ? '#242424'
+          : COLORS.page,
+    },
+
+    phone: {
+      width:
+        Platform.OS === 'web'
+          ? 402
+          : '100%',
+
+      height:
+        Platform.OS === 'web'
+          ? 874
+          : '100%',
+
+      maxWidth: '100%',
+
+      overflow: 'hidden',
+
+      backgroundColor:
+        COLORS.page,
+    },
+
+    safeArea: {
+      flex: 1,
+
+      backgroundColor:
+        COLORS.redDark,
+    },
+
+    // ========================================================
+    // HEADER AREA
+    // ========================================================
+
+    headerArea: {
+      position: 'relative',
+
+      height: 248,
+
+      zIndex: 10,
+
+      overflow: 'visible',
+
+      backgroundColor:
+        COLORS.page,
+    },
+
+    // ========================================================
+    // HERO
+    // ========================================================
+
+    hero: {
+      height: 210,
+
+      paddingHorizontal: 18,
+
+      overflow: 'hidden',
+    },
+
+    heroCircleLeft: {
+      position: 'absolute',
+
+      width: 180,
+      height: 180,
+
+      borderRadius: 90,
+
+      top: -100,
+      left: -90,
+
+      backgroundColor:
+        'rgba(255,255,255,0.07)',
+    },
+
+    heroCircleRight: {
+      position: 'absolute',
+
+      width: 190,
+      height: 190,
+
+      borderRadius: 95,
+
+      top: -105,
+      right: -95,
+
+      backgroundColor:
+        'rgba(255,255,255,0.07)',
+    },
+
+    // ========================================================
+    // TOP BAR
+    // ========================================================
+
+    topBar: {
+      height: 58,
+
+      flexDirection: 'row',
+
+      alignItems: 'center',
+
+      justifyContent:
+        'space-between',
+    },
+
+    topButton: {
+      width: 42,
+      height: 42,
+
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+
+    topTitle: {
+      color:
+        COLORS.white,
+
+      fontFamily:
+        'Poppins_700Bold',
+
+      fontSize: 18,
+    },
+
+    // ========================================================
+    // IDENTITY
+    // ========================================================
+
+    identityRow: {
+      flexDirection: 'row',
+
+      alignItems: 'center',
+
+      marginTop: 18,
+
+      paddingHorizontal: 5,
+    },
+
+    avatarContainer: {
+      position: 'relative',
+    },
+
+    avatar: {
+      width: 86,
+      height: 86,
+
+      borderRadius: 43,
+
+      borderWidth: 3,
+
+      borderColor:
+        COLORS.white,
+
+      backgroundColor:
+        '#F6DEDF',
+
+      alignItems: 'center',
+
+      justifyContent:
+        'center',
+
+      overflow: 'hidden',
+
+      shadowColor:
+        '#000000',
+
+      shadowOffset: {
+        width: 0,
+        height: 3,
+      },
+
+      shadowOpacity: 0.15,
+
+      shadowRadius: 5,
+
+      elevation: 4,
+    },
+
+    avatarImage: {
+      width: '100%',
+      height: '100%',
+    },
+
+    cameraButton: {
+      position: 'absolute',
+
+      width: 27,
+      height: 27,
+
+      right: -1,
+      bottom: 0,
+
+      borderRadius: 14,
+
+      borderWidth: 2,
+
+      borderColor:
+        COLORS.white,
+
+      backgroundColor:
+        COLORS.white,
+
+      alignItems: 'center',
+
+      justifyContent:
+        'center',
+
+      elevation: 3,
+    },
+
+    identityContent: {
+      flex: 1,
+
+      marginLeft: 15,
+
+      minWidth: 0,
+    },
+
+    profileName: {
+      color:
+        COLORS.white,
+
+      fontFamily:
+        'Poppins_700Bold',
+
+      fontSize: 22,
+
+      lineHeight: 27,
+    },
+
+    profileEmail: {
+      marginTop: 3,
+
+      color:
+        'rgba(255,255,255,0.84)',
+
+      fontFamily:
+        'Inter_400Regular',
+
+      fontSize: 11,
+    },
+
+    // ========================================================
+    // DONOR BADGE
+    // ========================================================
+
+    donorBadge: {
+      alignSelf:
+        'flex-start',
+
+      marginTop: 9,
+
+      minHeight: 24,
+
+      paddingHorizontal: 8,
+
+      flexDirection: 'row',
+
+      alignItems: 'center',
+
+      gap: 4,
+
+      borderRadius: 12,
+    },
+
+    donorBadgeText: {
+      fontFamily:
+        'Inter_600SemiBold',
+
+      fontSize: 9.5,
+    },
+
+    statusDot: {
+      width: 6,
+      height: 6,
+
+      borderRadius: 3,
+    },
+
+    // ========================================================
+    // FLOATING QUICK CARD
+    // ========================================================
+
+    quickCard: {
+      position: 'absolute',
+
+      left: 16,
+      right: 16,
+
+      bottom: 0,
+
+      height: 76,
+
+      paddingHorizontal: 14,
+
+      flexDirection: 'row',
+
+      alignItems: 'center',
+
+      borderRadius: 18,
+
+      backgroundColor:
+        COLORS.white,
+
+      borderWidth: 1,
+
+      borderColor:
+        '#EEEEF0',
+
+      shadowColor:
+        '#000000',
+
+      shadowOffset: {
+        width: 0,
+        height: 5,
+      },
+
+      shadowOpacity: 0.13,
+
+      shadowRadius: 12,
+
+      elevation: 8,
+
+      zIndex: 50,
+    },
+
+    quickItem: {
+      flex: 1,
+
+      flexDirection: 'row',
+
+      alignItems: 'center',
+
+      minWidth: 0,
+    },
+
+    quickIcon: {
+      width: 40,
+      height: 40,
+
+      marginRight: 9,
+
+      borderRadius: 20,
+
+      alignItems: 'center',
+
+      justifyContent:
+        'center',
+
+      backgroundColor:
+        COLORS.pinkSoft,
+    },
+
+    quickContent: {
+      flex: 1,
+
+      minWidth: 0,
+    },
+
+    quickValue: {
+      color:
+        COLORS.black,
+
+      fontFamily:
+        'Inter_600SemiBold',
+
+      fontSize: 12,
+
+      lineHeight: 16,
+    },
+
+    quickLabel: {
+      marginTop: 2,
+
+      color:
+        COLORS.lightMuted,
+
+      fontFamily:
+        'Inter_400Regular',
+
+      fontSize: 10,
+    },
+
+    quickDivider: {
+      width:
+        StyleSheet.hairlineWidth,
+
+      height: 38,
+
+      marginHorizontal: 11,
+
+      backgroundColor:
+        COLORS.border,
+    },
+
+    // ========================================================
+    // CONTENT
+    // ========================================================
+
+    content: {
+      flex: 1,
+
+      backgroundColor:
+        COLORS.page,
+    },
+
+    contentContainer: {
+      paddingHorizontal: 18,
+
+      paddingTop: 18,
+
+      paddingBottom: 32,
+    },
+
+    // ========================================================
+    // SECTION
+    // ========================================================
+
+    sectionTitle: {
+      marginLeft: 3,
+
+      marginTop: 2,
+
+      marginBottom: 8,
+
+      color:
+        COLORS.black,
+
+      fontFamily:
+        'Poppins_600SemiBold',
+
+      fontSize: 14,
+    },
+
+    card: {
+      marginBottom: 22,
+
+      paddingHorizontal: 13,
+
+      borderWidth: 1,
+
+      borderColor:
+        COLORS.border,
+
+      borderRadius: 16,
+
+      backgroundColor:
+        COLORS.white,
+
+      shadowColor:
+        '#000000',
+
+      shadowOffset: {
+        width: 0,
+        height: 2,
+      },
+
+      shadowOpacity:
+        0.035,
+
+      shadowRadius: 5,
+
+      elevation: 1,
+    },
+
+    divider: {
+      height:
+        StyleSheet.hairlineWidth,
+
+      marginLeft: 49,
+
+      backgroundColor:
+        COLORS.border,
+    },
+
+    // ========================================================
+    // MENU
+    // ========================================================
+
+    menuRow: {
+      minHeight: 67,
+
+      flexDirection: 'row',
+
+      alignItems: 'center',
+
+      paddingVertical: 10,
+    },
+
+    menuIcon: {
+      width: 38,
+      height: 38,
+
+      marginRight: 11,
+
+      borderRadius: 19,
+
+      alignItems: 'center',
+
+      justifyContent:
+        'center',
+
+      backgroundColor:
+        COLORS.pinkSoft,
+    },
+
+    menuContent: {
+      flex: 1,
+
+      minWidth: 0,
+
+      paddingRight: 6,
+    },
+
+    menuTitle: {
+      color:
+        COLORS.black,
+
+      fontFamily:
+        'Poppins_600SemiBold',
+
+      fontSize: 12,
+    },
+
+    menuSubtitle: {
+      marginTop: 3,
+
+      color:
+        COLORS.muted,
+
+      fontFamily:
+        'Inter_400Regular',
+
+      fontSize: 10,
+    },
+
+    // ========================================================
+    // PERSONAL INFORMATION
+    // ========================================================
+
+    infoRow: {
+      minHeight: 63,
+
+      flexDirection: 'row',
+
+      alignItems: 'center',
+
+      paddingVertical: 9,
+    },
+
+    infoIcon: {
+      width: 37,
+      height: 37,
+
+      marginRight: 11,
+
+      borderRadius: 19,
+
+      alignItems: 'center',
+
+      justifyContent:
+        'center',
+
+      backgroundColor:
+        COLORS.pinkSoft,
+    },
+
+    infoContent: {
+      flex: 1,
+
+      minWidth: 0,
+    },
+
+    infoLabel: {
+      color:
+        COLORS.lightMuted,
+
+      fontFamily:
+        'Inter_500Medium',
+
+      fontSize: 9.5,
+    },
+
+    infoValue: {
+      marginTop: 3,
+
+      color:
+        COLORS.black,
+
+      fontFamily:
+        'Inter_600SemiBold',
+
+      fontSize: 12,
+
+      lineHeight: 16,
+    },
+
+    // ========================================================
+    // MEDICAL
+    // ========================================================
+
+    medicalRow: {
+      minHeight: 73,
+
+      flexDirection: 'row',
+
+      alignItems: 'center',
+
+      justifyContent:
+        'space-between',
+    },
+
+    medicalLeft: {
+      flex: 1,
+
+      flexDirection: 'row',
+
+      alignItems: 'center',
+    },
+
+    medicalIcon: {
+      width: 40,
+      height: 40,
+
+      marginRight: 10,
+
+      borderRadius: 20,
+
+      alignItems: 'center',
+
+      justifyContent:
+        'center',
+
+      backgroundColor:
+        COLORS.pinkSoft,
+    },
+
+    medicalLabel: {
+      color:
+        COLORS.black,
+
+      fontFamily:
+        'Poppins_600SemiBold',
+
+      fontSize: 12,
+    },
+
+    medicalHelper: {
+      marginTop: 3,
+
+      color:
+        COLORS.lightMuted,
+
+      fontFamily:
+        'Inter_400Regular',
+
+      fontSize: 10,
+    },
+
+    bloodBadge: {
+      minWidth: 46,
+
+      height: 39,
+
+      paddingHorizontal: 10,
+
+      borderRadius: 11,
+
+      alignItems: 'center',
+
+      justifyContent:
+        'center',
+
+      backgroundColor:
+        COLORS.redButton,
+    },
+
+    bloodBadgeText: {
+      color:
+        COLORS.white,
+
+      fontFamily:
+        'Poppins_700Bold',
+
+      fontSize: 13,
+    },
+
+    // ========================================================
+    // STATUS
+    // ========================================================
+
+    statusRow: {
+      minHeight: 62,
+
+      flexDirection: 'row',
+
+      alignItems: 'center',
+
+      justifyContent:
+        'space-between',
+    },
+
+    statusLeft: {
+      flex: 1,
+
+      flexDirection: 'row',
+
+      alignItems: 'center',
+    },
+
+    statusIcon: {
+      width: 37,
+      height: 37,
+
+      marginRight: 11,
+
+      borderRadius: 19,
+
+      alignItems: 'center',
+
+      justifyContent:
+        'center',
+
+      backgroundColor:
+        COLORS.graySoft,
+    },
+
+    statusLabel: {
+      color:
+        COLORS.black,
+
+      fontFamily:
+        'Inter_500Medium',
+
+      fontSize: 11,
+    },
+
+    statusBadge: {
+      maxWidth: 142,
+
+      paddingHorizontal: 9,
+
+      paddingVertical: 5,
+
+      borderRadius: 12,
+    },
+
+    statusBadgeActive: {
+      backgroundColor:
+        COLORS.greenSoft,
+    },
+
+    statusBadgeNeutral: {
+      backgroundColor:
+        COLORS.graySoft,
+    },
+
+    statusBadgeText: {
+      fontFamily:
+        'Inter_600SemiBold',
+
+      fontSize: 9.5,
+
+      textAlign: 'center',
+    },
+
+    statusBadgeTextActive: {
+      color:
+        COLORS.green,
+    },
+
+    statusBadgeTextNeutral: {
+      color:
+        COLORS.muted,
+    },
+
+    // ========================================================
+    // ERROR
+    // ========================================================
+
+    errorCard: {
+      minHeight: 58,
+
+      marginBottom: 18,
+
+      paddingHorizontal: 12,
+
+      paddingVertical: 10,
+
+      flexDirection: 'row',
+
+      alignItems: 'center',
+
+      gap: 9,
+
+      borderRadius: 12,
+
+      borderWidth: 1,
+
+      borderColor:
+        '#ECB0B2',
+
+      backgroundColor:
+        COLORS.pinkSoft,
+    },
+
+    errorContent: {
+      flex: 1,
+    },
+
+    errorTitle: {
+      color:
+        COLORS.redButton,
+
+      fontFamily:
+        'Inter_600SemiBold',
+
+      fontSize: 11.5,
+    },
+
+    errorText: {
+      marginTop: 2,
+
+      color:
+        COLORS.muted,
+
+      fontFamily:
+        'Inter_400Regular',
+
+      fontSize: 10,
+    },
+
+    // ========================================================
+    // LOGOUT
+    // ========================================================
+
+    logoutButton: {
+      height: 49,
+
+      marginTop: 3,
+
+      borderRadius: 12,
+
+      flexDirection: 'row',
+
+      alignItems: 'center',
+
+      justifyContent:
+        'center',
+
+      gap: 8,
+
+      backgroundColor:
+        COLORS.redButton,
+
+      shadowColor:
+        '#000000',
+
+      shadowOffset: {
+        width: 0,
+        height: 2,
+      },
+
+      shadowOpacity: 0.08,
+
+      shadowRadius: 4,
+
+      elevation: 2,
+    },
+
+    logoutText: {
+      color:
+        COLORS.white,
+
+      fontFamily:
+        'Poppins_600SemiBold',
+
+      fontSize: 12,
+    },
+
+    footerText: {
+      marginTop: 18,
+
+      color:
+        COLORS.lightMuted,
+
+      fontFamily:
+        'Inter_400Regular',
+
+      fontSize: 9.5,
+
+      textAlign: 'center',
+    },
+
+    // ========================================================
+    // BOTTOM NAV
+    // ========================================================
+
+    bottomNav: {
+      height: 76,
+
+      flexDirection: 'row',
+
+      alignItems: 'center',
+
+      justifyContent:
+        'space-around',
+
+      backgroundColor:
+        '#A90707',
+
+      borderTopWidth:
+        StyleSheet.hairlineWidth,
+
+      borderTopColor:
+        'rgba(255,255,255,0.16)',
+    },
+
+    navItem: {
+      flex: 1,
+
+      height: '100%',
+
+      alignItems: 'center',
+
+      justifyContent:
+        'center',
+
+      gap: 3,
+    },
+
+    navText: {
+      color:
+        '#D89191',
+
+      fontFamily:
+        'Inter_500Medium',
+
+      fontSize: 10,
+    },
+
+    navTextActive: {
+      color:
+        COLORS.white,
+
+      fontFamily:
+        'Inter_600SemiBold',
+
+      fontSize: 10,
+    },
+  });

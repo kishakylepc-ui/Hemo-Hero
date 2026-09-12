@@ -1087,34 +1087,8 @@ export default function DashboardScreen() {
   // ==========================================================
 
   function handleProfile() {
-    if (
-      Platform.OS === 'web'
-    ) {
-      handleComingSoon(
-        'Profile'
-      );
-
-      return;
-    }
-
-    Alert.alert(
-      'Profile',
-      'The full Profile screen will be built later.',
-      [
-        {
-          text: 'Cancel',
-          style: 'cancel',
-        },
-        {
-          text: 'Sign Out',
-          style:
-            'destructive',
-          onPress:
-            handleLogout,
-        },
-      ]
-    );
-  }
+  router.push('/profile');
+}
 
   async function handleLogout() {
     await clearSession();
@@ -3205,7 +3179,7 @@ const styles =
       fontFamily:
         'Inter_400Regular',
 
-      fontSize: 13,
+      fontSize: 12,
     },
 
     userName: {
@@ -3217,8 +3191,8 @@ const styles =
       fontFamily:
         'Poppins_700Bold',
 
-      fontSize: 26,
-      lineHeight: 31,
+      fontSize: 22,
+      lineHeight: 27,
     },
 
     locationPill: {
@@ -3251,7 +3225,7 @@ const styles =
       fontFamily:
         'Inter_400Regular',
 
-      fontSize: 11,
+      fontSize: 10.5,
     },
 
     avatar: {
@@ -3335,7 +3309,7 @@ const styles =
       fontFamily:
         'Poppins_700Bold',
 
-      fontSize: 15,
+      fontSize: 14,
     },
 
     emergencyDescription: {
@@ -3347,7 +3321,7 @@ const styles =
       fontFamily:
         'Inter_400Regular',
 
-      fontSize: 11,
+      fontSize: 10.5,
       lineHeight: 15,
     },
 
@@ -3376,7 +3350,7 @@ const styles =
       fontFamily:
         'Poppins_600SemiBold',
 
-      fontSize: 12,
+      fontSize: 11.5,
     },
 
     // ========================================================
@@ -3420,7 +3394,7 @@ const styles =
       fontFamily:
         'Poppins_600SemiBold',
 
-      fontSize: 15,
+      fontSize: 14,
     },
 
     viewAllText: {
@@ -3430,7 +3404,7 @@ const styles =
       fontFamily:
         'Inter_600SemiBold',
 
-      fontSize: 11,
+      fontSize: 10.5,
     },
 
     // ========================================================
@@ -3485,7 +3459,7 @@ const styles =
       fontFamily:
         'Poppins_600SemiBold',
 
-      fontSize: 13,
+      fontSize: 12.5,
     },
 
     emptyRequestDescription: {
@@ -3720,7 +3694,7 @@ const styles =
       fontFamily:
         'Inter_600SemiBold',
 
-      fontSize: 9,
+      fontSize: 9.5,
     },
 
     progressTextInactive: {
@@ -3730,7 +3704,7 @@ const styles =
       fontFamily:
         'Inter_400Regular',
 
-      fontSize: 9,
+      fontSize: 9.5,
     },
 
     viewRequestButton: {
@@ -3877,7 +3851,7 @@ const styles =
       fontFamily:
         'Poppins_600SemiBold',
 
-      fontSize: 13.5,
+      fontSize: 13,
     },
 
     findDonorSubtitle: {
@@ -3916,7 +3890,7 @@ const styles =
       fontFamily:
         'Inter_500Medium',
 
-      fontSize: 9,
+      fontSize: 9.5,
     },
 
     smallLabel: {
@@ -4054,7 +4028,7 @@ const styles =
         COLORS.green,
 
       fontFamily:
-        'Inter_700Bold',
+        'Inter_600SemiBold',
 
       fontSize: 10,
     },
@@ -4557,7 +4531,7 @@ const styles =
       fontFamily:
         'Inter_600SemiBold',
 
-      fontSize: 9,
+      fontSize: 9.5,
     },
 
     urgencyPillTextNeeded: {
@@ -4698,7 +4672,7 @@ const styles =
       fontFamily:
         'Poppins_600SemiBold',
 
-      fontSize: 13.5,
+      fontSize: 13,
     },
 
     donorSubtitle: {
@@ -4746,7 +4720,7 @@ const styles =
       fontFamily:
         'Inter_600SemiBold',
 
-      fontSize: 9,
+      fontSize: 9.5,
     },
 
     verifiedBadge: {
@@ -4772,7 +4746,7 @@ const styles =
       fontFamily:
         'Inter_600SemiBold',
 
-      fontSize: 9,
+      fontSize: 9.5,
     },
 
     applyButton: {

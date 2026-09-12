@@ -56,6 +56,9 @@ function buildSafeUserProfile(user) {
     gender:
       user.gender ?? null,
 
+    blood_type:
+      user.blood_type ?? null,
+
     city:
       user.city ?? null,
 
@@ -81,17 +84,16 @@ async function attachUsersToApplications(
     return [];
   }
 
-  const userIds =
-    [
-      ...new Set(
-        applications
-          .map(
-            application =>
-              application.user_id
-          )
-          .filter(Boolean)
-      ),
-    ];
+  const userIds = [
+    ...new Set(
+      applications
+        .map(
+          application =>
+            application.user_id
+        )
+        .filter(Boolean)
+    ),
+  ];
 
   if (
     userIds.length === 0
@@ -99,7 +101,9 @@ async function attachUsersToApplications(
     return applications.map(
       application => ({
         ...application,
-        user: null,
+
+        user:
+          null,
       })
     );
   }
@@ -540,6 +544,10 @@ async function approveDonorApplication(
       admin_note,
     } = req.body || {};
 
+    // --------------------------------------------------------
+    // ADMIN
+    // --------------------------------------------------------
+
     if (!adminId) {
       return res
         .status(401)
@@ -548,6 +556,10 @@ async function approveDonorApplication(
             'Administrator profile not found.',
         });
     }
+
+    // --------------------------------------------------------
+    // ADMIN NOTE
+    // --------------------------------------------------------
 
     if (
       admin_note &&
@@ -564,6 +576,15 @@ async function approveDonorApplication(
         });
     }
 
+    // --------------------------------------------------------
+    // LOAD APPLICATION
+    //
+    // We need:
+    // - current status
+    // - user_id
+    // - verified blood_type
+    // --------------------------------------------------------
+
     const {
       data:
         existing,
@@ -575,7 +596,12 @@ async function approveDonorApplication(
           'donor_applications'
         )
         .select(
-          'id, status'
+          `
+            id,
+            user_id,
+            blood_type,
+            status
+          `
         )
         .eq(
           'id',
@@ -606,6 +632,10 @@ async function approveDonorApplication(
         });
     }
 
+    // --------------------------------------------------------
+    // MUST STILL BE PENDING
+    // --------------------------------------------------------
+
     if (
       existing.status !==
       'pending'
@@ -618,9 +648,61 @@ async function approveDonorApplication(
         });
     }
 
+    // --------------------------------------------------------
+    // USER ID REQUIRED
+    // --------------------------------------------------------
+
+    if (
+      !existing.user_id
+    ) {
+      return res
+        .status(409)
+        .json({
+          error:
+            'This donor application is not connected to a user account.',
+        });
+    }
+
+    // --------------------------------------------------------
+    // BLOOD TYPE REQUIRED
+    //
+    // A donor should never become verified without a blood
+    // type because blood matching depends on it.
+    // --------------------------------------------------------
+
+    const verifiedBloodType =
+      String(
+        existing.blood_type ||
+        ''
+      )
+        .trim()
+        .toUpperCase();
+
+    if (
+      !verifiedBloodType
+    ) {
+      return res
+        .status(409)
+        .json({
+          error:
+            'This donor application cannot be approved because no blood type is recorded.',
+        });
+    }
+
     const now =
       new Date()
         .toISOString();
+
+    const cleanAdminNote =
+      admin_note
+        ? String(
+            admin_note
+          ).trim()
+        : null;
+
+    // --------------------------------------------------------
+    // APPROVE DONOR APPLICATION
+    // --------------------------------------------------------
 
     const {
       data:
@@ -637,11 +719,7 @@ async function approveDonorApplication(
             'approved',
 
           admin_note:
-            admin_note
-              ? String(
-                  admin_note
-                ).trim()
-              : null,
+            cleanAdminNote,
 
           reviewed_by:
             adminId,
@@ -677,6 +755,10 @@ async function approveDonorApplication(
         });
     }
 
+    // --------------------------------------------------------
+    // APPLICATION CHANGED BEFORE UPDATE
+    // --------------------------------------------------------
+
     if (!updated) {
       return res
         .status(409)
@@ -686,12 +768,123 @@ async function approveDonorApplication(
         });
     }
 
+    // ========================================================
+    // SYNC VERIFIED BLOOD TYPE TO USERS TABLE
+    // ========================================================
+
+    const {
+      data:
+        updatedUser,
+      error:
+        userUpdateError,
+    } =
+      await supabaseAdmin
+        .from('users')
+        .update({
+          blood_type:
+            verifiedBloodType,
+        })
+        .eq(
+          'id',
+          existing.user_id
+        )
+        .select('*')
+        .maybeSingle();
+
+    // ========================================================
+    // BLOOD TYPE SYNC FAILED
+    //
+    // Try to restore the application to pending so that we
+    // don't leave the user as an approved donor without their
+    // verified blood type being synchronized.
+    // ========================================================
+
+    if (
+      userUpdateError ||
+      !updatedUser
+    ) {
+      console.error(
+        'ADMIN DONOR BLOOD TYPE SYNC ERROR:',
+        userUpdateError ||
+          'User profile not found.'
+      );
+
+      const rollbackTime =
+        new Date()
+          .toISOString();
+
+      const {
+        error:
+          rollbackError,
+      } =
+        await supabaseAdmin
+          .from(
+            'donor_applications'
+          )
+          .update({
+            status:
+              'pending',
+
+            admin_note:
+              null,
+
+            reviewed_by:
+              null,
+
+            reviewed_at:
+              null,
+
+            updated_at:
+              rollbackTime,
+          })
+          .eq(
+            'id',
+            id
+          )
+          .eq(
+            'status',
+            'approved'
+          );
+
+      if (
+        rollbackError
+      ) {
+        console.error(
+          'CRITICAL: DONOR APPROVAL ROLLBACK ERROR:',
+          rollbackError
+        );
+
+        return res
+          .status(500)
+          .json({
+            error:
+              'The donor application was approved, but the verified blood type could not be synchronized to the user profile. Manual review is required.',
+          });
+      }
+
+      return res
+        .status(500)
+        .json({
+          error:
+            'Unable to synchronize the verified blood type with the donor profile. The approval was cancelled. Please try again.',
+        });
+    }
+
+    // ========================================================
+    // SUCCESS
+    // ========================================================
+
     return res.json({
       message:
         'Donor application approved successfully.',
 
       application:
         updated,
+
+      user:
+        buildSafeUserProfile(
+          updatedUser
+        ),
     });
   } catch (error) {
     console.error(
@@ -728,6 +921,10 @@ async function rejectDonorApplication(
       admin_note,
     } = req.body || {};
 
+    // --------------------------------------------------------
+    // ADMIN
+    // --------------------------------------------------------
+
     if (!adminId) {
       return res
         .status(401)
@@ -736,6 +933,10 @@ async function rejectDonorApplication(
             'Administrator profile not found.',
         });
     }
+
+    // --------------------------------------------------------
+    // REJECTION REASON
+    // --------------------------------------------------------
 
     const cleanNote =
       String(
@@ -762,6 +963,10 @@ async function rejectDonorApplication(
             'Admin note must be 500 characters or fewer.',
         });
     }
+
+    // --------------------------------------------------------
+    // LOAD APPLICATION
+    // --------------------------------------------------------
 
     const {
       data:
@@ -805,6 +1010,10 @@ async function rejectDonorApplication(
         });
     }
 
+    // --------------------------------------------------------
+    // ONLY PENDING CAN BE REJECTED
+    // --------------------------------------------------------
+
     if (
       existing.status !==
       'pending'
@@ -820,6 +1029,10 @@ async function rejectDonorApplication(
     const now =
       new Date()
         .toISOString();
+
+    // --------------------------------------------------------
+    // REJECT
+    // --------------------------------------------------------
 
     const {
       data:
