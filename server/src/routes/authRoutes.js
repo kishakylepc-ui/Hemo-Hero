@@ -4,41 +4,88 @@ const router = express.Router();
 
 const {
   register,
+  verifyEmail,
+  resendVerification,
   login,
   logout,
   forgotPassword,
+  resetPassword,
   getProfile,
-  updateProfile
+  updateProfile,
 } = require('../controllers/authController');
 
-const { requireAuth } = require('../middleware/authMiddleware');
-const { loginLimiter } = require('../middleware/loginRateLimiter');
+const {
+  requireAuth,
+} = require('../middleware/authMiddleware');
 
-// ------------------------------------------------------------
+const {
+  loginLimiter,
+} = require('../middleware/loginRateLimiter');
+
+// ============================================================
 // PUBLIC AUTH ROUTES
-// ------------------------------------------------------------
+// ============================================================
 
-// Create a new account
-router.post('/register', register);
+// Create account
+router.post(
+  '/register',
+  register
+);
 
-// Login is protected by failed-attempt rate limiting
-router.post('/login', loginLimiter, login);
+// Verify signup OTP
+router.post(
+  '/verify-email',
+  verifyEmail
+);
 
-// Request a password-reset email
-router.post('/forgot-password', forgotPassword);
+// Resend signup verification OTP
+router.post(
+  '/resend-verification',
+  resendVerification
+);
 
-// ------------------------------------------------------------
+// Login
+router.post(
+  '/login',
+  loginLimiter,
+  login
+);
+
+// Send password recovery OTP
+router.post(
+  '/forgot-password',
+  forgotPassword
+);
+
+// Verify recovery OTP and change password
+router.post(
+  '/reset-password',
+  resetPassword
+);
+
+// ============================================================
 // PROTECTED AUTH ROUTES
-// Require a valid Supabase Bearer access token
-// ------------------------------------------------------------
+// ============================================================
 
-// Log out and revoke the current session
-router.post('/logout', requireAuth, logout);
+// Logout
+router.post(
+  '/logout',
+  requireAuth,
+  logout
+);
 
-// Get the logged-in user's profile
-router.get('/me', requireAuth, getProfile);
+// Current profile
+router.get(
+  '/me',
+  requireAuth,
+  getProfile
+);
 
-// Update allowed profile fields
-router.patch('/me', requireAuth, updateProfile);
+// Update profile
+router.patch(
+  '/me',
+  requireAuth,
+  updateProfile
+);
 
 module.exports = router;

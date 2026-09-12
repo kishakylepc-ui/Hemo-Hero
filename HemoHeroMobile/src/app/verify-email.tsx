@@ -1,53 +1,203 @@
 import {
+  useEffect,
+  useRef,
+  useState,
+} from 'react';
+
+import {
   Alert,
   Image,
+  KeyboardAvoidingView,
   Platform,
+  ScrollView,
   StyleSheet,
   Text,
+  TextInput,
   TouchableOpacity,
   View,
 } from 'react-native';
 
-import { MaterialIcons } from '@expo/vector-icons';
-import { LinearGradient } from 'expo-linear-gradient';
+import {
+  LinearGradient,
+} from 'expo-linear-gradient';
+
 import {
   router,
   useLocalSearchParams,
 } from 'expo-router';
-import { StatusBar } from 'expo-status-bar';
-import { SafeAreaView } from 'react-native-safe-area-context';
+
+import {
+  StatusBar,
+} from 'expo-status-bar';
+
+import {
+  SafeAreaView,
+} from 'react-native-safe-area-context';
+
+import {
+  resendVerification,
+  verifyEmail,
+} from '../lib/api';
+
+// ============================================================
+// CONSTANTS
+// ============================================================
 
 const COLORS = {
-  red: '#DB0A0A',
-  redDark: '#7E0B0B',
-  redButton: '#B42323',
+  red:
+    '#DB0A0A',
 
-  pinkTop: '#EBA4A7',
-  pinkBottom: '#D93238',
+  redDark:
+    '#7E0B0B',
 
-  white: '#FFFFFF',
-  black: '#111111',
-  muted: '#666666',
+  redButton:
+    '#B42323',
+
+  pinkTop:
+    '#EBA4A7',
+
+  pinkBottom:
+    '#D93238',
+
+  white:
+    '#FFFFFF',
+
+  black:
+    '#111111',
+
+  inputBorder:
+    '#D8D8D8',
+
+  muted:
+    '#666666',
+
+  errorBackground:
+    '#FDECEC',
+
+  errorBorder:
+    '#F5BABA',
+
+  codeActive:
+    '#FDECEC',
 };
+
+const CODE_LENGTH =
+  6;
+
+const RESEND_SECONDS =
+  60;
+
+// ============================================================
+// SCREEN
+// ============================================================
 
 export default function VerifyEmailScreen() {
   const params =
     useLocalSearchParams<{
-      email?: string;
+      email?:
+        | string
+        | string[];
     }>();
 
+  const emailParam =
+    params.email;
+
   const email =
-    typeof params.email === 'string'
-      ? params.email
-      : '';
+    (
+      Array.isArray(
+        emailParam
+      )
+        ? emailParam[0]
+        : emailParam ||
+          ''
+    )
+      .trim()
+      .toLowerCase();
+
+  const inputRef =
+    useRef<TextInput>(
+      null
+    );
+
+  const [
+    code,
+    setCode,
+  ] =
+    useState('');
+
+  const [
+    loading,
+    setLoading,
+  ] =
+    useState(false);
+
+  const [
+    resending,
+    setResending,
+  ] =
+    useState(false);
+
+  const [
+    resendSeconds,
+    setResendSeconds,
+  ] =
+    useState(
+      RESEND_SECONDS
+    );
+
+  const [
+    errorMessage,
+    setErrorMessage,
+  ] =
+    useState('');
+
+  // ==========================================================
+  // RESEND TIMER
+  // ==========================================================
+
+  useEffect(() => {
+    if (
+      resendSeconds <=
+      0
+    ) {
+      return;
+    }
+
+    const timer =
+      setTimeout(
+        () => {
+          setResendSeconds(
+            current =>
+              Math.max(
+                0,
+                current - 1
+              )
+          );
+        },
+        1000
+      );
+
+    return () =>
+      clearTimeout(
+        timer
+      );
+  }, [
+    resendSeconds,
+  ]);
+
+  // ==========================================================
+  // MESSAGE
+  // ==========================================================
 
   function showMessage(
     title: string,
     message: string
   ) {
     if (
-      Platform.OS === 'web' &&
-      typeof window !== 'undefined'
+      Platform.OS ===
+        'web' &&
+      typeof window !==
+        'undefined'
     ) {
       window.alert(
         `${title}\n\n${message}`
@@ -62,474 +212,1257 @@ export default function VerifyEmailScreen() {
     );
   }
 
-  function handleVerified() {
-    showMessage(
-      'Email Verification',
-      'If you already confirmed your email, you can now sign in.'
+  // ==========================================================
+  // CODE INPUT
+  // ==========================================================
+
+  function handleCodeChange(
+    value: string
+  ) {
+    const digitsOnly =
+      value
+        .replace(
+          /\D/g,
+          ''
+        )
+        .slice(
+          0,
+          CODE_LENGTH
+        );
+
+    setCode(
+      digitsOnly
     );
 
-    router.replace('/');
+    if (
+      errorMessage
+    ) {
+      setErrorMessage(
+        ''
+      );
+    }
   }
 
-  function handleResend() {
-    showMessage(
-      'Resend Verification Email',
-      'We will connect the resend function to the backend next.'
+  // ==========================================================
+  // VERIFY EMAIL
+  // ==========================================================
+
+  async function handleVerify() {
+    setErrorMessage(
+      ''
     );
+
+    if (!email) {
+      const message =
+        'Your email address is missing. Please return to Sign Up and try again.';
+
+      setErrorMessage(
+        message
+      );
+
+      showMessage(
+        'Email Missing',
+        message
+      );
+
+      return;
+    }
+
+    if (
+      code.length !==
+      CODE_LENGTH
+    ) {
+      const message =
+        'Please enter the 6-digit verification code from your email.';
+
+      setErrorMessage(
+        message
+      );
+
+      showMessage(
+        'Invalid Code',
+        message
+      );
+
+      inputRef
+        .current
+        ?.focus();
+
+      return;
+    }
+
+    try {
+      setLoading(
+        true
+      );
+
+      const data =
+        await verifyEmail(
+          email,
+          code
+        );
+
+      setCode(
+        ''
+      );
+
+      showMessage(
+        'Email Verified',
+        data?.message ||
+          'Your email has been verified successfully. You can now sign in.'
+      );
+
+      router.replace(
+        '/'
+      );
+    } catch (error) {
+      console.log(
+        'VERIFY EMAIL ERROR:',
+        error
+      );
+
+      let message =
+        'Unable to verify the code. Please try again.';
+
+      if (
+        error instanceof
+        Error
+      ) {
+        message =
+          error.message;
+      }
+
+      setErrorMessage(
+        message
+      );
+
+      showMessage(
+        'Verification Failed',
+        message
+      );
+    } finally {
+      setLoading(
+        false
+      );
+    }
   }
+
+  // ==========================================================
+  // RESEND
+  // ==========================================================
+
+  async function handleResend() {
+    if (
+      !email ||
+      resendSeconds >
+        0 ||
+      resending ||
+      loading
+    ) {
+      return;
+    }
+
+    setErrorMessage(
+      ''
+    );
+
+    try {
+      setResending(
+        true
+      );
+
+      const data =
+        await resendVerification(
+          email
+        );
+
+      setCode(
+        ''
+      );
+
+      setResendSeconds(
+        RESEND_SECONDS
+      );
+
+      showMessage(
+        'Code Sent',
+        data?.message ||
+          'A new verification code has been sent to your email.'
+      );
+
+      setTimeout(
+        () => {
+          inputRef
+            .current
+            ?.focus();
+        },
+        150
+      );
+    } catch (error) {
+      console.log(
+        'RESEND VERIFICATION ERROR:',
+        error
+      );
+
+      let message =
+        'Unable to resend the verification code. Please try again later.';
+
+      if (
+        error instanceof
+        Error
+      ) {
+        message =
+          error.message;
+      }
+
+      setErrorMessage(
+        message
+      );
+
+      showMessage(
+        'Unable to Resend',
+        message
+      );
+    } finally {
+      setResending(
+        false
+      );
+    }
+  }
+
+  // ==========================================================
+  // UI
+  // ==========================================================
 
   return (
-    <View style={styles.desktopBackground}>
-      <View style={styles.phone}>
+    <View
+      style={
+        styles.desktopBackground
+      }
+    >
+      <View
+        style={
+          styles.phone
+        }
+      >
         <SafeAreaView
-          style={styles.safeArea}
-          edges={['top', 'bottom']}
+          style={
+            styles.safeArea
+          }
+          edges={[
+            'top',
+          ]}
         >
-          <StatusBar style="light" />
+          <StatusBar
+            style="light"
+          />
 
-          {/* HEADER */}
-
-          <View style={styles.headerWrapper}>
-            <LinearGradient
-              colors={[
-                COLORS.red,
-                COLORS.redDark,
-              ]}
-              style={styles.header}
+          <KeyboardAvoidingView
+            style={
+              styles.flex
+            }
+            behavior={
+              Platform.OS ===
+              'ios'
+                ? 'padding'
+                : undefined
+            }
+          >
+            <ScrollView
+              style={
+                styles.flex
+              }
+              contentContainerStyle={
+                styles.scroll
+              }
+              keyboardShouldPersistTaps="handled"
+              showsVerticalScrollIndicator={
+                false
+              }
+              bounces={
+                false
+              }
             >
               <View
                 style={
-                  styles.headerCircleLeft
+                  styles.authContent
                 }
-              />
-
-              <View
-                style={
-                  styles.headerCircleRight
-                }
-              />
-
-              <Text style={styles.brandName}>
-                Hemo-Hero
-              </Text>
-
-              <Text style={styles.tagline}>
-                Connect to Donors Near You
-              </Text>
-            </LinearGradient>
-          </View>
-
-          {/* BODY */}
-
-          <LinearGradient
-            colors={[
-              COLORS.pinkTop,
-              COLORS.pinkBottom,
-            ]}
-            style={styles.bodyBackground}
-          >
-            {/* LOGO */}
-
-            <View style={styles.logoCircle}>
-              <Image
-                source={require('../../assets/images/LifeLine (5).png')}
-                style={styles.logoImage}
-                resizeMode="contain"
-              />
-            </View>
-
-            {/* CARD */}
-
-            <View style={styles.card}>
-              <View style={styles.iconCircle}>
-                <MaterialIcons
-                  name="mark-email-read"
-                  size={42}
-                  color={COLORS.redButton}
-                />
-              </View>
-
-              <Text style={styles.title}>
-                Verify Your Email
-              </Text>
-
-              <Text style={styles.description}>
-                We sent a verification link to
-              </Text>
-
-              <Text style={styles.email}>
-                {email ||
-                  'your email address'}
-              </Text>
-
-              <Text style={styles.instructions}>
-                 Open the email and tap the Verification link to confirm your Hemo-Hero account.
-  Once verified, return here and continue
-  to Sign In.
-              </Text>
-
-              {/* VERIFIED BUTTON */}
-
-              <TouchableOpacity
-                style={styles.primaryButton}
-                activeOpacity={0.85}
-                onPress={handleVerified}
               >
-                <Text
+                {/* ============================================
+                    HEADER
+                ============================================ */}
+
+                <View
                   style={
-                    styles.primaryButtonText
+                    styles.headerWrapper
                   }
                 >
-Continue to Sign In                
-</Text>
-              </TouchableOpacity>
-
-              {/* RESEND */}
-
-              <TouchableOpacity
-                style={styles.resendButton}
-                activeOpacity={0.7}
-                onPress={handleResend}
-              >
-                <Text style={styles.resendText}>
-                  Didn't receive an email?{' '}
-                  <Text
+                  <LinearGradient
+                    colors={[
+                      COLORS.red,
+                      COLORS.redDark,
+                    ]}
                     style={
-                      styles.resendLink
+                      styles.header
                     }
                   >
-                    Resend
-                  </Text>
-                </Text>
-              </TouchableOpacity>
+                    <View
+                      style={
+                        styles.headerCircleLeft
+                      }
+                    />
 
-              {/* BACK */}
+                    <View
+                      style={
+                        styles.headerCircleRight
+                      }
+                    />
 
-              <TouchableOpacity
-                style={styles.backButton}
-                activeOpacity={0.7}
-                onPress={() =>
-                  router.replace('/')
-                }
-              >
-                <MaterialIcons
-                  name="arrow-back"
-                  size={16}
-                  color={COLORS.redButton}
-                />
+                    <Text
+                      style={
+                        styles.brandName
+                      }
+                    >
+                      Hemo-Hero
+                    </Text>
 
-                <Text style={styles.backText}>
-                  Back to Sign In
-                </Text>
-              </TouchableOpacity>
-            </View>
-          </LinearGradient>
+                    <Text
+                      style={
+                        styles.tagline
+                      }
+                    >
+                      Connect to Donors Near You
+                    </Text>
+                  </LinearGradient>
+                </View>
+
+                {/* ============================================
+                    LOGO
+                ============================================ */}
+
+                <View
+                  style={
+                    styles.logoCircle
+                  }
+                >
+                  <Image
+                    source={require(
+                      '../../assets/images/LifeLine (5).png'
+                    )}
+                    style={
+                      styles.logoImage
+                    }
+                    resizeMode="contain"
+                  />
+                </View>
+
+                {/* ============================================
+                    BODY
+                ============================================ */}
+
+                <LinearGradient
+                  colors={[
+                    COLORS.pinkTop,
+                    COLORS.pinkBottom,
+                  ]}
+                  style={
+                    styles.bodyBackground
+                  }
+                >
+                  <View
+                    style={
+                      styles.card
+                    }
+                  >
+                    <Text
+                      style={
+                        styles.title
+                      }
+                    >
+                      Verify your email
+                    </Text>
+
+                    <Text
+                      style={
+                        styles.description
+                      }
+                    >
+                      We sent a 6-digit verification code to
+                    </Text>
+
+                    <Text
+                      style={
+                        styles.emailText
+                      }
+                      numberOfLines={
+                        2
+                      }
+                    >
+                      {email ||
+                        'your email address'}
+                    </Text>
+
+                    {/* ERROR */}
+
+                    {errorMessage ? (
+                      <View
+                        style={
+                          styles.errorContainer
+                        }
+                      >
+                        <Text
+                          style={
+                            styles.errorText
+                          }
+                        >
+                          {
+                            errorMessage
+                          }
+                        </Text>
+                      </View>
+                    ) : null}
+
+                    {/* ========================================
+                        OTP INPUT
+                    ======================================== */}
+
+                    <TouchableOpacity
+                      style={
+                        styles.codeArea
+                      }
+                      activeOpacity={
+                        1
+                      }
+                      disabled={
+                        loading
+                      }
+                      onPress={() =>
+                        inputRef
+                          .current
+                          ?.focus()
+                      }
+                    >
+                      {Array.from({
+                        length:
+                          CODE_LENGTH,
+                      }).map(
+                        (
+                          _,
+                          index
+                        ) => {
+                          const digit =
+                            code[
+                              index
+                            ] ||
+                            '';
+
+                          const isActive =
+                            index ===
+                              code.length &&
+                            code.length <
+                              CODE_LENGTH;
+
+                          return (
+                            <View
+                              key={
+                                index
+                              }
+                              style={[
+                                styles.codeBox,
+
+                                isActive &&
+                                  styles.codeBoxActive,
+                              ]}
+                            >
+                              <Text
+                                style={
+                                  styles.codeDigit
+                                }
+                              >
+                                {
+                                  digit
+                                }
+                              </Text>
+                            </View>
+                          );
+                        }
+                      )}
+
+                      <TextInput
+                        ref={
+                          inputRef
+                        }
+                        style={
+                          styles.hiddenInput
+                        }
+                        value={
+                          code
+                        }
+                        onChangeText={
+                          handleCodeChange
+                        }
+                        keyboardType="number-pad"
+                        maxLength={
+                          CODE_LENGTH
+                        }
+                        autoFocus
+                        editable={
+                          !loading
+                        }
+                        caretHidden
+                        autoComplete="one-time-code"
+                      />
+                    </TouchableOpacity>
+
+                    <Text
+                      style={
+                        styles.helperText
+                      }
+                    >
+                      Enter the code from your Hemo-Hero verification email.
+                    </Text>
+
+                    {/* ========================================
+                        VERIFY BUTTON
+                    ======================================== */}
+
+                    <TouchableOpacity
+                      style={[
+                        styles.primaryButton,
+
+                        loading &&
+                          styles.disabledButton,
+                      ]}
+                      activeOpacity={
+                        0.85
+                      }
+                      disabled={
+                        loading ||
+                        resending
+                      }
+                      onPress={
+                        handleVerify
+                      }
+                    >
+                      <Text
+                        style={
+                          styles.primaryButtonText
+                        }
+                      >
+                        {loading
+                          ? 'Verifying...'
+                          : 'Verify Email'}
+                      </Text>
+                    </TouchableOpacity>
+
+                    {/* ========================================
+                        RESEND
+                    ======================================== */}
+
+                    <View
+                      style={
+                        styles.resendRow
+                      }
+                    >
+                      <Text
+                        style={
+                          styles.resendLabel
+                        }
+                      >
+                        Didn't receive the code?{' '}
+                      </Text>
+
+                      <TouchableOpacity
+                        disabled={
+                          resendSeconds >
+                            0 ||
+                          resending ||
+                          loading
+                        }
+                        onPress={
+                          handleResend
+                        }
+                      >
+                        <Text
+                          style={[
+                            styles.resendText,
+
+                            resendSeconds >
+                              0 &&
+                              styles.resendDisabled,
+                          ]}
+                        >
+                          {resending
+                            ? 'Sending...'
+                            : resendSeconds >
+                                0
+                              ? `Resend in ${resendSeconds}s`
+                              : 'Resend Code'}
+                        </Text>
+                      </TouchableOpacity>
+                    </View>
+
+                    {/* ========================================
+                        CHANGE EMAIL
+                    ======================================== */}
+
+                    <TouchableOpacity
+                      style={
+                        styles.changeEmailButton
+                      }
+                      disabled={
+                        loading ||
+                        resending
+                      }
+                      onPress={() =>
+                        router.replace(
+                          '/signup'
+                        )
+                      }
+                    >
+                      <Text
+                        style={
+                          styles.changeEmailText
+                        }
+                      >
+                        Use a different email
+                      </Text>
+                    </TouchableOpacity>
+                  </View>
+                </LinearGradient>
+              </View>
+            </ScrollView>
+          </KeyboardAvoidingView>
         </SafeAreaView>
       </View>
     </View>
   );
 }
 
-const styles = StyleSheet.create({
-  desktopBackground: {
-    flex: 1,
+// ============================================================
+// STYLES
+// ============================================================
+
+const styles =
+  StyleSheet.create({
+    flex: {
+      flex:
+        1,
+    },
+
+    desktopBackground: {
+      flex:
+        1,
+
+      alignItems:
+        'center',
+
+      justifyContent:
+        'center',
 
-    alignItems: 'center',
-    justifyContent: 'center',
+      backgroundColor:
+        Platform.OS ===
+        'web'
+          ? '#1E1E1E'
+          : COLORS.pinkBottom,
+    },
 
-    backgroundColor:
-      Platform.OS === 'web'
-        ? '#1E1E1E'
-        : COLORS.pinkBottom,
-  },
+    phone: {
+      width:
+        Platform.OS ===
+        'web'
+          ? 402
+          : '100%',
 
-  phone: {
-    width:
-      Platform.OS === 'web'
-        ? 402
-        : '100%',
+      height:
+        Platform.OS ===
+        'web'
+          ? 874
+          : '100%',
 
-    height:
-      Platform.OS === 'web'
-        ? 874
-        : '100%',
+      maxWidth:
+        '100%',
 
-    maxWidth: '100%',
+      overflow:
+        'hidden',
 
-    overflow: 'hidden',
+      backgroundColor:
+        COLORS.pinkBottom,
+    },
 
-    backgroundColor:
-      COLORS.pinkTop,
-  },
+    safeArea: {
+      flex:
+        1,
 
-  safeArea: {
-    flex: 1,
+      backgroundColor:
+        COLORS.red,
+    },
 
-    backgroundColor:
-      COLORS.red,
-  },
+    scroll: {
+      flexGrow:
+        1,
 
-  // HEADER
+      backgroundColor:
+        COLORS.pinkBottom,
+    },
 
-  headerWrapper: {
-    backgroundColor:
-      COLORS.pinkTop,
-  },
+    authContent: {
+      flexGrow:
+        1,
 
-  header: {
-    height: 260,
+      position:
+        'relative',
 
-    alignItems: 'center',
+      backgroundColor:
+        COLORS.pinkTop,
+    },
 
-    paddingTop: 55,
+    // --------------------------------------------------------
+    // HEADER
+    // --------------------------------------------------------
 
-    borderBottomLeftRadius: 62,
-    borderBottomRightRadius: 62,
+    headerWrapper: {
+      backgroundColor:
+        COLORS.pinkTop,
 
-    overflow: 'hidden',
-  },
+      zIndex:
+        1,
+    },
 
-  headerCircleLeft: {
-    position: 'absolute',
+    header: {
+      height:
+        250,
 
-    width: 180,
-    height: 180,
+      alignItems:
+        'center',
 
-    borderRadius: 90,
+      paddingTop:
+        50,
 
-    left: -100,
-    top: -50,
+      borderBottomLeftRadius:
+        62,
 
-    backgroundColor:
-      'rgba(255,255,255,0.07)',
-  },
+      borderBottomRightRadius:
+        62,
 
-  headerCircleRight: {
-    position: 'absolute',
+      overflow:
+        'hidden',
+    },
 
-    width: 180,
-    height: 180,
+    headerCircleLeft: {
+      position:
+        'absolute',
 
-    borderRadius: 90,
+      width:
+        180,
 
-    right: -92,
-    top: -55,
+      height:
+        180,
 
-    backgroundColor:
-      'rgba(255,255,255,0.07)',
-  },
+      borderRadius:
+        90,
 
-  brandName: {
-    color: COLORS.white,
+      left:
+        -100,
 
-    fontFamily:
-      'Poppins_700Bold',
+      top:
+        -50,
 
-    fontSize: 31,
-  },
+      backgroundColor:
+        'rgba(255,255,255,0.07)',
+    },
 
-  tagline: {
-    marginTop: 7,
+    headerCircleRight: {
+      position:
+        'absolute',
 
-    color: COLORS.white,
+      width:
+        180,
 
-    fontFamily:
-      'Inter_400Regular',
+      height:
+        180,
 
-    fontSize: 12,
-  },
+      borderRadius:
+        90,
 
-  // BODY
+      right:
+        -92,
 
-  bodyBackground: {
-    flex: 1,
+      top:
+        -55,
 
-    paddingHorizontal: 26,
-    paddingTop: 115,
-    paddingBottom: 32,
-  },
+      backgroundColor:
+        'rgba(255,255,255,0.07)',
+    },
 
-  // LOGO
+    brandName: {
+      color:
+        COLORS.white,
 
-  logoCircle: {
-    position: 'absolute',
+      fontFamily:
+        'Poppins_700Bold',
 
-    top: -72,
-    alignSelf: 'center',
+      fontSize:
+        31,
+    },
 
-    width: 148,
-    height: 148,
+    tagline: {
+      marginTop:
+        7,
 
-    borderRadius: 74,
+      color:
+        COLORS.white,
 
-    backgroundColor:
-      COLORS.white,
+      fontFamily:
+        'Inter_400Regular',
 
-    alignItems: 'center',
-    justifyContent: 'center',
+      fontSize:
+        12,
+    },
 
-    overflow: 'hidden',
-  },
+    // --------------------------------------------------------
+    // LOGO
+    // --------------------------------------------------------
 
-  logoImage: {
-    width: 128,
-    height: 128,
-  },
+    logoCircle: {
+      position:
+        'absolute',
 
-  // CARD
+      top:
+        181,
 
-  card: {
-    backgroundColor:
-      COLORS.white,
+      alignSelf:
+        'center',
 
-    borderRadius: 25,
+      width:
+        140,
 
-    paddingHorizontal: 24,
-    paddingTop: 28,
-    paddingBottom: 27,
+      height:
+        140,
 
-    alignItems: 'center',
-  },
+      borderRadius:
+        70,
 
-  iconCircle: {
-    width: 78,
-    height: 78,
+      backgroundColor:
+        COLORS.white,
 
-    borderRadius: 39,
+      alignItems:
+        'center',
 
-    backgroundColor:
-      '#FDECEC',
+      justifyContent:
+        'center',
 
-    alignItems: 'center',
-    justifyContent: 'center',
+      overflow:
+        'hidden',
 
-    marginBottom: 18,
-  },
+      zIndex:
+        100,
 
-  title: {
-    color: COLORS.black,
+      elevation:
+        100,
 
-    fontFamily:
-      'Poppins_700Bold',
+      shadowColor:
+        '#000000',
 
-    fontSize: 20,
+      shadowOffset: {
+        width:
+          0,
 
-    textAlign: 'center',
-  },
+        height:
+          2,
+      },
 
-  description: {
-    marginTop: 10,
+      shadowOpacity:
+        0.08,
 
-    color: COLORS.muted,
+      shadowRadius:
+        4,
+    },
 
-    fontFamily:
-      'Inter_400Regular',
+    logoImage: {
+      width:
+        120,
 
-    fontSize: 11,
+      height:
+        120,
+    },
 
-    textAlign: 'center',
-  },
+    // --------------------------------------------------------
+    // BODY
+    // --------------------------------------------------------
 
-  email: {
-    marginTop: 5,
+    bodyBackground: {
+      flexGrow:
+        1,
 
-    color: COLORS.redButton,
+      minHeight:
+        624,
 
-    fontFamily:
-      'Inter_600SemiBold',
+      paddingHorizontal:
+        24,
 
-    fontSize: 12,
+      paddingTop:
+        105,
 
-    textAlign: 'center',
-  },
+      paddingBottom:
+        34,
 
-  instructions: {
-    marginTop: 18,
+      zIndex:
+        2,
+    },
 
-    paddingHorizontal: 8,
+    // --------------------------------------------------------
+    // CARD
+    // --------------------------------------------------------
 
-    color: COLORS.muted,
+    card: {
+      backgroundColor:
+        COLORS.white,
 
-    fontFamily:
-      'Inter_400Regular',
+      borderRadius:
+        25,
 
-    fontSize: 11,
+      paddingHorizontal:
+        22,
 
-    lineHeight: 18,
+      paddingTop:
+        28,
 
-    textAlign: 'center',
-  },
+      paddingBottom:
+        24,
 
-  // PRIMARY BUTTON
+      shadowColor:
+        '#000000',
 
-  primaryButton: {
-    width: '100%',
+      shadowOffset: {
+        width:
+          0,
 
-    height: 50,
+        height:
+          2,
+      },
 
-    marginTop: 28,
+      shadowOpacity:
+        0.06,
 
-    borderRadius: 7,
+      shadowRadius:
+        5,
 
-    backgroundColor:
-      COLORS.redButton,
+      elevation:
+        2,
+    },
 
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
+    title: {
+      color:
+        COLORS.black,
 
-  primaryButtonText: {
-    color:
-      COLORS.white,
+      fontFamily:
+        'Poppins_700Bold',
 
-    fontFamily:
-      'Poppins_600SemiBold',
+      fontSize:
+        22,
 
-    fontSize: 12,
-  },
+      textAlign:
+        'center',
+    },
 
-  // RESEND
+    description: {
+      marginTop:
+        10,
 
-  resendButton: {
-    marginTop: 19,
+      color:
+        COLORS.muted,
 
-    paddingVertical: 4,
-  },
+      fontFamily:
+        'Inter_400Regular',
 
-  resendText: {
-    color: COLORS.muted,
+      fontSize:
+        12,
 
-    fontFamily:
-      'Inter_400Regular',
+      lineHeight:
+        18,
 
-    fontSize: 10,
-  },
+      textAlign:
+        'center',
+    },
 
-  resendLink: {
-    color: COLORS.red,
+    emailText: {
+      marginTop:
+        3,
 
-    fontFamily:
-      'Inter_600SemiBold',
-  },
+      color:
+        COLORS.redButton,
 
-  // BACK
+      fontFamily:
+        'Inter_600SemiBold',
 
-  backButton: {
-    marginTop: 18,
+      fontSize:
+        12,
 
-    flexDirection: 'row',
-    alignItems: 'center',
+      lineHeight:
+        18,
 
-    gap: 5,
-  },
+      textAlign:
+        'center',
+    },
 
-  backText: {
-    color:
-      COLORS.redButton,
+    // --------------------------------------------------------
+    // ERROR
+    // --------------------------------------------------------
 
-    fontFamily:
-      'Inter_500Medium',
+    errorContainer: {
+      marginTop:
+        18,
 
-    fontSize: 10,
-  },
-});
+      paddingHorizontal:
+        12,
+
+      paddingVertical:
+        9,
+
+      borderWidth:
+        1,
+
+      borderColor:
+        COLORS.errorBorder,
+
+      borderRadius:
+        8,
+
+      backgroundColor:
+        COLORS.errorBackground,
+    },
+
+    errorText: {
+      color:
+        COLORS.redButton,
+
+      fontFamily:
+        'Inter_500Medium',
+
+      fontSize:
+        10,
+
+      lineHeight:
+        15,
+
+      textAlign:
+        'center',
+    },
+
+    // --------------------------------------------------------
+    // OTP CODE
+    // --------------------------------------------------------
+
+    codeArea: {
+      position:
+        'relative',
+
+      flexDirection:
+        'row',
+
+      justifyContent:
+        'space-between',
+
+      marginTop:
+        25,
+    },
+
+    codeBox: {
+      width:
+        43,
+
+      height:
+        52,
+
+      borderWidth:
+        1,
+
+      borderColor:
+        COLORS.inputBorder,
+
+      borderRadius:
+        10,
+
+      backgroundColor:
+        COLORS.white,
+
+      alignItems:
+        'center',
+
+      justifyContent:
+        'center',
+    },
+
+    codeBoxActive: {
+      borderWidth:
+        1.5,
+
+      borderColor:
+        COLORS.redButton,
+
+      backgroundColor:
+        COLORS.codeActive,
+    },
+
+    codeDigit: {
+      color:
+        COLORS.redButton,
+
+      fontFamily:
+        'Poppins_700Bold',
+
+      fontSize:
+        22,
+    },
+
+    hiddenInput: {
+      position:
+        'absolute',
+
+      width:
+        1,
+
+      height:
+        1,
+
+      opacity:
+        0,
+
+      left:
+        0,
+
+      bottom:
+        0,
+    },
+
+    helperText: {
+      marginTop:
+        14,
+
+      color:
+        COLORS.muted,
+
+      fontFamily:
+        'Inter_400Regular',
+
+      fontSize:
+        10,
+
+      lineHeight:
+        15,
+
+      textAlign:
+        'center',
+    },
+
+    // --------------------------------------------------------
+    // BUTTON
+    // --------------------------------------------------------
+
+    primaryButton: {
+      height:
+        50,
+
+      marginTop:
+        24,
+
+      borderRadius:
+        7,
+
+      backgroundColor:
+        COLORS.redButton,
+
+      alignItems:
+        'center',
+
+      justifyContent:
+        'center',
+    },
+
+    disabledButton: {
+      opacity:
+        0.6,
+    },
+
+    primaryButtonText: {
+      color:
+        COLORS.white,
+
+      fontFamily:
+        'Poppins_600SemiBold',
+
+      fontSize:
+        13,
+    },
+
+    // --------------------------------------------------------
+    // RESEND
+    // --------------------------------------------------------
+
+    resendRow: {
+      flexDirection:
+        'row',
+
+      flexWrap:
+        'wrap',
+
+      justifyContent:
+        'center',
+
+      marginTop:
+        18,
+    },
+
+    resendLabel: {
+      color:
+        COLORS.muted,
+
+      fontFamily:
+        'Inter_400Regular',
+
+      fontSize:
+        11,
+    },
+
+    resendText: {
+      color:
+        COLORS.redButton,
+
+      fontFamily:
+        'Inter_600SemiBold',
+
+      fontSize:
+        11,
+    },
+
+    resendDisabled: {
+      color:
+        '#999999',
+    },
+
+    changeEmailButton: {
+      alignSelf:
+        'center',
+
+      marginTop:
+        17,
+
+      paddingVertical:
+        4,
+
+      paddingHorizontal:
+        8,
+    },
+
+    changeEmailText: {
+      color:
+        COLORS.redButton,
+
+      fontFamily:
+        'Inter_500Medium',
+
+      fontSize:
+        11,
+    },
+  });

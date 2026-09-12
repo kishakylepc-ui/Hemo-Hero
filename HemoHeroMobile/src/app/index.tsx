@@ -1,4 +1,5 @@
 import { useState } from 'react';
+
 import {
   Alert,
   Image,
@@ -21,6 +22,10 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { loginUser } from '../lib/api';
 import { saveSession } from '../lib/session';
 
+// ============================================================
+// COLORS
+// ============================================================
+
 const COLORS = {
   red: '#DB0A0A',
   redDark: '#7E0B0B',
@@ -37,8 +42,13 @@ const COLORS = {
   muted: '#555555',
 };
 
+// ============================================================
+// SCREEN
+// ============================================================
+
 export default function SignInScreen() {
-  const { height } = useWindowDimensions();
+  const { height } =
+    useWindowDimensions();
 
   /*
     PRIMARY TARGET:
@@ -51,20 +61,30 @@ export default function SignInScreen() {
     Platform.OS !== 'web' &&
     height <= 844;
 
-  const [email, setEmail] =
-    useState('');
+  const [
+    email,
+    setEmail,
+  ] = useState('');
 
-  const [password, setPassword] =
-    useState('');
+  const [
+    password,
+    setPassword,
+  ] = useState('');
 
-  const [showPassword, setShowPassword] =
-    useState(false);
+  const [
+    showPassword,
+    setShowPassword,
+  ] = useState(false);
 
-  const [loading, setLoading] =
-    useState(false);
+  const [
+    loading,
+    setLoading,
+  ] = useState(false);
 
-  const [errorMessage, setErrorMessage] =
-    useState('');
+  const [
+    errorMessage,
+    setErrorMessage,
+  ] = useState('');
 
   // ==========================================================
   // MESSAGE
@@ -92,6 +112,27 @@ export default function SignInScreen() {
   }
 
   // ==========================================================
+  // FORGOT PASSWORD
+  // ==========================================================
+
+  function handleForgotPassword() {
+    const cleanEmail =
+      email
+        .trim()
+        .toLowerCase();
+
+    router.push({
+      pathname:
+        '/forgot-password',
+
+      params: {
+        email:
+          cleanEmail,
+      },
+    });
+  }
+
+  // ==========================================================
   // SIGN IN
   // ==========================================================
 
@@ -99,7 +140,9 @@ export default function SignInScreen() {
     setErrorMessage('');
 
     const cleanEmail =
-      email.trim().toLowerCase();
+      email
+        .trim()
+        .toLowerCase();
 
     // --------------------------------------------------------
     // VALIDATION
@@ -112,10 +155,39 @@ export default function SignInScreen() {
       const message =
         'Please enter your email address and password.';
 
-      setErrorMessage(message);
+      setErrorMessage(
+        message
+      );
 
       showMessage(
         'Missing Information',
+        message
+      );
+
+      return;
+    }
+
+    // --------------------------------------------------------
+    // EMAIL FORMAT
+    // --------------------------------------------------------
+
+    const emailPattern =
+      /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+    if (
+      !emailPattern.test(
+        cleanEmail
+      )
+    ) {
+      const message =
+        'Please enter a valid email address.';
+
+      setErrorMessage(
+        message
+      );
+
+      showMessage(
+        'Invalid Email',
         message
       );
 
@@ -218,7 +290,9 @@ export default function SignInScreen() {
           error.message;
       }
 
-      setErrorMessage(message);
+      setErrorMessage(
+        message
+      );
 
       showMessage(
         'Sign In Failed',
@@ -234,16 +308,32 @@ export default function SignInScreen() {
   // ==========================================================
 
   return (
-    <View style={styles.desktopBackground}>
-      <View style={styles.phone}>
+    <View
+      style={
+        styles.desktopBackground
+      }
+    >
+      <View
+        style={
+          styles.phone
+        }
+      >
         <SafeAreaView
-          style={styles.safeArea}
-          edges={['top']}
+          style={
+            styles.safeArea
+          }
+          edges={[
+            'top',
+          ]}
         >
-          <StatusBar style="light" />
+          <StatusBar
+            style="light"
+          />
 
           <KeyboardAvoidingView
-            style={styles.flex}
+            style={
+              styles.flex
+            }
             behavior={
               Platform.OS === 'ios'
                 ? 'padding'
@@ -251,7 +341,9 @@ export default function SignInScreen() {
             }
           >
             <ScrollView
-              style={styles.flex}
+              style={
+                styles.flex
+              }
               contentContainerStyle={
                 styles.scroll
               }
@@ -259,9 +351,15 @@ export default function SignInScreen() {
               showsVerticalScrollIndicator={
                 false
               }
-              bounces={false}
+              bounces={
+                false
+              }
             >
-              <View style={styles.authContent}>
+              <View
+                style={
+                  styles.authContent
+                }
+              >
                 {/* ==================================================
                     HEADER
                 ================================================== */}
@@ -318,10 +416,6 @@ export default function SignInScreen() {
 
                 {/* ==================================================
                     LOGO
-
-                    IMPORTANT:
-                    This is OUTSIDE the header and body gradients.
-                    This fixes iOS clipping.
                 ================================================== */}
 
                 <View
@@ -333,7 +427,9 @@ export default function SignInScreen() {
                   ]}
                 >
                   <Image
-                    source={require('../../assets/images/LifeLine (5).png')}
+                    source={require(
+                      '../../assets/images/LifeLine (5).png'
+                    )}
                     style={[
                       styles.logoImage,
 
@@ -360,10 +456,6 @@ export default function SignInScreen() {
                       styles.bodyBackgroundSmall,
                   ]}
                 >
-                  {/* ================================================
-                      CARD
-                  ================================================ */}
-
                   <View
                     style={[
                       styles.card,
@@ -372,9 +464,15 @@ export default function SignInScreen() {
                         styles.cardSmall,
                     ]}
                   >
-                    {/* TABS */}
+                    {/* ==============================================
+                        TABS
+                    ============================================== */}
 
-                    <View style={styles.tabs}>
+                    <View
+                      style={
+                        styles.tabs
+                      }
+                    >
                       <View
                         style={
                           styles.activeTab
@@ -393,8 +491,12 @@ export default function SignInScreen() {
                         style={
                           styles.inactiveTab
                         }
-                        activeOpacity={0.7}
-                        disabled={loading}
+                        activeOpacity={
+                          0.7
+                        }
+                        disabled={
+                          loading
+                        }
                         onPress={() =>
                           router.push(
                             '/signup'
@@ -411,7 +513,9 @@ export default function SignInScreen() {
                       </TouchableOpacity>
                     </View>
 
-                    {/* ERROR */}
+                    {/* ==============================================
+                        ERROR
+                    ============================================== */}
 
                     {errorMessage ? (
                       <View
@@ -424,47 +528,69 @@ export default function SignInScreen() {
                             styles.errorText
                           }
                         >
-                          {errorMessage}
+                          {
+                            errorMessage
+                          }
                         </Text>
                       </View>
                     ) : null}
 
-                    {/* EMAIL */}
+                    {/* ==============================================
+                        EMAIL
+                    ============================================== */}
 
                     <Text
-                      style={styles.label}
+                      style={
+                        styles.label
+                      }
                     >
                       Email Address
                     </Text>
 
                     <TextInput
-                      style={styles.input}
+                      style={
+                        styles.input
+                      }
                       placeholder="Enter your email"
                       placeholderTextColor={
                         COLORS.placeholder
                       }
                       keyboardType="email-address"
                       autoCapitalize="none"
-                      autoCorrect={false}
+                      autoCorrect={
+                        false
+                      }
                       autoComplete="email"
-                      value={email}
-                      editable={!loading}
+                      value={
+                        email
+                      }
+                      editable={
+                        !loading
+                      }
                       returnKeyType="next"
                       onChangeText={value => {
-                        setEmail(value);
+                        setEmail(
+                          value
+                        );
 
                         if (
                           errorMessage
                         ) {
-                          setErrorMessage('');
+                          setErrorMessage(
+                            ''
+                          );
                         }
                       }}
                     />
 
-                    {/* PASSWORD */}
+                    {/* ==============================================
+                        PASSWORD
+                    ============================================== */}
 
                     <Text
-                      style={styles.label}
+                      style={
+                        styles.label
+                      }
                     >
                       Password
                     </Text>
@@ -482,22 +608,32 @@ export default function SignInScreen() {
                         placeholderTextColor={
                           COLORS.placeholder
                         }
-                        value={password}
-                        editable={!loading}
+                        value={
+                          password
+                        }
+                        editable={
+                          !loading
+                        }
                         secureTextEntry={
                           !showPassword
                         }
                         autoCapitalize="none"
-                        autoCorrect={false}
+                        autoCorrect={
+                          false
+                        }
                         autoComplete="password"
                         returnKeyType="done"
                         onChangeText={value => {
-                          setPassword(value);
+                          setPassword(
+                            value
+                          );
 
                           if (
                             errorMessage
                           ) {
-                            setErrorMessage('');
+                            setErrorMessage(
+                              ''
+                            );
                           }
                         }}
                         onSubmitEditing={
@@ -506,8 +642,12 @@ export default function SignInScreen() {
                       />
 
                       <TouchableOpacity
-                        activeOpacity={0.7}
-                        disabled={loading}
+                        activeOpacity={
+                          0.7
+                        }
+                        disabled={
+                          loading
+                        }
                         onPress={() =>
                           setShowPassword(
                             current =>
@@ -527,20 +667,23 @@ export default function SignInScreen() {
                       </TouchableOpacity>
                     </View>
 
-                    {/* FORGOT PASSWORD */}
+                    {/* ==============================================
+                        FORGOT PASSWORD
+                    ============================================== */}
 
                     <TouchableOpacity
                       style={
                         styles.forgotButton
                       }
-                      activeOpacity={0.7}
-                      disabled={loading}
-                      onPress={() => {
-                        showMessage(
-                          'Forgot Password',
-                          'Forgot Password will be connected next.'
-                        );
-                      }}
+                      activeOpacity={
+                        0.7
+                      }
+                      disabled={
+                        loading
+                      }
+                      onPress={
+                        handleForgotPassword
+                      }
                     >
                       <Text
                         style={
@@ -551,7 +694,9 @@ export default function SignInScreen() {
                       </Text>
                     </TouchableOpacity>
 
-                    {/* SIGN IN */}
+                    {/* ==============================================
+                        SIGN IN
+                    ============================================== */}
 
                     <TouchableOpacity
                       style={[
@@ -560,8 +705,12 @@ export default function SignInScreen() {
                         loading &&
                           styles.disabledButton,
                       ]}
-                      activeOpacity={0.85}
-                      disabled={loading}
+                      activeOpacity={
+                        0.85
+                      }
+                      disabled={
+                        loading
+                      }
                       onPress={
                         handleSignIn
                       }
@@ -591,551 +740,661 @@ export default function SignInScreen() {
 // STYLES
 // ============================================================
 
-const styles = StyleSheet.create({
-  flex: {
-    flex: 1,
-  },
-
-  // ==========================================================
-  // DESKTOP
-  // ==========================================================
-
-  desktopBackground: {
-    flex: 1,
-
-    alignItems: 'center',
-    justifyContent: 'center',
-
-    backgroundColor:
-      Platform.OS === 'web'
-        ? '#1E1E1E'
-        : COLORS.pinkBottom,
-  },
-
-  // ==========================================================
-  // PHONE
-  // ==========================================================
-
-  phone: {
-    width:
-      Platform.OS === 'web'
-        ? 402
-        : '100%',
-
-    height:
-      Platform.OS === 'web'
-        ? 874
-        : '100%',
-
-    maxWidth: '100%',
-
-    overflow: 'hidden',
-
-    backgroundColor:
-      COLORS.pinkBottom,
-  },
-
-  safeArea: {
-    flex: 1,
-
-    backgroundColor:
-      COLORS.red,
-  },
-
-  scroll: {
-    flexGrow: 1,
-
-    backgroundColor:
-      COLORS.pinkBottom,
-  },
-
-  authContent: {
-    flexGrow: 1,
-
-    position: 'relative',
-
-    backgroundColor:
-      COLORS.pinkTop,
-  },
-
-  // ==========================================================
-  // HEADER
-  // ==========================================================
-
-  headerWrapper: {
-    backgroundColor:
-      COLORS.pinkTop,
-
-    zIndex: 1,
-  },
-
-  header: {
-    height: 260,
-
-    alignItems: 'center',
-
-    paddingTop: 55,
-
-    borderBottomLeftRadius: 62,
-    borderBottomRightRadius: 62,
-
-    overflow: 'hidden',
-  },
-
-  /*
-    Only used for smaller screens
-    such as iPhone 13.
-
-    iPhone 16 Pro keeps the
-    full 260px header.
-  */
-  headerSmall: {
-    height: 230,
-
-    paddingTop: 38,
-
-    borderBottomLeftRadius: 54,
-    borderBottomRightRadius: 54,
-  },
-
-  headerCircleLeft: {
-    position: 'absolute',
-
-    width: 180,
-    height: 180,
-
-    borderRadius: 90,
-
-    left: -100,
-    top: -50,
-
-    backgroundColor:
-      'rgba(255,255,255,0.07)',
-  },
-
-  headerCircleRight: {
-    position: 'absolute',
-
-    width: 180,
-    height: 180,
-
-    borderRadius: 90,
-
-    right: -92,
-    top: -55,
-
-    backgroundColor:
-      'rgba(255,255,255,0.07)',
-  },
-
-  brandName: {
-    color:
-      COLORS.white,
-
-    fontFamily:
-      'Poppins_700Bold',
-
-    fontSize: 31,
-  },
-
-  brandNameSmall: {
-    fontSize: 29,
-  },
-
-  tagline: {
-    marginTop: 7,
-
-    color:
-      COLORS.white,
-
-    fontFamily:
-      'Inter_400Regular',
-
-    fontSize: 12,
-  },
-
-  // ==========================================================
-  // LOGO
-  // ==========================================================
-
-  /*
-    260 - 74 = 186
-
-    This centers the 148px logo
-    exactly on the bottom edge
-    of the primary header.
-  */
-
-  logoCircle: {
-    position: 'absolute',
-
-    top: 186,
-
-    alignSelf: 'center',
-
-    width: 148,
-    height: 148,
-
-    borderRadius: 74,
-
-    backgroundColor:
-      COLORS.white,
-
-    alignItems: 'center',
-    justifyContent: 'center',
-
-    overflow: 'hidden',
-
-    zIndex: 100,
-
-    elevation: 100,
-
-    shadowColor: '#000000',
-
-    shadowOffset: {
-      width: 0,
-      height: 2,
+const styles =
+  StyleSheet.create({
+    flex: {
+      flex: 1,
     },
 
-    shadowOpacity: 0.08,
+    // ========================================================
+    // DESKTOP
+    // ========================================================
 
-    shadowRadius: 4,
-  },
+    desktopBackground: {
+      flex: 1,
 
-  /*
-    iPhone 13:
-    Header = 230
-    Logo = 126
+      alignItems:
+        'center',
 
-    230 - 63 = 167
-  */
+      justifyContent:
+        'center',
 
-  logoCircleSmall: {
-    top: 167,
-
-    width: 126,
-    height: 126,
-
-    borderRadius: 63,
-  },
-
-  logoImage: {
-    width: 128,
-    height: 128,
-  },
-
-  logoImageSmall: {
-    width: 108,
-    height: 108,
-  },
-
-  // ==========================================================
-  // BODY
-  // ==========================================================
-
-  bodyBackground: {
-    flexGrow: 1,
-
-    minHeight:
-      Platform.OS === 'web'
-        ? 614
-        : 614,
-
-    paddingHorizontal: 26,
-
-    paddingTop:
-      Platform.OS === 'web'
-        ? 115
-        : 100,
-
-    paddingBottom: 36,
-
-    zIndex: 2,
-  },
-
-  bodyBackgroundSmall: {
-    minHeight: 614,
-
-    paddingHorizontal: 22,
-
-    paddingTop: 82,
-
-    paddingBottom: 28,
-  },
-
-  // ==========================================================
-  // CARD
-  // ==========================================================
-
-  card: {
-    backgroundColor:
-      COLORS.white,
-
-    borderRadius: 25,
-
-    paddingHorizontal: 22,
-    paddingTop: 17,
-    paddingBottom: 23,
-
-    shadowColor:
-      '#000000',
-
-    shadowOffset: {
-      width: 0,
-      height: 2,
+      backgroundColor:
+        Platform.OS === 'web'
+          ? '#1E1E1E'
+          : COLORS.pinkBottom,
     },
 
-    shadowOpacity: 0.06,
+    // ========================================================
+    // PHONE
+    // ========================================================
 
-    shadowRadius: 5,
+    phone: {
+      width:
+        Platform.OS === 'web'
+          ? 402
+          : '100%',
 
-    elevation: 2,
-  },
+      height:
+        Platform.OS === 'web'
+          ? 874
+          : '100%',
 
-  cardSmall: {
-    borderRadius: 23,
+      maxWidth:
+        '100%',
 
-    paddingHorizontal: 20,
-    paddingTop: 15,
-    paddingBottom: 20,
-  },
+      overflow:
+        'hidden',
 
-  // ==========================================================
-  // TABS
-  // ==========================================================
+      backgroundColor:
+        COLORS.pinkBottom,
+    },
 
-  tabs: {
-    flexDirection: 'row',
+    safeArea: {
+      flex: 1,
 
-    marginBottom: 24,
-  },
+      backgroundColor:
+        COLORS.red,
+    },
 
-  activeTab: {
-    flex: 1,
+    scroll: {
+      flexGrow: 1,
 
-    height: 43,
+      backgroundColor:
+        COLORS.pinkBottom,
+    },
 
-    marginHorizontal: 7,
+    authContent: {
+      flexGrow: 1,
 
-    borderRadius: 22,
+      position:
+        'relative',
 
-    backgroundColor:
-      COLORS.redButton,
+      backgroundColor:
+        COLORS.pinkTop,
+    },
 
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
+    // ========================================================
+    // HEADER
+    // ========================================================
 
-  inactiveTab: {
-    flex: 1,
+    headerWrapper: {
+      backgroundColor:
+        COLORS.pinkTop,
 
-    height: 43,
+      zIndex: 1,
+    },
 
-    marginHorizontal: 7,
+    header: {
+      height: 260,
 
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
+      alignItems:
+        'center',
 
-  activeTabText: {
-    color:
-      COLORS.white,
+      paddingTop: 55,
 
-    fontFamily:
-      'Poppins_600SemiBold',
+      borderBottomLeftRadius:
+        62,
 
-    fontSize: 13,
-  },
+      borderBottomRightRadius:
+        62,
 
-  inactiveTabText: {
-    color:
-      COLORS.black,
+      overflow:
+        'hidden',
+    },
 
-    fontFamily:
-      'Inter_500Medium',
+    headerSmall: {
+      height: 230,
 
-    fontSize: 13,
-  },
+      paddingTop: 38,
 
-  // ==========================================================
-  // ERROR
-  // ==========================================================
+      borderBottomLeftRadius:
+        54,
 
-  errorContainer: {
-    marginBottom: 18,
+      borderBottomRightRadius:
+        54,
+    },
 
-    paddingHorizontal: 12,
-    paddingVertical: 10,
+    headerCircleLeft: {
+      position:
+        'absolute',
 
-    borderWidth: 1,
+      width: 180,
+      height: 180,
 
-    borderColor:
-      '#F5BABA',
+      borderRadius:
+        90,
 
-    borderRadius: 8,
+      left: -100,
+      top: -50,
 
-    backgroundColor:
-      '#FDECEC',
-  },
+      backgroundColor:
+        'rgba(255,255,255,0.07)',
+    },
 
-  errorText: {
-    color:
-      COLORS.redButton,
+    headerCircleRight: {
+      position:
+        'absolute',
 
-    fontFamily:
-      'Inter_500Medium',
+      width: 180,
+      height: 180,
 
-    fontSize: 11,
+      borderRadius:
+        90,
 
-    lineHeight: 16,
+      right: -92,
+      top: -55,
 
-    textAlign: 'center',
-  },
+      backgroundColor:
+        'rgba(255,255,255,0.07)',
+    },
 
-  // ==========================================================
-  // FORM
-  // ==========================================================
+    brandName: {
+      color:
+        COLORS.white,
 
-  label: {
-    marginBottom: 7,
+      fontFamily:
+        'Poppins_700Bold',
 
-    color:
-      COLORS.black,
+      fontSize:
+        31,
+    },
 
-    fontFamily:
-      'Inter_500Medium',
+    brandNameSmall: {
+      fontSize:
+        29,
+    },
 
-    fontSize: 12,
-  },
+    tagline: {
+      marginTop:
+        7,
 
-  input: {
-    height: 43,
+      color:
+        COLORS.white,
 
-    marginBottom: 19,
+      fontFamily:
+        'Inter_400Regular',
 
-    paddingHorizontal: 15,
+      fontSize:
+        12,
+    },
 
-    borderWidth: 1,
+    // ========================================================
+    // LOGO
+    // ========================================================
 
-    borderColor:
-      COLORS.inputBorder,
+    logoCircle: {
+      position:
+        'absolute',
 
-    borderRadius: 22,
+      top:
+        186,
 
-    color:
-      COLORS.black,
+      alignSelf:
+        'center',
 
-    backgroundColor:
-      COLORS.white,
+      width:
+        148,
 
-    fontFamily:
-      'Inter_400Regular',
+      height:
+        148,
 
-    fontSize: 12,
+      borderRadius:
+        74,
 
-    outlineStyle:
-      Platform.OS === 'web'
-        ? 'none'
-        : undefined,
-  } as any,
+      backgroundColor:
+        COLORS.white,
 
-  passwordBox: {
-    height: 43,
+      alignItems:
+        'center',
 
-    flexDirection: 'row',
+      justifyContent:
+        'center',
 
-    alignItems: 'center',
+      overflow:
+        'hidden',
 
-    paddingLeft: 15,
-    paddingRight: 13,
+      zIndex:
+        100,
 
-    borderWidth: 1,
+      elevation:
+        100,
 
-    borderColor:
-      COLORS.inputBorder,
+      shadowColor:
+        '#000000',
 
-    borderRadius: 22,
+      shadowOffset: {
+        width:
+          0,
 
-    backgroundColor:
-      COLORS.white,
-  },
+        height:
+          2,
+      },
 
-  passwordInput: {
-    flex: 1,
+      shadowOpacity:
+        0.08,
 
-    color:
-      COLORS.black,
+      shadowRadius:
+        4,
+    },
 
-    fontFamily:
-      'Inter_400Regular',
+    logoCircleSmall: {
+      top:
+        167,
 
-    fontSize: 12,
+      width:
+        126,
 
-    outlineStyle:
-      Platform.OS === 'web'
-        ? 'none'
-        : undefined,
-  } as any,
+      height:
+        126,
 
-  showText: {
-    color:
-      COLORS.muted,
+      borderRadius:
+        63,
+    },
 
-    fontFamily:
-      'Inter_400Regular',
+    logoImage: {
+      width:
+        128,
 
-    fontSize: 11,
-  },
+      height:
+        128,
+    },
 
-  // ==========================================================
-  // FORGOT
-  // ==========================================================
+    logoImageSmall: {
+      width:
+        108,
 
-  forgotButton: {
-    alignSelf: 'flex-end',
+      height:
+        108,
+    },
 
-    marginTop: 14,
-  },
+    // ========================================================
+    // BODY
+    // ========================================================
 
-  forgotText: {
-    color:
-      COLORS.red,
+    bodyBackground: {
+      flexGrow:
+        1,
 
-    fontFamily:
-      'Inter_500Medium',
+      minHeight:
+        614,
 
-    fontSize: 11,
-  },
+      paddingHorizontal:
+        26,
 
-  // ==========================================================
-  // BUTTON
-  // ==========================================================
+      paddingTop:
+        Platform.OS === 'web'
+          ? 115
+          : 100,
 
-  primaryButton: {
-    height: 50,
+      paddingBottom:
+        36,
 
-    marginTop: 28,
+      zIndex:
+        2,
+    },
 
-    borderRadius: 7,
+    bodyBackgroundSmall: {
+      minHeight:
+        614,
 
-    backgroundColor:
-      COLORS.redButton,
+      paddingHorizontal:
+        22,
 
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
+      paddingTop:
+        82,
 
-  disabledButton: {
-    opacity: 0.6,
-  },
+      paddingBottom:
+        28,
+    },
 
-  primaryButtonText: {
-    color:
-      COLORS.white,
+    // ========================================================
+    // CARD
+    // ========================================================
 
-    fontFamily:
-      'Poppins_600SemiBold',
+    card: {
+      backgroundColor:
+        COLORS.white,
 
-    fontSize: 13,
-  },
-});
+      borderRadius:
+        25,
+
+      paddingHorizontal:
+        22,
+
+      paddingTop:
+        17,
+
+      paddingBottom:
+        23,
+
+      shadowColor:
+        '#000000',
+
+      shadowOffset: {
+        width:
+          0,
+
+        height:
+          2,
+      },
+
+      shadowOpacity:
+        0.06,
+
+      shadowRadius:
+        5,
+
+      elevation:
+        2,
+    },
+
+    cardSmall: {
+      borderRadius:
+        23,
+
+      paddingHorizontal:
+        20,
+
+      paddingTop:
+        15,
+
+      paddingBottom:
+        20,
+    },
+
+    // ========================================================
+    // TABS
+    // ========================================================
+
+    tabs: {
+      flexDirection:
+        'row',
+
+      marginBottom:
+        24,
+    },
+
+    activeTab: {
+      flex:
+        1,
+
+      height:
+        43,
+
+      marginHorizontal:
+        7,
+
+      borderRadius:
+        22,
+
+      backgroundColor:
+        COLORS.redButton,
+
+      alignItems:
+        'center',
+
+      justifyContent:
+        'center',
+    },
+
+    inactiveTab: {
+      flex:
+        1,
+
+      height:
+        43,
+
+      marginHorizontal:
+        7,
+
+      alignItems:
+        'center',
+
+      justifyContent:
+        'center',
+    },
+
+    activeTabText: {
+      color:
+        COLORS.white,
+
+      fontFamily:
+        'Poppins_600SemiBold',
+
+      fontSize:
+        13,
+    },
+
+    inactiveTabText: {
+      color:
+        COLORS.black,
+
+      fontFamily:
+        'Inter_500Medium',
+
+      fontSize:
+        13,
+    },
+
+    // ========================================================
+    // ERROR
+    // ========================================================
+
+    errorContainer: {
+      marginBottom:
+        18,
+
+      paddingHorizontal:
+        12,
+
+      paddingVertical:
+        10,
+
+      borderWidth:
+        1,
+
+      borderColor:
+        '#F5BABA',
+
+      borderRadius:
+        8,
+
+      backgroundColor:
+        '#FDECEC',
+    },
+
+    errorText: {
+      color:
+        COLORS.redButton,
+
+      fontFamily:
+        'Inter_500Medium',
+
+      fontSize:
+        11,
+
+      lineHeight:
+        16,
+
+      textAlign:
+        'center',
+    },
+
+    // ========================================================
+    // FORM
+    // ========================================================
+
+    label: {
+      marginBottom:
+        7,
+
+      color:
+        COLORS.black,
+
+      fontFamily:
+        'Inter_500Medium',
+
+      fontSize:
+        12,
+    },
+
+    input: {
+      height:
+        43,
+
+      marginBottom:
+        19,
+
+      paddingHorizontal:
+        15,
+
+      borderWidth:
+        1,
+
+      borderColor:
+        COLORS.inputBorder,
+
+      borderRadius:
+        22,
+
+      color:
+        COLORS.black,
+
+      backgroundColor:
+        COLORS.white,
+
+      fontFamily:
+        'Inter_400Regular',
+
+      fontSize:
+        12,
+
+      outlineStyle:
+        Platform.OS === 'web'
+          ? 'none'
+          : undefined,
+    } as any,
+
+    passwordBox: {
+      height:
+        43,
+
+      flexDirection:
+        'row',
+
+      alignItems:
+        'center',
+
+      paddingLeft:
+        15,
+
+      paddingRight:
+        13,
+
+      borderWidth:
+        1,
+
+      borderColor:
+        COLORS.inputBorder,
+
+      borderRadius:
+        22,
+
+      backgroundColor:
+        COLORS.white,
+    },
+
+    passwordInput: {
+      flex:
+        1,
+
+      color:
+        COLORS.black,
+
+      fontFamily:
+        'Inter_400Regular',
+
+      fontSize:
+        12,
+
+      outlineStyle:
+        Platform.OS === 'web'
+          ? 'none'
+          : undefined,
+    } as any,
+
+    showText: {
+      color:
+        COLORS.muted,
+
+      fontFamily:
+        'Inter_400Regular',
+
+      fontSize:
+        11,
+    },
+
+    // ========================================================
+    // FORGOT
+    // ========================================================
+
+    forgotButton: {
+      alignSelf:
+        'flex-end',
+
+      marginTop:
+        14,
+    },
+
+    forgotText: {
+      color:
+        COLORS.red,
+
+      fontFamily:
+        'Inter_500Medium',
+
+      fontSize:
+        11,
+    },
+
+    // ========================================================
+    // BUTTON
+    // ========================================================
+
+    primaryButton: {
+      height:
+        50,
+
+      marginTop:
+        28,
+
+      borderRadius:
+        7,
+
+      backgroundColor:
+        COLORS.redButton,
+
+      alignItems:
+        'center',
+
+      justifyContent:
+        'center',
+    },
+
+    disabledButton: {
+      opacity:
+        0.6,
+    },
+
+    primaryButtonText: {
+      color:
+        COLORS.white,
+
+      fontFamily:
+        'Poppins_600SemiBold',
+
+      fontSize:
+        13,
+    },
+  });

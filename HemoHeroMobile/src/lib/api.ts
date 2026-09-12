@@ -2,12 +2,15 @@
 // HEMO-HERO API CLIENT
 // ============================================================
 
-import { Platform } from 'react-native';
+import {
+  Platform,
+} from 'react-native';
 
 const API_URL =
   Platform.OS === 'web'
     ? 'http://localhost:5000'
-    : process.env.EXPO_PUBLIC_API_URL || 'http://localhost:5000';
+    : process.env.EXPO_PUBLIC_API_URL ||
+      'http://localhost:5000';
 
 // ============================================================
 // TYPES
@@ -162,13 +165,15 @@ async function request(
     );
   }
 
-  let data: any = null;
+  let data: any =
+    null;
 
   try {
     data =
       await response.json();
   } catch {
-    data = null;
+    data =
+      null;
   }
 
   if (!response.ok) {
@@ -194,8 +199,6 @@ async function request(
 
 // ------------------------------------------------------------
 // LOGIN
-//
-// POST /api/auth/login
 // ------------------------------------------------------------
 
 export async function loginUser(
@@ -205,7 +208,8 @@ export async function loginUser(
   return request(
     '/api/auth/login',
     {
-      method: 'POST',
+      method:
+        'POST',
 
       body:
         JSON.stringify({
@@ -222,8 +226,6 @@ export async function loginUser(
 
 // ------------------------------------------------------------
 // REGISTER
-//
-// POST /api/auth/register
 // ------------------------------------------------------------
 
 export async function registerUser(
@@ -234,7 +236,8 @@ export async function registerUser(
   return request(
     '/api/auth/register',
     {
-      method: 'POST',
+      method:
+        'POST',
 
       body:
         JSON.stringify({
@@ -253,18 +256,45 @@ export async function registerUser(
 }
 
 // ------------------------------------------------------------
-// FORGOT PASSWORD
-//
-// POST /api/auth/forgot-password
+// VERIFY EMAIL OTP
 // ------------------------------------------------------------
 
-export async function forgotPassword(
+export async function verifyEmail(
+  email: string,
+  code: string
+) {
+  return request(
+    '/api/auth/verify-email',
+    {
+      method:
+        'POST',
+
+      body:
+        JSON.stringify({
+          email:
+            email
+              .trim()
+              .toLowerCase(),
+
+          code:
+            code.trim(),
+        }),
+    }
+  );
+}
+
+// ------------------------------------------------------------
+// RESEND VERIFICATION OTP
+// ------------------------------------------------------------
+
+export async function resendVerification(
   email: string
 ) {
   return request(
-    '/api/auth/forgot-password',
+    '/api/auth/resend-verification',
     {
-      method: 'POST',
+      method:
+        'POST',
 
       body:
         JSON.stringify({
@@ -278,9 +308,68 @@ export async function forgotPassword(
 }
 
 // ------------------------------------------------------------
-// CURRENT USER
+// FORGOT PASSWORD
+// ------------------------------------------------------------
+
+export async function forgotPassword(
+  email: string
+) {
+  return request(
+    '/api/auth/forgot-password',
+    {
+      method:
+        'POST',
+
+      body:
+        JSON.stringify({
+          email:
+            email
+              .trim()
+              .toLowerCase(),
+        }),
+    }
+  );
+}
+
+// ------------------------------------------------------------
+// RESET PASSWORD
 //
-// GET /api/auth/me
+// POST /api/auth/reset-password
+// ------------------------------------------------------------
+
+export async function resetPassword(
+  email: string,
+  code: string,
+  password: string,
+  confirmPassword: string
+) {
+  return request(
+    '/api/auth/reset-password',
+    {
+      method: 'POST',
+
+      body:
+        JSON.stringify({
+          email:
+            email
+              .trim()
+              .toLowerCase(),
+
+          code:
+            code.trim(),
+
+          password,
+
+          confirm_password:
+            confirmPassword,
+        }),
+    }
+  );
+}
+
+
+// ------------------------------------------------------------
+// CURRENT USER
 // ------------------------------------------------------------
 
 export async function getCurrentUser(
@@ -289,7 +378,8 @@ export async function getCurrentUser(
   return request(
     '/api/auth/me',
     {
-      method: 'GET',
+      method:
+        'GET',
 
       headers: {
         Authorization:
@@ -301,8 +391,6 @@ export async function getCurrentUser(
 
 // ------------------------------------------------------------
 // UPDATE CURRENT USER PROFILE
-//
-// PATCH /api/auth/me
 // ------------------------------------------------------------
 
 export async function updateProfile(
@@ -315,7 +403,8 @@ export async function updateProfile(
   return request(
     '/api/auth/me',
     {
-      method: 'PATCH',
+      method:
+        'PATCH',
 
       headers: {
         Authorization:
@@ -332,8 +421,6 @@ export async function updateProfile(
 
 // ------------------------------------------------------------
 // LOGOUT
-//
-// POST /api/auth/logout
 // ------------------------------------------------------------
 
 export async function logoutUser(
@@ -342,7 +429,8 @@ export async function logoutUser(
   return request(
     '/api/auth/logout',
     {
-      method: 'POST',
+      method:
+        'POST',
 
       headers: {
         Authorization:
@@ -356,12 +444,6 @@ export async function logoutUser(
 // FACILITIES
 // ============================================================
 
-// ------------------------------------------------------------
-// GET NEARBY FACILITIES
-//
-// GET /api/facilities/nearby
-// ------------------------------------------------------------
-
 export async function getNearbyFacilities(
   accessToken: string,
   latitude: number,
@@ -370,16 +452,21 @@ export async function getNearbyFacilities(
   const query =
     new URLSearchParams({
       latitude:
-        String(latitude),
+        String(
+          latitude
+        ),
 
       longitude:
-        String(longitude),
+        String(
+          longitude
+        ),
     });
 
   return request(
     `/api/facilities/nearby?${query.toString()}`,
     {
-      method: 'GET',
+      method:
+        'GET',
 
       headers: {
         Authorization:
@@ -395,8 +482,6 @@ export async function getNearbyFacilities(
 
 // ------------------------------------------------------------
 // CREATE BLOOD REQUEST
-//
-// POST /api/requests
 // ------------------------------------------------------------
 
 export async function createBloodRequest(
@@ -407,7 +492,8 @@ export async function createBloodRequest(
   return request(
     '/api/requests',
     {
-      method: 'POST',
+      method:
+        'POST',
 
       headers: {
         Authorization:
@@ -423,9 +509,7 @@ export async function createBloodRequest(
 }
 
 // ------------------------------------------------------------
-// GET MY BLOOD REQUEST HISTORY
-//
-// GET /api/requests/my
+// GET MY BLOOD REQUESTS
 // ------------------------------------------------------------
 
 export async function getMyBloodRequests(
@@ -434,7 +518,8 @@ export async function getMyBloodRequests(
   return request(
     '/api/requests/my',
     {
-      method: 'GET',
+      method:
+        'GET',
 
       headers: {
         Authorization:
@@ -445,9 +530,7 @@ export async function getMyBloodRequests(
 }
 
 // ------------------------------------------------------------
-// GET MY CURRENT ACTIVE REQUEST
-//
-// GET /api/requests/my/active
+// GET ACTIVE BLOOD REQUEST
 // ------------------------------------------------------------
 
 export async function getMyActiveBloodRequest(
@@ -456,7 +539,8 @@ export async function getMyActiveBloodRequest(
   return request(
     '/api/requests/my/active',
     {
-      method: 'GET',
+      method:
+        'GET',
 
       headers: {
         Authorization:
@@ -467,9 +551,7 @@ export async function getMyActiveBloodRequest(
 }
 
 // ------------------------------------------------------------
-// GET BLOOD REQUEST BY ID
-//
-// GET /api/requests/:id
+// GET REQUEST BY ID
 // ------------------------------------------------------------
 
 export async function getBloodRequestById(
@@ -481,7 +563,8 @@ export async function getBloodRequestById(
       requestId
     )}`,
     {
-      method: 'GET',
+      method:
+        'GET',
 
       headers: {
         Authorization:
@@ -493,8 +576,6 @@ export async function getBloodRequestById(
 
 // ------------------------------------------------------------
 // CANCEL BLOOD REQUEST
-//
-// PATCH /api/requests/:id/cancel
 // ------------------------------------------------------------
 
 export async function cancelBloodRequest(
@@ -506,7 +587,8 @@ export async function cancelBloodRequest(
       requestId
     )}/cancel`,
     {
-      method: 'PATCH',
+      method:
+        'PATCH',
 
       headers: {
         Authorization:

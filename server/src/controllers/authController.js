@@ -55,8 +55,12 @@ function cleanOptionalText(value) {
 // DATE OF BIRTH
 // ------------------------------------------------------------
 
-function validateDateOfBirth(dateOfBirth) {
-  if (typeof dateOfBirth !== 'string') {
+function validateDateOfBirth(
+  dateOfBirth
+) {
+  if (
+    typeof dateOfBirth !== 'string'
+  ) {
     return {
       valid: false,
       error:
@@ -71,7 +75,9 @@ function validateDateOfBirth(dateOfBirth) {
     /^\d{4}-\d{2}-\d{2}$/;
 
   if (
-    !datePattern.test(cleanDate)
+    !datePattern.test(
+      cleanDate
+    )
   ) {
     return {
       valid: false,
@@ -97,7 +103,6 @@ function validateDateOfBirth(dateOfBirth) {
       )
     );
 
-  // Reject impossible dates.
   if (
     birthDate.getUTCFullYear() !==
       year ||
@@ -138,7 +143,8 @@ function validateDateOfBirth(dateOfBirth) {
 
   return {
     valid: true,
-    value: cleanDate,
+    value:
+      cleanDate,
   };
 }
 
@@ -166,18 +172,23 @@ function parseCoordinate(
       : Number(value);
 
   if (
-    !Number.isFinite(number)
+    !Number.isFinite(
+      number
+    )
   ) {
     return {
       valid: false,
-      error: `${type} must be a valid number`,
+      error:
+        `${type} must be a valid number`,
     };
   }
 
   if (
     type === 'latitude' &&
-    (number < -90 ||
-      number > 90)
+    (
+      number < -90 ||
+      number > 90
+    )
   ) {
     return {
       valid: false,
@@ -188,8 +199,10 @@ function parseCoordinate(
 
   if (
     type === 'longitude' &&
-    (number < -180 ||
-      number > 180)
+    (
+      number < -180 ||
+      number > 180
+    )
   ) {
     return {
       valid: false,
@@ -200,7 +213,8 @@ function parseCoordinate(
 
   return {
     valid: true,
-    value: number,
+    value:
+      number,
   };
 }
 
@@ -222,7 +236,8 @@ function validateProfilePhotoUrl(
   }
 
   if (
-    typeof value !== 'string'
+    typeof value !==
+    'string'
   ) {
     return {
       valid: false,
@@ -246,8 +261,10 @@ function validateProfilePhotoUrl(
       new URL(cleanUrl);
 
     if (
-      url.protocol !== 'http:' &&
-      url.protocol !== 'https:'
+      url.protocol !==
+        'http:' &&
+      url.protocol !==
+        'https:'
     ) {
       return {
         valid: false,
@@ -258,7 +275,8 @@ function validateProfilePhotoUrl(
 
     return {
       valid: true,
-      value: cleanUrl,
+      value:
+        cleanUrl,
     };
   } catch {
     return {
@@ -302,7 +320,8 @@ async function register(
     }
 
     if (
-      typeof email !== 'string' ||
+      typeof email !==
+        'string' ||
       typeof password !==
         'string' ||
       typeof confirm_password !==
@@ -480,6 +499,279 @@ async function register(
 }
 
 // ============================================================
+// POST /api/auth/verify-email
+//
+// Verify the 6-digit email OTP.
+//
+// Supabase replaces {{ .Token }} in the signup email template
+// with the verification code.
+// ============================================================
+
+async function verifyEmail(
+  req,
+  res
+) {
+  try {
+    const {
+      email,
+      code,
+    } = req.body;
+
+    // --------------------------------------------------------
+    // REQUIRED
+    // --------------------------------------------------------
+
+    if (
+      !email ||
+      !code
+    ) {
+      return res
+        .status(400)
+        .json({
+          error:
+            'email and code are required',
+        });
+    }
+
+    if (
+      typeof email !==
+        'string' ||
+      typeof code !==
+        'string'
+    ) {
+      return res
+        .status(400)
+        .json({
+          error:
+            'email and code must be text',
+        });
+    }
+
+    const cleanEmail =
+      email
+        .trim()
+        .toLowerCase();
+
+    const cleanCode =
+      code.trim();
+
+    // --------------------------------------------------------
+    // EMAIL
+    // --------------------------------------------------------
+
+    const emailPattern =
+      /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+    if (
+      !emailPattern.test(
+        cleanEmail
+      )
+    ) {
+      return res
+        .status(400)
+        .json({
+          error:
+            'Please enter a valid email address',
+        });
+    }
+
+    // --------------------------------------------------------
+    // CODE
+    // --------------------------------------------------------
+
+    if (
+      !/^\d{6}$/.test(
+        cleanCode
+      )
+    ) {
+      return res
+        .status(400)
+        .json({
+          error:
+            'Verification code must be 6 digits',
+        });
+    }
+
+    // --------------------------------------------------------
+    // VERIFY WITH SUPABASE
+    // --------------------------------------------------------
+
+    const {
+      data,
+      error,
+    } =
+      await supabaseAnon
+        .auth
+        .verifyOtp({
+          email:
+            cleanEmail,
+
+          token:
+            cleanCode,
+
+          type:
+            'email',
+        });
+
+    if (error) {
+      console.error(
+        'VERIFY EMAIL SUPABASE ERROR:',
+        error.message
+      );
+
+      return res
+        .status(400)
+        .json({
+          error:
+            'Invalid or expired verification code',
+        });
+    }
+
+    if (!data?.user) {
+      return res
+        .status(400)
+        .json({
+          error:
+            'Unable to verify email',
+        });
+    }
+
+    return res
+      .status(200)
+      .json({
+        message:
+          'Email verified successfully. You can now sign in.',
+
+        user: {
+          id:
+            data.user.id,
+
+          email:
+            data.user.email,
+        },
+      });
+  } catch (error) {
+    console.error(
+      'VERIFY EMAIL ERROR:',
+      error
+    );
+
+    return res
+      .status(500)
+      .json({
+        error:
+          'Email verification failed',
+      });
+  }
+}
+
+// ============================================================
+// POST /api/auth/resend-verification
+//
+// Resend the signup verification OTP.
+// ============================================================
+
+async function resendVerification(
+  req,
+  res
+) {
+  try {
+    const {
+      email,
+    } = req.body;
+
+    if (
+      !email ||
+      typeof email !==
+        'string'
+    ) {
+      return res
+        .status(400)
+        .json({
+          error:
+            'email is required',
+        });
+    }
+
+    const cleanEmail =
+      email
+        .trim()
+        .toLowerCase();
+
+    const emailPattern =
+      /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+    if (
+      !emailPattern.test(
+        cleanEmail
+      )
+    ) {
+      return res
+        .status(400)
+        .json({
+          error:
+            'Please enter a valid email address',
+        });
+    }
+
+    const frontendUrl =
+      process.env.FRONTEND_URL ||
+      'http://localhost:8081';
+
+    const {
+      error,
+    } =
+      await supabaseAnon
+        .auth
+        .resend({
+          type:
+            'signup',
+
+          email:
+            cleanEmail,
+
+          options: {
+            emailRedirectTo:
+              `${frontendUrl}/`,
+          },
+        });
+
+    if (error) {
+      console.error(
+        'RESEND VERIFICATION SUPABASE ERROR:',
+        error.message
+      );
+
+      return res
+        .status(400)
+        .json({
+          error:
+            'Unable to resend verification code. Please wait and try again.',
+        });
+    }
+
+    return res
+      .status(200)
+      .json({
+        message:
+          'A new verification code has been sent to your email.',
+      });
+  } catch (error) {
+    console.error(
+      'RESEND VERIFICATION ERROR:',
+      error
+    );
+
+    return res
+      .status(500)
+      .json({
+        error:
+          'Unable to resend verification code',
+      });
+  }
+}
+
+// ============================================================
 // POST /api/auth/login
 // ============================================================
 
@@ -506,7 +798,8 @@ async function login(
     }
 
     if (
-      typeof email !== 'string' ||
+      typeof email !==
+        'string' ||
       typeof password !==
         'string'
     ) {
@@ -532,6 +825,7 @@ async function login(
         .signInWithPassword({
           email:
             cleanEmail,
+
           password,
         });
 
@@ -794,6 +1088,267 @@ async function forgotPassword(
   }
 }
 
+
+// ============================================================
+// POST /api/auth/reset-password
+//
+// Verify recovery OTP and update the user's password.
+// ============================================================
+
+async function resetPassword(
+  req,
+  res
+) {
+  try {
+    const {
+      email,
+      code,
+      password,
+      confirm_password,
+    } = req.body;
+
+    // --------------------------------------------------------
+    // REQUIRED
+    // --------------------------------------------------------
+
+    if (
+      !email ||
+      !code ||
+      !password ||
+      !confirm_password
+    ) {
+      return res
+        .status(400)
+        .json({
+          error:
+            'email, code, password, and confirm_password are required',
+        });
+    }
+
+    if (
+      typeof email !== 'string' ||
+      typeof code !== 'string' ||
+      typeof password !== 'string' ||
+      typeof confirm_password !== 'string'
+    ) {
+      return res
+        .status(400)
+        .json({
+          error:
+            'All password reset fields must be text',
+        });
+    }
+
+    const cleanEmail =
+      email
+        .trim()
+        .toLowerCase();
+
+    const cleanCode =
+      code.trim();
+
+    // --------------------------------------------------------
+    // EMAIL
+    // --------------------------------------------------------
+
+    const emailPattern =
+      /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+    if (
+      !emailPattern.test(
+        cleanEmail
+      )
+    ) {
+      return res
+        .status(400)
+        .json({
+          error:
+            'Please enter a valid email address',
+        });
+    }
+
+    // --------------------------------------------------------
+    // OTP
+    // --------------------------------------------------------
+
+    if (
+      !/^\d{6}$/.test(
+        cleanCode
+      )
+    ) {
+      return res
+        .status(400)
+        .json({
+          error:
+            'Verification code must be 6 digits',
+        });
+    }
+
+    // --------------------------------------------------------
+    // PASSWORD
+    // --------------------------------------------------------
+
+    if (
+      password.length < 8
+    ) {
+      return res
+        .status(400)
+        .json({
+          error:
+            'Password must be at least 8 characters',
+        });
+    }
+
+    const hasLetter =
+      /[A-Za-z]/.test(
+        password
+      );
+
+    const hasNumber =
+      /[0-9]/.test(
+        password
+      );
+
+    if (
+      !hasLetter ||
+      !hasNumber
+    ) {
+      return res
+        .status(400)
+        .json({
+          error:
+            'Password must contain at least one letter and one number',
+        });
+    }
+
+    if (
+      password !==
+      confirm_password
+    ) {
+      return res
+        .status(400)
+        .json({
+          error:
+            'Passwords do not match',
+        });
+    }
+
+    // --------------------------------------------------------
+    // VERIFY RECOVERY OTP
+    // --------------------------------------------------------
+
+    const {
+      data: verificationData,
+      error: verificationError,
+    } =
+      await supabaseAnon
+        .auth
+        .verifyOtp({
+          email:
+            cleanEmail,
+
+          token:
+            cleanCode,
+
+          type:
+            'recovery',
+        });
+
+    if (
+      verificationError ||
+      !verificationData?.user
+    ) {
+      console.error(
+        'RESET PASSWORD OTP ERROR:',
+        verificationError?.message
+      );
+
+      return res
+        .status(400)
+        .json({
+          error:
+            'Invalid or expired password reset code',
+        });
+    }
+
+    // --------------------------------------------------------
+    // SECURITY CHECK
+    // --------------------------------------------------------
+
+    const verifiedEmail =
+      verificationData
+        .user
+        .email
+        ?.trim()
+        .toLowerCase();
+
+    if (
+      verifiedEmail !==
+      cleanEmail
+    ) {
+      return res
+        .status(400)
+        .json({
+          error:
+            'Verification email does not match',
+        });
+    }
+
+    // --------------------------------------------------------
+    // UPDATE PASSWORD
+    // --------------------------------------------------------
+
+    const {
+      error: updateError,
+    } =
+      await supabaseAdmin
+        .auth
+        .admin
+        .updateUserById(
+          verificationData
+            .user
+            .id,
+          {
+            password,
+          }
+        );
+
+    if (updateError) {
+      console.error(
+        'RESET PASSWORD UPDATE ERROR:',
+        updateError.message
+      );
+
+      return res
+        .status(400)
+        .json({
+          error:
+            'Unable to update password',
+        });
+    }
+
+    return res
+      .status(200)
+      .json({
+        message:
+          'Password reset successfully. You can now sign in with your new password.',
+      });
+  } catch (error) {
+    console.error(
+      'RESET PASSWORD ERROR:',
+      error
+    );
+
+    return res
+      .status(500)
+      .json({
+        error:
+          'Password reset failed',
+      });
+  }
+}
+
+
 // ============================================================
 // GET /api/auth/me
 // ============================================================
@@ -854,15 +1409,6 @@ async function updateProfile(
 
       profile_photo_url,
 
-      /*
-        This is NOT the database column.
-
-        The client sends:
-        complete_onboarding: true
-
-        The server decides whether
-        onboarding_complete can become true.
-      */
       complete_onboarding,
     } = req.body;
 
@@ -995,7 +1541,8 @@ async function updateProfile(
     // ========================================================
 
     if (
-      gender !== undefined
+      gender !==
+      undefined
     ) {
       if (
         typeof gender !==
@@ -1034,7 +1581,8 @@ async function updateProfile(
     // ========================================================
 
     if (
-      barangay !== undefined
+      barangay !==
+      undefined
     ) {
       const cleanValue =
         cleanRequiredText(
@@ -1059,7 +1607,8 @@ async function updateProfile(
     // ========================================================
 
     if (
-      city !== undefined
+      city !==
+      undefined
     ) {
       const cleanValue =
         cleanRequiredText(
@@ -1161,8 +1710,6 @@ async function updateProfile(
 
     // ========================================================
     // BLOOD TYPE
-    //
-    // OPTIONAL
     // ========================================================
 
     if (
@@ -1213,9 +1760,6 @@ async function updateProfile(
 
     // ========================================================
     // PROFILE PHOTO URL
-    //
-    // This should eventually contain a Supabase Storage URL,
-    // NOT the temporary local image-picker URI.
     // ========================================================
 
     if (
@@ -1243,7 +1787,7 @@ async function updateProfile(
     }
 
     // ========================================================
-    // MAKE SURE COORDINATES ARE A PAIR
+    // COORDINATE PAIR
     // ========================================================
 
     const nextLatitude =
@@ -1259,14 +1803,22 @@ async function updateProfile(
         : req.dbUser.longitude;
 
     if (
-      (nextLatitude === null &&
-        nextLongitude !== null &&
+      (
+        nextLatitude ===
+          null &&
         nextLongitude !==
-          undefined) ||
-      (nextLongitude === null &&
-        nextLatitude !== null &&
+          null &&
+        nextLongitude !==
+          undefined
+      ) ||
+      (
+        nextLongitude ===
+          null &&
         nextLatitude !==
-          undefined)
+          null &&
+        nextLatitude !==
+          undefined
+      )
     ) {
       return res
         .status(400)
@@ -1300,15 +1852,6 @@ async function updateProfile(
         complete_onboarding ===
         true
       ) {
-        /*
-          Merge the existing DB profile
-          with the incoming changes.
-
-          This allows the server to check
-          whether all REQUIRED onboarding
-          fields really exist.
-        */
-
         const profile = {
           ...req.dbUser,
           ...updates,
@@ -1328,13 +1871,17 @@ async function updateProfile(
           requiredFields.filter(
             field => {
               const value =
-                profile[field];
+                profile[
+                  field
+                ];
 
               return (
                 value === null ||
                 value ===
                   undefined ||
-                String(value)
+                String(
+                  value
+                )
                   .trim() ===
                   ''
               );
@@ -1356,16 +1903,6 @@ async function updateProfile(
             });
         }
 
-        /*
-          Blood type is NOT required.
-
-          Profile photo is NOT required.
-
-          GPS coordinates are NOT required
-          if the user manually entered a
-          valid address.
-        */
-
         updates.onboarding_complete =
           true;
       }
@@ -1376,8 +1913,9 @@ async function updateProfile(
     // ========================================================
 
     if (
-      Object.keys(updates)
-        .length === 0
+      Object.keys(
+        updates
+      ).length === 0
     ) {
       return res
         .status(400)
@@ -1388,7 +1926,7 @@ async function updateProfile(
     }
 
     // ========================================================
-    // SAVE TO SUPABASE
+    // SAVE
     // ========================================================
 
     const {
@@ -1397,7 +1935,9 @@ async function updateProfile(
     } =
       await supabaseAdmin
         .from('users')
-        .update(updates)
+        .update(
+          updates
+        )
         .eq(
           'id',
           req.dbUser.id
@@ -1451,9 +1991,12 @@ async function updateProfile(
 
 module.exports = {
   register,
+  verifyEmail,
+  resendVerification,
   login,
   logout,
   forgotPassword,
+  resetPassword,
   getProfile,
   updateProfile,
 };
