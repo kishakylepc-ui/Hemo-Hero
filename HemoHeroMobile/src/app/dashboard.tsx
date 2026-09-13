@@ -38,6 +38,8 @@ import {
 
 import * as Location from 'expo-location';
 
+import MainBottomNav from '../components/MainBottomNav';
+
 import {
   getCurrentUser,
   getMyActiveBloodRequest,
@@ -489,11 +491,6 @@ export default function DashboardScreen() {
           10
         );
 
-      // ------------------------------------------------------
-      // SPLIT NEW REQUESTS FROM REQUESTS THIS DONOR ALREADY
-      // RESPONDED TO
-      // ------------------------------------------------------
-
       const checkedRequests =
         await Promise.all(
           (data.requests || []).map(
@@ -924,16 +921,6 @@ export default function DashboardScreen() {
   }
 
   // ==========================================================
-  // CHAT
-  // ==========================================================
-
-  function handleChat() {
-    router.push(
-      '/chat' as any
-    );
-  }
-
-  // ==========================================================
   // NOTIFICATIONS
   // ==========================================================
 
@@ -1248,10 +1235,6 @@ export default function DashboardScreen() {
                   </Text>
                 </View>
               </View>
-
-              {/* ================================================
-                  HEADER ACTIONS
-              ================================================ */}
 
               <View
                 style={
@@ -3037,167 +3020,12 @@ export default function DashboardScreen() {
           </ScrollView>
 
           {/* ==================================================
-              BOTTOM NAVIGATION
+              SHARED BOTTOM NAVIGATION
           ================================================== */}
 
-          <View
-            style={
-              styles.bottomNav
-            }
-          >
-            <TouchableOpacity
-              style={
-                styles.navItem
-              }
-            >
-              <MaterialIcons
-                name="home"
-                size={28}
-                color={
-                  COLORS.white
-                }
-              />
-
-              <Text
-                style={
-                  styles.navTextActive
-                }
-              >
-                Home
-              </Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={
-                styles.navItem
-              }
-              onPress={() =>
-                handleComingSoon(
-                  'Search'
-                )
-              }
-            >
-              <MaterialIcons
-                name="person-search"
-                size={27}
-                color="#D99191"
-              />
-
-              <Text
-                style={
-                  styles.navText
-                }
-              >
-                Search
-              </Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={
-                styles.navItem
-              }
-              onPress={
-                handleChat
-              }
-            >
-              <MaterialIcons
-                name="chat-bubble-outline"
-                size={27}
-                color="#D99191"
-              />
-
-              <Text
-                style={
-                  styles.navText
-                }
-              >
-                Chat
-              </Text>
-            </TouchableOpacity>
-
-            {/* ================================================
-                NOTIFICATIONS TAB
-            ================================================ */}
-
-            <TouchableOpacity
-              style={
-                styles.navItem
-              }
-              activeOpacity={
-                0.8
-              }
-              onPress={
-                handleNotifications
-              }
-            >
-              <View
-                style={
-                  styles.navIconWrapper
-                }
-              >
-                <MaterialIcons
-                  name={
-                    unreadNotifications >
-                    0
-                      ? 'notifications'
-                      : 'notifications-none'
-                  }
-                  size={28}
-                  color="#D99191"
-                />
-
-                {unreadNotifications >
-                0 ? (
-                  <View
-                    style={
-                      styles.navNotificationBadge
-                    }
-                  >
-                    <Text
-                      style={
-                        styles.navNotificationBadgeText
-                      }
-                    >
-                      {
-                        unreadNotificationLabel
-                      }
-                    </Text>
-                  </View>
-                ) : null}
-              </View>
-
-              <Text
-                style={
-                  styles.navText
-                }
-              >
-                Notifications
-              </Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={
-                styles.navItem
-              }
-              onPress={
-                handleProfile
-              }
-            >
-              <MaterialIcons
-                name="person-outline"
-                size={28}
-                color="#D99191"
-              />
-
-              <Text
-                style={
-                  styles.navText
-                }
-              >
-                Profile
-              </Text>
-            </TouchableOpacity>
-          </View>
+          <MainBottomNav
+            activeTab="home"
+          />
         </SafeAreaView>
       </View>
     </View>
@@ -3362,10 +3190,6 @@ const styles =
 
       fontSize: 10.5,
     },
-
-    // ========================================================
-    // HEADER ACTIONS
-    // ========================================================
 
     headerActions: {
       flexDirection:
@@ -5009,116 +4833,5 @@ const styles =
     applyButtonApprovedText: {
       color:
         COLORS.green,
-    },
-
-    // ========================================================
-    // BOTTOM NAV
-    // ========================================================
-
-    bottomNav: {
-      height: 76,
-
-      flexDirection: 'row',
-      alignItems: 'center',
-
-      justifyContent:
-        'space-around',
-
-      paddingHorizontal: 4,
-
-      backgroundColor:
-        '#A90707',
-
-      borderTopWidth:
-        StyleSheet.hairlineWidth,
-
-      borderTopColor:
-        'rgba(255,255,255,0.15)',
-    },
-
-    navItem: {
-      flex: 1,
-      height: '100%',
-
-      alignItems: 'center',
-      justifyContent: 'center',
-
-      gap: 3,
-    },
-
-    navIconWrapper: {
-      position:
-        'relative',
-
-      width: 32,
-
-      height: 30,
-
-      alignItems:
-        'center',
-
-      justifyContent:
-        'center',
-    },
-
-    navNotificationBadge: {
-      position:
-        'absolute',
-
-      top: -5,
-
-      right: -8,
-
-      minWidth: 18,
-
-      height: 18,
-
-      paddingHorizontal: 4,
-
-      borderRadius: 9,
-
-      alignItems:
-        'center',
-
-      justifyContent:
-        'center',
-
-      borderWidth: 1.5,
-
-      borderColor:
-        '#A90707',
-
-      backgroundColor:
-        COLORS.white,
-    },
-
-    navNotificationBadgeText: {
-      color:
-        COLORS.red,
-
-      fontFamily:
-        'Inter_600SemiBold',
-
-      fontSize: 7.5,
-    },
-
-    navTextActive: {
-      color:
-        COLORS.white,
-
-      fontFamily:
-        'Inter_600SemiBold',
-
-      fontSize: 10,
-    },
-
-    navText: {
-      color:
-        '#D99191',
-
-      fontFamily:
-        'Inter_500Medium',
-
-      fontSize: 10,
     },
   });

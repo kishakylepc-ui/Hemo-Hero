@@ -11,11 +11,17 @@ const {
 
 const {
   getMyDonorApplication,
+  getNearbyDonors,
   uploadVerificationId,
   submitDonorApplication,
   withdrawDonorApplication
 } =
   require('../controllers/donorApplicationController');
+
+const {
+  getPublicDonorProfile
+} =
+  require('../controllers/donorProfileController');
 
 const router =
   express.Router();
@@ -73,7 +79,28 @@ router.use(
 );
 
 // ============================================================
-// GET MY APPLICATION
+// GET NEARBY DONORS
+//
+// GET /api/donors/nearby
+//
+// Query:
+// latitude
+// longitude
+// radius
+// blood_type
+// urgent
+// limit
+// ============================================================
+
+router.get(
+  '/nearby',
+  getNearbyDonors
+);
+
+// ============================================================
+// GET MY DONOR APPLICATION
+//
+// GET /api/donors/me
 // ============================================================
 
 router.get(
@@ -82,7 +109,28 @@ router.get(
 );
 
 // ============================================================
+// GET PUBLIC DONOR PROFILE
+//
+// GET /api/donors/:id
+//
+// Optional query:
+// latitude
+// longitude
+//
+// IMPORTANT:
+// Keep this route AFTER /nearby and /me so Express does not
+// interpret "nearby" or "me" as a donor ID.
+// ============================================================
+
+router.get(
+  '/:id',
+  getPublicDonorProfile
+);
+
+// ============================================================
 // UPLOAD VERIFICATION ID
+//
+// POST /api/donors/verification-id
 // ============================================================
 
 router.post(
@@ -94,7 +142,9 @@ router.post(
 );
 
 // ============================================================
-// SUBMIT APPLICATION
+// SUBMIT DONOR APPLICATION
+//
+// POST /api/donors/apply
 // ============================================================
 
 router.post(
@@ -103,7 +153,9 @@ router.post(
 );
 
 // ============================================================
-// WITHDRAW APPLICATION
+// WITHDRAW DONOR APPLICATION
+//
+// PATCH /api/donors/me/withdraw
 // ============================================================
 
 router.patch(
@@ -146,7 +198,9 @@ router.use(
         });
     }
 
-    if (error) {
+    if (
+      error
+    ) {
       return res
         .status(400)
         .json({

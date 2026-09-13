@@ -35,6 +35,8 @@ import {
   SafeAreaView,
 } from 'react-native-safe-area-context';
 
+import MainBottomNav from '../../components/MainBottomNav';
+
 import {
   AppNotification,
   getNotifications,
@@ -146,7 +148,9 @@ export default function NotificationsScreen() {
         silent = false
       ) => {
         try {
-          if (!silent) {
+          if (
+            !silent
+          ) {
             setLoading(
               true
             );
@@ -159,7 +163,9 @@ export default function NotificationsScreen() {
           const token =
             await getAccessToken();
 
-          if (!token) {
+          if (
+            !token
+          ) {
             router.replace(
               '/'
             );
@@ -175,7 +181,8 @@ export default function NotificationsScreen() {
 
           const rows =
             Array.isArray(
-              result?.notifications
+              result
+                ?.notifications
             )
               ? result.notifications
               : [];
@@ -190,7 +197,9 @@ export default function NotificationsScreen() {
                 ?.unread_count
             ) || 0
           );
-        } catch (error) {
+        } catch (
+          error
+        ) {
           console.log(
             'LOAD NOTIFICATIONS ERROR:',
             error
@@ -203,7 +212,9 @@ export default function NotificationsScreen() {
               : 'Unable to load notifications.'
           );
         } finally {
-          if (!silent) {
+          if (
+            !silent
+          ) {
             setLoading(
               false
             );
@@ -253,22 +264,25 @@ export default function NotificationsScreen() {
   // ==========================================================
 
   const visibleNotifications =
-    useMemo(() => {
-      if (
-        filter ===
-        'unread'
-      ) {
-        return notifications.filter(
-          item =>
-            !item.is_read
-        );
-      }
+    useMemo(
+      () => {
+        if (
+          filter ===
+          'unread'
+        ) {
+          return notifications.filter(
+            item =>
+              !item.is_read
+          );
+        }
 
-      return notifications;
-    }, [
-      notifications,
-      filter,
-    ]);
+        return notifications;
+      },
+      [
+        notifications,
+        filter,
+      ]
+    );
 
   // ==========================================================
   // LOCAL READ STATE
@@ -314,19 +328,22 @@ export default function NotificationsScreen() {
         )
     );
 
-    if (changed) {
+    if (
+      changed
+    ) {
       setUnreadCount(
         current =>
           Math.max(
             0,
-            current - 1
+            current -
+              1
           )
       );
     }
   }
 
   // ==========================================================
-  // OPEN NOTIFICATION
+  // OPEN NOTIFICATION DESTINATION
   // ==========================================================
 
   function openNotificationDestination(
@@ -340,24 +357,136 @@ export default function NotificationsScreen() {
     const requestId =
       String(
         data.request_id ||
-        notification
-          .related_request_id ||
-        ''
+          notification
+            .related_request_id ||
+          ''
       ).trim();
 
     const responseId =
       String(
         data.response_id ||
-        ''
+          ''
       ).trim();
 
-    // --------------------------------------------------------
+    const invitationId =
+      String(
+        data.invitation_id ||
+          ''
+      ).trim();
+
+    const notificationKind =
+      String(
+        data.kind ||
+          ''
+      )
+        .trim()
+        .toLowerCase();
+
+    // ========================================================
+    // DIRECT DONOR INVITATION
+    //
+    // Requester selected this donor directly.
+    //
+    // Opens:
+    //
+    // /blood-request/donor/:requestId
+    // ?invitationId=:invitationId
+    //
+    // The donor then sees the full request and can accept
+    // or decline it.
+    // ========================================================
+
+    if (
+      notificationKind ===
+      'donor_invitation'
+    ) {
+      if (
+        requestId &&
+        invitationId
+      ) {
+        router.push({
+          pathname:
+            `/blood-request/donor/${requestId}` as any,
+
+          params: {
+            invitationId,
+          },
+        } as any);
+
+        return;
+      }
+
+      // ------------------------------------------------------
+      // FALLBACK:
+      // Request exists but invitation ID is unavailable.
+      // ------------------------------------------------------
+
+      if (
+        requestId
+      ) {
+        router.push(
+          `/blood-request/donor/${requestId}` as any
+        );
+
+        return;
+      }
+
+      // ------------------------------------------------------
+      // FINAL FALLBACK:
+      // Open Requests so donor can access Invites manually.
+      // ------------------------------------------------------
+
+      router.push(
+        '/requests' as any
+      );
+
+      return;
+    }
+
+    // ========================================================
+    // DONOR INVITATION ACCEPTED
+    //
+    // This notification is sent to the requester.
+    // Existing donor-response flow can handle it.
+    // ========================================================
+
+    if (
+      notificationKind ===
+        'donor_invitation_accepted' &&
+      requestId
+    ) {
+      router.push(
+        `/blood-request/${requestId}` as any
+      );
+
+      return;
+    }
+
+    // ========================================================
+    // DONOR INVITATION DECLINED
+    //
+    // Requester can return to their blood request.
+    // ========================================================
+
+    if (
+      notificationKind ===
+        'donor_invitation_declined' &&
+      requestId
+    ) {
+      router.push(
+        `/blood-request/${requestId}` as any
+      );
+
+      return;
+    }
+
+    // ========================================================
     // DONOR OFFER ACCEPTED
-    // --------------------------------------------------------
+    // ========================================================
 
     if (
       notification.type ===
-        'donor_response_accepted'
+      'donor_response_accepted'
     ) {
       if (
         requestId &&
@@ -377,9 +506,9 @@ export default function NotificationsScreen() {
       return;
     }
 
-    // --------------------------------------------------------
+    // ========================================================
     // REQUESTER RECEIVED / LOST DONOR RESPONSE
-    // --------------------------------------------------------
+    // ========================================================
 
     if (
       notification.type ===
@@ -387,7 +516,9 @@ export default function NotificationsScreen() {
       notification.type ===
         'donor_response_withdrawn'
     ) {
-      if (requestId) {
+      if (
+        requestId
+      ) {
         router.push(
           `/blood-request/${requestId}` as any
         );
@@ -396,15 +527,17 @@ export default function NotificationsScreen() {
       }
     }
 
-    // --------------------------------------------------------
+    // ========================================================
     // DONOR OFFER REJECTED
-    // --------------------------------------------------------
+    // ========================================================
 
     if (
       notification.type ===
-        'donor_response_rejected'
+      'donor_response_rejected'
     ) {
-      if (requestId) {
+      if (
+        requestId
+      ) {
         router.push(
           `/blood-request/donor/${requestId}` as any
         );
@@ -413,9 +546,9 @@ export default function NotificationsScreen() {
       }
     }
 
-    // --------------------------------------------------------
+    // ========================================================
     // COORDINATION
-    // --------------------------------------------------------
+    // ========================================================
 
     if (
       notification.type ===
@@ -435,9 +568,9 @@ export default function NotificationsScreen() {
       }
     }
 
-    // --------------------------------------------------------
+    // ========================================================
     // DONOR APPLICATION
-    // --------------------------------------------------------
+    // ========================================================
 
     if (
       notification.type ===
@@ -452,9 +585,9 @@ export default function NotificationsScreen() {
       return;
     }
 
-    // --------------------------------------------------------
+    // ========================================================
     // FULFILLED / CANCELLED
-    // --------------------------------------------------------
+    // ========================================================
 
     if (
       notification.type ===
@@ -469,11 +602,13 @@ export default function NotificationsScreen() {
       return;
     }
 
-    // --------------------------------------------------------
+    // ========================================================
     // FALLBACK
-    // --------------------------------------------------------
+    // ========================================================
 
-    if (requestId) {
+    if (
+      requestId
+    ) {
       router.push(
         `/blood-request/${requestId}` as any
       );
@@ -501,7 +636,9 @@ export default function NotificationsScreen() {
         const token =
           await getAccessToken();
 
-        if (token) {
+        if (
+          token
+        ) {
           await markNotificationAsRead(
             token,
             notification.id
@@ -511,7 +648,9 @@ export default function NotificationsScreen() {
             notification.id
           );
         }
-      } catch (error) {
+      } catch (
+        error
+      ) {
         console.log(
           'MARK NOTIFICATION READ ERROR:',
           error
@@ -531,7 +670,8 @@ export default function NotificationsScreen() {
   async function handleMarkAllRead() {
     if (
       markingAll ||
-      unreadCount === 0
+      unreadCount ===
+        0
     ) {
       return;
     }
@@ -548,7 +688,9 @@ export default function NotificationsScreen() {
       const token =
         await getAccessToken();
 
-      if (!token) {
+      if (
+        !token
+      ) {
         router.replace(
           '/'
         );
@@ -583,7 +725,9 @@ export default function NotificationsScreen() {
       setUnreadCount(
         0
       );
-    } catch (error) {
+    } catch (
+      error
+    ) {
       console.log(
         'MARK ALL NOTIFICATIONS READ ERROR:',
         error
@@ -600,28 +744,6 @@ export default function NotificationsScreen() {
         false
       );
     }
-  }
-
-  // ==========================================================
-  // NAVIGATION
-  // ==========================================================
-
-  function handleHome() {
-    router.replace(
-      '/dashboard' as any
-    );
-  }
-
-  function handleChat() {
-    router.push(
-      '/chat' as any
-    );
-  }
-
-  function handleProfile() {
-    router.push(
-      '/profile' as any
-    );
   }
 
   // ==========================================================
@@ -677,6 +799,8 @@ export default function NotificationsScreen() {
               }
             />
 
+            {/* BACK */}
+
             <TouchableOpacity
               style={
                 styles.headerSideButton
@@ -684,6 +808,8 @@ export default function NotificationsScreen() {
               activeOpacity={
                 0.75
               }
+              accessibilityRole="button"
+              accessibilityLabel="Go back"
               onPress={() =>
                 router.back()
               }
@@ -696,6 +822,8 @@ export default function NotificationsScreen() {
                 }
               />
             </TouchableOpacity>
+
+            {/* TITLE */}
 
             <View
               style={
@@ -719,6 +847,8 @@ export default function NotificationsScreen() {
               </Text>
             </View>
 
+            {/* MARK ALL READ */}
+
             <TouchableOpacity
               style={
                 styles.headerSideButton
@@ -734,6 +864,8 @@ export default function NotificationsScreen() {
                   0 ||
                 markingAll
               }
+              accessibilityRole="button"
+              accessibilityLabel="Mark all notifications as read"
               onPress={
                 handleMarkAllRead
               }
@@ -975,7 +1107,9 @@ export default function NotificationsScreen() {
                     styles.errorText
                   }
                 >
-                  {errorMessage}
+                  {
+                    errorMessage
+                  }
                 </Text>
               </View>
             ) : null}
@@ -1076,13 +1210,13 @@ export default function NotificationsScreen() {
                   {filter ===
                   'unread'
                     ? 'You have no unread notifications.'
-                    : 'Blood requests, donor offers, approvals, and coordination updates will appear here.'}
+                    : 'Blood requests, donor offers, approvals, invitations, and coordination updates will appear here.'}
                 </Text>
               </View>
             ) : null}
 
             {/* ==================================================
-                LIST
+                NOTIFICATION LIST
             ================================================== */}
 
             {!loading &&
@@ -1112,151 +1246,10 @@ export default function NotificationsScreen() {
           </ScrollView>
 
           {/* ==================================================
-              BOTTOM NAVIGATION
+              SHARED BOTTOM NAVIGATION
           ================================================== */}
 
-          <View
-            style={
-              styles.bottomNav
-            }
-          >
-            <TouchableOpacity
-              style={
-                styles.navItem
-              }
-              onPress={
-                handleHome
-              }
-            >
-              <MaterialIcons
-                name="home"
-                size={28}
-                color="#D99191"
-              />
-
-              <Text
-                style={
-                  styles.navText
-                }
-              >
-                Home
-              </Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={
-                styles.navItem
-              }
-            >
-              <MaterialIcons
-                name="person-search"
-                size={27}
-                color="#D99191"
-              />
-
-              <Text
-                style={
-                  styles.navText
-                }
-              >
-                Search
-              </Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={
-                styles.navItem
-              }
-              onPress={
-                handleChat
-              }
-            >
-              <MaterialIcons
-                name="chat-bubble-outline"
-                size={27}
-                color="#D99191"
-              />
-
-              <Text
-                style={
-                  styles.navText
-                }
-              >
-                Chat
-              </Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={
-                styles.navItem
-              }
-            >
-              <View
-                style={
-                  styles.navIconContainer
-                }
-              >
-                <MaterialIcons
-                  name="notifications"
-                  size={28}
-                  color={
-                    COLORS.white
-                  }
-                />
-
-                {unreadCount >
-                0 ? (
-                  <View
-                    style={
-                      styles.navBadge
-                    }
-                  >
-                    <Text
-                      style={
-                        styles.navBadgeText
-                      }
-                    >
-                      {unreadCount >
-                      99
-                        ? '99+'
-                        : unreadCount}
-                    </Text>
-                  </View>
-                ) : null}
-              </View>
-
-              <Text
-                style={
-                  styles.navTextActive
-                }
-              >
-                Notifications
-              </Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={
-                styles.navItem
-              }
-              onPress={
-                handleProfile
-              }
-            >
-              <MaterialIcons
-                name="person-outline"
-                size={28}
-                color="#D99191"
-              />
-
-              <Text
-                style={
-                  styles.navText
-                }
-              >
-                Profile
-              </Text>
-            </TouchableOpacity>
-          </View>
+          <MainBottomNav />
         </SafeAreaView>
       </View>
     </View>
@@ -1279,7 +1272,7 @@ function NotificationCard({
 }) {
   const appearance =
     getNotificationAppearance(
-      notification.type
+      notification
     );
 
   return (
@@ -1415,20 +1408,99 @@ function NotificationCard({
 }
 
 // ============================================================
-// APPEARANCE
+// NOTIFICATION APPEARANCE
 // ============================================================
 
 function getNotificationAppearance(
-  type: string
+  notification:
+    AppNotification
 ): {
   icon:
     keyof typeof MaterialIcons.glyphMap;
 
-  color: string;
+  color:
+    string;
 
-  background: string;
+  background:
+    string;
 } {
-  switch (type) {
+  const kind =
+    String(
+      notification
+        .data
+        ?.kind ||
+        ''
+    )
+      .trim()
+      .toLowerCase();
+
+  // ==========================================================
+  // DIRECT DONOR INVITATION
+  // ==========================================================
+
+  if (
+    kind ===
+    'donor_invitation'
+  ) {
+    return {
+      icon:
+        'mail-outline',
+
+      color:
+        COLORS.redButton,
+
+      background:
+        COLORS.pinkLight,
+    };
+  }
+
+  // ==========================================================
+  // INVITATION ACCEPTED
+  // ==========================================================
+
+  if (
+    kind ===
+    'donor_invitation_accepted'
+  ) {
+    return {
+      icon:
+        'how-to-reg',
+
+      color:
+        COLORS.green,
+
+      background:
+        COLORS.greenLight,
+    };
+  }
+
+  // ==========================================================
+  // INVITATION DECLINED
+  // ==========================================================
+
+  if (
+    kind ===
+    'donor_invitation_declined'
+  ) {
+    return {
+      icon:
+        'person-off',
+
+      color:
+        COLORS.orange,
+
+      background:
+        COLORS.orangeLight,
+    };
+  }
+
+  // ==========================================================
+  // NORMAL NOTIFICATION TYPES
+  // ==========================================================
+
+  switch (
+    notification.type
+  ) {
     case 'donor_response_received':
       return {
         icon:
@@ -1568,9 +1640,12 @@ function getNotificationAppearance(
 // ============================================================
 
 function formatRelativeTime(
-  value: string
+  value:
+    string
 ) {
-  if (!value) {
+  if (
+    !value
+  ) {
     return '';
   }
 
@@ -1598,13 +1673,16 @@ function formatRelativeTime(
     );
 
   const minute =
-    60 * 1000;
+    60 *
+    1000;
 
   const hour =
-    60 * minute;
+    60 *
+    minute;
 
   const day =
-    24 * hour;
+    24 *
+    hour;
 
   if (
     difference <
@@ -1635,7 +1713,8 @@ function formatRelativeTime(
 
   if (
     difference <
-    day * 2
+    day *
+      2
   ) {
     return 'Yesterday';
   }
@@ -1666,7 +1745,8 @@ function formatRelativeTime(
 const styles =
   StyleSheet.create({
     desktopBackground: {
-      flex: 1,
+      flex:
+        1,
 
       alignItems:
         'center',
@@ -1705,7 +1785,8 @@ const styles =
     },
 
     safeArea: {
-      flex: 1,
+      flex:
+        1,
 
       backgroundColor:
         COLORS.redDark,
@@ -1716,9 +1797,11 @@ const styles =
     // ========================================================
 
     header: {
-      height: 88,
+      height:
+        88,
 
-      paddingHorizontal: 14,
+      paddingHorizontal:
+        14,
 
       flexDirection:
         'row',
@@ -1734,15 +1817,20 @@ const styles =
       position:
         'absolute',
 
-      width: 170,
+      width:
+        170,
 
-      height: 170,
+      height:
+        170,
 
-      borderRadius: 85,
+      borderRadius:
+        85,
 
-      left: -95,
+      left:
+        -95,
 
-      top: -112,
+      top:
+        -112,
 
       backgroundColor:
         'rgba(255,255,255,0.07)',
@@ -1752,24 +1840,31 @@ const styles =
       position:
         'absolute',
 
-      width: 180,
+      width:
+        180,
 
-      height: 180,
+      height:
+        180,
 
-      borderRadius: 90,
+      borderRadius:
+        90,
 
-      right: -98,
+      right:
+        -98,
 
-      top: -115,
+      top:
+        -115,
 
       backgroundColor:
         'rgba(255,255,255,0.07)',
     },
 
     headerSideButton: {
-      width: 44,
+      width:
+        44,
 
-      height: 44,
+      height:
+        44,
 
       alignItems:
         'center',
@@ -1779,7 +1874,8 @@ const styles =
     },
 
     headerCenter: {
-      flex: 1,
+      flex:
+        1,
 
       alignItems:
         'center',
@@ -1792,11 +1888,13 @@ const styles =
       fontFamily:
         'Poppins_700Bold',
 
-      fontSize: 18,
+      fontSize:
+        18,
     },
 
     headerSubtitle: {
-      marginTop: 1,
+      marginTop:
+        1,
 
       color:
         'rgba(255,255,255,0.80)',
@@ -1804,7 +1902,8 @@ const styles =
       fontFamily:
         'Inter_400Regular',
 
-      fontSize: 9.5,
+      fontSize:
+        9.5,
     },
 
     // ========================================================
@@ -1812,18 +1911,22 @@ const styles =
     // ========================================================
 
     content: {
-      flex: 1,
+      flex:
+        1,
 
       backgroundColor:
         COLORS.page,
     },
 
     contentContainer: {
-      paddingHorizontal: 18,
+      paddingHorizontal:
+        18,
 
-      paddingTop: 18,
+      paddingTop:
+        18,
 
-      paddingBottom: 25,
+      paddingBottom:
+        25,
     },
 
     // ========================================================
@@ -1831,11 +1934,14 @@ const styles =
     // ========================================================
 
     summaryCard: {
-      minHeight: 72,
+      minHeight:
+        72,
 
-      marginBottom: 14,
+      marginBottom:
+        14,
 
-      paddingHorizontal: 13,
+      paddingHorizontal:
+        13,
 
       flexDirection:
         'row',
@@ -1843,25 +1949,31 @@ const styles =
       alignItems:
         'center',
 
-      borderWidth: 1,
+      borderWidth:
+        1,
 
       borderColor:
         COLORS.border,
 
-      borderRadius: 15,
+      borderRadius:
+        15,
 
       backgroundColor:
         COLORS.white,
     },
 
     summaryIcon: {
-      width: 42,
+      width:
+        42,
 
-      height: 42,
+      height:
+        42,
 
-      marginRight: 10,
+      marginRight:
+        10,
 
-      borderRadius: 21,
+      borderRadius:
+        21,
 
       alignItems:
         'center',
@@ -1874,7 +1986,8 @@ const styles =
     },
 
     summaryContent: {
-      flex: 1,
+      flex:
+        1,
     },
 
     summaryTitle: {
@@ -1884,11 +1997,13 @@ const styles =
       fontFamily:
         'Poppins_600SemiBold',
 
-      fontSize: 12.5,
+      fontSize:
+        12.5,
     },
 
     summarySubtitle: {
-      marginTop: 2,
+      marginTop:
+        2,
 
       color:
         COLORS.muted,
@@ -1896,17 +2011,22 @@ const styles =
       fontFamily:
         'Inter_400Regular',
 
-      fontSize: 9.5,
+      fontSize:
+        9.5,
     },
 
     summaryBadge: {
-      minWidth: 32,
+      minWidth:
+        32,
 
-      height: 32,
+      height:
+        32,
 
-      paddingHorizontal: 7,
+      paddingHorizontal:
+        7,
 
-      borderRadius: 16,
+      borderRadius:
+        16,
 
       alignItems:
         'center',
@@ -1925,7 +2045,8 @@ const styles =
       fontFamily:
         'Inter_600SemiBold',
 
-      fontSize: 10,
+      fontSize:
+        10,
     },
 
     // ========================================================
@@ -1933,23 +2054,28 @@ const styles =
     // ========================================================
 
     filterBar: {
-      height: 42,
+      height:
+        42,
 
-      marginBottom: 14,
+      marginBottom:
+        14,
 
-      padding: 4,
+      padding:
+        4,
 
       flexDirection:
         'row',
 
-      borderRadius: 12,
+      borderRadius:
+        12,
 
       backgroundColor:
         '#ECE5E5',
     },
 
     filterButton: {
-      flex: 1,
+      flex:
+        1,
 
       flexDirection:
         'row',
@@ -1960,9 +2086,11 @@ const styles =
       justifyContent:
         'center',
 
-      gap: 5,
+      gap:
+        5,
 
-      borderRadius: 9,
+      borderRadius:
+        9,
     },
 
     filterButtonActive: {
@@ -1977,7 +2105,8 @@ const styles =
       fontFamily:
         'Inter_600SemiBold',
 
-      fontSize: 10,
+      fontSize:
+        10,
     },
 
     filterTextActive: {
@@ -1986,13 +2115,17 @@ const styles =
     },
 
     filterBadge: {
-      minWidth: 18,
+      minWidth:
+        18,
 
-      height: 18,
+      height:
+        18,
 
-      paddingHorizontal: 4,
+      paddingHorizontal:
+        4,
 
-      borderRadius: 9,
+      borderRadius:
+        9,
 
       alignItems:
         'center',
@@ -2011,7 +2144,8 @@ const styles =
       fontFamily:
         'Inter_600SemiBold',
 
-      fontSize: 8,
+      fontSize:
+        8,
     },
 
     // ========================================================
@@ -2019,11 +2153,14 @@ const styles =
     // ========================================================
 
     errorCard: {
-      minHeight: 52,
+      minHeight:
+        52,
 
-      marginBottom: 12,
+      marginBottom:
+        12,
 
-      paddingHorizontal: 11,
+      paddingHorizontal:
+        11,
 
       flexDirection:
         'row',
@@ -2031,21 +2168,25 @@ const styles =
       alignItems:
         'center',
 
-      gap: 8,
+      gap:
+        8,
 
-      borderWidth: 1,
+      borderWidth:
+        1,
 
       borderColor:
         '#EAB0B0',
 
-      borderRadius: 12,
+      borderRadius:
+        12,
 
       backgroundColor:
         COLORS.pinkLight,
     },
 
     errorText: {
-      flex: 1,
+      flex:
+        1,
 
       color:
         COLORS.redButton,
@@ -2053,29 +2194,35 @@ const styles =
       fontFamily:
         'Inter_500Medium',
 
-      fontSize: 9.5,
+      fontSize:
+        9.5,
     },
 
     // ========================================================
-    // CARD
+    // NOTIFICATION CARD
     // ========================================================
 
     notificationCard: {
-      marginBottom: 10,
+      marginBottom:
+        10,
 
-      paddingHorizontal: 12,
+      paddingHorizontal:
+        12,
 
-      paddingVertical: 13,
+      paddingVertical:
+        13,
 
       flexDirection:
         'row',
 
-      borderWidth: 1,
+      borderWidth:
+        1,
 
       borderColor:
         COLORS.border,
 
-      borderRadius: 14,
+      borderRadius:
+        14,
 
       backgroundColor:
         COLORS.white,
@@ -2090,13 +2237,17 @@ const styles =
     },
 
     notificationIcon: {
-      width: 42,
+      width:
+        42,
 
-      height: 42,
+      height:
+        42,
 
-      marginRight: 11,
+      marginRight:
+        11,
 
-      borderRadius: 21,
+      borderRadius:
+        21,
 
       alignItems:
         'center',
@@ -2106,9 +2257,11 @@ const styles =
     },
 
     notificationBody: {
-      flex: 1,
+      flex:
+        1,
 
-      minWidth: 0,
+      minWidth:
+        0,
     },
 
     notificationTitleRow: {
@@ -2120,7 +2273,8 @@ const styles =
     },
 
     notificationTitle: {
-      flex: 1,
+      flex:
+        1,
 
       color:
         COLORS.black,
@@ -2128,7 +2282,8 @@ const styles =
       fontFamily:
         'Inter_500Medium',
 
-      fontSize: 11.3,
+      fontSize:
+        11.3,
     },
 
     notificationTitleUnread: {
@@ -2137,20 +2292,25 @@ const styles =
     },
 
     unreadDot: {
-      width: 7,
+      width:
+        7,
 
-      height: 7,
+      height:
+        7,
 
-      marginLeft: 6,
+      marginLeft:
+        6,
 
-      borderRadius: 4,
+      borderRadius:
+        4,
 
       backgroundColor:
         COLORS.red,
     },
 
     notificationMessage: {
-      marginTop: 4,
+      marginTop:
+        4,
 
       color:
         COLORS.muted,
@@ -2158,13 +2318,16 @@ const styles =
       fontFamily:
         'Inter_400Regular',
 
-      fontSize: 9.6,
+      fontSize:
+        9.6,
 
-      lineHeight: 14.5,
+      lineHeight:
+        14.5,
     },
 
     notificationFooter: {
-      marginTop: 9,
+      marginTop:
+        9,
 
       flexDirection:
         'row',
@@ -2174,7 +2337,8 @@ const styles =
     },
 
     notificationTime: {
-      marginLeft: 4,
+      marginLeft:
+        4,
 
       color:
         COLORS.lightMuted,
@@ -2182,11 +2346,13 @@ const styles =
       fontFamily:
         'Inter_400Regular',
 
-      fontSize: 8.7,
+      fontSize:
+        8.7,
     },
 
     footerSpacer: {
-      flex: 1,
+      flex:
+        1,
     },
 
     viewText: {
@@ -2196,7 +2362,8 @@ const styles =
       fontFamily:
         'Inter_600SemiBold',
 
-      fontSize: 8.8,
+      fontSize:
+        8.8,
     },
 
     // ========================================================
@@ -2204,9 +2371,11 @@ const styles =
     // ========================================================
 
     stateCard: {
-      minHeight: 245,
+      minHeight:
+        245,
 
-      paddingHorizontal: 28,
+      paddingHorizontal:
+        28,
 
       alignItems:
         'center',
@@ -2214,25 +2383,31 @@ const styles =
       justifyContent:
         'center',
 
-      borderWidth: 1,
+      borderWidth:
+        1,
 
       borderColor:
         COLORS.border,
 
-      borderRadius: 16,
+      borderRadius:
+        16,
 
       backgroundColor:
         COLORS.white,
     },
 
     stateIcon: {
-      width: 62,
+      width:
+        62,
 
-      height: 62,
+      height:
+        62,
 
-      marginBottom: 12,
+      marginBottom:
+        12,
 
-      borderRadius: 31,
+      borderRadius:
+        31,
 
       alignItems:
         'center',
@@ -2251,13 +2426,16 @@ const styles =
       fontFamily:
         'Poppins_600SemiBold',
 
-      fontSize: 13,
+      fontSize:
+        13,
     },
 
     stateDescription: {
-      maxWidth: 275,
+      maxWidth:
+        275,
 
-      marginTop: 5,
+      marginTop:
+        5,
 
       color:
         COLORS.muted,
@@ -2265,133 +2443,18 @@ const styles =
       fontFamily:
         'Inter_400Regular',
 
-      fontSize: 9.5,
+      fontSize:
+        9.5,
 
-      lineHeight: 14,
+      lineHeight:
+        14,
 
       textAlign:
         'center',
     },
 
     bottomSpacing: {
-      height: 6,
-    },
-
-    // ========================================================
-    // BOTTOM NAVIGATION
-    // ========================================================
-
-    bottomNav: {
-      height: 76,
-
-      flexDirection:
-        'row',
-
-      alignItems:
-        'center',
-
-      justifyContent:
-        'space-around',
-
-      paddingHorizontal: 4,
-
-      backgroundColor:
-        '#A90707',
-
-      borderTopWidth:
-        StyleSheet.hairlineWidth,
-
-      borderTopColor:
-        'rgba(255,255,255,0.15)',
-    },
-
-    navItem: {
-      flex: 1,
-
-      height: '100%',
-
-      alignItems:
-        'center',
-
-      justifyContent:
-        'center',
-
-      gap: 3,
-    },
-
-    navIconContainer: {
-      position:
-        'relative',
-
-      width: 32,
-
-      height: 30,
-
-      alignItems:
-        'center',
-
-      justifyContent:
-        'center',
-    },
-
-    navBadge: {
-      position:
-        'absolute',
-
-      top: -4,
-
-      right: -8,
-
-      minWidth: 18,
-
-      height: 18,
-
-      paddingHorizontal: 4,
-
-      borderRadius: 9,
-
-      alignItems:
-        'center',
-
-      justifyContent:
-        'center',
-
-      borderWidth: 1.5,
-
-      borderColor:
-        '#A90707',
-
-      backgroundColor:
-        COLORS.white,
-    },
-
-    navBadgeText: {
-      color:
-        COLORS.red,
-
-      fontFamily:
-        'Inter_600SemiBold',
-
-      fontSize: 7.5,
-    },
-
-    navTextActive: {
-      color:
-        COLORS.white,
-
-      fontFamily:
-        'Inter_600SemiBold',
-
-      fontSize: 10,
-    },
-
-    navText: {
-      color:
-        '#D99191',
-
-      fontFamily:
-        'Inter_500Medium',
-
-      fontSize: 10,
+      height:
+        6,
     },
   });

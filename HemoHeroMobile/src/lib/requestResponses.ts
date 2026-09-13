@@ -1,9 +1,17 @@
-const API_URL =
-  (
-    process.env
-      .EXPO_PUBLIC_API_URL ||
-    'http://localhost:5000'
-  ).replace(/\/+$/, '');
+import {
+  Platform,
+} from 'react-native';
+
+// ============================================================
+// API URL
+// ============================================================
+
+const API_URL = (
+  Platform.OS === 'web'
+    ? 'http://localhost:5000'
+    : process.env.EXPO_PUBLIC_API_URL ||
+      'http://localhost:5000'
+).replace(/\/+$/, '');
 
 // ============================================================
 // TYPES
@@ -13,13 +21,17 @@ export type RequestDonorProfile = {
   id: string | null;
 
   first_name: string | null;
+
   middle_name: string | null;
+
   last_name: string | null;
+
   suffix: string | null;
 
   full_name: string;
 
   city: string | null;
+
   province: string | null;
 
   blood_type: string | null;
@@ -121,7 +133,9 @@ async function parseResponse(
       null;
   }
 
-  if (!response.ok) {
+  if (
+    !response.ok
+  ) {
     throw new Error(
       data?.error ||
         data?.message ||
@@ -148,6 +162,9 @@ export async function getRequestDonorResponses(
           'GET',
 
         headers: {
+          Accept:
+            'application/json',
+
           Authorization:
             `Bearer ${token}`,
         },
@@ -181,6 +198,9 @@ export async function acceptRequestDonorResponse(
           'PATCH',
 
         headers: {
+          Accept:
+            'application/json',
+
           Authorization:
             `Bearer ${token}`,
 
@@ -217,6 +237,9 @@ export async function rejectRequestDonorResponse(
           'PATCH',
 
         headers: {
+          Accept:
+            'application/json',
+
           Authorization:
             `Bearer ${token}`,
 
@@ -247,6 +270,9 @@ export async function fulfillBloodRequest(
           'PATCH',
 
         headers: {
+          Accept:
+            'application/json',
+
           Authorization:
             `Bearer ${token}`,
 

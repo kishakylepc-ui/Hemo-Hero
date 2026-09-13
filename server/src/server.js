@@ -25,6 +25,9 @@ const bloodRequestRoutes =
 const donorApplicationRoutes =
   require('./routes/donorApplicationRoutes');
 
+const donorInvitationRoutes =
+  require('./routes/donorInvitationRoutes');
+
 const adminDonorRoutes =
   require('./routes/adminDonorRoutes');
 
@@ -132,6 +135,19 @@ app.use(
 );
 
 // ============================================================
+// DONOR INVITATIONS
+//
+// GET   /api/donor-invitations/me
+// PATCH /api/donor-invitations/:invitationId/accept
+// PATCH /api/donor-invitations/:invitationId/decline
+// ============================================================
+
+app.use(
+  '/api/donor-invitations',
+  donorInvitationRoutes
+);
+
+// ============================================================
 // ADMIN DONOR APPLICATION REVIEW
 // ============================================================
 
@@ -167,6 +183,9 @@ app.use(
 
 // ============================================================
 // BLOOD REQUESTS
+//
+// Includes:
+// POST /api/requests/:id/invitations
 // ============================================================
 
 app.use(
@@ -213,6 +232,10 @@ app.listen(
 
     console.log(
       `Donors: http://localhost:${PORT}/api/donors`
+    );
+
+    console.log(
+      `Donor Invitations: http://localhost:${PORT}/api/donor-invitations`
     );
 
     console.log(

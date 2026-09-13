@@ -42,12 +42,39 @@ function toNumber(value) {
     Number(value);
 
   if (
-    !Number.isFinite(number)
+    !Number.isFinite(
+      number
+    )
   ) {
     return null;
   }
 
   return number;
+}
+
+// ============================================================
+// NORMALIZE BLOOD TYPE
+// ============================================================
+
+function normalizeBloodType(
+  value
+) {
+  if (
+    value === undefined ||
+    value === null
+  ) {
+    return null;
+  }
+
+  const normalized =
+    String(value)
+      .trim()
+      .toUpperCase();
+
+  return (
+    normalized ||
+    null
+  );
 }
 
 // ============================================================
@@ -65,11 +92,16 @@ function calculateDistanceKm(
   latitude2,
   longitude2
 ) {
-  const earthRadiusKm = 6371;
+  const earthRadiusKm =
+    6371;
 
-  const toRadians = degrees =>
-    degrees *
-    (Math.PI / 180);
+  const toRadians =
+    degrees =>
+      degrees *
+      (
+        Math.PI /
+        180
+      );
 
   const latitudeDifference =
     toRadians(
@@ -95,10 +127,15 @@ function calculateDistanceKm(
 
   const a =
     Math.sin(
-      latitudeDifference / 2
+      latitudeDifference /
+        2
     ) ** 2 +
-    Math.cos(lat1) *
-      Math.cos(lat2) *
+    Math.cos(
+      lat1
+    ) *
+      Math.cos(
+        lat2
+      ) *
       Math.sin(
         longitudeDifference /
           2
@@ -107,8 +144,13 @@ function calculateDistanceKm(
   const c =
     2 *
     Math.atan2(
-      Math.sqrt(a),
-      Math.sqrt(1 - a)
+      Math.sqrt(
+        a
+      ),
+      Math.sqrt(
+        1 -
+          a
+      )
     );
 
   return (
@@ -124,9 +166,85 @@ function calculateDistanceKm(
 function roundDistance(
   distance
 ) {
-  return Math.round(
-    distance * 100
-  ) / 100;
+  return (
+    Math.round(
+      distance *
+        100
+    ) /
+    100
+  );
+}
+
+// ============================================================
+// GET APPROVED DONOR BLOOD TYPE
+//
+// If the current user is an approved donor, nearby requests
+// are restricted to the donor's exact verified blood type.
+//
+// Example:
+//
+// Verified donor AB-
+// -> only AB- blood requests
+//
+// Verified donor O+
+// -> only O+ blood requests
+//
+// If the user is not an approved donor, we leave the nearby
+// request endpoint usable for other app areas such as general
+// dashboard browsing.
+//
+// Actual donor response submission is still protected by the
+// donor response controller.
+// ============================================================
+
+async function getApprovedDonorBloodType(
+  userId
+) {
+  const {
+    data:
+      donorApplication,
+    error:
+      donorApplicationError,
+  } =
+    await supabaseAdmin
+      .from(
+        'donor_applications'
+      )
+      .select(`
+        user_id,
+        status,
+        blood_type
+      `)
+      .eq(
+        'user_id',
+        userId
+      )
+      .maybeSingle();
+
+  if (
+    donorApplicationError
+  ) {
+    console.log(
+      'NEARBY REQUEST DONOR LOOKUP ERROR:',
+      donorApplicationError
+    );
+
+    throw new Error(
+      'Unable to verify donor information.'
+    );
+  }
+
+  if (
+    !donorApplication ||
+    donorApplication.status !==
+      'approved'
+  ) {
+    return null;
+  }
+
+  return normalizeBloodType(
+    donorApplication.blood_type
+  );
 }
 
 // ============================================================
@@ -141,6 +259,9 @@ function roundDistance(
 // longitude
 // radius
 // limit
+//
+// Approved donors automatically receive requests that exactly
+// match their verified blood type.
 // ============================================================
 
 async function getNearbyBloodRequests(
@@ -157,7 +278,9 @@ async function getNearbyBloodRequests(
         req
       );
 
-    if (!requesterId) {
+    if (
+      !requesterId
+    ) {
       return res
         .status(401)
         .json({
@@ -165,6 +288,15 @@ async function getNearbyBloodRequests(
             'Unable to identify authenticated user.',
         });
     }
+
+    // ========================================================
+    // VERIFIED DONOR BLOOD TYPE
+    // ========================================================
+
+    const donorBloodType =
+      await getApprovedDonorBloodType(
+        requesterId
+      );
 
     // ========================================================
     // COORDINATES
@@ -193,8 +325,10 @@ async function getNearbyBloodRequests(
     }
 
     if (
-      latitude < -90 ||
-      latitude > 90
+      latitude <
+        -90 ||
+      latitude >
+        90
     ) {
       return res
         .status(400)
@@ -205,8 +339,10 @@ async function getNearbyBloodRequests(
     }
 
     if (
-      longitude < -180 ||
-      longitude > 180
+      longitude <
+        -180 ||
+      longitude >
+        180
     ) {
       return res
         .status(400)
@@ -270,20 +406,17 @@ async function getNearbyBloodRequests(
       );
 
     // ========================================================
-    // GET ACTIVE REQUESTS
+    // BUILD ACTIVE REQUEST QUERY
     //
-    // We intentionally do NOT retrieve a patient's exact
-    // personal/home location.
+    // Privacy:
+    // We do NOT use a patient's personal/home coordinates.
     //
-    // Distance is calculated using the selected hospital,
-    // clinic, or blood facility coordinates.
+    // Distance is based only on the selected hospital,
+    // clinic, or blood facility.
     // ========================================================
 
-    const {
-      data,
-      error,
-    } =
-      await supabaseAdmin
+    let requestQuery =
+      supabaseAdmin
         .from(
           'blood_requests'
         )
@@ -321,16 +454,51 @@ async function getNearbyBloodRequests(
           'facility_longitude',
           'is',
           null
-        )
+        );
+
+    // ========================================================
+    // EXACT BLOOD TYPE FILTER
+    //
+    // Only applied when the authenticated user is an approved
+    // donor with a verified blood type.
+    //
+    // Hemo-Hero rule:
+    // request blood type must exactly equal donor blood type.
+    // ========================================================
+
+    if (
+      donorBloodType
+    ) {
+      requestQuery =
+        requestQuery.eq(
+          'blood_type',
+          donorBloodType
+        );
+    }
+
+    // ========================================================
+    // RUN DATABASE QUERY
+    // ========================================================
+
+    const {
+      data,
+      error,
+    } =
+      await requestQuery
         .order(
           'created_at',
           {
-            ascending: false,
+            ascending:
+              false,
           }
         )
-        .limit(200);
+        .limit(
+          200
+        );
 
-    if (error) {
+    if (
+      error
+    ) {
       console.log(
         'GET NEARBY BLOOD REQUESTS DATABASE ERROR:',
         error
@@ -349,54 +517,70 @@ async function getNearbyBloodRequests(
     // ========================================================
 
     const nearbyRequests =
-      (data || [])
-        .map(request => {
-          const facilityLatitude =
-            Number(
-              request.facility_latitude
-            );
+      (
+        data ||
+        []
+      )
+        .map(
+          request => {
+            const facilityLatitude =
+              Number(
+                request
+                  .facility_latitude
+              );
 
-          const facilityLongitude =
-            Number(
-              request.facility_longitude
-            );
+            const facilityLongitude =
+              Number(
+                request
+                  .facility_longitude
+              );
 
-          if (
-            !Number.isFinite(
-              facilityLatitude
-            ) ||
-            !Number.isFinite(
-              facilityLongitude
-            )
-          ) {
-            return null;
+            if (
+              !Number.isFinite(
+                facilityLatitude
+              ) ||
+              !Number.isFinite(
+                facilityLongitude
+              )
+            ) {
+              return null;
+            }
+
+            const distanceKm =
+              calculateDistanceKm(
+                latitude,
+                longitude,
+                facilityLatitude,
+                facilityLongitude
+              );
+
+            return {
+              ...request,
+
+              distance_km:
+                roundDistance(
+                  distanceKm
+                ),
+            };
           }
+        )
 
-          const distanceKm =
-            calculateDistanceKm(
-              latitude,
-              longitude,
-              facilityLatitude,
-              facilityLongitude
-            );
+        // ----------------------------------------------------
+        // REMOVE INVALID COORDINATES
+        // ----------------------------------------------------
 
-          return {
-            ...request,
+        .filter(
+          Boolean
+        )
 
-            distance_km:
-              roundDistance(
-                distanceKm
-              ),
-          };
-        })
+        // ----------------------------------------------------
+        // ONLY REQUESTS INSIDE SELECTED RADIUS
+        // ----------------------------------------------------
 
-        // Remove invalid coordinates.
-        .filter(Boolean)
-
-        // Only requests inside radius.
         .filter(
           request =>
-            request.distance_km <=
+            request
+              .distance_km <=
             radiusKm
         )
 
@@ -414,13 +598,15 @@ async function getNearbyBloodRequests(
             requestB
           ) => {
             const urgentA =
-              requestA.urgency ===
+              requestA
+                .urgency ===
               'urgent'
                 ? 0
                 : 1;
 
             const urgentB =
-              requestB.urgency ===
+              requestB
+                .urgency ===
               'urgent'
                 ? 0
                 : 1;
@@ -436,21 +622,27 @@ async function getNearbyBloodRequests(
             }
 
             if (
-              requestA.distance_km !==
-              requestB.distance_km
+              requestA
+                .distance_km !==
+              requestB
+                .distance_km
             ) {
               return (
-                requestA.distance_km -
-                requestB.distance_km
+                requestA
+                  .distance_km -
+                requestB
+                  .distance_km
               );
             }
 
             return (
               new Date(
-                requestB.created_at
+                requestB
+                  .created_at
               ).getTime() -
               new Date(
-                requestA.created_at
+                requestA
+                  .created_at
               ).getTime()
             );
           }
@@ -465,22 +657,43 @@ async function getNearbyBloodRequests(
     // RESPONSE
     // ========================================================
 
-    return res.json({
-      requests:
-        nearbyRequests,
+    return res
+      .status(200)
+      .json({
+        requests:
+          nearbyRequests,
 
-      count:
-        nearbyRequests.length,
+        count:
+          nearbyRequests.length,
 
-      search: {
-        latitude,
-        longitude,
+        search: {
+          latitude,
+          longitude,
 
-        radius_km:
-          radiusKm,
-      },
-    });
-  } catch (error) {
+          radius_km:
+            radiusKm,
+        },
+
+        donor_filter:
+          donorBloodType
+            ? {
+                enabled:
+                  true,
+
+                blood_type:
+                  donorBloodType,
+              }
+            : {
+                enabled:
+                  false,
+
+                blood_type:
+                  null,
+              },
+      });
+  } catch (
+    error
+  ) {
     console.log(
       'GET NEARBY BLOOD REQUESTS ERROR:',
       error
@@ -490,6 +703,7 @@ async function getNearbyBloodRequests(
       .status(500)
       .json({
         error:
+          error.message ||
           'Unable to load nearby blood requests.',
       });
   }

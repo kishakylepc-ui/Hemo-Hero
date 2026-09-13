@@ -34,6 +34,11 @@ const {
   require('../controllers/donorResponseController');
 
 const {
+  sendDonorInvitation
+} =
+  require('../controllers/donorInvitationController');
+
+const {
   getCoordinationInbox,
 
   getCoordination,
@@ -68,7 +73,11 @@ router.use(
 );
 
 // Inbox belongs before parameterized routes and after requireAuth.
-router.get('/coordination/inbox', getCoordinationInbox);
+
+router.get(
+  '/coordination/inbox',
+  getCoordinationInbox
+);
 
 // ============================================================
 // CREATE BLOOD REQUEST
@@ -100,6 +109,15 @@ router.get(
 router.get(
   '/:id/donor-view',
   getDonorViewBloodRequestById
+);
+
+// ============================================================
+// REQUEST OWNER - INVITE DONOR
+// ============================================================
+
+router.post(
+  '/:id/invitations',
+  sendDonorInvitation
 );
 
 // ============================================================

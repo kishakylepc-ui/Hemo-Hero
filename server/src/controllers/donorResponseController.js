@@ -1,18 +1,22 @@
 const {
   supabaseAdmin
-} = require('../config/supabase');
+} =
+  require('../config/supabase');
 
 const {
   createNotification
-} = require(
-  '../services/notificationService'
-);
+} =
+  require(
+    '../services/notificationService'
+  );
 
 // ============================================================
 // HELPERS
 // ============================================================
 
-function getAuthenticatedUserId(req) {
+function getAuthenticatedUserId(
+  req
+) {
   return (
     req.user?.id ||
     req.authUser?.id ||
@@ -21,7 +25,9 @@ function getAuthenticatedUserId(req) {
   );
 }
 
-function cleanText(value) {
+function cleanText(
+  value
+) {
   if (
     value === undefined ||
     value === null
@@ -30,23 +36,145 @@ function cleanText(value) {
   }
 
   const cleaned =
-    String(value).trim();
+    String(value)
+      .trim();
 
-  return cleaned || null;
+  return (
+    cleaned ||
+    null
+  );
 }
 
-function getRequestId(req) {
+function getRequestId(
+  req
+) {
   return String(
     req.params.id ||
     ''
   ).trim();
 }
 
-function getResponseId(req) {
+function getResponseId(
+  req
+) {
   return String(
     req.params.responseId ||
     ''
   ).trim();
+}
+
+// ============================================================
+// NORMALIZE BLOOD TYPE
+// ============================================================
+
+function normalizeBloodType(
+  value
+) {
+  if (
+    value === undefined ||
+    value === null
+  ) {
+    return null;
+  }
+
+  const normalized =
+    String(value)
+      .trim()
+      .toUpperCase();
+
+  return (
+    normalized ||
+    null
+  );
+}
+
+// ============================================================
+// EXACT BLOOD TYPE MATCH
+//
+// Hemo-Hero direct donor response rule:
+//
+// Request O+ -> verified donor O+ only
+// Request AB- -> verified donor AB- only
+//
+// This intentionally uses exact matching rather than
+// transfusion compatibility.
+// ============================================================
+
+function bloodTypesMatchExactly(
+  requestBloodType,
+  donorBloodType
+) {
+  const requiredBloodType =
+    normalizeBloodType(
+      requestBloodType
+    );
+
+  const verifiedBloodType =
+    normalizeBloodType(
+      donorBloodType
+    );
+
+  if (
+    !requiredBloodType ||
+    !verifiedBloodType
+  ) {
+    return false;
+  }
+
+  return (
+    requiredBloodType ===
+    verifiedBloodType
+  );
+}
+
+// ============================================================
+// GET VERIFIED DONOR APPLICATION
+// ============================================================
+
+async function getVerifiedDonorApplication(
+  donorId
+) {
+  const {
+    data:
+      donorApplication,
+    error:
+      donorApplicationError
+  } =
+    await supabaseAdmin
+      .from(
+        'donor_applications'
+      )
+      .select(`
+        user_id,
+        status,
+        blood_type,
+        availability_status,
+        travel_radius_km,
+        allow_urgent_requests
+      `)
+      .eq(
+        'user_id',
+        donorId
+      )
+      .maybeSingle();
+
+  if (
+    donorApplicationError
+  ) {
+    console.error(
+      'GET DONOR APPLICATION ERROR:',
+      donorApplicationError
+    );
+
+    throw new Error(
+      'Unable to verify donor information.'
+    );
+  }
+
+  return (
+    donorApplication ||
+    null
+  );
 }
 
 // ============================================================
@@ -80,7 +208,9 @@ function buildSafeDonorProfile(
       lastName,
       suffix
     ]
-      .filter(Boolean)
+      .filter(
+        Boolean
+      )
       .join(' ')
       .replace(
         /\s+/g,
@@ -92,7 +222,8 @@ function buildSafeDonorProfile(
   return {
     id:
       user?.id ||
-      donorApplication?.user_id ||
+      donorApplication
+        ?.user_id ||
       null,
 
     first_name:
@@ -118,15 +249,18 @@ function buildSafeDonorProfile(
       null,
 
     blood_type:
-      donorApplication?.blood_type ||
+      donorApplication
+        ?.blood_type ||
       null,
 
     verification_status:
-      donorApplication?.status ||
+      donorApplication
+        ?.status ||
       'not_registered',
 
     is_verified:
-      donorApplication?.status ===
+      donorApplication
+        ?.status ===
       'approved',
 
     availability_status:
@@ -158,7 +292,8 @@ async function enrichDonorResponses(
     !Array.isArray(
       responses
     ) ||
-    responses.length === 0
+    responses.length ===
+      0
   ) {
     return [];
   }
@@ -171,12 +306,15 @@ async function enrichDonorResponses(
             response =>
               response.donor_id
           )
-          .filter(Boolean)
+          .filter(
+            Boolean
+          )
       )
     ];
 
   if (
-    donorIds.length === 0
+    donorIds.length ===
+    0
   ) {
     return responses.map(
       response => ({
@@ -208,7 +346,9 @@ async function enrichDonorResponses(
         donorIds
       );
 
-  if (usersError) {
+  if (
+    usersError
+  ) {
     console.error(
       'DONOR RESPONSE USERS ERROR:',
       usersError
@@ -261,7 +401,8 @@ async function enrichDonorResponses(
 
   for (
     const user of
-      users || []
+      users ||
+      []
   ) {
     userMap.set(
       user.id,
@@ -274,7 +415,8 @@ async function enrichDonorResponses(
 
   for (
     const application of
-      donorApplications || []
+      donorApplications ||
+      []
   ) {
     donorApplicationMap.set(
       application.user_id,
@@ -343,7 +485,9 @@ async function getOwnedBloodRequest(
       )
       .maybeSingle();
 
-  if (requestError) {
+  if (
+    requestError
+  ) {
     console.error(
       'VERIFY REQUEST OWNER ERROR:',
       requestError
@@ -354,7 +498,10 @@ async function getOwnedBloodRequest(
     );
   }
 
-  return bloodRequest;
+  return (
+    bloodRequest ||
+    null
+  );
 }
 
 // ============================================================
@@ -366,7 +513,8 @@ async function notifyRequesterAboutResponse(
   response
 ) {
   if (
-    !bloodRequest?.requester_id ||
+    !bloodRequest
+      ?.requester_id ||
     !response?.id
   ) {
     return;
@@ -374,7 +522,8 @@ async function notifyRequesterAboutResponse(
 
   await createNotification({
     userId:
-      bloodRequest.requester_id,
+      bloodRequest
+        .requester_id,
 
     type:
       'donor_response_received',
@@ -406,6 +555,12 @@ async function notifyRequesterAboutResponse(
 
 // ============================================================
 // POST /api/requests/:id/respond
+//
+// VERIFIED DONOR OFFERS TO DONATE
+//
+// IMPORTANT:
+// The donor's verified blood type must EXACTLY match the
+// blood type required by the request.
 // ============================================================
 
 async function respondToBloodRequest(
@@ -413,12 +568,18 @@ async function respondToBloodRequest(
   res
 ) {
   try {
+    // ========================================================
+    // AUTH
+    // ========================================================
+
     const donorId =
       getAuthenticatedUserId(
         req
       );
 
-    if (!donorId) {
+    if (
+      !donorId
+    ) {
       return res
         .status(401)
         .json({
@@ -427,12 +588,18 @@ async function respondToBloodRequest(
         });
     }
 
+    // ========================================================
+    // REQUEST ID
+    // ========================================================
+
     const requestId =
       getRequestId(
         req
       );
 
-    if (!requestId) {
+    if (
+      !requestId
+    ) {
       return res
         .status(400)
         .json({
@@ -441,6 +608,10 @@ async function respondToBloodRequest(
         });
     }
 
+    // ========================================================
+    // MESSAGE
+    // ========================================================
+
     const message =
       cleanText(
         req.body?.message
@@ -448,7 +619,8 @@ async function respondToBloodRequest(
 
     if (
       message &&
-      message.length > 250
+      message.length >
+        250
     ) {
       return res
         .status(400)
@@ -458,9 +630,9 @@ async function respondToBloodRequest(
         });
     }
 
-    // --------------------------------------------------------
+    // ========================================================
     // BLOOD REQUEST
-    // --------------------------------------------------------
+    // ========================================================
 
     const {
       data:
@@ -485,7 +657,9 @@ async function respondToBloodRequest(
         )
         .maybeSingle();
 
-    if (requestError) {
+    if (
+      requestError
+    ) {
       console.error(
         'DONOR RESPONSE REQUEST LOOKUP ERROR:',
         requestError
@@ -499,7 +673,9 @@ async function respondToBloodRequest(
         });
     }
 
-    if (!bloodRequest) {
+    if (
+      !bloodRequest
+    ) {
       return res
         .status(404)
         .json({
@@ -508,8 +684,13 @@ async function respondToBloodRequest(
         });
     }
 
+    // ========================================================
+    // OWN REQUEST
+    // ========================================================
+
     if (
-      bloodRequest.requester_id ===
+      bloodRequest
+        .requester_id ===
       donorId
     ) {
       return res
@@ -519,6 +700,10 @@ async function respondToBloodRequest(
             'You cannot respond to your own blood request.'
         });
     }
+
+    // ========================================================
+    // ACTIVE REQUEST
+    // ========================================================
 
     if (
       bloodRequest.status !==
@@ -532,9 +717,62 @@ async function respondToBloodRequest(
         });
     }
 
-    // --------------------------------------------------------
+    // ========================================================
+    // VERIFIED DONOR
+    // ========================================================
+
+    const donorApplication =
+      await getVerifiedDonorApplication(
+        donorId
+      );
+
+    if (
+      !donorApplication ||
+      donorApplication.status !==
+        'approved'
+    ) {
+      return res
+        .status(409)
+        .json({
+          error:
+            'Only verified donors can offer to donate.'
+        });
+    }
+
+    // ========================================================
+    // EXACT BLOOD TYPE VALIDATION
+    // ========================================================
+
+    if (
+      !bloodTypesMatchExactly(
+        bloodRequest.blood_type,
+        donorApplication
+          .blood_type
+      )
+    ) {
+      return res
+        .status(409)
+        .json({
+          error:
+            'Your verified blood type does not match the blood type required by this request.',
+
+          required_blood_type:
+            normalizeBloodType(
+              bloodRequest
+                .blood_type
+            ),
+
+          donor_blood_type:
+            normalizeBloodType(
+              donorApplication
+                .blood_type
+            )
+        });
+    }
+
+    // ========================================================
     // EXISTING RESPONSE
-    // --------------------------------------------------------
+    // ========================================================
 
     const {
       data:
@@ -557,7 +795,9 @@ async function respondToBloodRequest(
         )
         .maybeSingle();
 
-    if (existingError) {
+    if (
+      existingError
+    ) {
       console.error(
         'CHECK DONOR RESPONSE ERROR:',
         existingError
@@ -570,6 +810,10 @@ async function respondToBloodRequest(
             'Unable to verify your donor response.'
         });
     }
+
+    // ========================================================
+    // EXISTING PENDING / ACCEPTED RESPONSE
+    // ========================================================
 
     if (
       existingResponse &&
@@ -594,9 +838,9 @@ async function respondToBloodRequest(
         });
     }
 
-    // --------------------------------------------------------
-    // REACTIVATE
-    // --------------------------------------------------------
+    // ========================================================
+    // REACTIVATE OLD RESPONSE
+    // ========================================================
 
     if (
       existingResponse
@@ -616,7 +860,8 @@ async function respondToBloodRequest(
               'pending',
 
             message:
-              message || null,
+              message ||
+              null,
 
             updated_at:
               new Date()
@@ -629,7 +874,9 @@ async function respondToBloodRequest(
           .select()
           .single();
 
-      if (updateError) {
+      if (
+        updateError
+      ) {
         console.error(
           'REACTIVATE DONOR RESPONSE ERROR:',
           updateError
@@ -659,9 +906,9 @@ async function respondToBloodRequest(
         });
     }
 
-    // --------------------------------------------------------
+    // ========================================================
     // CREATE RESPONSE
-    // --------------------------------------------------------
+    // ========================================================
 
     const {
       data:
@@ -684,12 +931,15 @@ async function respondToBloodRequest(
             'pending',
 
           message:
-            message || null
+            message ||
+            null
         })
         .select()
         .single();
 
-    if (insertError) {
+    if (
+      insertError
+    ) {
       console.error(
         'CREATE DONOR RESPONSE ERROR:',
         insertError
@@ -717,7 +967,9 @@ async function respondToBloodRequest(
         response:
           createdResponse
       });
-  } catch (error) {
+  } catch (
+    error
+  ) {
     console.error(
       'RESPOND TO BLOOD REQUEST ERROR:',
       error
@@ -727,6 +979,7 @@ async function respondToBloodRequest(
       .status(500)
       .json({
         error:
+          error.message ||
           'Internal server error'
       });
   }
@@ -746,7 +999,9 @@ async function getMyDonorResponse(
         req
       );
 
-    if (!donorId) {
+    if (
+      !donorId
+    ) {
       return res
         .status(401)
         .json({
@@ -760,7 +1015,9 @@ async function getMyDonorResponse(
         req
       );
 
-    if (!requestId) {
+    if (
+      !requestId
+    ) {
       return res
         .status(400)
         .json({
@@ -788,7 +1045,9 @@ async function getMyDonorResponse(
         )
         .maybeSingle();
 
-    if (error) {
+    if (
+      error
+    ) {
       console.error(
         'GET MY DONOR RESPONSE ERROR:',
         error
@@ -806,9 +1065,12 @@ async function getMyDonorResponse(
       .status(200)
       .json({
         response:
-          data || null
+          data ||
+          null
       });
-  } catch (error) {
+  } catch (
+    error
+  ) {
     console.error(
       'GET MY DONOR RESPONSE ERROR:',
       error
@@ -837,7 +1099,9 @@ async function withdrawDonorResponse(
         req
       );
 
-    if (!donorId) {
+    if (
+      !donorId
+    ) {
       return res
         .status(401)
         .json({
@@ -851,7 +1115,9 @@ async function withdrawDonorResponse(
         req
       );
 
-    if (!requestId) {
+    if (
+      !requestId
+    ) {
       return res
         .status(400)
         .json({
@@ -881,7 +1147,9 @@ async function withdrawDonorResponse(
         )
         .maybeSingle();
 
-    if (findError) {
+    if (
+      findError
+    ) {
       console.error(
         'FIND DONOR RESPONSE ERROR:',
         findError
@@ -895,7 +1163,9 @@ async function withdrawDonorResponse(
         });
     }
 
-    if (!existingResponse) {
+    if (
+      !existingResponse
+    ) {
       return res
         .status(404)
         .json({
@@ -944,7 +1214,9 @@ async function withdrawDonorResponse(
         .select()
         .single();
 
-    if (updateError) {
+    if (
+      updateError
+    ) {
       console.error(
         'WITHDRAW DONOR RESPONSE ERROR:',
         updateError
@@ -958,9 +1230,9 @@ async function withdrawDonorResponse(
         });
     }
 
-    // --------------------------------------------------------
-    // NOTIFY REQUEST OWNER
-    // --------------------------------------------------------
+    // ========================================================
+    // REQUEST OWNER
+    // ========================================================
 
     const {
       data:
@@ -984,12 +1256,18 @@ async function withdrawDonorResponse(
         )
         .maybeSingle();
 
-    if (bloodRequestError) {
+    if (
+      bloodRequestError
+    ) {
       console.error(
         'WITHDRAW RESPONSE REQUEST LOOKUP ERROR:',
         bloodRequestError
       );
     }
+
+    // ========================================================
+    // NOTIFY REQUEST OWNER
+    // ========================================================
 
     if (
       bloodRequest
@@ -1030,7 +1308,9 @@ async function withdrawDonorResponse(
         response:
           updatedResponse
       });
-  } catch (error) {
+  } catch (
+    error
+  ) {
     console.error(
       'WITHDRAW DONOR RESPONSE ERROR:',
       error
@@ -1059,7 +1339,9 @@ async function getResponsesForMyBloodRequest(
         req
       );
 
-    if (!requesterId) {
+    if (
+      !requesterId
+    ) {
       return res
         .status(401)
         .json({
@@ -1073,7 +1355,9 @@ async function getResponsesForMyBloodRequest(
         req
       );
 
-    if (!requestId) {
+    if (
+      !requestId
+    ) {
       return res
         .status(400)
         .json({
@@ -1088,7 +1372,9 @@ async function getResponsesForMyBloodRequest(
         requesterId
       );
 
-    if (!bloodRequest) {
+    if (
+      !bloodRequest
+    ) {
       return res
         .status(404)
         .json({
@@ -1120,7 +1406,9 @@ async function getResponsesForMyBloodRequest(
           }
         );
 
-    if (responsesError) {
+    if (
+      responsesError
+    ) {
       console.error(
         'GET REQUEST RESPONSES ERROR:',
         responsesError
@@ -1136,7 +1424,8 @@ async function getResponsesForMyBloodRequest(
 
     const enrichedResponses =
       await enrichDonorResponses(
-        responses || []
+        responses ||
+        []
       );
 
     const counts = {
@@ -1204,7 +1493,9 @@ async function getResponsesForMyBloodRequest(
         responses:
           enrichedResponses
       });
-  } catch (error) {
+  } catch (
+    error
+  ) {
     console.error(
       'GET REQUEST RESPONSES ERROR:',
       error
@@ -1222,6 +1513,11 @@ async function getResponsesForMyBloodRequest(
 
 // ============================================================
 // PATCH /api/requests/:id/responses/:responseId/accept
+//
+// REQUEST OWNER ACCEPTS DONOR OFFER
+//
+// Exact blood type is revalidated here to prevent an older
+// mismatched donor response from being accepted.
 // ============================================================
 
 async function acceptDonorResponse(
@@ -1234,7 +1530,9 @@ async function acceptDonorResponse(
         req
       );
 
-    if (!requesterId) {
+    if (
+      !requesterId
+    ) {
       return res
         .status(401)
         .json({
@@ -1253,7 +1551,9 @@ async function acceptDonorResponse(
         req
       );
 
-    if (!requestId) {
+    if (
+      !requestId
+    ) {
       return res
         .status(400)
         .json({
@@ -1262,7 +1562,9 @@ async function acceptDonorResponse(
         });
     }
 
-    if (!responseId) {
+    if (
+      !responseId
+    ) {
       return res
         .status(400)
         .json({
@@ -1271,13 +1573,19 @@ async function acceptDonorResponse(
         });
     }
 
+    // ========================================================
+    // REQUEST
+    // ========================================================
+
     const bloodRequest =
       await getOwnedBloodRequest(
         requestId,
         requesterId
       );
 
-    if (!bloodRequest) {
+    if (
+      !bloodRequest
+    ) {
       return res
         .status(404)
         .json({
@@ -1297,6 +1605,10 @@ async function acceptDonorResponse(
             'Only active blood requests can accept donor offers.'
         });
     }
+
+    // ========================================================
+    // RESPONSE
+    // ========================================================
 
     const {
       data:
@@ -1319,7 +1631,9 @@ async function acceptDonorResponse(
         )
         .maybeSingle();
 
-    if (responseError) {
+    if (
+      responseError
+    ) {
       console.error(
         'ACCEPT DONOR RESPONSE LOOKUP ERROR:',
         responseError
@@ -1333,7 +1647,9 @@ async function acceptDonorResponse(
         });
     }
 
-    if (!response) {
+    if (
+      !response
+    ) {
       return res
         .status(404)
         .json({
@@ -1366,47 +1682,14 @@ async function acceptDonorResponse(
         });
     }
 
-    // --------------------------------------------------------
+    // ========================================================
     // DONOR VERIFICATION
-    // --------------------------------------------------------
+    // ========================================================
 
-    const {
-      data:
-        donorApplication,
-      error:
-        donorApplicationError
-    } =
-      await supabaseAdmin
-        .from(
-          'donor_applications'
-        )
-        .select(`
-          user_id,
-          status,
-          blood_type,
-          availability_status
-        `)
-        .eq(
-          'user_id',
-          response.donor_id
-        )
-        .maybeSingle();
-
-    if (
-      donorApplicationError
-    ) {
-      console.error(
-        'ACCEPT DONOR VERIFICATION ERROR:',
-        donorApplicationError
+    const donorApplication =
+      await getVerifiedDonorApplication(
+        response.donor_id
       );
-
-      return res
-        .status(500)
-        .json({
-          error:
-            'Unable to verify donor status.'
-        });
-    }
 
     if (
       !donorApplication ||
@@ -1421,9 +1704,40 @@ async function acceptDonorResponse(
         });
     }
 
-    // --------------------------------------------------------
+    // ========================================================
+    // EXACT BLOOD TYPE REVALIDATION
+    // ========================================================
+
+    if (
+      !bloodTypesMatchExactly(
+        bloodRequest.blood_type,
+        donorApplication
+          .blood_type
+      )
+    ) {
+      return res
+        .status(409)
+        .json({
+          error:
+            'This donor\'s verified blood type does not match the blood type required by this request.',
+
+          required_blood_type:
+            normalizeBloodType(
+              bloodRequest
+                .blood_type
+            ),
+
+          donor_blood_type:
+            normalizeBloodType(
+              donorApplication
+                .blood_type
+            )
+        });
+    }
+
+    // ========================================================
     // ACCEPT
-    // --------------------------------------------------------
+    // ========================================================
 
     const {
       data:
@@ -1454,7 +1768,9 @@ async function acceptDonorResponse(
         .select()
         .maybeSingle();
 
-    if (updateError) {
+    if (
+      updateError
+    ) {
       console.error(
         'ACCEPT DONOR RESPONSE ERROR:',
         updateError
@@ -1468,7 +1784,9 @@ async function acceptDonorResponse(
         });
     }
 
-    if (!updatedResponse) {
+    if (
+      !updatedResponse
+    ) {
       return res
         .status(409)
         .json({
@@ -1477,9 +1795,9 @@ async function acceptDonorResponse(
         });
     }
 
-    // --------------------------------------------------------
+    // ========================================================
     // NOTIFY DONOR
-    // --------------------------------------------------------
+    // ========================================================
 
     await createNotification({
       userId:
@@ -1524,7 +1842,9 @@ async function acceptDonorResponse(
           enriched[0] ||
           updatedResponse
       });
-  } catch (error) {
+  } catch (
+    error
+  ) {
     console.error(
       'ACCEPT DONOR RESPONSE ERROR:',
       error
@@ -1554,7 +1874,9 @@ async function rejectDonorResponse(
         req
       );
 
-    if (!requesterId) {
+    if (
+      !requesterId
+    ) {
       return res
         .status(401)
         .json({
@@ -1573,7 +1895,9 @@ async function rejectDonorResponse(
         req
       );
 
-    if (!requestId) {
+    if (
+      !requestId
+    ) {
       return res
         .status(400)
         .json({
@@ -1582,7 +1906,9 @@ async function rejectDonorResponse(
         });
     }
 
-    if (!responseId) {
+    if (
+      !responseId
+    ) {
       return res
         .status(400)
         .json({
@@ -1597,7 +1923,9 @@ async function rejectDonorResponse(
         requesterId
       );
 
-    if (!bloodRequest) {
+    if (
+      !bloodRequest
+    ) {
       return res
         .status(404)
         .json({
@@ -1639,7 +1967,9 @@ async function rejectDonorResponse(
         )
         .maybeSingle();
 
-    if (responseError) {
+    if (
+      responseError
+    ) {
       console.error(
         'REJECT DONOR RESPONSE LOOKUP ERROR:',
         responseError
@@ -1653,7 +1983,9 @@ async function rejectDonorResponse(
         });
     }
 
-    if (!response) {
+    if (
+      !response
+    ) {
       return res
         .status(404)
         .json({
@@ -1706,7 +2038,9 @@ async function rejectDonorResponse(
         .select()
         .maybeSingle();
 
-    if (updateError) {
+    if (
+      updateError
+    ) {
       console.error(
         'REJECT DONOR RESPONSE ERROR:',
         updateError
@@ -1720,7 +2054,9 @@ async function rejectDonorResponse(
         });
     }
 
-    if (!updatedResponse) {
+    if (
+      !updatedResponse
+    ) {
       return res
         .status(409)
         .json({
@@ -1729,9 +2065,9 @@ async function rejectDonorResponse(
         });
     }
 
-    // --------------------------------------------------------
+    // ========================================================
     // NOTIFY DONOR
-    // --------------------------------------------------------
+    // ========================================================
 
     await createNotification({
       userId:
@@ -1776,7 +2112,9 @@ async function rejectDonorResponse(
           enriched[0] ||
           updatedResponse
       });
-  } catch (error) {
+  } catch (
+    error
+  ) {
     console.error(
       'REJECT DONOR RESPONSE ERROR:',
       error

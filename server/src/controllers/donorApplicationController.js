@@ -37,10 +37,96 @@ const VALID_AVAILABILITY = [
 ];
 
 // ============================================================
+// NEARBY DONOR SEARCH
+// ============================================================
+
+const DEFAULT_SEARCH_RADIUS_KM =
+  25;
+
+const MIN_SEARCH_RADIUS_KM =
+  1;
+
+const MAX_SEARCH_RADIUS_KM =
+  100;
+
+const DEFAULT_DONOR_LIMIT =
+  50;
+
+const MAX_DONOR_LIMIT =
+  100;
+
+// ============================================================
+// RED BLOOD CELL COMPATIBILITY
+//
+// Key = recipient/requested blood type
+// Value = donor blood types that may donate red blood cells
+// to that recipient.
+//
+// Example:
+// A+ recipient may receive:
+// A+, A-, O+, O-
+// ============================================================
+
+const COMPATIBLE_DONOR_TYPES = {
+  'O-': [
+    'O-'
+  ],
+
+  'O+': [
+    'O-',
+    'O+'
+  ],
+
+  'A-': [
+    'O-',
+    'A-'
+  ],
+
+  'A+': [
+    'O-',
+    'O+',
+    'A-',
+    'A+'
+  ],
+
+  'B-': [
+    'O-',
+    'B-'
+  ],
+
+  'B+': [
+    'O-',
+    'O+',
+    'B-',
+    'B+'
+  ],
+
+  'AB-': [
+    'O-',
+    'A-',
+    'B-',
+    'AB-'
+  ],
+
+  'AB+': [
+    'O-',
+    'O+',
+    'A-',
+    'A+',
+    'B-',
+    'B+',
+    'AB-',
+    'AB+'
+  ]
+};
+
+// ============================================================
 // HELPERS
 // ============================================================
 
-function getAuthenticatedUserId(req) {
+function getAuthenticatedUserId(
+  req
+) {
   return (
     req.user?.id ||
     req.authUser?.id ||
@@ -49,7 +135,9 @@ function getAuthenticatedUserId(req) {
   );
 }
 
-function cleanText(value) {
+function cleanText(
+  value
+) {
   if (
     value === undefined ||
     value === null
@@ -58,7 +146,8 @@ function cleanText(value) {
   }
 
   const text =
-    String(value).trim();
+    String(value)
+      .trim();
 
   return text || null;
 }
@@ -66,7 +155,9 @@ function cleanText(value) {
 function calculateAge(
   dateOfBirth
 ) {
-  if (!dateOfBirth) {
+  if (
+    !dateOfBirth
+  ) {
     return null;
   }
 
@@ -108,7 +199,9 @@ function calculateAge(
   return age;
 }
 
-function toBoolean(value) {
+function toBoolean(
+  value
+) {
   return (
     value === true ||
     value === 'true' ||
@@ -117,7 +210,9 @@ function toBoolean(value) {
   );
 }
 
-function toNumberOrNull(value) {
+function toNumberOrNull(
+  value
+) {
   if (
     value === undefined ||
     value === null ||
@@ -136,7 +231,9 @@ function toNumberOrNull(value) {
     : null;
 }
 
-function isValidLatitude(value) {
+function isValidLatitude(
+  value
+) {
   return (
     value !== null &&
     value >= -90 &&
@@ -144,12 +241,142 @@ function isValidLatitude(value) {
   );
 }
 
-function isValidLongitude(value) {
+function isValidLongitude(
+  value
+) {
   return (
     value !== null &&
     value >= -180 &&
     value <= 180
   );
+}
+
+// ============================================================
+// SEARCH QUERY BOOLEAN
+// ============================================================
+
+function parseQueryBoolean(
+  value
+) {
+  if (
+    value === undefined ||
+    value === null ||
+    value === ''
+  ) {
+    return false;
+  }
+
+  const text =
+    String(value)
+      .trim()
+      .toLowerCase();
+
+  return (
+    text === 'true' ||
+    text === '1' ||
+    text === 'yes'
+  );
+}
+
+// ============================================================
+// HAVERSINE DISTANCE
+//
+// Calculates straight-line distance between two coordinates.
+//
+// Returns kilometers.
+//
+// Exact donor coordinates NEVER leave the backend.
+// ============================================================
+
+function calculateDistanceKm(
+  latitude1,
+  longitude1,
+  latitude2,
+  longitude2
+) {
+  const earthRadiusKm =
+    6371;
+
+  function toRadians(
+    degrees
+  ) {
+    return (
+      degrees *
+      Math.PI /
+      180
+    );
+  }
+
+  const latitudeDifference =
+    toRadians(
+      latitude2 -
+      latitude1
+    );
+
+  const longitudeDifference =
+    toRadians(
+      longitude2 -
+      longitude1
+    );
+
+  const firstLatitude =
+    toRadians(
+      latitude1
+    );
+
+  const secondLatitude =
+    toRadians(
+      latitude2
+    );
+
+  const a =
+    Math.sin(
+      latitudeDifference /
+      2
+    ) ** 2 +
+    Math.cos(
+      firstLatitude
+    ) *
+    Math.cos(
+      secondLatitude
+    ) *
+    Math.sin(
+      longitudeDifference /
+      2
+    ) ** 2;
+
+  const c =
+    2 *
+    Math.atan2(
+      Math.sqrt(a),
+      Math.sqrt(
+        1 - a
+      )
+    );
+
+  return (
+    earthRadiusKm *
+    c
+  );
+}
+
+// ============================================================
+// SAFE FULL NAME
+// ============================================================
+
+function buildFullName(
+  user
+) {
+  return [
+    user?.first_name,
+    user?.middle_name,
+    user?.last_name,
+    user?.suffix
+  ]
+    .filter(Boolean)
+    .join(' ')
+    .trim() ||
+    'Hemo-Hero Donor';
 }
 
 // ============================================================
@@ -166,7 +393,9 @@ async function getMyDonorApplication(
         req
       );
 
-    if (!userId) {
+    if (
+      !userId
+    ) {
       return res
         .status(401)
         .json({
@@ -209,7 +438,9 @@ async function getMyDonorApplication(
         )
         .maybeSingle();
 
-    if (error) {
+    if (
+      error
+    ) {
       console.error(
         'GET DONOR APPLICATION ERROR:',
         error
@@ -227,15 +458,701 @@ async function getMyDonorApplication(
       .status(200)
       .json({
         application:
-          data || null,
+          data ||
+          null,
 
         can_respond:
           data?.status ===
           'approved'
       });
-  } catch (error) {
+  } catch (
+    error
+  ) {
     console.error(
       'GET DONOR APPLICATION ERROR:',
+      error
+    );
+
+    return res
+      .status(500)
+      .json({
+        error:
+          'Internal server error'
+      });
+  }
+}
+
+// ============================================================
+// GET /api/donors/nearby
+//
+// Finds approved + available donors near the authenticated user.
+//
+// Query:
+// latitude
+// longitude
+// radius
+// blood_type
+// urgent
+// limit
+//
+// Example:
+// /api/donors/nearby
+//   ?latitude=11.006
+//   &longitude=124.607
+//   &radius=25
+//   &blood_type=A+
+//   &limit=50
+//
+// PRIVACY:
+// - Exact donor latitude/longitude is NOT returned.
+// - Email is NOT returned.
+// - Phone is NOT returned.
+// - Barangay is NOT returned.
+// - Only general city/province + calculated distance is returned.
+// ============================================================
+
+async function getNearbyDonors(
+  req,
+  res
+) {
+  try {
+    const currentUserId =
+      getAuthenticatedUserId(
+        req
+      );
+
+    if (
+      !currentUserId
+    ) {
+      return res
+        .status(401)
+        .json({
+          error:
+            'Unauthorized'
+        });
+    }
+
+    // ========================================================
+    // SEARCH LOCATION
+    // ========================================================
+
+    const latitude =
+      toNumberOrNull(
+        req.query.latitude
+      );
+
+    const longitude =
+      toNumberOrNull(
+        req.query.longitude
+      );
+
+    if (
+      !isValidLatitude(
+        latitude
+      ) ||
+      !isValidLongitude(
+        longitude
+      )
+    ) {
+      return res
+        .status(400)
+        .json({
+          error:
+            'Valid latitude and longitude are required.'
+        });
+    }
+
+    // ========================================================
+    // SEARCH RADIUS
+    // ========================================================
+
+    const rawRadius =
+      req.query.radius ===
+        undefined
+        ? DEFAULT_SEARCH_RADIUS_KM
+        : Number(
+            req.query.radius
+          );
+
+    if (
+      !Number.isFinite(
+        rawRadius
+      ) ||
+      rawRadius <
+        MIN_SEARCH_RADIUS_KM ||
+      rawRadius >
+        MAX_SEARCH_RADIUS_KM
+    ) {
+      return res
+        .status(400)
+        .json({
+          error:
+            `Search radius must be between ${MIN_SEARCH_RADIUS_KM} and ${MAX_SEARCH_RADIUS_KM} kilometers.`
+        });
+    }
+
+    const radiusKm =
+      rawRadius;
+
+    // ========================================================
+    // RESULT LIMIT
+    // ========================================================
+
+    const rawLimit =
+      req.query.limit ===
+        undefined
+        ? DEFAULT_DONOR_LIMIT
+        : Number(
+            req.query.limit
+          );
+
+    if (
+      !Number.isFinite(
+        rawLimit
+      ) ||
+      rawLimit <=
+        0
+    ) {
+      return res
+        .status(400)
+        .json({
+          error:
+            'limit must be a positive number.'
+        });
+    }
+
+    const limit =
+      Math.min(
+        MAX_DONOR_LIMIT,
+        Math.max(
+          1,
+          Math.floor(
+            rawLimit
+          )
+        )
+      );
+
+    // ========================================================
+    // BLOOD TYPE
+    //
+    // This is the blood type NEEDED by the recipient.
+    // We return donors compatible with that recipient.
+    // ========================================================
+
+    let requestedBloodType =
+      null;
+
+    if (
+      req.query.blood_type !==
+        undefined &&
+      req.query.blood_type !==
+        null &&
+      String(
+        req.query.blood_type
+      ).trim() !==
+        ''
+    ) {
+      requestedBloodType =
+        String(
+          req.query.blood_type
+        )
+          .trim()
+          .toUpperCase();
+
+      if (
+        !VALID_BLOOD_TYPES.includes(
+          requestedBloodType
+        )
+      ) {
+        return res
+          .status(400)
+          .json({
+            error:
+              'Please provide a valid blood type.'
+          });
+      }
+    }
+
+    // ========================================================
+    // URGENT FILTER
+    // ========================================================
+
+    const urgentOnly =
+      parseQueryBoolean(
+        req.query.urgent
+      );
+
+    // ========================================================
+    // DONOR APPLICATION QUERY
+    // ========================================================
+
+    let donorQuery =
+      supabaseAdmin
+        .from(
+          'donor_applications'
+        )
+        .select(`
+          id,
+          user_id,
+          blood_type,
+          current_latitude,
+          current_longitude,
+          travel_radius_km,
+          availability_status,
+          allow_urgent_requests,
+          status,
+          reviewed_at,
+          updated_at
+        `)
+        .eq(
+          'status',
+          'approved'
+        )
+        .eq(
+          'availability_status',
+          'available'
+        )
+        .neq(
+          'user_id',
+          currentUserId
+        )
+        .not(
+          'current_latitude',
+          'is',
+          null
+        )
+        .not(
+          'current_longitude',
+          'is',
+          null
+        );
+
+    // ========================================================
+    // COMPATIBLE DONOR BLOOD TYPES
+    // ========================================================
+
+    if (
+      requestedBloodType
+    ) {
+      const compatibleTypes =
+        COMPATIBLE_DONOR_TYPES[
+          requestedBloodType
+        ] ||
+        [];
+
+      donorQuery =
+        donorQuery.in(
+          'blood_type',
+          compatibleTypes
+        );
+    }
+
+    // ========================================================
+    // URGENT REQUEST PREFERENCE
+    // ========================================================
+
+    if (
+      urgentOnly
+    ) {
+      donorQuery =
+        donorQuery.eq(
+          'allow_urgent_requests',
+          true
+        );
+    }
+
+    const {
+      data:
+        donorApplications,
+      error:
+        donorError
+    } =
+      await donorQuery;
+
+    if (
+      donorError
+    ) {
+      console.error(
+        'SEARCH DONORS ERROR:',
+        donorError
+      );
+
+      return res
+        .status(500)
+        .json({
+          error:
+            'Unable to search for donors.'
+        });
+    }
+
+    const applications =
+      Array.isArray(
+        donorApplications
+      )
+        ? donorApplications
+        : [];
+
+    if (
+      applications.length ===
+      0
+    ) {
+      return res
+        .status(200)
+        .json({
+          donors:
+            [],
+
+          count:
+            0,
+
+          search: {
+            radius_km:
+              radiusKm,
+
+            blood_type:
+              requestedBloodType,
+
+            urgent_only:
+              urgentOnly
+          }
+        });
+    }
+
+    // ========================================================
+    // DISTANCE FILTER
+    //
+    // We calculate distance before fetching profile data.
+    //
+    // A donor must be:
+    // 1. inside the requester's selected search radius
+    // 2. inside the donor's own selected travel radius
+    // ========================================================
+
+    const candidates =
+      applications
+        .map(
+          application => {
+            const donorLatitude =
+              toNumberOrNull(
+                application
+                  .current_latitude
+              );
+
+            const donorLongitude =
+              toNumberOrNull(
+                application
+                  .current_longitude
+              );
+
+            if (
+              !isValidLatitude(
+                donorLatitude
+              ) ||
+              !isValidLongitude(
+                donorLongitude
+              )
+            ) {
+              return null;
+            }
+
+            const distance =
+              calculateDistanceKm(
+                latitude,
+                longitude,
+                donorLatitude,
+                donorLongitude
+              );
+
+            const donorTravelRadius =
+              Number(
+                application
+                  .travel_radius_km
+              );
+
+            // -----------------------------------------------
+            // OUTSIDE SEARCH RADIUS
+            // -----------------------------------------------
+
+            if (
+              distance >
+              radiusKm
+            ) {
+              return null;
+            }
+
+            // -----------------------------------------------
+            // OUTSIDE DONOR'S TRAVEL RADIUS
+            // -----------------------------------------------
+
+            if (
+              Number.isFinite(
+                donorTravelRadius
+              ) &&
+              donorTravelRadius >
+                0 &&
+              distance >
+                donorTravelRadius
+            ) {
+              return null;
+            }
+
+            return {
+              application,
+              distance_km:
+                distance
+            };
+          }
+        )
+        .filter(Boolean);
+
+    if (
+      candidates.length ===
+      0
+    ) {
+      return res
+        .status(200)
+        .json({
+          donors:
+            [],
+
+          count:
+            0,
+
+          search: {
+            radius_km:
+              radiusKm,
+
+            blood_type:
+              requestedBloodType,
+
+            urgent_only:
+              urgentOnly
+          }
+        });
+    }
+
+    // ========================================================
+    // FETCH SAFE USER PROFILE DATA
+    // ========================================================
+
+    const donorUserIds =
+      candidates.map(
+        item =>
+          item.application
+            .user_id
+      );
+
+    const {
+      data:
+        donorUsers,
+      error:
+        userError
+    } =
+      await supabaseAdmin
+        .from(
+          'users'
+        )
+        .select(`
+          id,
+          first_name,
+          middle_name,
+          last_name,
+          suffix,
+          city,
+          province,
+          profile_photo_url
+        `)
+        .in(
+          'id',
+          donorUserIds
+        );
+
+    if (
+      userError
+    ) {
+      console.error(
+        'SEARCH DONOR PROFILE ERROR:',
+        userError
+      );
+
+      return res
+        .status(500)
+        .json({
+          error:
+            'Unable to load donor profiles.'
+        });
+    }
+
+    // ========================================================
+    // PROFILE LOOKUP
+    // ========================================================
+
+    const userMap =
+      new Map();
+
+    for (
+      const user of
+        donorUsers ||
+        []
+    ) {
+      userMap.set(
+        user.id,
+        user
+      );
+    }
+
+    // ========================================================
+    // SAFE RESPONSE
+    //
+    // DO NOT add:
+    // - latitude
+    // - longitude
+    // - email
+    // - phone
+    // - barangay
+    //
+    // Those should remain private.
+    // ========================================================
+
+    const safeDonors =
+      candidates
+        .map(
+          item => {
+            const application =
+              item.application;
+
+            const user =
+              userMap.get(
+                application
+                  .user_id
+              );
+
+            if (
+              !user
+            ) {
+              return null;
+            }
+
+            return {
+              id:
+                user.id,
+
+              full_name:
+                buildFullName(
+                  user
+                ),
+
+              first_name:
+                user.first_name ||
+                null,
+
+              last_name:
+                user.last_name ||
+                null,
+
+              blood_type:
+                application
+                  .blood_type,
+
+              city:
+                user.city ||
+                null,
+
+              province:
+                user.province ||
+                null,
+
+              profile_photo_url:
+                user.profile_photo_url ||
+                null,
+
+              distance_km:
+                Number(
+                  item
+                    .distance_km
+                    .toFixed(1)
+                ),
+
+              verified:
+                true,
+
+              availability_status:
+                application
+                  .availability_status,
+
+              allow_urgent_requests:
+                Boolean(
+                  application
+                    .allow_urgent_requests
+                ),
+
+              travel_radius_km:
+                Number(
+                  application
+                    .travel_radius_km
+                ) ||
+                null,
+
+              reviewed_at:
+                application
+                  .reviewed_at ||
+                null,
+
+              updated_at:
+                application
+                  .updated_at ||
+                null
+            };
+          }
+        )
+        .filter(Boolean)
+        .sort(
+          (
+            first,
+            second
+          ) =>
+            first.distance_km -
+            second.distance_km
+        );
+
+    // ========================================================
+    // LIMIT AFTER DISTANCE SORT
+    // ========================================================
+
+    const totalCount =
+      safeDonors.length;
+
+    const limitedDonors =
+      safeDonors.slice(
+        0,
+        limit
+      );
+
+    return res
+      .status(200)
+      .json({
+        donors:
+          limitedDonors,
+
+        count:
+          totalCount,
+
+        search: {
+          radius_km:
+            radiusKm,
+
+          blood_type:
+            requestedBloodType,
+
+          urgent_only:
+            urgentOnly
+        }
+      });
+  } catch (
+    error
+  ) {
+    console.error(
+      'GET NEARBY DONORS ERROR:',
       error
     );
 
@@ -262,7 +1179,9 @@ async function uploadVerificationId(
         req
       );
 
-    if (!userId) {
+    if (
+      !userId
+    ) {
       return res
         .status(401)
         .json({
@@ -271,7 +1190,9 @@ async function uploadVerificationId(
         });
     }
 
-    if (!req.file) {
+    if (
+      !req.file
+    ) {
       return res
         .status(400)
         .json({
@@ -361,7 +1282,9 @@ async function uploadVerificationId(
           }
         );
 
-    if (error) {
+    if (
+      error
+    ) {
       console.error(
         'DONOR ID UPLOAD ERROR:',
         error
@@ -384,7 +1307,9 @@ async function uploadVerificationId(
         path:
           data.path
       });
-  } catch (error) {
+  } catch (
+    error
+  ) {
     console.error(
       'DONOR ID UPLOAD ERROR:',
       error
@@ -413,7 +1338,9 @@ async function submitDonorApplication(
         req
       );
 
-    if (!userId) {
+    if (
+      !userId
+    ) {
       return res
         .status(401)
         .json({
@@ -446,7 +1373,9 @@ async function submitDonorApplication(
         )
         .maybeSingle();
 
-    if (userError) {
+    if (
+      userError
+    ) {
       console.error(
         'GET DONOR PROFILE ERROR:',
         userError
@@ -460,7 +1389,9 @@ async function submitDonorApplication(
         });
     }
 
-    if (!user) {
+    if (
+      !user
+    ) {
       return res
         .status(404)
         .json({
@@ -478,7 +1409,9 @@ async function submitDonorApplication(
         user.date_of_birth
       );
 
-    if (age === null) {
+    if (
+      age === null
+    ) {
       return res
         .status(400)
         .json({
@@ -487,7 +1420,9 @@ async function submitDonorApplication(
         });
     }
 
-    if (age < 18) {
+    if (
+      age < 18
+    ) {
       return res
         .status(403)
         .json({
@@ -507,52 +1442,62 @@ async function submitDonorApplication(
 
     const hasDonatedBefore =
       toBoolean(
-        req.body.has_donated_before
+        req.body
+          .has_donated_before
       );
 
     const lastDonationDate =
       cleanText(
-        req.body.last_donation_date
+        req.body
+          .last_donation_date
       );
 
     const lastDonationFacility =
       cleanText(
-        req.body.last_donation_facility
+        req.body
+          .last_donation_facility
       );
 
     const latitude =
       toNumberOrNull(
-        req.body.current_latitude
+        req.body
+          .current_latitude
       );
 
     const longitude =
       toNumberOrNull(
-        req.body.current_longitude
+        req.body
+          .current_longitude
       );
 
     const travelRadiusKm =
       Number(
-        req.body.travel_radius_km
+        req.body
+          .travel_radius_km
       );
 
     const availabilityStatus =
       cleanText(
-        req.body.availability_status
+        req.body
+          .availability_status
       );
 
     const allowUrgentRequests =
       toBoolean(
-        req.body.allow_urgent_requests
+        req.body
+          .allow_urgent_requests
       );
 
     const verificationIdPath =
       cleanText(
-        req.body.verification_id_path
+        req.body
+          .verification_id_path
       );
 
     const consentConfirmed =
       toBoolean(
-        req.body.consent_confirmed
+        req.body
+          .consent_confirmed
       );
 
     // --------------------------------------------------------
@@ -588,7 +1533,8 @@ async function submitDonorApplication(
 
       if (
         Number.isNaN(
-          donationDate.getTime()
+          donationDate
+            .getTime()
         )
       ) {
         return res
@@ -600,7 +1546,8 @@ async function submitDonorApplication(
       }
 
       if (
-        donationDate.getTime() >
+        donationDate
+          .getTime() >
         Date.now()
       ) {
         return res
@@ -699,7 +1646,9 @@ async function submitDonorApplication(
     // CONSENT
     // --------------------------------------------------------
 
-    if (!consentConfirmed) {
+    if (
+      !consentConfirmed
+    ) {
       return res
         .status(400)
         .json({
@@ -731,7 +1680,9 @@ async function submitDonorApplication(
         )
         .maybeSingle();
 
-    if (existingError) {
+    if (
+      existingError
+    ) {
       console.error(
         'CHECK DONOR APPLICATION ERROR:',
         existingError
@@ -746,7 +1697,8 @@ async function submitDonorApplication(
     }
 
     if (
-      existingApplication?.status ===
+      existingApplication
+        ?.status ===
       'approved'
     ) {
       return res
@@ -758,7 +1710,8 @@ async function submitDonorApplication(
     }
 
     if (
-      existingApplication?.status ===
+      existingApplication
+        ?.status ===
       'pending'
     ) {
       return res
@@ -849,12 +1802,15 @@ async function submitDonorApplication(
           )
           .eq(
             'id',
-            existingApplication.id
+            existingApplication
+              .id
           )
           .select()
           .single();
 
-      if (updateError) {
+      if (
+        updateError
+      ) {
         console.error(
           'UPDATE DONOR APPLICATION ERROR:',
           updateError
@@ -899,7 +1855,9 @@ async function submitDonorApplication(
         .select()
         .single();
 
-    if (insertError) {
+    if (
+      insertError
+    ) {
       console.error(
         'CREATE DONOR APPLICATION ERROR:',
         insertError
@@ -922,7 +1880,9 @@ async function submitDonorApplication(
         application:
           createdApplication
       });
-  } catch (error) {
+  } catch (
+    error
+  ) {
     console.error(
       'SUBMIT DONOR APPLICATION ERROR:',
       error
@@ -951,7 +1911,9 @@ async function withdrawDonorApplication(
         req
       );
 
-    if (!userId) {
+    if (
+      !userId
+    ) {
       return res
         .status(401)
         .json({
@@ -977,7 +1939,9 @@ async function withdrawDonorApplication(
         )
         .maybeSingle();
 
-    if (findError) {
+    if (
+      findError
+    ) {
       console.error(
         'GET DONOR APPLICATION ERROR:',
         findError
@@ -991,7 +1955,9 @@ async function withdrawDonorApplication(
         });
     }
 
-    if (!application) {
+    if (
+      !application
+    ) {
       return res
         .status(404)
         .json({
@@ -1033,7 +1999,9 @@ async function withdrawDonorApplication(
         .select()
         .single();
 
-    if (updateError) {
+    if (
+      updateError
+    ) {
       console.error(
         'WITHDRAW DONOR APPLICATION ERROR:',
         updateError
@@ -1056,7 +2024,9 @@ async function withdrawDonorApplication(
         application:
           updatedApplication
       });
-  } catch (error) {
+  } catch (
+    error
+  ) {
     console.error(
       'WITHDRAW DONOR APPLICATION ERROR:',
       error
@@ -1077,6 +2047,7 @@ async function withdrawDonorApplication(
 
 module.exports = {
   getMyDonorApplication,
+  getNearbyDonors,
   uploadVerificationId,
   submitDonorApplication,
   withdrawDonorApplication

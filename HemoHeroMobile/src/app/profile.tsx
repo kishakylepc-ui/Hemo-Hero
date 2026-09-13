@@ -1,4 +1,7 @@
-import { useCallback, useState } from 'react';
+import {
+  useCallback,
+  useState,
+} from 'react';
 
 import {
   Alert,
@@ -11,11 +14,28 @@ import {
   View,
 } from 'react-native';
 
-import { MaterialIcons } from '@expo/vector-icons';
-import { LinearGradient } from 'expo-linear-gradient';
-import { router, useFocusEffect } from 'expo-router';
-import { StatusBar } from 'expo-status-bar';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import {
+  MaterialIcons,
+} from '@expo/vector-icons';
+
+import {
+  LinearGradient,
+} from 'expo-linear-gradient';
+
+import {
+  router,
+  useFocusEffect,
+} from 'expo-router';
+
+import {
+  StatusBar,
+} from 'expo-status-bar';
+
+import {
+  SafeAreaView,
+} from 'react-native-safe-area-context';
+
+import MainBottomNav from '../components/MainBottomNav';
 
 import {
   getCurrentUser,
@@ -75,15 +95,29 @@ export default function ProfileScreen() {
   // PROFILE
   // ==========================================================
 
-  const [profile, setProfile] = useState<any>(null);
+  const [
+    profile,
+    setProfile,
+  ] =
+    useState<any>(
+      null
+    );
 
-  const [loading, setLoading] =
-    useState(true);
+  const [
+    loading,
+    setLoading,
+  ] =
+    useState(
+      true
+    );
 
   const [
     errorMessage,
     setErrorMessage,
-  ] = useState('');
+  ] =
+    useState(
+      ''
+    );
 
   // ==========================================================
   // DONOR
@@ -100,7 +134,10 @@ export default function ProfileScreen() {
   const [
     loadingDonorStatus,
     setLoadingDonorStatus,
-  ] = useState(true);
+  ] =
+    useState(
+      true
+    );
 
   // ==========================================================
   // LOGOUT
@@ -109,101 +146,125 @@ export default function ProfileScreen() {
   const [
     signingOut,
     setSigningOut,
-  ] = useState(false);
+  ] =
+    useState(
+      false
+    );
 
   // ==========================================================
   // LOAD PROFILE
   // ==========================================================
 
   const loadProfile =
-    useCallback(async () => {
-      const token =
-        await getAccessToken();
+    useCallback(
+      async () => {
+        const token =
+          await getAccessToken();
 
-      if (!token) {
-        router.replace('/');
-        return;
-      }
-
-      // ------------------------------------------------------
-      // USER PROFILE
-      // ------------------------------------------------------
-
-      try {
-        setLoading(true);
-        setErrorMessage('');
-
-        const data =
-          await getCurrentUser(
-            token
+        if (!token) {
+          router.replace(
+            '/'
           );
 
-        if (!data?.user) {
-          throw new Error(
-            'Unable to load your profile.'
+          return;
+        }
+
+        // ----------------------------------------------------
+        // USER PROFILE
+        // ----------------------------------------------------
+
+        try {
+          setLoading(
+            true
+          );
+
+          setErrorMessage(
+            ''
+          );
+
+          const data =
+            await getCurrentUser(
+              token
+            );
+
+          if (
+            !data?.user
+          ) {
+            throw new Error(
+              'Unable to load your profile.'
+            );
+          }
+
+          setProfile(
+            data.user
+          );
+        } catch (error) {
+          console.log(
+            'PROFILE LOAD ERROR:',
+            error
+          );
+
+          setErrorMessage(
+            error instanceof
+              Error
+              ? error.message
+              : 'Unable to load your profile.'
+          );
+        } finally {
+          setLoading(
+            false
           );
         }
 
-        setProfile(
-          data.user
-        );
-      } catch (error) {
-        console.log(
-          'PROFILE LOAD ERROR:',
-          error
-        );
+        // ----------------------------------------------------
+        // DONOR APPLICATION
+        // ----------------------------------------------------
 
-        setErrorMessage(
-          error instanceof Error
-            ? error.message
-            : 'Unable to load your profile.'
-        );
-      } finally {
-        setLoading(false);
-      }
-
-      // ------------------------------------------------------
-      // DONOR APPLICATION
-      // ------------------------------------------------------
-
-      try {
-        setLoadingDonorStatus(
-          true
-        );
-
-        const data =
-          await getMyDonorApplication(
-            token
+        try {
+          setLoadingDonorStatus(
+            true
           );
 
-        setDonorApplication(
-          data?.application ||
-            null
-        );
-      } catch (error) {
-        console.log(
-          'PROFILE DONOR STATUS ERROR:',
-          error
-        );
+          const data =
+            await getMyDonorApplication(
+              token
+            );
 
-        setDonorApplication(
-          null
-        );
-      } finally {
-        setLoadingDonorStatus(
-          false
-        );
-      }
-    }, []);
+          setDonorApplication(
+            data?.application ||
+              null
+          );
+        } catch (error) {
+          console.log(
+            'PROFILE DONOR STATUS ERROR:',
+            error
+          );
+
+          setDonorApplication(
+            null
+          );
+        } finally {
+          setLoadingDonorStatus(
+            false
+          );
+        }
+      },
+      []
+    );
 
   // ==========================================================
   // REFRESH WHEN SCREEN OPENS
   // ==========================================================
 
   useFocusEffect(
-    useCallback(() => {
-      loadProfile();
-    }, [loadProfile])
+    useCallback(
+      () => {
+        loadProfile();
+      },
+      [
+        loadProfile,
+      ]
+    )
   );
 
   // ==========================================================
@@ -215,7 +276,8 @@ export default function ProfileScreen() {
     message: string
   ) {
     if (
-      Platform.OS === 'web' &&
+      Platform.OS ===
+        'web' &&
       typeof window !==
         'undefined'
     ) {
@@ -243,8 +305,12 @@ export default function ProfileScreen() {
       profile?.last_name,
       profile?.suffix,
     ]
-      .filter(Boolean)
-      .join(' ') ||
+      .filter(
+        Boolean
+      )
+      .join(
+        ' '
+      ) ||
     'Hemo-Hero User';
 
   const email =
@@ -257,20 +323,17 @@ export default function ProfileScreen() {
 
   // ==========================================================
   // BLOOD TYPE
-  //
-  // Approved donor application is the trusted source.
-  // If not approved, fall back to the user's profile.
-  // If the profile has no blood type but an application does,
-  // use the application value.
   // ==========================================================
 
   const bloodType =
     donorApplication?.status ===
       'approved' &&
     donorApplication?.blood_type
-      ? donorApplication.blood_type
+      ? donorApplication
+          .blood_type
       : profile?.blood_type ||
-        donorApplication?.blood_type ||
+        donorApplication
+          ?.blood_type ||
         'Not provided';
 
   const gender =
@@ -283,8 +346,12 @@ export default function ProfileScreen() {
       profile?.city,
       profile?.province,
     ]
-      .filter(Boolean)
-      .join(', ') ||
+      .filter(
+        Boolean
+      )
+      .join(
+        ', '
+      ) ||
     'Location not provided';
 
   const shortLocation =
@@ -292,12 +359,17 @@ export default function ProfileScreen() {
       profile?.city,
       profile?.province,
     ]
-      .filter(Boolean)
-      .join(', ') ||
+      .filter(
+        Boolean
+      )
+      .join(
+        ', '
+      ) ||
     'Location not added';
 
   const profilePhotoUrl =
-    profile?.profile_photo_url ||
+    profile
+      ?.profile_photo_url ||
     '';
 
   // ==========================================================
@@ -305,15 +377,18 @@ export default function ProfileScreen() {
   // ==========================================================
 
   function formatDateOfBirth(
-    value?: string | null
+    value?:
+      | string
+      | null
   ) {
     if (!value) {
       return 'Not provided';
     }
 
-    const date = new Date(
-      `${value}T00:00:00`
-    );
+    const date =
+      new Date(
+        `${value}T00:00:00`
+      );
 
     if (
       Number.isNaN(
@@ -326,9 +401,14 @@ export default function ProfileScreen() {
     return date.toLocaleDateString(
       'en-US',
       {
-        month: 'long',
-        day: 'numeric',
-        year: 'numeric',
+        month:
+          'long',
+
+        day:
+          'numeric',
+
+        year:
+          'numeric',
       }
     );
   }
@@ -338,7 +418,9 @@ export default function ProfileScreen() {
   // ==========================================================
 
   function getDonorStatusLabel() {
-    if (!donorApplication) {
+    if (
+      !donorApplication
+    ) {
       return '';
     }
 
@@ -397,7 +479,9 @@ export default function ProfileScreen() {
   // ==========================================================
 
   function handleEditProfile() {
-    router.push('/edit-profile');
+    router.push(
+      '/edit-profile'
+    );
   }
 
   // ==========================================================
@@ -406,7 +490,7 @@ export default function ProfileScreen() {
 
   function handleBloodRequests() {
     router.replace(
-      '/dashboard'
+      '/requests' as any
     );
   }
 
@@ -415,7 +499,9 @@ export default function ProfileScreen() {
   // ==========================================================
 
   function handleDonorActivity() {
-    if (!donorApplication) {
+    if (
+      !donorApplication
+    ) {
       return;
     }
 
@@ -465,7 +551,7 @@ export default function ProfileScreen() {
   }
 
   // ==========================================================
-  // NOTIFICATIONS
+  // NOTIFICATION PREFERENCES
   // ==========================================================
 
   function handleNotifications() {
@@ -498,17 +584,23 @@ export default function ProfileScreen() {
   // ==========================================================
 
   async function performLogout() {
-    if (signingOut) {
+    if (
+      signingOut
+    ) {
       return;
     }
 
     try {
-      setSigningOut(true);
+      setSigningOut(
+        true
+      );
 
       const token =
         await getAccessToken();
 
-      if (token) {
+      if (
+        token
+      ) {
         try {
           await logoutUser(
             token
@@ -523,7 +615,9 @@ export default function ProfileScreen() {
 
       await clearSession();
 
-      router.replace('/');
+      router.replace(
+        '/'
+      );
     } catch (error) {
       console.log(
         'PROFILE LOGOUT ERROR:',
@@ -535,13 +629,16 @@ export default function ProfileScreen() {
         'Unable to sign out. Please try again.'
       );
     } finally {
-      setSigningOut(false);
+      setSigningOut(
+        false
+      );
     }
   }
 
   function handleLogout() {
     if (
-      Platform.OS === 'web'
+      Platform.OS ===
+      'web'
     ) {
       const confirmed =
         typeof window !==
@@ -551,7 +648,9 @@ export default function ProfileScreen() {
             )
           : false;
 
-      if (confirmed) {
+      if (
+        confirmed
+      ) {
         performLogout();
       }
 
@@ -563,13 +662,20 @@ export default function ProfileScreen() {
       'Are you sure you want to sign out of Hemo-Hero?',
       [
         {
-          text: 'Cancel',
-          style: 'cancel',
+          text:
+            'Cancel',
+
+          style:
+            'cancel',
         },
+
         {
-          text: 'Sign Out',
+          text:
+            'Sign Out',
+
           style:
             'destructive',
+
           onPress:
             performLogout,
         },
@@ -635,7 +741,9 @@ export default function ProfileScreen() {
                 }
               />
 
-              {/* TOP BAR */}
+              {/* ==============================================
+                  TOP BAR
+              ============================================== */}
 
               <View
                 style={
@@ -693,7 +801,9 @@ export default function ProfileScreen() {
                 </TouchableOpacity>
               </View>
 
-              {/* USER IDENTITY */}
+              {/* ==============================================
+                  USER IDENTITY
+              ============================================== */}
 
               <View
                 style={
@@ -763,7 +873,9 @@ export default function ProfileScreen() {
                   }
                 >
                   <Text
-                    numberOfLines={1}
+                    numberOfLines={
+                      1
+                    }
                     style={
                       styles.profileName
                     }
@@ -774,7 +886,9 @@ export default function ProfileScreen() {
                   </Text>
 
                   <Text
-                    numberOfLines={1}
+                    numberOfLines={
+                      1
+                    }
                     style={
                       styles.profileEmail
                     }
@@ -783,8 +897,6 @@ export default function ProfileScreen() {
                       ? 'Loading account...'
                       : email}
                   </Text>
-
-                  {/* DONOR BADGE */}
 
                   {!loadingDonorStatus &&
                   donorApplication ? (
@@ -847,8 +959,6 @@ export default function ProfileScreen() {
                 styles.quickCard
               }
             >
-              {/* BLOOD TYPE */}
-
               <View
                 style={
                   styles.quickItem
@@ -874,7 +984,9 @@ export default function ProfileScreen() {
                   }
                 >
                   <Text
-                    numberOfLines={1}
+                    numberOfLines={
+                      1
+                    }
                     style={
                       styles.quickValue
                     }
@@ -901,8 +1013,6 @@ export default function ProfileScreen() {
                 }
               />
 
-              {/* LOCATION */}
-
               <View
                 style={
                   styles.quickItem
@@ -928,7 +1038,9 @@ export default function ProfileScreen() {
                   }
                 >
                   <Text
-                    numberOfLines={1}
+                    numberOfLines={
+                      1
+                    }
                     style={
                       styles.quickValue
                     }
@@ -968,7 +1080,9 @@ export default function ProfileScreen() {
               false
             }
           >
-            {/* ERROR */}
+            {/* ==================================================
+                ERROR
+            ================================================== */}
 
             {errorMessage ? (
               <TouchableOpacity
@@ -1035,8 +1149,6 @@ export default function ProfileScreen() {
                   handleBloodRequests
                 }
               />
-
-              {/* ONLY SHOW IF USER HAS DONOR APPLICATION */}
 
               {donorApplication ? (
                 <>
@@ -1109,7 +1221,8 @@ export default function ProfileScreen() {
                   loading
                     ? 'Loading...'
                     : formatDateOfBirth(
-                        profile?.date_of_birth
+                        profile
+                          ?.date_of_birth
                       )
                 }
               />
@@ -1244,18 +1357,18 @@ export default function ProfileScreen() {
                 icon="check-circle"
                 label="Profile Completed"
                 value={
-                  profile?.onboarding_complete
+                  profile
+                    ?.onboarding_complete
                     ? 'Complete'
                     : 'Incomplete'
                 }
                 active={
                   Boolean(
-                    profile?.onboarding_complete
+                    profile
+                      ?.onboarding_complete
                   )
                 }
               />
-
-              {/* DONOR STATUS ONLY WHEN USER HAS APPLIED */}
 
               {donorApplication ? (
                 <>
@@ -1422,135 +1535,12 @@ export default function ProfileScreen() {
           </ScrollView>
 
           {/* ==================================================
-              BOTTOM NAV
+              SHARED BOTTOM NAVIGATION
           ================================================== */}
 
-          <View
-            style={
-              styles.bottomNav
-            }
-          >
-            <TouchableOpacity
-              style={
-                styles.navItem
-              }
-              onPress={() =>
-                router.replace(
-                  '/dashboard'
-                )
-              }
-            >
-              <MaterialIcons
-                name="home"
-                size={27}
-                color="#D89191"
-              />
-
-              <Text
-                style={
-                  styles.navText
-                }
-              >
-                Home
-              </Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={
-                styles.navItem
-              }
-              onPress={() =>
-                showMessage(
-                  'Search',
-                  'Search will be connected later.'
-                )
-              }
-            >
-              <MaterialIcons
-                name="person-search"
-                size={27}
-                color="#D89191"
-              />
-
-              <Text
-                style={
-                  styles.navText
-                }
-              >
-                Search
-              </Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={
-                styles.navItem
-              }
-              onPress={() =>
-                router.push(
-                  '/chat' as any
-                )
-              }
-            >
-              <MaterialIcons
-                name="chat-bubble-outline"
-                size={26}
-                color="#D89191"
-              />
-
-              <Text
-                style={
-                  styles.navText
-                }
-              >
-                Chat
-              </Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={
-                styles.navItem
-              }
-              onPress={
-                handleNotifications
-              }
-            >
-              <MaterialIcons
-                name="notifications-none"
-                size={27}
-                color="#D89191"
-              />
-
-              <Text
-                style={
-                  styles.navText
-                }
-              >
-                Notifications
-              </Text>
-            </TouchableOpacity>
-
-            <View
-              style={
-                styles.navItem
-              }
-            >
-              <MaterialIcons
-                name="person"
-                size={27}
-                color={
-                  COLORS.white
-                }
-              />
-
-              <Text
-                style={
-                  styles.navTextActive
-                }
-              >
-                Profile
-              </Text>
-            </View>
-          </View>
+          <MainBottomNav
+            activeTab="profile"
+          />
         </SafeAreaView>
       </View>
     </View>
@@ -1564,7 +1554,8 @@ export default function ProfileScreen() {
 function SectionTitle({
   title,
 }: {
-  title: string;
+  title:
+    string;
 }) {
   return (
     <Text
@@ -1585,13 +1576,17 @@ type MenuRowProps = {
   icon:
     keyof typeof MaterialIcons.glyphMap;
 
-  iconColor?: string;
+  iconColor?:
+    string;
 
-  title: string;
+  title:
+    string;
 
-  subtitle: string;
+  subtitle:
+    string;
 
-  onPress: () => void;
+  onPress:
+    () => void;
 };
 
 function MenuRow({
@@ -1620,7 +1615,9 @@ function MenuRow({
         }
       >
         <MaterialIcons
-          name={icon}
+          name={
+            icon
+          }
           size={20}
           color={
             iconColor
@@ -1642,7 +1639,9 @@ function MenuRow({
         </Text>
 
         <Text
-          numberOfLines={1}
+          numberOfLines={
+            1
+          }
           style={
             styles.menuSubtitle
           }
@@ -1668,11 +1667,14 @@ type InfoRowProps = {
   icon:
     keyof typeof MaterialIcons.glyphMap;
 
-  label: string;
+  label:
+    string;
 
-  value: string;
+  value:
+    string;
 
-  multiline?: boolean;
+  multiline?:
+    boolean;
 };
 
 function InfoRow({
@@ -1693,7 +1695,9 @@ function InfoRow({
         }
       >
         <MaterialIcons
-          name={icon}
+          name={
+            icon
+          }
           size={18}
           color={
             COLORS.redButton
@@ -1744,11 +1748,14 @@ function StatusRow({
   icon:
     keyof typeof MaterialIcons.glyphMap;
 
-  label: string;
+  label:
+    string;
 
-  value: string;
+  value:
+    string;
 
-  active: boolean;
+  active:
+    boolean;
 }) {
   return (
     <View
@@ -1767,7 +1774,9 @@ function StatusRow({
           }
         >
           <MaterialIcons
-            name={icon}
+            name={
+              icon
+            }
             size={18}
             color={
               active
@@ -1836,37 +1845,48 @@ const styles =
     // ========================================================
 
     desktopBackground: {
-      flex: 1,
-      alignItems: 'center',
-      justifyContent: 'center',
+      flex:
+        1,
+
+      alignItems:
+        'center',
+
+      justifyContent:
+        'center',
 
       backgroundColor:
-        Platform.OS === 'web'
+        Platform.OS ===
+        'web'
           ? '#242424'
           : COLORS.page,
     },
 
     phone: {
       width:
-        Platform.OS === 'web'
+        Platform.OS ===
+        'web'
           ? 402
           : '100%',
 
       height:
-        Platform.OS === 'web'
+        Platform.OS ===
+        'web'
           ? 874
           : '100%',
 
-      maxWidth: '100%',
+      maxWidth:
+        '100%',
 
-      overflow: 'hidden',
+      overflow:
+        'hidden',
 
       backgroundColor:
         COLORS.page,
     },
 
     safeArea: {
-      flex: 1,
+      flex:
+        1,
 
       backgroundColor:
         COLORS.redDark,
@@ -1877,13 +1897,17 @@ const styles =
     // ========================================================
 
     headerArea: {
-      position: 'relative',
+      position:
+        'relative',
 
-      height: 248,
+      height:
+        248,
 
-      zIndex: 10,
+      zIndex:
+        10,
 
-      overflow: 'visible',
+      overflow:
+        'visible',
 
       backgroundColor:
         COLORS.page,
@@ -1894,38 +1918,57 @@ const styles =
     // ========================================================
 
     hero: {
-      height: 210,
+      height:
+        210,
 
-      paddingHorizontal: 18,
+      paddingHorizontal:
+        18,
 
-      overflow: 'hidden',
+      overflow:
+        'hidden',
     },
 
     heroCircleLeft: {
-      position: 'absolute',
+      position:
+        'absolute',
 
-      width: 180,
-      height: 180,
+      width:
+        180,
 
-      borderRadius: 90,
+      height:
+        180,
 
-      top: -100,
-      left: -90,
+      borderRadius:
+        90,
+
+      top:
+        -100,
+
+      left:
+        -90,
 
       backgroundColor:
         'rgba(255,255,255,0.07)',
     },
 
     heroCircleRight: {
-      position: 'absolute',
+      position:
+        'absolute',
 
-      width: 190,
-      height: 190,
+      width:
+        190,
 
-      borderRadius: 95,
+      height:
+        190,
 
-      top: -105,
-      right: -95,
+      borderRadius:
+        95,
+
+      top:
+        -105,
+
+      right:
+        -95,
 
       backgroundColor:
         'rgba(255,255,255,0.07)',
@@ -1936,22 +1979,31 @@ const styles =
     // ========================================================
 
     topBar: {
-      height: 58,
+      height:
+        58,
 
-      flexDirection: 'row',
+      flexDirection:
+        'row',
 
-      alignItems: 'center',
+      alignItems:
+        'center',
 
       justifyContent:
         'space-between',
     },
 
     topButton: {
-      width: 42,
-      height: 42,
+      width:
+        42,
 
-      alignItems: 'center',
-      justifyContent: 'center',
+      height:
+        42,
+
+      alignItems:
+        'center',
+
+      justifyContent:
+        'center',
     },
 
     topTitle: {
@@ -1961,7 +2013,8 @@ const styles =
       fontFamily:
         'Poppins_700Bold',
 
-      fontSize: 18,
+      fontSize:
+        18,
     },
 
     // ========================================================
@@ -1969,26 +2022,36 @@ const styles =
     // ========================================================
 
     identityRow: {
-      flexDirection: 'row',
+      flexDirection:
+        'row',
 
-      alignItems: 'center',
+      alignItems:
+        'center',
 
-      marginTop: 18,
+      marginTop:
+        18,
 
-      paddingHorizontal: 5,
+      paddingHorizontal:
+        5,
     },
 
     avatarContainer: {
-      position: 'relative',
+      position:
+        'relative',
     },
 
     avatar: {
-      width: 86,
-      height: 86,
+      width:
+        86,
 
-      borderRadius: 43,
+      height:
+        86,
 
-      borderWidth: 3,
+      borderRadius:
+        43,
+
+      borderWidth:
+        3,
 
       borderColor:
         COLORS.white,
@@ -1996,45 +2059,65 @@ const styles =
       backgroundColor:
         '#F6DEDF',
 
-      alignItems: 'center',
+      alignItems:
+        'center',
 
       justifyContent:
         'center',
 
-      overflow: 'hidden',
+      overflow:
+        'hidden',
 
       shadowColor:
         '#000000',
 
       shadowOffset: {
-        width: 0,
-        height: 3,
+        width:
+          0,
+
+        height:
+          3,
       },
 
-      shadowOpacity: 0.15,
+      shadowOpacity:
+        0.15,
 
-      shadowRadius: 5,
+      shadowRadius:
+        5,
 
-      elevation: 4,
+      elevation:
+        4,
     },
 
     avatarImage: {
-      width: '100%',
-      height: '100%',
+      width:
+        '100%',
+
+      height:
+        '100%',
     },
 
     cameraButton: {
-      position: 'absolute',
+      position:
+        'absolute',
 
-      width: 27,
-      height: 27,
+      width:
+        27,
 
-      right: -1,
-      bottom: 0,
+      height:
+        27,
 
-      borderRadius: 14,
+      right:
+        -1,
 
-      borderWidth: 2,
+      bottom:
+        0,
+
+      borderRadius:
+        14,
+
+      borderWidth:
+        2,
 
       borderColor:
         COLORS.white,
@@ -2042,20 +2125,25 @@ const styles =
       backgroundColor:
         COLORS.white,
 
-      alignItems: 'center',
+      alignItems:
+        'center',
 
       justifyContent:
         'center',
 
-      elevation: 3,
+      elevation:
+        3,
     },
 
     identityContent: {
-      flex: 1,
+      flex:
+        1,
 
-      marginLeft: 15,
+      marginLeft:
+        15,
 
-      minWidth: 0,
+      minWidth:
+        0,
     },
 
     profileName: {
@@ -2065,13 +2153,16 @@ const styles =
       fontFamily:
         'Poppins_700Bold',
 
-      fontSize: 22,
+      fontSize:
+        22,
 
-      lineHeight: 27,
+      lineHeight:
+        27,
     },
 
     profileEmail: {
-      marginTop: 3,
+      marginTop:
+        3,
 
       color:
         'rgba(255,255,255,0.84)',
@@ -2079,7 +2170,8 @@ const styles =
       fontFamily:
         'Inter_400Regular',
 
-      fontSize: 11,
+      fontSize:
+        11,
     },
 
     // ========================================================
@@ -2090,33 +2182,45 @@ const styles =
       alignSelf:
         'flex-start',
 
-      marginTop: 9,
+      marginTop:
+        9,
 
-      minHeight: 24,
+      minHeight:
+        24,
 
-      paddingHorizontal: 8,
+      paddingHorizontal:
+        8,
 
-      flexDirection: 'row',
+      flexDirection:
+        'row',
 
-      alignItems: 'center',
+      alignItems:
+        'center',
 
-      gap: 4,
+      gap:
+        4,
 
-      borderRadius: 12,
+      borderRadius:
+        12,
     },
 
     donorBadgeText: {
       fontFamily:
         'Inter_600SemiBold',
 
-      fontSize: 9.5,
+      fontSize:
+        9.5,
     },
 
     statusDot: {
-      width: 6,
-      height: 6,
+      width:
+        6,
 
-      borderRadius: 3,
+      height:
+        6,
+
+      borderRadius:
+        3,
     },
 
     // ========================================================
@@ -2124,27 +2228,38 @@ const styles =
     // ========================================================
 
     quickCard: {
-      position: 'absolute',
+      position:
+        'absolute',
 
-      left: 16,
-      right: 16,
+      left:
+        16,
 
-      bottom: 0,
+      right:
+        16,
 
-      height: 76,
+      bottom:
+        0,
 
-      paddingHorizontal: 14,
+      height:
+        76,
 
-      flexDirection: 'row',
+      paddingHorizontal:
+        14,
 
-      alignItems: 'center',
+      flexDirection:
+        'row',
 
-      borderRadius: 18,
+      alignItems:
+        'center',
+
+      borderRadius:
+        18,
 
       backgroundColor:
         COLORS.white,
 
-      borderWidth: 1,
+      borderWidth:
+        1,
 
       borderColor:
         '#EEEEF0',
@@ -2153,38 +2268,55 @@ const styles =
         '#000000',
 
       shadowOffset: {
-        width: 0,
-        height: 5,
+        width:
+          0,
+
+        height:
+          5,
       },
 
-      shadowOpacity: 0.13,
+      shadowOpacity:
+        0.13,
 
-      shadowRadius: 12,
+      shadowRadius:
+        12,
 
-      elevation: 8,
+      elevation:
+        8,
 
-      zIndex: 50,
+      zIndex:
+        50,
     },
 
     quickItem: {
-      flex: 1,
+      flex:
+        1,
 
-      flexDirection: 'row',
+      flexDirection:
+        'row',
 
-      alignItems: 'center',
+      alignItems:
+        'center',
 
-      minWidth: 0,
+      minWidth:
+        0,
     },
 
     quickIcon: {
-      width: 40,
-      height: 40,
+      width:
+        40,
 
-      marginRight: 9,
+      height:
+        40,
 
-      borderRadius: 20,
+      marginRight:
+        9,
 
-      alignItems: 'center',
+      borderRadius:
+        20,
+
+      alignItems:
+        'center',
 
       justifyContent:
         'center',
@@ -2194,9 +2326,11 @@ const styles =
     },
 
     quickContent: {
-      flex: 1,
+      flex:
+        1,
 
-      minWidth: 0,
+      minWidth:
+        0,
     },
 
     quickValue: {
@@ -2206,13 +2340,16 @@ const styles =
       fontFamily:
         'Inter_600SemiBold',
 
-      fontSize: 12,
+      fontSize:
+        12,
 
-      lineHeight: 16,
+      lineHeight:
+        16,
     },
 
     quickLabel: {
-      marginTop: 2,
+      marginTop:
+        2,
 
       color:
         COLORS.lightMuted,
@@ -2220,16 +2357,19 @@ const styles =
       fontFamily:
         'Inter_400Regular',
 
-      fontSize: 10,
+      fontSize:
+        10,
     },
 
     quickDivider: {
       width:
         StyleSheet.hairlineWidth,
 
-      height: 38,
+      height:
+        38,
 
-      marginHorizontal: 11,
+      marginHorizontal:
+        11,
 
       backgroundColor:
         COLORS.border,
@@ -2240,18 +2380,22 @@ const styles =
     // ========================================================
 
     content: {
-      flex: 1,
+      flex:
+        1,
 
       backgroundColor:
         COLORS.page,
     },
 
     contentContainer: {
-      paddingHorizontal: 18,
+      paddingHorizontal:
+        18,
 
-      paddingTop: 18,
+      paddingTop:
+        18,
 
-      paddingBottom: 32,
+      paddingBottom:
+        32,
     },
 
     // ========================================================
@@ -2259,11 +2403,14 @@ const styles =
     // ========================================================
 
     sectionTitle: {
-      marginLeft: 3,
+      marginLeft:
+        3,
 
-      marginTop: 2,
+      marginTop:
+        2,
 
-      marginBottom: 8,
+      marginBottom:
+        8,
 
       color:
         COLORS.black,
@@ -2271,20 +2418,25 @@ const styles =
       fontFamily:
         'Poppins_600SemiBold',
 
-      fontSize: 14,
+      fontSize:
+        14,
     },
 
     card: {
-      marginBottom: 22,
+      marginBottom:
+        22,
 
-      paddingHorizontal: 13,
+      paddingHorizontal:
+        13,
 
-      borderWidth: 1,
+      borderWidth:
+        1,
 
       borderColor:
         COLORS.border,
 
-      borderRadius: 16,
+      borderRadius:
+        16,
 
       backgroundColor:
         COLORS.white,
@@ -2293,23 +2445,29 @@ const styles =
         '#000000',
 
       shadowOffset: {
-        width: 0,
-        height: 2,
+        width:
+          0,
+
+        height:
+          2,
       },
 
       shadowOpacity:
         0.035,
 
-      shadowRadius: 5,
+      shadowRadius:
+        5,
 
-      elevation: 1,
+      elevation:
+        1,
     },
 
     divider: {
       height:
         StyleSheet.hairlineWidth,
 
-      marginLeft: 49,
+      marginLeft:
+        49,
 
       backgroundColor:
         COLORS.border,
@@ -2320,24 +2478,34 @@ const styles =
     // ========================================================
 
     menuRow: {
-      minHeight: 67,
+      minHeight:
+        67,
 
-      flexDirection: 'row',
+      flexDirection:
+        'row',
 
-      alignItems: 'center',
+      alignItems:
+        'center',
 
-      paddingVertical: 10,
+      paddingVertical:
+        10,
     },
 
     menuIcon: {
-      width: 38,
-      height: 38,
+      width:
+        38,
 
-      marginRight: 11,
+      height:
+        38,
 
-      borderRadius: 19,
+      marginRight:
+        11,
 
-      alignItems: 'center',
+      borderRadius:
+        19,
+
+      alignItems:
+        'center',
 
       justifyContent:
         'center',
@@ -2347,11 +2515,14 @@ const styles =
     },
 
     menuContent: {
-      flex: 1,
+      flex:
+        1,
 
-      minWidth: 0,
+      minWidth:
+        0,
 
-      paddingRight: 6,
+      paddingRight:
+        6,
     },
 
     menuTitle: {
@@ -2361,11 +2532,13 @@ const styles =
       fontFamily:
         'Poppins_600SemiBold',
 
-      fontSize: 12,
+      fontSize:
+        12,
     },
 
     menuSubtitle: {
-      marginTop: 3,
+      marginTop:
+        3,
 
       color:
         COLORS.muted,
@@ -2373,7 +2546,8 @@ const styles =
       fontFamily:
         'Inter_400Regular',
 
-      fontSize: 10,
+      fontSize:
+        10,
     },
 
     // ========================================================
@@ -2381,24 +2555,34 @@ const styles =
     // ========================================================
 
     infoRow: {
-      minHeight: 63,
+      minHeight:
+        63,
 
-      flexDirection: 'row',
+      flexDirection:
+        'row',
 
-      alignItems: 'center',
+      alignItems:
+        'center',
 
-      paddingVertical: 9,
+      paddingVertical:
+        9,
     },
 
     infoIcon: {
-      width: 37,
-      height: 37,
+      width:
+        37,
 
-      marginRight: 11,
+      height:
+        37,
 
-      borderRadius: 19,
+      marginRight:
+        11,
 
-      alignItems: 'center',
+      borderRadius:
+        19,
+
+      alignItems:
+        'center',
 
       justifyContent:
         'center',
@@ -2408,9 +2592,11 @@ const styles =
     },
 
     infoContent: {
-      flex: 1,
+      flex:
+        1,
 
-      minWidth: 0,
+      minWidth:
+        0,
     },
 
     infoLabel: {
@@ -2420,11 +2606,13 @@ const styles =
       fontFamily:
         'Inter_500Medium',
 
-      fontSize: 9.5,
+      fontSize:
+        9.5,
     },
 
     infoValue: {
-      marginTop: 3,
+      marginTop:
+        3,
 
       color:
         COLORS.black,
@@ -2432,9 +2620,11 @@ const styles =
       fontFamily:
         'Inter_600SemiBold',
 
-      fontSize: 12,
+      fontSize:
+        12,
 
-      lineHeight: 16,
+      lineHeight:
+        16,
     },
 
     // ========================================================
@@ -2442,33 +2632,45 @@ const styles =
     // ========================================================
 
     medicalRow: {
-      minHeight: 73,
+      minHeight:
+        73,
 
-      flexDirection: 'row',
+      flexDirection:
+        'row',
 
-      alignItems: 'center',
+      alignItems:
+        'center',
 
       justifyContent:
         'space-between',
     },
 
     medicalLeft: {
-      flex: 1,
+      flex:
+        1,
 
-      flexDirection: 'row',
+      flexDirection:
+        'row',
 
-      alignItems: 'center',
+      alignItems:
+        'center',
     },
 
     medicalIcon: {
-      width: 40,
-      height: 40,
+      width:
+        40,
 
-      marginRight: 10,
+      height:
+        40,
 
-      borderRadius: 20,
+      marginRight:
+        10,
 
-      alignItems: 'center',
+      borderRadius:
+        20,
+
+      alignItems:
+        'center',
 
       justifyContent:
         'center',
@@ -2484,11 +2686,13 @@ const styles =
       fontFamily:
         'Poppins_600SemiBold',
 
-      fontSize: 12,
+      fontSize:
+        12,
     },
 
     medicalHelper: {
-      marginTop: 3,
+      marginTop:
+        3,
 
       color:
         COLORS.lightMuted,
@@ -2496,19 +2700,25 @@ const styles =
       fontFamily:
         'Inter_400Regular',
 
-      fontSize: 10,
+      fontSize:
+        10,
     },
 
     bloodBadge: {
-      minWidth: 46,
+      minWidth:
+        46,
 
-      height: 39,
+      height:
+        39,
 
-      paddingHorizontal: 10,
+      paddingHorizontal:
+        10,
 
-      borderRadius: 11,
+      borderRadius:
+        11,
 
-      alignItems: 'center',
+      alignItems:
+        'center',
 
       justifyContent:
         'center',
@@ -2524,7 +2734,8 @@ const styles =
       fontFamily:
         'Poppins_700Bold',
 
-      fontSize: 13,
+      fontSize:
+        13,
     },
 
     // ========================================================
@@ -2532,33 +2743,45 @@ const styles =
     // ========================================================
 
     statusRow: {
-      minHeight: 62,
+      minHeight:
+        62,
 
-      flexDirection: 'row',
+      flexDirection:
+        'row',
 
-      alignItems: 'center',
+      alignItems:
+        'center',
 
       justifyContent:
         'space-between',
     },
 
     statusLeft: {
-      flex: 1,
+      flex:
+        1,
 
-      flexDirection: 'row',
+      flexDirection:
+        'row',
 
-      alignItems: 'center',
+      alignItems:
+        'center',
     },
 
     statusIcon: {
-      width: 37,
-      height: 37,
+      width:
+        37,
 
-      marginRight: 11,
+      height:
+        37,
 
-      borderRadius: 19,
+      marginRight:
+        11,
 
-      alignItems: 'center',
+      borderRadius:
+        19,
+
+      alignItems:
+        'center',
 
       justifyContent:
         'center',
@@ -2574,17 +2797,22 @@ const styles =
       fontFamily:
         'Inter_500Medium',
 
-      fontSize: 11,
+      fontSize:
+        11,
     },
 
     statusBadge: {
-      maxWidth: 142,
+      maxWidth:
+        142,
 
-      paddingHorizontal: 9,
+      paddingHorizontal:
+        9,
 
-      paddingVertical: 5,
+      paddingVertical:
+        5,
 
-      borderRadius: 12,
+      borderRadius:
+        12,
     },
 
     statusBadgeActive: {
@@ -2601,9 +2829,11 @@ const styles =
       fontFamily:
         'Inter_600SemiBold',
 
-      fontSize: 9.5,
+      fontSize:
+        9.5,
 
-      textAlign: 'center',
+      textAlign:
+        'center',
     },
 
     statusBadgeTextActive: {
@@ -2621,23 +2851,32 @@ const styles =
     // ========================================================
 
     errorCard: {
-      minHeight: 58,
+      minHeight:
+        58,
 
-      marginBottom: 18,
+      marginBottom:
+        18,
 
-      paddingHorizontal: 12,
+      paddingHorizontal:
+        12,
 
-      paddingVertical: 10,
+      paddingVertical:
+        10,
 
-      flexDirection: 'row',
+      flexDirection:
+        'row',
 
-      alignItems: 'center',
+      alignItems:
+        'center',
 
-      gap: 9,
+      gap:
+        9,
 
-      borderRadius: 12,
+      borderRadius:
+        12,
 
-      borderWidth: 1,
+      borderWidth:
+        1,
 
       borderColor:
         '#ECB0B2',
@@ -2647,7 +2886,8 @@ const styles =
     },
 
     errorContent: {
-      flex: 1,
+      flex:
+        1,
     },
 
     errorTitle: {
@@ -2657,11 +2897,13 @@ const styles =
       fontFamily:
         'Inter_600SemiBold',
 
-      fontSize: 11.5,
+      fontSize:
+        11.5,
     },
 
     errorText: {
-      marginTop: 2,
+      marginTop:
+        2,
 
       color:
         COLORS.muted,
@@ -2669,7 +2911,8 @@ const styles =
       fontFamily:
         'Inter_400Regular',
 
-      fontSize: 10,
+      fontSize:
+        10,
     },
 
     // ========================================================
@@ -2677,20 +2920,26 @@ const styles =
     // ========================================================
 
     logoutButton: {
-      height: 49,
+      height:
+        49,
 
-      marginTop: 3,
+      marginTop:
+        3,
 
-      borderRadius: 12,
+      borderRadius:
+        12,
 
-      flexDirection: 'row',
+      flexDirection:
+        'row',
 
-      alignItems: 'center',
+      alignItems:
+        'center',
 
       justifyContent:
         'center',
 
-      gap: 8,
+      gap:
+        8,
 
       backgroundColor:
         COLORS.redButton,
@@ -2699,15 +2948,21 @@ const styles =
         '#000000',
 
       shadowOffset: {
-        width: 0,
-        height: 2,
+        width:
+          0,
+
+        height:
+          2,
       },
 
-      shadowOpacity: 0.08,
+      shadowOpacity:
+        0.08,
 
-      shadowRadius: 4,
+      shadowRadius:
+        4,
 
-      elevation: 2,
+      elevation:
+        2,
     },
 
     logoutText: {
@@ -2717,11 +2972,13 @@ const styles =
       fontFamily:
         'Poppins_600SemiBold',
 
-      fontSize: 12,
+      fontSize:
+        12,
     },
 
     footerText: {
-      marginTop: 18,
+      marginTop:
+        18,
 
       color:
         COLORS.lightMuted,
@@ -2729,65 +2986,10 @@ const styles =
       fontFamily:
         'Inter_400Regular',
 
-      fontSize: 9.5,
+      fontSize:
+        9.5,
 
-      textAlign: 'center',
-    },
-
-    // ========================================================
-    // BOTTOM NAV
-    // ========================================================
-
-    bottomNav: {
-      height: 76,
-
-      flexDirection: 'row',
-
-      alignItems: 'center',
-
-      justifyContent:
-        'space-around',
-
-      backgroundColor:
-        '#A90707',
-
-      borderTopWidth:
-        StyleSheet.hairlineWidth,
-
-      borderTopColor:
-        'rgba(255,255,255,0.16)',
-    },
-
-    navItem: {
-      flex: 1,
-
-      height: '100%',
-
-      alignItems: 'center',
-
-      justifyContent:
+      textAlign:
         'center',
-
-      gap: 3,
-    },
-
-    navText: {
-      color:
-        '#D89191',
-
-      fontFamily:
-        'Inter_500Medium',
-
-      fontSize: 10,
-    },
-
-    navTextActive: {
-      color:
-        COLORS.white,
-
-      fontFamily:
-        'Inter_600SemiBold',
-
-      fontSize: 10,
     },
   });
