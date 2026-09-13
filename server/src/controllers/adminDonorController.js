@@ -2,6 +2,10 @@ const {
   supabaseAdmin,
 } = require('../config/supabase');
 
+const {
+  createNotification,
+} = require('../services/notificationService');
+
 // ============================================================
 // CONSTANTS
 // ============================================================
@@ -578,11 +582,6 @@ async function approveDonorApplication(
 
     // --------------------------------------------------------
     // LOAD APPLICATION
-    //
-    // We need:
-    // - current status
-    // - user_id
-    // - verified blood_type
     // --------------------------------------------------------
 
     const {
@@ -665,9 +664,6 @@ async function approveDonorApplication(
 
     // --------------------------------------------------------
     // BLOOD TYPE REQUIRED
-    //
-    // A donor should never become verified without a blood
-    // type because blood matching depends on it.
     // --------------------------------------------------------
 
     const verifiedBloodType =
@@ -755,10 +751,6 @@ async function approveDonorApplication(
         });
     }
 
-    // --------------------------------------------------------
-    // APPLICATION CHANGED BEFORE UPDATE
-    // --------------------------------------------------------
-
     if (!updated) {
       return res
         .status(409)
@@ -793,10 +785,6 @@ async function approveDonorApplication(
 
     // ========================================================
     // BLOOD TYPE SYNC FAILED
-    //
-    // Try to restore the application to pending so that we
-    // don't leave the user as an approved donor without their
-    // verified blood type being synchronized.
     // ========================================================
 
     if (
@@ -869,6 +857,38 @@ async function approveDonorApplication(
             'Unable to synchronize the verified blood type with the donor profile. The approval was cancelled. Please try again.',
         });
     }
+
+    // ========================================================
+    // NOTIFY DONOR
+    // ========================================================
+
+    await createNotification({
+      userId:
+        existing.user_id,
+
+      type:
+        'donor_application_approved',
+
+      title:
+        'Donor Application Approved',
+
+      message:
+        `Your donor application has been approved. Your verified blood type is ${verifiedBloodType}. You can now respond to compatible blood requests.`,
+
+      data: {
+        application_id:
+          updated.id,
+
+        status:
+          'approved',
+
+        blood_type:
+          verifiedBloodType,
+
+        admin_note:
+          cleanAdminNote,
+      },
+    });
 
     // ========================================================
     // SUCCESS
@@ -966,6 +986,8 @@ async function rejectDonorApplication(
 
     // --------------------------------------------------------
     // LOAD APPLICATION
+    //
+    // user_id is required so the donor can be notified.
     // --------------------------------------------------------
 
     const {
@@ -979,7 +1001,12 @@ async function rejectDonorApplication(
           'donor_applications'
         )
         .select(
-          'id, status'
+          `
+            id,
+            user_id,
+            blood_type,
+            status
+          `
         )
         .eq(
           'id',
@@ -1093,6 +1120,52 @@ async function rejectDonorApplication(
             'The donor application is no longer pending.',
         });
     }
+
+    // ========================================================
+    // NOTIFY DONOR
+    // ========================================================
+
+    if (
+      existing.user_id
+    ) {
+      await createNotification({
+        userId:
+          existing.user_id,
+
+        type:
+          'donor_application_rejected',
+
+        title:
+          'Donor Application Update',
+
+        message:
+          `Your donor application was not approved. Reason: ${cleanNote}`,
+
+        data: {
+          application_id:
+            updated.id,
+
+          status:
+            'rejected',
+
+          blood_type:
+            existing.blood_type ||
+            null,
+
+          admin_note:
+            cleanNote,
+        },
+      });
+    } else {
+      console.warn(
+        'DONOR REJECTION NOTIFICATION SKIPPED: application has no user_id:',
+        id
+      );
+    }
+
+    // ========================================================
+    // SUCCESS
+    // ========================================================
 
     return res.json({
       message:
