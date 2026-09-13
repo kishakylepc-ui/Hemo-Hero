@@ -2,6 +2,12 @@ const {
   supabaseAdmin
 } = require('../config/supabase');
 
+const {
+  createNotification
+} = require(
+  '../services/notificationService'
+);
+
 // ============================================================
 // HELPERS
 // ============================================================
@@ -45,10 +51,6 @@ function getResponseId(req) {
 
 // ============================================================
 // SAFE DONOR PROFILE
-//
-// Do not expose private donor information here.
-// Contact information can be added later only after the
-// recipient accepts the donor.
 // ============================================================
 
 function buildSafeDonorProfile(
@@ -80,7 +82,10 @@ function buildSafeDonorProfile(
     ]
       .filter(Boolean)
       .join(' ')
-      .replace(/\s+/g, ' ')
+      .replace(
+        /\s+/g,
+        ' '
+      )
       .trim() ||
     'Hemo-Hero Donor';
 
@@ -144,15 +149,15 @@ function buildSafeDonorProfile(
 
 // ============================================================
 // ENRICH RESPONSES
-//
-// Adds safe donor profile and approved donor information.
 // ============================================================
 
 async function enrichDonorResponses(
   responses
 ) {
   if (
-    !Array.isArray(responses) ||
+    !Array.isArray(
+      responses
+    ) ||
     responses.length === 0
   ) {
     return [];
@@ -184,7 +189,7 @@ async function enrichDonorResponses(
   }
 
   // ----------------------------------------------------------
-  // USER PROFILES
+  // USERS
   // ----------------------------------------------------------
 
   const {
@@ -194,7 +199,9 @@ async function enrichDonorResponses(
       usersError
   } =
     await supabaseAdmin
-      .from('users')
+      .from(
+        'users'
+      )
       .select('*')
       .in(
         'id',
@@ -275,10 +282,6 @@ async function enrichDonorResponses(
     );
   }
 
-  // ----------------------------------------------------------
-  // RESULT
-  // ----------------------------------------------------------
-
   return responses.map(
     response => {
       const user =
@@ -355,9 +358,54 @@ async function getOwnedBloodRequest(
 }
 
 // ============================================================
+// NOTIFY REQUESTER ABOUT DONOR RESPONSE
+// ============================================================
+
+async function notifyRequesterAboutResponse(
+  bloodRequest,
+  response
+) {
+  if (
+    !bloodRequest?.requester_id ||
+    !response?.id
+  ) {
+    return;
+  }
+
+  await createNotification({
+    userId:
+      bloodRequest.requester_id,
+
+    type:
+      'donor_response_received',
+
+    title:
+      'New Donor Response',
+
+    message:
+      `A verified donor responded to your ${bloodRequest.blood_type} blood request at ${bloodRequest.facility_name}.`,
+
+    data: {
+      request_id:
+        bloodRequest.id,
+
+      response_id:
+        response.id,
+
+      donor_id:
+        response.donor_id,
+
+      blood_type:
+        bloodRequest.blood_type,
+
+      facility_name:
+        bloodRequest.facility_name
+    }
+  });
+}
+
+// ============================================================
 // POST /api/requests/:id/respond
-//
-// DONOR RESPONDS TO AN ACTIVE REQUEST
 // ============================================================
 
 async function respondToBloodRequest(
@@ -380,7 +428,9 @@ async function respondToBloodRequest(
     }
 
     const requestId =
-      getRequestId(req);
+      getRequestId(
+        req
+      );
 
     if (!requestId) {
       return res
@@ -409,7 +459,7 @@ async function respondToBloodRequest(
     }
 
     // --------------------------------------------------------
-    // FIND BLOOD REQUEST
+    // BLOOD REQUEST
     // --------------------------------------------------------
 
     const {
@@ -458,10 +508,6 @@ async function respondToBloodRequest(
         });
     }
 
-    // --------------------------------------------------------
-    // CANNOT RESPOND TO OWN REQUEST
-    // --------------------------------------------------------
-
     if (
       bloodRequest.requester_id ===
       donorId
@@ -473,10 +519,6 @@ async function respondToBloodRequest(
             'You cannot respond to your own blood request.'
         });
     }
-
-    // --------------------------------------------------------
-    // REQUEST MUST STILL BE ACTIVE
-    // --------------------------------------------------------
 
     if (
       bloodRequest.status !==
@@ -491,7 +533,7 @@ async function respondToBloodRequest(
     }
 
     // --------------------------------------------------------
-    // CHECK EXISTING RESPONSE
+    // EXISTING RESPONSE
     // --------------------------------------------------------
 
     const {
@@ -529,10 +571,6 @@ async function respondToBloodRequest(
         });
     }
 
-    // --------------------------------------------------------
-    // ALREADY ACTIVE
-    // --------------------------------------------------------
-
     if (
       existingResponse &&
       (
@@ -557,10 +595,12 @@ async function respondToBloodRequest(
     }
 
     // --------------------------------------------------------
-    // REACTIVATE WITHDRAWN / REJECTED RESPONSE
+    // REACTIVATE
     // --------------------------------------------------------
 
-    if (existingResponse) {
+    if (
+      existingResponse
+    ) {
       const {
         data:
           updatedResponse,
@@ -603,6 +643,11 @@ async function respondToBloodRequest(
           });
       }
 
+      await notifyRequesterAboutResponse(
+        bloodRequest,
+        updatedResponse
+      );
+
       return res
         .status(200)
         .json({
@@ -615,7 +660,7 @@ async function respondToBloodRequest(
     }
 
     // --------------------------------------------------------
-    // CREATE NEW RESPONSE
+    // CREATE RESPONSE
     // --------------------------------------------------------
 
     const {
@@ -658,6 +703,11 @@ async function respondToBloodRequest(
         });
     }
 
+    await notifyRequesterAboutResponse(
+      bloodRequest,
+      createdResponse
+    );
+
     return res
       .status(201)
       .json({
@@ -684,8 +734,6 @@ async function respondToBloodRequest(
 
 // ============================================================
 // GET /api/requests/:id/my-response
-//
-// GET CURRENT DONOR'S RESPONSE
 // ============================================================
 
 async function getMyDonorResponse(
@@ -708,7 +756,9 @@ async function getMyDonorResponse(
     }
 
     const requestId =
-      getRequestId(req);
+      getRequestId(
+        req
+      );
 
     if (!requestId) {
       return res
@@ -775,8 +825,6 @@ async function getMyDonorResponse(
 
 // ============================================================
 // PATCH /api/requests/:id/response/withdraw
-//
-// DONOR WITHDRAWS A PENDING RESPONSE
 // ============================================================
 
 async function withdrawDonorResponse(
@@ -799,7 +847,9 @@ async function withdrawDonorResponse(
     }
 
     const requestId =
-      getRequestId(req);
+      getRequestId(
+        req
+      );
 
     if (!requestId) {
       return res
@@ -908,6 +958,69 @@ async function withdrawDonorResponse(
         });
     }
 
+    // --------------------------------------------------------
+    // NOTIFY REQUEST OWNER
+    // --------------------------------------------------------
+
+    const {
+      data:
+        bloodRequest,
+      error:
+        bloodRequestError
+    } =
+      await supabaseAdmin
+        .from(
+          'blood_requests'
+        )
+        .select(`
+          id,
+          requester_id,
+          blood_type,
+          facility_name
+        `)
+        .eq(
+          'id',
+          requestId
+        )
+        .maybeSingle();
+
+    if (bloodRequestError) {
+      console.error(
+        'WITHDRAW RESPONSE REQUEST LOOKUP ERROR:',
+        bloodRequestError
+      );
+    }
+
+    if (
+      bloodRequest
+        ?.requester_id
+    ) {
+      await createNotification({
+        userId:
+          bloodRequest.requester_id,
+
+        type:
+          'donor_response_withdrawn',
+
+        title:
+          'Donor Response Withdrawn',
+
+        message:
+          `A donor withdrew their response to your ${bloodRequest.blood_type} blood request at ${bloodRequest.facility_name}.`,
+
+        data: {
+          request_id:
+            requestId,
+
+          response_id:
+            updatedResponse.id,
+
+          donor_id:
+            donorId
+        }
+      });
+    }
+
     return res
       .status(200)
       .json({
@@ -934,10 +1047,6 @@ async function withdrawDonorResponse(
 
 // ============================================================
 // GET /api/requests/:id/responses
-//
-// REQUEST OWNER ONLY
-//
-// Returns donor response + SAFE donor profile.
 // ============================================================
 
 async function getResponsesForMyBloodRequest(
@@ -960,7 +1069,9 @@ async function getResponsesForMyBloodRequest(
     }
 
     const requestId =
-      getRequestId(req);
+      getRequestId(
+        req
+      );
 
     if (!requestId) {
       return res
@@ -970,10 +1081,6 @@ async function getResponsesForMyBloodRequest(
             'Request ID is required.'
         });
     }
-
-    // --------------------------------------------------------
-    // VERIFY OWNERSHIP
-    // --------------------------------------------------------
 
     const bloodRequest =
       await getOwnedBloodRequest(
@@ -989,10 +1096,6 @@ async function getResponsesForMyBloodRequest(
             'Blood request not found.'
         });
     }
-
-    // --------------------------------------------------------
-    // RESPONSES
-    // --------------------------------------------------------
 
     const {
       data:
@@ -1119,12 +1222,6 @@ async function getResponsesForMyBloodRequest(
 
 // ============================================================
 // PATCH /api/requests/:id/responses/:responseId/accept
-//
-// REQUEST OWNER ACCEPTS A DONOR OFFER
-//
-// IMPORTANT:
-// Accepting one donor DOES NOT reject the others.
-// A blood request can require multiple donors/units.
 // ============================================================
 
 async function acceptDonorResponse(
@@ -1147,10 +1244,14 @@ async function acceptDonorResponse(
     }
 
     const requestId =
-      getRequestId(req);
+      getRequestId(
+        req
+      );
 
     const responseId =
-      getResponseId(req);
+      getResponseId(
+        req
+      );
 
     if (!requestId) {
       return res
@@ -1169,10 +1270,6 @@ async function acceptDonorResponse(
             'Response ID is required.'
         });
     }
-
-    // --------------------------------------------------------
-    // VERIFY REQUEST OWNER
-    // --------------------------------------------------------
 
     const bloodRequest =
       await getOwnedBloodRequest(
@@ -1200,10 +1297,6 @@ async function acceptDonorResponse(
             'Only active blood requests can accept donor offers.'
         });
     }
-
-    // --------------------------------------------------------
-    // FIND RESPONSE
-    // --------------------------------------------------------
 
     const {
       data:
@@ -1274,7 +1367,7 @@ async function acceptDonorResponse(
     }
 
     // --------------------------------------------------------
-    // DONOR MUST STILL BE VERIFIED
+    // DONOR VERIFICATION
     // --------------------------------------------------------
 
     const {
@@ -1384,6 +1477,38 @@ async function acceptDonorResponse(
         });
     }
 
+    // --------------------------------------------------------
+    // NOTIFY DONOR
+    // --------------------------------------------------------
+
+    await createNotification({
+      userId:
+        response.donor_id,
+
+      type:
+        'donor_response_accepted',
+
+      title:
+        'Your Offer Was Accepted',
+
+      message:
+        `Your donor offer for the ${bloodRequest.blood_type} blood request at ${bloodRequest.facility_name} was accepted.`,
+
+      data: {
+        request_id:
+          requestId,
+
+        response_id:
+          responseId,
+
+        blood_type:
+          bloodRequest.blood_type,
+
+        facility_name:
+          bloodRequest.facility_name
+      }
+    });
+
     const enriched =
       await enrichDonorResponses([
         updatedResponse
@@ -1417,8 +1542,6 @@ async function acceptDonorResponse(
 
 // ============================================================
 // PATCH /api/requests/:id/responses/:responseId/reject
-//
-// REQUEST OWNER REJECTS A PENDING DONOR OFFER
 // ============================================================
 
 async function rejectDonorResponse(
@@ -1441,10 +1564,14 @@ async function rejectDonorResponse(
     }
 
     const requestId =
-      getRequestId(req);
+      getRequestId(
+        req
+      );
 
     const responseId =
-      getResponseId(req);
+      getResponseId(
+        req
+      );
 
     if (!requestId) {
       return res
@@ -1463,10 +1590,6 @@ async function rejectDonorResponse(
             'Response ID is required.'
         });
     }
-
-    // --------------------------------------------------------
-    // VERIFY REQUEST OWNER
-    // --------------------------------------------------------
 
     const bloodRequest =
       await getOwnedBloodRequest(
@@ -1494,10 +1617,6 @@ async function rejectDonorResponse(
             'Only active blood requests can manage donor offers.'
         });
     }
-
-    // --------------------------------------------------------
-    // RESPONSE
-    // --------------------------------------------------------
 
     const {
       data:
@@ -1558,10 +1677,6 @@ async function rejectDonorResponse(
         });
     }
 
-    // --------------------------------------------------------
-    // REJECT
-    // --------------------------------------------------------
-
     const {
       data:
         updatedResponse,
@@ -1613,6 +1728,38 @@ async function rejectDonorResponse(
             'This donor offer is no longer pending.'
         });
     }
+
+    // --------------------------------------------------------
+    // NOTIFY DONOR
+    // --------------------------------------------------------
+
+    await createNotification({
+      userId:
+        response.donor_id,
+
+      type:
+        'donor_response_rejected',
+
+      title:
+        'Donor Offer Update',
+
+      message:
+        `Your donor offer for the ${bloodRequest.blood_type} blood request at ${bloodRequest.facility_name} was not selected.`,
+
+      data: {
+        request_id:
+          requestId,
+
+        response_id:
+          responseId,
+
+        blood_type:
+          bloodRequest.blood_type,
+
+        facility_name:
+          bloodRequest.facility_name
+      }
+    });
 
     const enriched =
       await enrichDonorResponses([

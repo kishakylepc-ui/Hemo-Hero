@@ -225,6 +225,83 @@ export type BloodRequest = {
   updated_at: string;
 };
 
+// ------------------------------------------------------------
+// NOTIFICATION
+// ------------------------------------------------------------
+
+export type NotificationType =
+  | 'request'
+  | 'match'
+  | 'system'
+  | 'donor_response_received'
+  | 'donor_response_withdrawn'
+  | 'donor_response_accepted'
+  | 'donor_response_rejected'
+  | 'blood_request_fulfilled'
+  | 'blood_request_cancelled'
+  | 'donor_application_approved'
+  | 'donor_application_rejected'
+  | 'coordination_message'
+  | 'coordination_schedule'
+  | string;
+
+export type NotificationData = {
+  request_id?:
+    | string
+    | null;
+
+  response_id?:
+    | string
+    | null;
+
+  donor_id?:
+    | string
+    | null;
+
+  blood_type?:
+    | string
+    | null;
+
+  facility_name?:
+    | string
+    | null;
+
+  status?:
+    | string
+    | null;
+
+  [key: string]:
+    unknown;
+};
+
+export type AppNotification = {
+  id: string;
+
+  user_id: string;
+
+  type:
+    NotificationType;
+
+  title: string;
+
+  message: string;
+
+  related_request_id?:
+    | string
+    | null;
+
+  data:
+    NotificationData;
+
+  is_read: boolean;
+
+  read_at?:
+    | string
+    | null;
+
+  created_at: string;
+};
+
 // ============================================================
 // GENERIC API REQUEST
 // ============================================================
@@ -576,10 +653,6 @@ export async function uploadProfilePhoto(
   const formData =
     new FormData();
 
-  // ----------------------------------------------------------
-  // WEB
-  // ----------------------------------------------------------
-
   if (
     Platform.OS === 'web' &&
     photo.webFile
@@ -592,10 +665,6 @@ export async function uploadProfilePhoto(
         'profile-photo.jpg'
     );
   } else {
-    // --------------------------------------------------------
-    // IOS / ANDROID
-    // --------------------------------------------------------
-
     const fileName =
       photo.fileName ||
       `profile-${Date.now()}.jpg`;
@@ -633,15 +702,6 @@ export async function uploadProfilePhoto(
             Authorization:
               `Bearer ${accessToken}`,
           },
-
-          /*
-            IMPORTANT:
-
-            Do not manually set Content-Type here.
-
-            fetch will automatically create the proper
-            multipart/form-data boundary.
-          */
 
           body:
             formData,
@@ -857,6 +917,106 @@ export async function cancelBloodRequest(
     `/api/requests/${encodeURIComponent(
       requestId
     )}/cancel`,
+    {
+      method:
+        'PATCH',
+
+      headers: {
+        Authorization:
+          `Bearer ${accessToken}`,
+      },
+    }
+  );
+}
+
+// ============================================================
+// NOTIFICATIONS
+// ============================================================
+
+// ------------------------------------------------------------
+// GET NOTIFICATIONS
+// ------------------------------------------------------------
+
+export async function getNotifications(
+  accessToken: string,
+  limit = 50
+) {
+  const query =
+    new URLSearchParams({
+      limit:
+        String(
+          limit
+        ),
+    });
+
+  return request(
+    `/api/notifications?${query.toString()}`,
+    {
+      method:
+        'GET',
+
+      headers: {
+        Authorization:
+          `Bearer ${accessToken}`,
+      },
+    }
+  );
+}
+
+// ------------------------------------------------------------
+// GET UNREAD COUNT
+// ------------------------------------------------------------
+
+export async function getUnreadNotificationCount(
+  accessToken: string
+) {
+  return request(
+    '/api/notifications/unread-count',
+    {
+      method:
+        'GET',
+
+      headers: {
+        Authorization:
+          `Bearer ${accessToken}`,
+      },
+    }
+  );
+}
+
+// ------------------------------------------------------------
+// MARK ONE READ
+// ------------------------------------------------------------
+
+export async function markNotificationAsRead(
+  accessToken: string,
+  notificationId: string
+) {
+  return request(
+    `/api/notifications/${encodeURIComponent(
+      notificationId
+    )}/read`,
+    {
+      method:
+        'PATCH',
+
+      headers: {
+        Authorization:
+          `Bearer ${accessToken}`,
+      },
+    }
+  );
+}
+
+// ------------------------------------------------------------
+// MARK ALL READ
+// ------------------------------------------------------------
+
+export async function markAllNotificationsAsRead(
+  accessToken: string
+) {
+  return request(
+    '/api/notifications/read-all',
     {
       method:
         'PATCH',

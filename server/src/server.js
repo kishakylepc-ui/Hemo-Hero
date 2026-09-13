@@ -28,6 +28,9 @@ const donorApplicationRoutes =
 const adminDonorRoutes =
   require('./routes/adminDonorRoutes');
 
+const notificationRoutes =
+  require('./routes/notificationRoutes');
+
 // ============================================================
 // APP
 // ============================================================
@@ -121,13 +124,6 @@ app.use(
 
 // ============================================================
 // DONOR APPLICATIONS
-//
-// User / donor-facing routes:
-//
-// GET   /api/donors/me
-// POST  /api/donors/verification-id
-// POST  /api/donors/apply
-// PATCH /api/donors/me/withdraw
 // ============================================================
 
 app.use(
@@ -137,30 +133,25 @@ app.use(
 
 // ============================================================
 // ADMIN DONOR APPLICATION REVIEW
-//
-// Every route inside adminDonorRoutes must pass:
-//
-// requireAuth
-// requireAdmin
-//
-// Available routes:
-//
-// GET  /api/admin/donor-applications/summary
-//
-// GET  /api/admin/donor-applications
-//
-// GET  /api/admin/donor-applications?status=pending
-//
-// GET  /api/admin/donor-applications/:id
-//
-// POST /api/admin/donor-applications/:id/approve
-//
-// POST /api/admin/donor-applications/:id/reject
 // ============================================================
 
 app.use(
   '/api/admin/donor-applications',
   adminDonorRoutes
+);
+
+// ============================================================
+// NOTIFICATIONS
+//
+// GET   /api/notifications
+// GET   /api/notifications/unread-count
+// PATCH /api/notifications/read-all
+// PATCH /api/notifications/:id/read
+// ============================================================
+
+app.use(
+  '/api/notifications',
+  notificationRoutes
 );
 
 // ============================================================
@@ -226,6 +217,10 @@ app.listen(
 
     console.log(
       `Admin Donor Reviews: http://localhost:${PORT}/api/admin/donor-applications`
+    );
+
+    console.log(
+      `Notifications: http://localhost:${PORT}/api/notifications`
     );
 
     console.log(

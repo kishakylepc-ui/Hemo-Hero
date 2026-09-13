@@ -2,6 +2,12 @@ const {
   supabaseAdmin
 } = require('../config/supabase');
 
+const {
+  createNotifications
+} = require(
+  '../services/notificationService'
+);
+
 // ============================================================
 // CONSTANTS
 // ============================================================
@@ -440,7 +446,6 @@ function validateBloodRequest(body) {
 
 // ============================================================
 // POST /api/requests
-// CREATE BLOOD REQUEST
 // ============================================================
 
 async function createBloodRequest(
@@ -780,8 +785,6 @@ async function getMyActiveBloodRequest(
 
 // ============================================================
 // GET /api/requests/:id
-//
-// OWNER-ONLY REQUEST DETAILS
 // ============================================================
 
 async function getBloodRequestById(
@@ -882,8 +885,6 @@ async function getBloodRequestById(
 
 // ============================================================
 // GET /api/requests/:id/donor-view
-//
-// SAFE VIEW FOR OTHER USERS / DONORS
 // ============================================================
 
 async function getDonorViewBloodRequestById(
@@ -1025,15 +1026,6 @@ async function getDonorViewBloodRequestById(
 
 // ============================================================
 // PATCH /api/requests/:id/fulfill
-//
-// REQUEST OWNER ONLY
-//
-// A request may only be fulfilled after at least one donor
-// offer has been accepted.
-//
-// We do NOT automatically require accepted donor count to
-// equal units_needed because the requester confirms actual
-// completion manually.
 // ============================================================
 
 async function fulfillBloodRequest(
@@ -1068,10 +1060,6 @@ async function fulfillBloodRequest(
             'Request ID is required.'
         });
     }
-
-    // --------------------------------------------------------
-    // FIND OWNER'S REQUEST
-    // --------------------------------------------------------
 
     const {
       data:
@@ -1124,10 +1112,6 @@ async function fulfillBloodRequest(
         });
     }
 
-    // --------------------------------------------------------
-    // MUST STILL BE ACTIVE
-    // --------------------------------------------------------
-
     if (
       existingRequest.status !==
       'active'
@@ -1144,7 +1128,7 @@ async function fulfillBloodRequest(
     }
 
     // --------------------------------------------------------
-    // REQUIRE AT LEAST ONE ACCEPTED DONOR
+    // ACCEPTED DONORS
     // --------------------------------------------------------
 
     const {
@@ -1202,7 +1186,7 @@ async function fulfillBloodRequest(
     }
 
     // --------------------------------------------------------
-    // MARK FULFILLED
+    // FULFILL
     // --------------------------------------------------------
 
     const {
@@ -1256,6 +1240,57 @@ async function fulfillBloodRequest(
             'This blood request is no longer active.'
         });
     }
+
+    // --------------------------------------------------------
+    // NOTIFY ACCEPTED DONORS
+    // --------------------------------------------------------
+
+    const donorIds =
+      [
+        ...new Set(
+          (
+            acceptedResponses ||
+            []
+          )
+            .map(
+              response =>
+                response.donor_id
+            )
+            .filter(Boolean)
+        )
+      ];
+
+    await createNotifications(
+      donorIds.map(
+        donorId => ({
+          userId:
+            donorId,
+
+          type:
+            'blood_request_fulfilled',
+
+          title:
+            'Blood Request Fulfilled',
+
+          message:
+            `The ${existingRequest.blood_type} blood request at ${existingRequest.facility_name} has been marked as fulfilled.`,
+
+          data: {
+            request_id:
+              requestId,
+
+            blood_type:
+              existingRequest.blood_type,
+
+            facility_name:
+              existingRequest.facility_name,
+
+            status:
+              'fulfilled'
+          }
+        })
+      )
+    );
 
     return res
       .status(200)
@@ -1331,9 +1366,12 @@ async function cancelBloodRequest(
         .from(
           'blood_requests'
         )
-        .select(
-          'id,status'
-        )
+        .select(`
+          id,
+          status,
+          blood_type,
+          facility_name
+        `)
         .eq(
           'id',
           requestId
@@ -1381,6 +1419,48 @@ async function cancelBloodRequest(
         });
     }
 
+    // --------------------------------------------------------
+    // FIND INVOLVED DONORS BEFORE CANCELLING
+    // --------------------------------------------------------
+
+    const {
+      data:
+        donorResponses,
+      error:
+        donorResponsesError
+    } =
+      await supabaseAdmin
+        .from(
+          'blood_request_responses'
+        )
+        .select(
+          'donor_id,status'
+        )
+        .eq(
+          'request_id',
+          requestId
+        )
+        .in(
+          'status',
+          [
+            'pending',
+            'accepted'
+          ]
+        );
+
+    if (
+      donorResponsesError
+    ) {
+      console.error(
+        'CANCEL REQUEST DONOR LOOKUP ERROR:',
+        donorResponsesError
+      );
+    }
+
+    // --------------------------------------------------------
+    // CANCEL
+    // --------------------------------------------------------
+
     const {
       data:
         updatedRequest,
@@ -1419,6 +1499,57 @@ async function cancelBloodRequest(
             'Unable to cancel blood request.'
         });
     }
+
+    // --------------------------------------------------------
+    // NOTIFY DONORS
+    // --------------------------------------------------------
+
+    const donorIds =
+      [
+        ...new Set(
+          (
+            donorResponses ||
+            []
+          )
+            .map(
+              response =>
+                response.donor_id
+            )
+            .filter(Boolean)
+        )
+      ];
+
+    await createNotifications(
+      donorIds.map(
+        donorId => ({
+          userId:
+            donorId,
+
+          type:
+            'blood_request_cancelled',
+
+          title:
+            'Blood Request Cancelled',
+
+          message:
+            `The ${existingRequest.blood_type} blood request at ${existingRequest.facility_name} has been cancelled.`,
+
+          data: {
+            request_id:
+              requestId,
+
+            blood_type:
+              existingRequest.blood_type,
+
+            facility_name:
+              existingRequest.facility_name,
+
+            status:
+              'cancelled'
+          }
+        })
+      )
+    );
 
     return res
       .status(200)

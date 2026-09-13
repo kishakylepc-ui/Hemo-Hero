@@ -41,6 +41,7 @@ import * as Location from 'expo-location';
 import {
   getCurrentUser,
   getMyActiveBloodRequest,
+  getUnreadNotificationCount,
 } from '../lib/api';
 
 import type {
@@ -149,6 +150,15 @@ export default function DashboardScreen() {
     loadingProfile,
     setLoadingProfile,
   ] = useState(true);
+
+  // ==========================================================
+  // NOTIFICATIONS
+  // ==========================================================
+
+  const [
+    unreadNotifications,
+    setUnreadNotifications,
+  ] = useState(0);
 
   // ==========================================================
   // ACTIVE REQUEST
@@ -275,6 +285,33 @@ export default function DashboardScreen() {
       } finally {
         setLoadingProfile(
           false
+        );
+      }
+
+      // ======================================================
+      // NOTIFICATION COUNT
+      // ======================================================
+
+      try {
+        const notificationData =
+          await getUnreadNotificationCount(
+            token
+          );
+
+        setUnreadNotifications(
+          Number(
+            notificationData
+              ?.unread_count
+          ) || 0
+        );
+      } catch (error) {
+        console.log(
+          'DASHBOARD NOTIFICATION COUNT ERROR:',
+          error
+        );
+
+        setUnreadNotifications(
+          0
         );
       }
 
@@ -454,10 +491,7 @@ export default function DashboardScreen() {
 
       // ------------------------------------------------------
       // SPLIT NEW REQUESTS FROM REQUESTS THIS DONOR ALREADY
-      // RESPONDED TO.
-      //
-      // This keeps responded requests out of "Requests Near You"
-      // and gives them their own highlighted section.
+      // RESPONDED TO
       // ------------------------------------------------------
 
       const checkedRequests =
@@ -589,6 +623,17 @@ export default function DashboardScreen() {
   const profilePhotoUrl =
     profile?.profile_photo_url ||
     '';
+
+  // ==========================================================
+  // NOTIFICATION DISPLAY
+  // ==========================================================
+
+  const unreadNotificationLabel =
+    unreadNotifications > 99
+      ? '99+'
+      : String(
+          unreadNotifications
+        );
 
   // ==========================================================
   // MESSAGE
@@ -878,9 +923,24 @@ export default function DashboardScreen() {
     );
   }
 
-  // The Chat tab opens the full inbox. Per-request Open Chat actions stay direct.
+  // ==========================================================
+  // CHAT
+  // ==========================================================
+
   function handleChat() {
-    router.push('/chat' as any);
+    router.push(
+      '/chat' as any
+    );
+  }
+
+  // ==========================================================
+  // NOTIFICATIONS
+  // ==========================================================
+
+  function handleNotifications() {
+    router.push(
+      '/notifications' as any
+    );
   }
 
   // ==========================================================
@@ -894,10 +954,6 @@ export default function DashboardScreen() {
       return;
     }
 
-    // --------------------------------------------------------
-    // NOT REGISTERED
-    // --------------------------------------------------------
-
     if (!donorApplication) {
       router.push(
         '/donor-application/blood' as any
@@ -905,10 +961,6 @@ export default function DashboardScreen() {
 
       return;
     }
-
-    // --------------------------------------------------------
-    // PENDING
-    // --------------------------------------------------------
 
     if (
       donorApplication.status ===
@@ -927,10 +979,6 @@ export default function DashboardScreen() {
       return;
     }
 
-    // --------------------------------------------------------
-    // APPROVED
-    // --------------------------------------------------------
-
     if (
       donorApplication.status ===
       'approved'
@@ -942,10 +990,6 @@ export default function DashboardScreen() {
 
       return;
     }
-
-    // --------------------------------------------------------
-    // REJECTED / WITHDRAWN
-    // --------------------------------------------------------
 
     router.push(
       '/donor-application/blood' as any
@@ -1087,8 +1131,10 @@ export default function DashboardScreen() {
   // ==========================================================
 
   function handleProfile() {
-  router.push('/profile');
-}
+    router.push(
+      '/profile'
+    );
+  }
 
   async function handleLogout() {
     await clearSession();
@@ -1203,38 +1249,92 @@ export default function DashboardScreen() {
                 </View>
               </View>
 
-              <TouchableOpacity
+              {/* ================================================
+                  HEADER ACTIONS
+              ================================================ */}
+
+              <View
                 style={
-                  styles.avatar
-                }
-                activeOpacity={
-                  0.8
-                }
-                onPress={
-                  handleProfile
+                  styles.headerActions
                 }
               >
-                {profilePhotoUrl ? (
-                  <Image
-                    source={{
-                      uri:
-                        profilePhotoUrl,
-                    }}
-                    style={
-                      styles.avatarImage
-                    }
-                    resizeMode="cover"
-                  />
-                ) : (
+                <TouchableOpacity
+                  style={
+                    styles.notificationButton
+                  }
+                  activeOpacity={
+                    0.8
+                  }
+                  onPress={
+                    handleNotifications
+                  }
+                >
                   <MaterialIcons
-                    name="person"
-                    size={29}
+                    name={
+                      unreadNotifications >
+                      0
+                        ? 'notifications'
+                        : 'notifications-none'
+                    }
+                    size={25}
                     color={
-                      COLORS.redDark
+                      COLORS.white
                     }
                   />
-                )}
-              </TouchableOpacity>
+
+                  {unreadNotifications >
+                  0 ? (
+                    <View
+                      style={
+                        styles.headerNotificationBadge
+                      }
+                    >
+                      <Text
+                        style={
+                          styles.headerNotificationBadgeText
+                        }
+                      >
+                        {
+                          unreadNotificationLabel
+                        }
+                      </Text>
+                    </View>
+                  ) : null}
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={
+                    styles.avatar
+                  }
+                  activeOpacity={
+                    0.8
+                  }
+                  onPress={
+                    handleProfile
+                  }
+                >
+                  {profilePhotoUrl ? (
+                    <Image
+                      source={{
+                        uri:
+                          profilePhotoUrl,
+                      }}
+                      style={
+                        styles.avatarImage
+                      }
+                      resizeMode="cover"
+                    />
+                  ) : (
+                    <MaterialIcons
+                      name="person"
+                      size={29}
+                      color={
+                        COLORS.redDark
+                      }
+                    />
+                  )}
+                </TouchableOpacity>
+              </View>
             </View>
           </LinearGradient>
 
@@ -3015,21 +3115,56 @@ export default function DashboardScreen() {
               </Text>
             </TouchableOpacity>
 
+            {/* ================================================
+                NOTIFICATIONS TAB
+            ================================================ */}
+
             <TouchableOpacity
               style={
                 styles.navItem
               }
-              onPress={() =>
-                handleComingSoon(
-                  'Notifications'
-                )
+              activeOpacity={
+                0.8
+              }
+              onPress={
+                handleNotifications
               }
             >
-              <MaterialIcons
-                name="notifications-none"
-                size={28}
-                color="#D99191"
-              />
+              <View
+                style={
+                  styles.navIconWrapper
+                }
+              >
+                <MaterialIcons
+                  name={
+                    unreadNotifications >
+                    0
+                      ? 'notifications'
+                      : 'notifications-none'
+                  }
+                  size={28}
+                  color="#D99191"
+                />
+
+                {unreadNotifications >
+                0 ? (
+                  <View
+                    style={
+                      styles.navNotificationBadge
+                    }
+                  >
+                    <Text
+                      style={
+                        styles.navNotificationBadgeText
+                      }
+                    >
+                      {
+                        unreadNotificationLabel
+                      }
+                    </Text>
+                  </View>
+                ) : null}
+              </View>
 
               <Text
                 style={
@@ -3169,7 +3304,7 @@ const styles =
 
     greetingContainer: {
       flex: 1,
-      paddingRight: 15,
+      paddingRight: 10,
     },
 
     helloText: {
@@ -3226,6 +3361,81 @@ const styles =
         'Inter_400Regular',
 
       fontSize: 10.5,
+    },
+
+    // ========================================================
+    // HEADER ACTIONS
+    // ========================================================
+
+    headerActions: {
+      flexDirection:
+        'row',
+
+      alignItems:
+        'center',
+
+      gap: 10,
+    },
+
+    notificationButton: {
+      position:
+        'relative',
+
+      width: 42,
+
+      height: 42,
+
+      borderRadius: 21,
+
+      alignItems:
+        'center',
+
+      justifyContent:
+        'center',
+
+      backgroundColor:
+        'rgba(255,255,255,0.16)',
+    },
+
+    headerNotificationBadge: {
+      position:
+        'absolute',
+
+      top: -3,
+
+      right: -4,
+
+      minWidth: 19,
+
+      height: 19,
+
+      paddingHorizontal: 4,
+
+      borderRadius: 10,
+
+      alignItems:
+        'center',
+
+      justifyContent:
+        'center',
+
+      borderWidth: 1.5,
+
+      borderColor:
+        COLORS.redDark,
+
+      backgroundColor:
+        COLORS.white,
+    },
+
+    headerNotificationBadgeText: {
+      color:
+        COLORS.red,
+
+      fontFamily:
+        'Inter_600SemiBold',
+
+      fontSize: 8,
     },
 
     avatar: {
@@ -4834,6 +5044,62 @@ const styles =
       justifyContent: 'center',
 
       gap: 3,
+    },
+
+    navIconWrapper: {
+      position:
+        'relative',
+
+      width: 32,
+
+      height: 30,
+
+      alignItems:
+        'center',
+
+      justifyContent:
+        'center',
+    },
+
+    navNotificationBadge: {
+      position:
+        'absolute',
+
+      top: -5,
+
+      right: -8,
+
+      minWidth: 18,
+
+      height: 18,
+
+      paddingHorizontal: 4,
+
+      borderRadius: 9,
+
+      alignItems:
+        'center',
+
+      justifyContent:
+        'center',
+
+      borderWidth: 1.5,
+
+      borderColor:
+        '#A90707',
+
+      backgroundColor:
+        COLORS.white,
+    },
+
+    navNotificationBadgeText: {
+      color:
+        COLORS.red,
+
+      fontFamily:
+        'Inter_600SemiBold',
+
+      fontSize: 7.5,
     },
 
     navTextActive: {
