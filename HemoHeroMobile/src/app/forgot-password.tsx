@@ -3,7 +3,6 @@ import {
 } from 'react';
 
 import {
-  Alert,
   Image,
   KeyboardAvoidingView,
   Platform,
@@ -119,31 +118,6 @@ export default function ForgotPasswordScreen() {
     useState('');
 
   // ==========================================================
-  // MESSAGE
-  // ==========================================================
-
-  function showMessage(
-    title: string,
-    message: string
-  ) {
-    if (
-      Platform.OS === 'web' &&
-      typeof window !== 'undefined'
-    ) {
-      window.alert(
-        `${title}\n\n${message}`
-      );
-
-      return;
-    }
-
-    Alert.alert(
-      title,
-      message
-    );
-  }
-
-  // ==========================================================
   // SEND RESET CODE
   // ==========================================================
 
@@ -159,24 +133,18 @@ export default function ForgotPasswordScreen() {
     // REQUIRED
     // --------------------------------------------------------
 
-    if (!cleanEmail) {
-      const message =
-        'Please enter your email address.';
-
+    if (
+      !cleanEmail
+    ) {
       setErrorMessage(
-        message
-      );
-
-      showMessage(
-        'Email Required',
-        message
+        'Please enter your email address.'
       );
 
       return;
     }
 
     // --------------------------------------------------------
-    // EMAIL VALIDATION
+    // EMAIL FORMAT
     // --------------------------------------------------------
 
     const emailPattern =
@@ -187,16 +155,8 @@ export default function ForgotPasswordScreen() {
         cleanEmail
       )
     ) {
-      const message =
-        'Please enter a valid email address.';
-
       setErrorMessage(
-        message
-      );
-
-      showMessage(
-        'Invalid Email',
-        message
+        'Please enter a valid email address.'
       );
 
       return;
@@ -207,23 +167,18 @@ export default function ForgotPasswordScreen() {
     // --------------------------------------------------------
 
     try {
-      setLoading(true);
+      setLoading(
+        true
+      );
 
-      const data =
-        await forgotPassword(
-          cleanEmail
-        );
+      await forgotPassword(
+        cleanEmail
+      );
 
       setErrorMessage('');
 
-      showMessage(
-        'Reset Code Sent',
-        data?.message ||
-          'If an account exists for this email, a password reset code has been sent.'
-      );
-
       // ------------------------------------------------------
-      // GO TO RESET PASSWORD
+      // GO DIRECTLY TO VERIFICATION CODE SCREEN
       // ------------------------------------------------------
 
       router.push({
@@ -235,7 +190,9 @@ export default function ForgotPasswordScreen() {
             cleanEmail,
         },
       });
-    } catch (error) {
+    } catch (
+      error
+    ) {
       console.log(
         'FORGOT PASSWORD ERROR:',
         error
@@ -245,7 +202,8 @@ export default function ForgotPasswordScreen() {
         'Unable to send the reset code. Please try again.';
 
       if (
-        error instanceof Error
+        error instanceof
+        Error
       ) {
         message =
           error.message;
@@ -254,13 +212,10 @@ export default function ForgotPasswordScreen() {
       setErrorMessage(
         message
       );
-
-      showMessage(
-        'Request Failed',
-        message
-      );
     } finally {
-      setLoading(false);
+      setLoading(
+        false
+      );
     }
   }
 
@@ -418,9 +373,7 @@ export default function ForgotPasswordScreen() {
                     >
                       <MaterialIcons
                         name="lock-reset"
-                        size={
-                          32
-                        }
+                        size={32}
                         color={
                           COLORS.redButton
                         }
@@ -554,7 +507,7 @@ export default function ForgotPasswordScreen() {
                     </TouchableOpacity>
 
                     {/* ========================================
-                        BACK
+                        BACK TO SIGN IN
                     ======================================== */}
 
                     <TouchableOpacity
@@ -573,16 +526,6 @@ export default function ForgotPasswordScreen() {
                         )
                       }
                     >
-                      <MaterialIcons
-                        name="arrow-back"
-                        size={
-                          17
-                        }
-                        color={
-                          COLORS.redButton
-                        }
-                      />
-
                       <Text
                         style={
                           styles.backText
@@ -613,6 +556,10 @@ const styles =
         1,
     },
 
+    // ========================================================
+    // DESKTOP
+    // ========================================================
+
     desktopBackground: {
       flex:
         1,
@@ -628,6 +575,10 @@ const styles =
           ? '#1E1E1E'
           : COLORS.pinkBottom,
     },
+
+    // ========================================================
+    // PHONE
+    // ========================================================
 
     phone: {
       width:
@@ -1115,17 +1066,17 @@ const styles =
     },
 
     // ========================================================
-    // BACK
+    // BACK TO SIGN IN
     // ========================================================
 
     backButton: {
-      flexDirection:
-        'row',
-
       alignSelf:
         'center',
 
       alignItems:
+        'center',
+
+      justifyContent:
         'center',
 
       marginTop:
@@ -1139,9 +1090,6 @@ const styles =
     },
 
     backText: {
-      marginLeft:
-        5,
-
       color:
         COLORS.redButton,
 

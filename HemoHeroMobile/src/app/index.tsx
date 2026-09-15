@@ -1,7 +1,12 @@
-import { useState } from 'react';
+import {
+  useEffect,
+  useRef,
+  useState,
+} from 'react';
 
 import {
-  Alert,
+  Animated,
+  Easing,
   Image,
   KeyboardAvoidingView,
   Platform,
@@ -14,16 +19,30 @@ import {
   View,
 } from 'react-native';
 
-import { LinearGradient } from 'expo-linear-gradient';
-import { router } from 'expo-router';
-import { StatusBar } from 'expo-status-bar';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import {
+  LinearGradient,
+} from 'expo-linear-gradient';
+
+import {
+  router,
+} from 'expo-router';
+
+import {
+  StatusBar,
+} from 'expo-status-bar';
+
+import {
+  SafeAreaView,
+} from 'react-native-safe-area-context';
 
 import {
   ApiError,
   loginUser,
 } from '../lib/api';
-import { saveSession } from '../lib/session';
+
+import {
+  saveSession,
+} from '../lib/session';
 
 // ============================================================
 // COLORS
@@ -50,7 +69,9 @@ const COLORS = {
 // ============================================================
 
 export default function SignInScreen() {
-  const { height } =
+  const {
+    height,
+  } =
     useWindowDimensions();
 
   /*
@@ -61,57 +82,397 @@ export default function SignInScreen() {
     receive slightly tighter spacing.
   */
   const isSmallPhone =
-    Platform.OS !== 'web' &&
-    height <= 844;
+    Platform.OS !==
+      'web' &&
+    height <=
+      844;
+
+  // ==========================================================
+  // FORM STATE
+  // ==========================================================
 
   const [
     email,
     setEmail,
-  ] = useState('');
+  ] =
+    useState('');
 
   const [
     password,
     setPassword,
-  ] = useState('');
+  ] =
+    useState('');
 
   const [
     showPassword,
     setShowPassword,
-  ] = useState(false);
+  ] =
+    useState(false);
 
   const [
     loading,
     setLoading,
-  ] = useState(false);
+  ] =
+    useState(false);
 
   const [
     errorMessage,
     setErrorMessage,
-  ] = useState('');
+  ] =
+    useState('');
 
   // ==========================================================
-  // MESSAGE
+  // ANIMATION VALUES
   // ==========================================================
 
-  function showMessage(
-    title: string,
+  const headerOpacity =
+    useRef(
+      new Animated.Value(0)
+    ).current;
+
+  const headerTranslateY =
+    useRef(
+      new Animated.Value(-10)
+    ).current;
+
+  const logoOpacity =
+    useRef(
+      new Animated.Value(0)
+    ).current;
+
+  const logoScale =
+    useRef(
+      new Animated.Value(0.88)
+    ).current;
+
+  const cardOpacity =
+    useRef(
+      new Animated.Value(0)
+    ).current;
+
+  const cardTranslateY =
+    useRef(
+      new Animated.Value(28)
+    ).current;
+
+  const buttonScale =
+    useRef(
+      new Animated.Value(1)
+    ).current;
+
+  const errorShake =
+    useRef(
+      new Animated.Value(0)
+    ).current;
+
+  // ==========================================================
+  // SCREEN ENTRANCE ANIMATION
+  // ==========================================================
+
+  useEffect(
+    () => {
+      Animated.sequence([
+        // ----------------------------------------------------
+        // HEADER
+        // ----------------------------------------------------
+
+        Animated.parallel([
+          Animated.timing(
+            headerOpacity,
+            {
+              toValue:
+                1,
+
+              duration:
+                320,
+
+              easing:
+                Easing.out(
+                  Easing.ease
+                ),
+
+              useNativeDriver:
+                true,
+            }
+          ),
+
+          Animated.timing(
+            headerTranslateY,
+            {
+              toValue:
+                0,
+
+              duration:
+                320,
+
+              easing:
+                Easing.out(
+                  Easing.ease
+                ),
+
+              useNativeDriver:
+                true,
+            }
+          ),
+        ]),
+
+        // ----------------------------------------------------
+        // LOGO + CARD
+        // ----------------------------------------------------
+
+        Animated.parallel([
+          Animated.parallel([
+            Animated.timing(
+              logoOpacity,
+              {
+                toValue:
+                  1,
+
+                duration:
+                  330,
+
+                easing:
+                  Easing.out(
+                    Easing.ease
+                  ),
+
+                useNativeDriver:
+                  true,
+              }
+            ),
+
+            Animated.spring(
+              logoScale,
+              {
+                toValue:
+                  1,
+
+                friction:
+                  6,
+
+                tension:
+                  70,
+
+                useNativeDriver:
+                  true,
+              }
+            ),
+          ]),
+
+          Animated.parallel([
+            Animated.timing(
+              cardOpacity,
+              {
+                toValue:
+                  1,
+
+                duration:
+                  430,
+
+                easing:
+                  Easing.out(
+                    Easing.cubic
+                  ),
+
+                useNativeDriver:
+                  true,
+              }
+            ),
+
+            Animated.timing(
+              cardTranslateY,
+              {
+                toValue:
+                  0,
+
+                duration:
+                  430,
+
+                easing:
+                  Easing.out(
+                    Easing.cubic
+                  ),
+
+                useNativeDriver:
+                  true,
+              }
+            ),
+          ]),
+        ]),
+      ]).start();
+    },
+    [
+      headerOpacity,
+      headerTranslateY,
+      logoOpacity,
+      logoScale,
+      cardOpacity,
+      cardTranslateY,
+    ]
+  );
+
+  // ==========================================================
+  // SHAKE ERROR
+  // ==========================================================
+
+  function triggerError(
     message: string
   ) {
-    if (
-      Platform.OS === 'web' &&
-      typeof window !== 'undefined'
-    ) {
-      window.alert(
-        `${title}\n\n${message}`
-      );
+    setErrorMessage(
+      message
+    );
 
+    errorShake.setValue(
+      0
+    );
+
+    Animated.sequence([
+      Animated.timing(
+        errorShake,
+        {
+          toValue:
+            -8,
+
+          duration:
+            55,
+
+          useNativeDriver:
+            true,
+        }
+      ),
+
+      Animated.timing(
+        errorShake,
+        {
+          toValue:
+            8,
+
+          duration:
+            70,
+
+          useNativeDriver:
+            true,
+        }
+      ),
+
+      Animated.timing(
+        errorShake,
+        {
+          toValue:
+            -6,
+
+          duration:
+            65,
+
+          useNativeDriver:
+            true,
+        }
+      ),
+
+      Animated.timing(
+        errorShake,
+        {
+          toValue:
+            6,
+
+          duration:
+            65,
+
+          useNativeDriver:
+            true,
+        }
+      ),
+
+      Animated.timing(
+        errorShake,
+        {
+          toValue:
+            -3,
+
+          duration:
+            55,
+
+          useNativeDriver:
+            true,
+        }
+      ),
+
+      Animated.timing(
+        errorShake,
+        {
+          toValue:
+            3,
+
+          duration:
+            55,
+
+          useNativeDriver:
+            true,
+        }
+      ),
+
+      Animated.timing(
+        errorShake,
+        {
+          toValue:
+            0,
+
+          duration:
+            55,
+
+          useNativeDriver:
+            true,
+        }
+      ),
+    ]).start();
+  }
+
+  // ==========================================================
+  // BUTTON PRESS ANIMATION
+  // ==========================================================
+
+  function handleButtonPressIn() {
+    if (
+      loading
+    ) {
       return;
     }
 
-    Alert.alert(
-      title,
-      message
-    );
+    Animated.spring(
+      buttonScale,
+      {
+        toValue:
+          0.97,
+
+        friction:
+          7,
+
+        tension:
+          160,
+
+        useNativeDriver:
+          true,
+      }
+    ).start();
+  }
+
+  function handleButtonPressOut() {
+    Animated.spring(
+      buttonScale,
+      {
+        toValue:
+          1,
+
+        friction:
+          7,
+
+        tension:
+          160,
+
+        useNativeDriver:
+          true,
+      }
+    ).start();
   }
 
   // ==========================================================
@@ -139,264 +500,381 @@ export default function SignInScreen() {
   // SIGN IN
   // ==========================================================
 
- async function handleSignIn() {
-  setErrorMessage('');
-
-  const cleanEmail =
-    email
-      .trim()
-      .toLowerCase();
-
-  // --------------------------------------------------------
-  // VALIDATION
-  // --------------------------------------------------------
-
-  if (
-    !cleanEmail ||
-    !password
-  ) {
-    const message =
-      'Please enter your email address and password.';
-
-    setErrorMessage(
-      message
-    );
-
-    showMessage(
-      'Missing Information',
-      message
-    );
-
-    return;
-  }
-
-  // --------------------------------------------------------
-  // EMAIL FORMAT
-  // --------------------------------------------------------
-
-  const emailPattern =
-    /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-
-  if (
-    !emailPattern.test(
-      cleanEmail
-    )
-  ) {
-    const message =
-      'Please enter a valid email address.';
-
-    setErrorMessage(
-      message
-    );
-
-    showMessage(
-      'Invalid Email',
-      message
-    );
-
-    return;
-  }
-
-  try {
-    setLoading(true);
-
-    // ------------------------------------------------------
-    // LOGIN
-    // ------------------------------------------------------
-
-    const data =
-      await loginUser(
-        cleanEmail,
-        password
-      );
-
-    // ------------------------------------------------------
-    // VERIFY SESSION
-    // ------------------------------------------------------
-
-    if (
-      !data?.session?.access_token
-    ) {
-      throw new Error(
-        'Login succeeded, but no session was returned.'
-      );
-    }
-
-    // ------------------------------------------------------
-    // SAVE LOGIN SESSION
-    // ------------------------------------------------------
-
-    await saveSession(
-      data.session
-    );
-
+  async function handleSignIn() {
     setErrorMessage('');
-    setPassword('');
 
-    // ------------------------------------------------------
-    // VERIFY PROFILE
-    // ------------------------------------------------------
+    const cleanEmail =
+      email
+        .trim()
+        .toLowerCase();
 
-    if (!data?.profile) {
-      throw new Error(
-        'Your account profile could not be loaded.'
-      );
-    }
-
-    console.log(
-      'LOGIN PROFILE:',
-      data.profile
-    );
-
-    console.log(
-      'ONBOARDING COMPLETE:',
-      data.profile
-        .onboarding_complete
-    );
-
-    // ------------------------------------------------------
-    // ROUTE COMPLETED USER
-    // ------------------------------------------------------
+    // --------------------------------------------------------
+    // BOTH EMPTY
+    // --------------------------------------------------------
 
     if (
-      data.profile
-        .onboarding_complete ===
-      true
+      !cleanEmail &&
+      !password
     ) {
-      router.replace(
-        '/dashboard'
+      triggerError(
+        'Please enter your email address and password.'
       );
 
       return;
     }
 
-    // ------------------------------------------------------
-    // ROUTE INCOMPLETE USER
-    // ------------------------------------------------------
-
-    router.replace(
-      '/complete-profile/personal'
-    );
-  } catch (error) {
-    console.log(
-      'LOGIN ERROR:',
-      error
-    );
-
-    let message =
-      'Unable to sign in. Please try again.';
-
-    // ------------------------------------------------------
-    // STRUCTURED API ERRORS
-    // ------------------------------------------------------
+    // --------------------------------------------------------
+    // EMAIL EMPTY
+    // --------------------------------------------------------
 
     if (
-      error instanceof
-      ApiError
+      !cleanEmail
     ) {
-      const apiData =
-        error.data || {};
+      triggerError(
+        'Please enter your email address.'
+      );
 
-      // ----------------------------------------------------
-      // WRONG EMAIL / PASSWORD
-      // ----------------------------------------------------
+      return;
+    }
+
+    // --------------------------------------------------------
+    // PASSWORD EMPTY
+    // --------------------------------------------------------
+
+    if (
+      !password
+    ) {
+      triggerError(
+        'Please enter your password.'
+      );
+
+      return;
+    }
+
+    // --------------------------------------------------------
+    // EMAIL FORMAT
+    // --------------------------------------------------------
+
+    const emailPattern =
+      /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+    if (
+      !emailPattern.test(
+        cleanEmail
+      )
+    ) {
+      triggerError(
+        'Please enter a valid email address.'
+      );
+
+      return;
+    }
+
+    try {
+      setLoading(
+        true
+      );
+
+      // ------------------------------------------------------
+      // LOGIN
+      // ------------------------------------------------------
+
+      const data =
+        await loginUser(
+          cleanEmail,
+          password
+        );
+
+      // ------------------------------------------------------
+      // VERIFY SESSION
+      // ------------------------------------------------------
 
       if (
-        apiData.code ===
-        'INVALID_CREDENTIALS'
+        !data?.session?.access_token
       ) {
-        const remaining =
-          Number(
-            apiData
-              .attempts_remaining
-          );
+        throw new Error(
+          'Login succeeded, but no session was returned.'
+        );
+      }
+
+      // ------------------------------------------------------
+      // SAVE SESSION
+      // ------------------------------------------------------
+
+      await saveSession(
+        data.session
+      );
+
+      setErrorMessage(
+        ''
+      );
+
+      setPassword(
+        ''
+      );
+
+      // ------------------------------------------------------
+      // VERIFY PROFILE
+      // ------------------------------------------------------
+
+      if (
+        !data?.profile
+      ) {
+        throw new Error(
+          'Your account profile could not be loaded.'
+        );
+      }
+
+      console.log(
+        'LOGIN PROFILE:',
+        data.profile
+      );
+
+      console.log(
+        'ONBOARDING COMPLETE:',
+        data.profile
+          .onboarding_complete
+      );
+
+      // ------------------------------------------------------
+      // COMPLETED USER
+      // ------------------------------------------------------
+
+      if (
+        data.profile
+          .onboarding_complete ===
+        true
+      ) {
+        router.replace(
+          '/dashboard'
+        );
+
+        return;
+      }
+
+      // ------------------------------------------------------
+      // INCOMPLETE USER
+      // ------------------------------------------------------
+
+      router.replace(
+        '/complete-profile/personal'
+      );
+    } catch (
+      error
+    ) {
+      console.log(
+        'LOGIN ERROR:',
+        error
+      );
+
+      let message =
+        'Unable to sign in. Please try again.';
+
+      // ------------------------------------------------------
+      // STRUCTURED API ERRORS
+      // ------------------------------------------------------
+
+      if (
+        error instanceof
+        ApiError
+      ) {
+        const apiData =
+          error.data ||
+          {};
+
+        // ----------------------------------------------------
+        // ACCOUNT DOES NOT EXIST
+        // ----------------------------------------------------
 
         if (
-          Number.isFinite(
-            remaining
-          )
+          apiData.code ===
+          'ACCOUNT_NOT_FOUND'
         ) {
-          const attemptText =
-            remaining === 1
-              ? '1 attempt remaining before a 15-minute cooldown.'
-              : `${remaining} attempts remaining.`;
-
           message =
-            `Invalid email or password.\n${attemptText}`;
-        } else {
-          message =
-            'Invalid email or password.';
+            error.message ||
+            'Account does not exist.';
         }
-      }
 
-      // ----------------------------------------------------
-      // ACCOUNT COOLDOWN
-      // ----------------------------------------------------
+        // ----------------------------------------------------
+        // INCORRECT PASSWORD
+        // ----------------------------------------------------
 
-      else if (
-        apiData.code ===
-        'LOGIN_ACCOUNT_RATE_LIMIT'
+        else if (
+          apiData.code ===
+          'INCORRECT_PASSWORD'
+        ) {
+          message =
+            error.message ||
+            'Incorrect password.';
+        }
+
+        // ----------------------------------------------------
+        // OLD GENERIC CREDENTIAL RESPONSE
+        // ----------------------------------------------------
+
+        else if (
+          apiData.code ===
+          'INVALID_CREDENTIALS'
+        ) {
+          const remaining =
+            Number(
+              apiData
+                .attempts_remaining
+            );
+
+          if (
+            Number.isFinite(
+              remaining
+            )
+          ) {
+            const attemptText =
+              remaining ===
+              1
+                ? '1 attempt remaining before a 3-minute cooldown.'
+                : `${remaining} attempts remaining.`;
+
+            message =
+              `Invalid email or password.\n${attemptText}`;
+          } else {
+            message =
+              'Invalid email or password.';
+          }
+        }
+
+        // ----------------------------------------------------
+        // EMAIL NOT VERIFIED
+        // ----------------------------------------------------
+
+        else if (
+          apiData.code ===
+          'EMAIL_NOT_VERIFIED'
+        ) {
+          message =
+            error.message ||
+            'Please verify your email before signing in.';
+        }
+
+        // ----------------------------------------------------
+        // ACCOUNT COOLDOWN
+        // ----------------------------------------------------
+
+        else if (
+          apiData.code ===
+          'LOGIN_ACCOUNT_RATE_LIMIT'
+        ) {
+          const retryMinutes =
+            Number(
+              apiData
+                .retry_after_minutes
+            );
+
+          message =
+            Number.isFinite(
+              retryMinutes
+            )
+              ? `Too many incorrect password attempts.\nPlease try again in ${retryMinutes} minute${retryMinutes === 1 ? '' : 's'}.`
+              : 'Too many incorrect password attempts. Please try again later.';
+        }
+
+        // ----------------------------------------------------
+        // NETWORK / IP COOLDOWN
+        // ----------------------------------------------------
+
+        else if (
+          apiData.code ===
+          'LOGIN_IP_RATE_LIMIT'
+        ) {
+          const retryMinutes =
+            Number(
+              apiData
+                .retry_after_minutes
+            );
+
+          message =
+            Number.isFinite(
+              retryMinutes
+            )
+              ? `Too many login attempts from this network.\nPlease try again in ${retryMinutes} minute${retryMinutes === 1 ? '' : 's'}.`
+              : 'Too many login attempts from this network. Please try again later.';
+        }
+
+        // ----------------------------------------------------
+        // EMAIL REQUIRED
+        // ----------------------------------------------------
+
+        else if (
+          apiData.code ===
+          'EMAIL_REQUIRED'
+        ) {
+          message =
+            'Please enter your email address.';
+        }
+
+        // ----------------------------------------------------
+        // PASSWORD REQUIRED
+        // ----------------------------------------------------
+
+        else if (
+          apiData.code ===
+          'PASSWORD_REQUIRED'
+        ) {
+          message =
+            'Please enter your password.';
+        }
+
+        // ----------------------------------------------------
+        // BOTH REQUIRED
+        // ----------------------------------------------------
+
+        else if (
+          apiData.code ===
+          'EMPTY_CREDENTIALS'
+        ) {
+          message =
+            'Please enter your email address and password.';
+        }
+
+        // ----------------------------------------------------
+        // INVALID EMAIL
+        // ----------------------------------------------------
+
+        else if (
+          apiData.code ===
+          'INVALID_EMAIL'
+        ) {
+          message =
+            'Please enter a valid email address.';
+        }
+
+        // ----------------------------------------------------
+        // OTHER API ERROR
+        // ----------------------------------------------------
+
+        else {
+          message =
+            error.message;
+        }
+      } else if (
+        error instanceof
+        Error
       ) {
-        const retryMinutes =
-          Number(
-            apiData
-              .retry_after_minutes
-          );
-
-        message =
-          Number.isFinite(
-            retryMinutes
-          )
-            ? `Too many failed login attempts.\nPlease try again in ${retryMinutes} minute${retryMinutes === 1 ? '' : 's'}.`
-            : 'Too many failed login attempts. Please try again later.';
-      }
-
-      // ----------------------------------------------------
-      // NETWORK/IP COOLDOWN
-      // ----------------------------------------------------
-
-      else if (
-        apiData.code ===
-        'LOGIN_IP_RATE_LIMIT'
-      ) {
-        const retryMinutes =
-          Number(
-            apiData
-              .retry_after_minutes
-          );
-
-        message =
-          Number.isFinite(
-            retryMinutes
-          )
-            ? `Too many login attempts from this network.\nPlease try again in ${retryMinutes} minute${retryMinutes === 1 ? '' : 's'}.`
-            : 'Too many login attempts from this network. Please try again later.';
-      }
-
-      // ----------------------------------------------------
-      // OTHER API ERROR
-      // ----------------------------------------------------
-
-      else {
         message =
           error.message;
       }
-    } else if (
-      error instanceof Error
-    ) {
-      message =
-        error.message;
-    }
 
-    // Login errors stay inside the red error box.
-    // No popup for every incorrect password.
-    setErrorMessage(
-      message
-    );
-  } finally {
-    setLoading(false);
+      // ------------------------------------------------------
+      // ERROR STAYS INSIDE APP + SHAKE
+      // ------------------------------------------------------
+
+      triggerError(
+        message
+      );
+    } finally {
+      setLoading(
+        false
+      );
+    }
   }
-}
 
   // ==========================================================
   // UI
@@ -430,7 +908,8 @@ export default function SignInScreen() {
               styles.flex
             }
             behavior={
-              Platform.OS === 'ios'
+              Platform.OS ===
+              'ios'
                 ? 'padding'
                 : undefined
             }
@@ -488,24 +967,41 @@ export default function SignInScreen() {
                       }
                     />
 
-                    <Text
-                      style={[
-                        styles.brandName,
+                    <Animated.View
+                      style={{
+                        alignItems:
+                          'center',
 
-                        isSmallPhone &&
-                          styles.brandNameSmall,
-                      ]}
-                    >
-                      Hemo-Hero
-                    </Text>
+                        opacity:
+                          headerOpacity,
 
-                    <Text
-                      style={
-                        styles.tagline
-                      }
+                        transform: [
+                          {
+                            translateY:
+                              headerTranslateY,
+                          },
+                        ],
+                      }}
                     >
-                      Connect to Donors Near You
-                    </Text>
+                      <Text
+                        style={[
+                          styles.brandName,
+
+                          isSmallPhone &&
+                            styles.brandNameSmall,
+                        ]}
+                      >
+                        Hemo-Hero
+                      </Text>
+
+                      <Text
+                        style={
+                          styles.tagline
+                        }
+                      >
+                        Connect to Donors Near You
+                      </Text>
+                    </Animated.View>
                   </LinearGradient>
                 </View>
 
@@ -513,12 +1009,24 @@ export default function SignInScreen() {
                     LOGO
                 ================================================== */}
 
-                <View
+                <Animated.View
                   style={[
                     styles.logoCircle,
 
                     isSmallPhone &&
                       styles.logoCircleSmall,
+
+                    {
+                      opacity:
+                        logoOpacity,
+
+                      transform: [
+                        {
+                          scale:
+                            logoScale,
+                        },
+                      ],
+                    },
                   ]}
                 >
                   <Image
@@ -533,7 +1041,7 @@ export default function SignInScreen() {
                     ]}
                     resizeMode="contain"
                   />
-                </View>
+                </Animated.View>
 
                 {/* ==================================================
                     BODY
@@ -551,12 +1059,24 @@ export default function SignInScreen() {
                       styles.bodyBackgroundSmall,
                   ]}
                 >
-                  <View
+                  <Animated.View
                     style={[
                       styles.card,
 
                       isSmallPhone &&
                         styles.cardSmall,
+
+                      {
+                        opacity:
+                          cardOpacity,
+
+                        transform: [
+                          {
+                            translateY:
+                              cardTranslateY,
+                          },
+                        ],
+                      },
                     ]}
                   >
                     {/* ==============================================
@@ -613,10 +1133,19 @@ export default function SignInScreen() {
                     ============================================== */}
 
                     {errorMessage ? (
-                      <View
-                        style={
-                          styles.errorContainer
-                        }
+                      <Animated.View
+                        style={[
+                          styles.errorContainer,
+
+                          {
+                            transform: [
+                              {
+                                translateX:
+                                  errorShake,
+                              },
+                            ],
+                          },
+                        ]}
                       >
                         <Text
                           style={
@@ -627,7 +1156,7 @@ export default function SignInScreen() {
                             errorMessage
                           }
                         </Text>
-                      </View>
+                      </Animated.View>
                     ) : null}
 
                     {/* ==============================================
@@ -790,37 +1319,54 @@ export default function SignInScreen() {
                     </TouchableOpacity>
 
                     {/* ==============================================
-                        SIGN IN
+                        SIGN IN BUTTON
                     ============================================== */}
 
-                    <TouchableOpacity
-                      style={[
-                        styles.primaryButton,
-
-                        loading &&
-                          styles.disabledButton,
-                      ]}
-                      activeOpacity={
-                        0.85
-                      }
-                      disabled={
-                        loading
-                      }
-                      onPress={
-                        handleSignIn
-                      }
+                    <Animated.View
+                      style={{
+                        transform: [
+                          {
+                            scale:
+                              buttonScale,
+                          },
+                        ],
+                      }}
                     >
-                      <Text
-                        style={
-                          styles.primaryButtonText
+                      <TouchableOpacity
+                        style={[
+                          styles.primaryButton,
+
+                          loading &&
+                            styles.disabledButton,
+                        ]}
+                        activeOpacity={
+                          1
+                        }
+                        disabled={
+                          loading
+                        }
+                        onPressIn={
+                          handleButtonPressIn
+                        }
+                        onPressOut={
+                          handleButtonPressOut
+                        }
+                        onPress={
+                          handleSignIn
                         }
                       >
-                        {loading
-                          ? 'Signing In...'
-                          : 'Sign In'}
-                      </Text>
-                    </TouchableOpacity>
-                  </View>
+                        <Text
+                          style={
+                            styles.primaryButtonText
+                          }
+                        >
+                          {loading
+                            ? 'Signing In...'
+                            : 'Sign In'}
+                        </Text>
+                      </TouchableOpacity>
+                    </Animated.View>
+                  </Animated.View>
                 </LinearGradient>
               </View>
             </ScrollView>
@@ -838,7 +1384,8 @@ export default function SignInScreen() {
 const styles =
   StyleSheet.create({
     flex: {
-      flex: 1,
+      flex:
+        1,
     },
 
     // ========================================================
@@ -855,7 +1402,8 @@ const styles =
         'center',
 
       backgroundColor:
-        Platform.OS === 'web'
+        Platform.OS ===
+          'web'
           ? '#1E1E1E'
           : COLORS.pinkBottom,
     },
@@ -866,12 +1414,14 @@ const styles =
 
     phone: {
       width:
-        Platform.OS === 'web'
+        Platform.OS ===
+          'web'
           ? 402
           : '100%',
 
       height:
-        Platform.OS === 'web'
+        Platform.OS ===
+          'web'
           ? 874
           : '100%',
 
@@ -917,7 +1467,8 @@ const styles =
       backgroundColor:
         COLORS.pinkTop,
 
-      zIndex: 1,
+      zIndex:
+        1,
     },
 
     header: {
@@ -1118,7 +1669,8 @@ const styles =
         26,
 
       paddingTop:
-        Platform.OS === 'web'
+        Platform.OS ===
+          'web'
           ? 115
           : 100,
 
@@ -1366,7 +1918,8 @@ const styles =
         12,
 
       outlineStyle:
-        Platform.OS === 'web'
+        Platform.OS ===
+          'web'
           ? 'none'
           : undefined,
     } as any,
@@ -1414,7 +1967,8 @@ const styles =
         12,
 
       outlineStyle:
-        Platform.OS === 'web'
+        Platform.OS ===
+          'web'
           ? 'none'
           : undefined,
     } as any,

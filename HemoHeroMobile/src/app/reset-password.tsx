@@ -4,7 +4,6 @@ import {
 } from 'react';
 
 import {
-  Alert,
   Image,
   KeyboardAvoidingView,
   Platform,
@@ -109,82 +108,74 @@ export default function ResetPasswordScreen() {
   const [
     code,
     setCode,
-  ] = useState('');
+  ] =
+    useState('');
 
   const [
     codeVerified,
     setCodeVerified,
-  ] = useState(false);
+  ] =
+    useState(false);
 
   const [
     recoveryToken,
     setRecoveryToken,
-  ] = useState('');
+  ] =
+    useState('');
 
   const [
     password,
     setPassword,
-  ] = useState('');
+  ] =
+    useState('');
 
   const [
     confirmPassword,
     setConfirmPassword,
-  ] = useState('');
+  ] =
+    useState('');
 
   const [
     showPassword,
     setShowPassword,
-  ] = useState(false);
+  ] =
+    useState(false);
 
   const [
     showConfirmPassword,
     setShowConfirmPassword,
-  ] = useState(false);
+  ] =
+    useState(false);
 
   const [
     verifying,
     setVerifying,
-  ] = useState(false);
+  ] =
+    useState(false);
 
   const [
     resetting,
     setResetting,
-  ] = useState(false);
+  ] =
+    useState(false);
 
   const [
     resending,
     setResending,
-  ] = useState(false);
+  ] =
+    useState(false);
 
   const [
     errorMessage,
     setErrorMessage,
-  ] = useState('');
+  ] =
+    useState('');
 
-  // ==========================================================
-  // MESSAGE
-  // ==========================================================
-
-  function showMessage(
-    title: string,
-    message: string
-  ) {
-    if (
-      Platform.OS === 'web' &&
-      typeof window !== 'undefined'
-    ) {
-      window.alert(
-        `${title}\n\n${message}`
-      );
-
-      return;
-    }
-
-    Alert.alert(
-      title,
-      message
-    );
-  }
+  const [
+    successMessage,
+    setSuccessMessage,
+  ] =
+    useState('');
 
   // ==========================================================
   // CODE INPUT
@@ -209,6 +200,7 @@ export default function ResetPasswordScreen() {
     );
 
     setErrorMessage('');
+    setSuccessMessage('');
   }
 
   // ==========================================================
@@ -217,37 +209,32 @@ export default function ResetPasswordScreen() {
 
   async function handleVerifyCode() {
     setErrorMessage('');
+    setSuccessMessage('');
 
-    if (!email) {
-      const message =
-        'Your email address is missing. Please start the password reset process again.';
+    // --------------------------------------------------------
+    // EMAIL REQUIRED
+    // --------------------------------------------------------
 
+    if (
+      !email
+    ) {
       setErrorMessage(
-        message
-      );
-
-      showMessage(
-        'Email Missing',
-        message
+        'Your email address is missing. Please start the password reset process again.'
       );
 
       return;
     }
 
+    // --------------------------------------------------------
+    // COMPLETE CODE REQUIRED
+    // --------------------------------------------------------
+
     if (
       code.length !==
       CODE_LENGTH
     ) {
-      const message =
-        'Please finish entering the 6-digit verification code.';
-
       setErrorMessage(
-        message
-      );
-
-      showMessage(
-        'Incomplete Code',
-        message
+        'Please finish entering the 6-digit verification code.'
       );
 
       inputRef
@@ -256,6 +243,10 @@ export default function ResetPasswordScreen() {
 
       return;
     }
+
+    // --------------------------------------------------------
+    // VERIFY
+    // --------------------------------------------------------
 
     try {
       setVerifying(
@@ -285,12 +276,10 @@ export default function ResetPasswordScreen() {
       );
 
       setErrorMessage('');
-
-      showMessage(
-        'Code Verified',
-        'Your verification code is correct. You can now create a new password.'
-      );
-    } catch (error) {
+      setSuccessMessage('');
+    } catch (
+      error
+    ) {
       console.log(
         'VERIFY RECOVERY CODE ERROR:',
         error
@@ -300,7 +289,8 @@ export default function ResetPasswordScreen() {
         'Invalid or expired password reset code.';
 
       if (
-        error instanceof Error
+        error instanceof
+        Error
       ) {
         message =
           error.message;
@@ -310,17 +300,14 @@ export default function ResetPasswordScreen() {
         message
       );
 
+      setSuccessMessage('');
+
       setCodeVerified(
         false
       );
 
       setRecoveryToken(
         ''
-      );
-
-      showMessage(
-        'Verification Failed',
-        message
       );
     } finally {
       setVerifying(
@@ -348,21 +335,32 @@ export default function ResetPasswordScreen() {
         true
       );
 
+      setErrorMessage('');
+      setSuccessMessage('');
+
       await forgotPassword(
         email
       );
+
+      // ------------------------------------------------------
+      // RESET CURRENT VERIFICATION STATE
+      // ------------------------------------------------------
 
       setCode('');
       setCodeVerified(false);
       setRecoveryToken('');
       setPassword('');
       setConfirmPassword('');
+
       setErrorMessage('');
 
-      showMessage(
-        'Code Sent',
+      setSuccessMessage(
         'A new password reset code has been sent to your email.'
       );
+
+      // ------------------------------------------------------
+      // FOCUS CODE INPUT
+      // ------------------------------------------------------
 
       setTimeout(
         () => {
@@ -372,23 +370,28 @@ export default function ResetPasswordScreen() {
         },
         150
       );
-    } catch (error) {
+    } catch (
+      error
+    ) {
+      console.log(
+        'RESEND PASSWORD CODE ERROR:',
+        error
+      );
+
       let message =
         'Unable to resend the password reset code.';
 
       if (
-        error instanceof Error
+        error instanceof
+        Error
       ) {
         message =
           error.message;
       }
 
-      setErrorMessage(
-        message
-      );
+      setSuccessMessage('');
 
-      showMessage(
-        'Unable to Resend',
+      setErrorMessage(
         message
       );
     } finally {
@@ -404,58 +407,56 @@ export default function ResetPasswordScreen() {
 
   async function handleResetPassword() {
     setErrorMessage('');
+    setSuccessMessage('');
+
+    // --------------------------------------------------------
+    // CODE MUST BE VERIFIED
+    // --------------------------------------------------------
 
     if (
       !codeVerified ||
       !recoveryToken
     ) {
-      const message =
-        'Please verify your recovery code first.';
-
       setErrorMessage(
-        message
+        'Please verify your recovery code first.'
       );
 
       return;
     }
+
+    // --------------------------------------------------------
+    // REQUIRED PASSWORDS
+    // --------------------------------------------------------
 
     if (
       !password ||
       !confirmPassword
     ) {
-      const message =
-        'Please enter and confirm your new password.';
-
       setErrorMessage(
-        message
-      );
-
-      showMessage(
-        'Missing Information',
-        message
+        'Please enter and confirm your new password.'
       );
 
       return;
     }
+
+    // --------------------------------------------------------
+    // PASSWORD LENGTH
+    // --------------------------------------------------------
 
     if (
       password.length <
       8
     ) {
-      const message =
-        'Password must be at least 8 characters.';
-
       setErrorMessage(
-        message
-      );
-
-      showMessage(
-        'Invalid Password',
-        message
+        'Password must be at least 8 characters.'
       );
 
       return;
     }
+
+    // --------------------------------------------------------
+    // PASSWORD COMPLEXITY
+    // --------------------------------------------------------
 
     const hasLetter =
       /[A-Za-z]/.test(
@@ -471,39 +472,31 @@ export default function ResetPasswordScreen() {
       !hasLetter ||
       !hasNumber
     ) {
-      const message =
-        'Password must contain at least one letter and one number.';
-
       setErrorMessage(
-        message
-      );
-
-      showMessage(
-        'Invalid Password',
-        message
+        'Password must contain at least one letter and one number.'
       );
 
       return;
     }
+
+    // --------------------------------------------------------
+    // PASSWORD MATCH
+    // --------------------------------------------------------
 
     if (
       password !==
       confirmPassword
     ) {
-      const message =
-        'Passwords do not match.';
-
       setErrorMessage(
-        message
-      );
-
-      showMessage(
-        'Passwords Do Not Match',
-        message
+        'Passwords do not match.'
       );
 
       return;
     }
+
+    // --------------------------------------------------------
+    // CHANGE PASSWORD
+    // --------------------------------------------------------
 
     try {
       setResetting(
@@ -517,16 +510,28 @@ export default function ResetPasswordScreen() {
           confirmPassword
         );
 
-      showMessage(
-        'Password Changed',
+      setErrorMessage('');
+
+      setSuccessMessage(
         data?.message ||
           'Your password has been changed successfully.'
       );
 
-      router.replace(
-        '/'
+      // ------------------------------------------------------
+      // RETURN TO SIGN IN AFTER SUCCESS
+      // ------------------------------------------------------
+
+      setTimeout(
+        () => {
+          router.replace(
+            '/'
+          );
+        },
+        1000
       );
-    } catch (error) {
+    } catch (
+      error
+    ) {
       console.log(
         'RESET PASSWORD ERROR:',
         error
@@ -536,18 +541,16 @@ export default function ResetPasswordScreen() {
         'Unable to change your password. Please try again.';
 
       if (
-        error instanceof Error
+        error instanceof
+        Error
       ) {
         message =
           error.message;
       }
 
-      setErrorMessage(
-        message
-      );
+      setSuccessMessage('');
 
-      showMessage(
-        'Reset Failed',
+      setErrorMessage(
         message
       );
     } finally {
@@ -615,7 +618,9 @@ export default function ResetPasswordScreen() {
                   styles.authContent
                 }
               >
-                {/* HEADER */}
+                {/* ==================================================
+                    HEADER
+                ================================================== */}
 
                 <View
                   style={
@@ -661,7 +666,9 @@ export default function ResetPasswordScreen() {
                   </LinearGradient>
                 </View>
 
-                {/* LOGO */}
+                {/* ==================================================
+                    LOGO
+                ================================================== */}
 
                 <View
                   style={
@@ -679,7 +686,9 @@ export default function ResetPasswordScreen() {
                   />
                 </View>
 
-                {/* BODY */}
+                {/* ==================================================
+                    BODY
+                ================================================== */}
 
                 <LinearGradient
                   colors={[
@@ -695,6 +704,10 @@ export default function ResetPasswordScreen() {
                       styles.card
                     }
                   >
+                    {/* ==============================================
+                        STEP
+                    ============================================== */}
+
                     <Text
                       style={
                         styles.stepLabel
@@ -705,6 +718,10 @@ export default function ResetPasswordScreen() {
                         : 'STEP 1 OF 2'}
                     </Text>
 
+                    {/* ==============================================
+                        TITLE
+                    ============================================== */}
+
                     <Text
                       style={
                         styles.title
@@ -714,6 +731,10 @@ export default function ResetPasswordScreen() {
                         ? 'Create New Password'
                         : 'Verify Reset Code'}
                     </Text>
+
+                    {/* ==============================================
+                        STEP 1 DESCRIPTION
+                    ============================================== */}
 
                     {!codeVerified ? (
                       <>
@@ -757,7 +778,9 @@ export default function ResetPasswordScreen() {
                       </View>
                     )}
 
-                    {/* ERROR */}
+                    {/* ==============================================
+                        ERROR MESSAGE
+                    ============================================== */}
 
                     {errorMessage ? (
                       <View
@@ -770,7 +793,39 @@ export default function ResetPasswordScreen() {
                             styles.errorText
                           }
                         >
-                          {errorMessage}
+                          {
+                            errorMessage
+                          }
+                        </Text>
+                      </View>
+                    ) : null}
+
+                    {/* ==============================================
+                        SUCCESS MESSAGE
+                    ============================================== */}
+
+                    {successMessage ? (
+                      <View
+                        style={
+                          styles.successContainer
+                        }
+                      >
+                        <MaterialIcons
+                          name="check-circle"
+                          size={18}
+                          color={
+                            COLORS.successText
+                          }
+                        />
+
+                        <Text
+                          style={
+                            styles.successMessageText
+                          }
+                        >
+                          {
+                            successMessage
+                          }
                         </Text>
                       </View>
                     ) : null}
@@ -779,7 +834,7 @@ export default function ResetPasswordScreen() {
                         STEP 1 - OTP
                     ================================================== */}
 
-                    {!codeVerified && (
+                    {!codeVerified ? (
                       <>
                         <TouchableOpacity
                           style={
@@ -805,7 +860,8 @@ export default function ResetPasswordScreen() {
                               const digit =
                                 code[
                                   index
-                                ] || '';
+                                ] ||
+                                '';
 
                               const isActive =
                                 index ===
@@ -830,7 +886,9 @@ export default function ResetPasswordScreen() {
                                       styles.codeDigit
                                     }
                                   >
-                                    {digit}
+                                    {
+                                      digit
+                                    }
                                   </Text>
                                 </View>
                               );
@@ -864,6 +922,10 @@ export default function ResetPasswordScreen() {
                           />
                         </TouchableOpacity>
 
+                        {/* ==========================================
+                            VERIFY BUTTON
+                        ========================================== */}
+
                         <TouchableOpacity
                           style={[
                             styles.primaryButton,
@@ -894,6 +956,10 @@ export default function ResetPasswordScreen() {
                               : 'Verify Code'}
                           </Text>
                         </TouchableOpacity>
+
+                        {/* ==========================================
+                            RESEND
+                        ========================================== */}
 
                         <View
                           style={
@@ -929,13 +995,13 @@ export default function ResetPasswordScreen() {
                           </TouchableOpacity>
                         </View>
                       </>
-                    )}
+                    ) : null}
 
                     {/* ==================================================
-                        STEP 2 - PASSWORD
+                        STEP 2 - NEW PASSWORD
                     ================================================== */}
 
-                    {codeVerified && (
+                    {codeVerified ? (
                       <>
                         <Text
                           style={
@@ -978,6 +1044,10 @@ export default function ResetPasswordScreen() {
                               );
 
                               setErrorMessage(
+                                ''
+                              );
+
+                              setSuccessMessage(
                                 ''
                               );
                             }}
@@ -1057,6 +1127,10 @@ export default function ResetPasswordScreen() {
                               setErrorMessage(
                                 ''
                               );
+
+                              setSuccessMessage(
+                                ''
+                              );
                             }}
                             onSubmitEditing={
                               handleResetPassword
@@ -1086,6 +1160,10 @@ export default function ResetPasswordScreen() {
                           </TouchableOpacity>
                         </View>
 
+                        {/* ==========================================
+                            CHANGE PASSWORD BUTTON
+                        ========================================== */}
+
                         <TouchableOpacity
                           style={[
                             styles.primaryButton,
@@ -1111,9 +1189,11 @@ export default function ResetPasswordScreen() {
                           </Text>
                         </TouchableOpacity>
                       </>
-                    )}
+                    ) : null}
 
-                    {/* BACK */}
+                    {/* ==================================================
+                        BACK TO SIGN IN
+                    ================================================== */}
 
                     <TouchableOpacity
                       style={
@@ -1157,6 +1237,10 @@ const styles =
     flex: {
       flex: 1,
     },
+
+    // ========================================================
+    // PAGE
+    // ========================================================
 
     desktopBackground: {
       flex: 1,
@@ -1217,6 +1301,10 @@ const styles =
       backgroundColor:
         COLORS.pinkTop,
     },
+
+    // ========================================================
+    // HEADER
+    // ========================================================
 
     headerWrapper: {
       backgroundColor:
@@ -1297,6 +1385,10 @@ const styles =
       fontSize: 12,
     },
 
+    // ========================================================
+    // LOGO
+    // ========================================================
+
     logoCircle: {
       position:
         'absolute',
@@ -1333,6 +1425,10 @@ const styles =
       height: 110,
     },
 
+    // ========================================================
+    // BODY
+    // ========================================================
+
     bodyBackground: {
       flexGrow: 1,
 
@@ -1346,6 +1442,10 @@ const styles =
 
       zIndex: 2,
     },
+
+    // ========================================================
+    // CARD
+    // ========================================================
 
     card: {
       backgroundColor:
@@ -1420,6 +1520,10 @@ const styles =
       textAlign: 'center',
     },
 
+    // ========================================================
+    // VERIFIED
+    // ========================================================
+
     verifiedBox: {
       flexDirection: 'row',
 
@@ -1455,6 +1559,10 @@ const styles =
       fontSize: 11,
     },
 
+    // ========================================================
+    // ERROR
+    // ========================================================
+
     errorContainer: {
       marginBottom: 15,
 
@@ -1485,6 +1593,54 @@ const styles =
 
       textAlign: 'center',
     },
+
+    // ========================================================
+    // SUCCESS
+    // ========================================================
+
+    successContainer: {
+      marginBottom: 15,
+
+      paddingHorizontal: 12,
+      paddingVertical: 10,
+
+      flexDirection: 'row',
+
+      alignItems: 'center',
+      justifyContent: 'center',
+
+      gap: 7,
+
+      borderWidth: 1,
+
+      borderColor:
+        COLORS.successBorder,
+
+      borderRadius: 8,
+
+      backgroundColor:
+        COLORS.successBackground,
+    },
+
+    successMessageText: {
+      flex: 1,
+
+      color:
+        COLORS.successText,
+
+      fontFamily:
+        'Inter_500Medium',
+
+      fontSize: 10,
+
+      lineHeight: 15,
+
+      textAlign: 'center',
+    },
+
+    // ========================================================
+    // OTP
+    // ========================================================
 
     codeArea: {
       position: 'relative',
@@ -1571,6 +1727,10 @@ const styles =
 
       fontSize: 10,
     },
+
+    // ========================================================
+    // PASSWORD
+    // ========================================================
 
     label: {
       marginBottom: 6,
@@ -1659,6 +1819,10 @@ const styles =
       fontSize: 11,
     },
 
+    // ========================================================
+    // BUTTON
+    // ========================================================
+
     primaryButton: {
       height: 50,
 
@@ -1687,6 +1851,10 @@ const styles =
 
       fontSize: 13,
     },
+
+    // ========================================================
+    // BACK TO SIGN IN
+    // ========================================================
 
     backButton: {
       alignSelf: 'center',

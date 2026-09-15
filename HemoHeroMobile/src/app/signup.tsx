@@ -1,7 +1,12 @@
-import { useState } from 'react';
+import {
+  useEffect,
+  useRef,
+  useState,
+} from 'react';
 
 import {
-  Alert,
+  Animated,
+  Easing,
   Image,
   KeyboardAvoidingView,
   Platform,
@@ -14,14 +19,37 @@ import {
   View,
 } from 'react-native';
 
-import { MaterialIcons } from '@expo/vector-icons';
-import { LinearGradient } from 'expo-linear-gradient';
-import { router } from 'expo-router';
-import { StatusBar } from 'expo-status-bar';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import {
+  MaterialIcons,
+} from '@expo/vector-icons';
 
-import { registerUser } from '../lib/api';
-import { saveSession } from '../lib/session';
+import {
+  LinearGradient,
+} from 'expo-linear-gradient';
+
+import {
+  router,
+} from 'expo-router';
+
+import {
+  StatusBar,
+} from 'expo-status-bar';
+
+import {
+  SafeAreaView,
+} from 'react-native-safe-area-context';
+
+import {
+  registerUser,
+} from '../lib/api';
+
+import {
+  saveSession,
+} from '../lib/session';
+
+// ============================================================
+// COLORS
+// ============================================================
 
 const COLORS = {
   red: '#DB0A0A',
@@ -37,78 +65,417 @@ const COLORS = {
   inputBorder: '#D8D8D8',
   placeholder: '#A3A3A3',
   muted: '#555555',
+
+  success: '#198754',
+  successBackground: '#EAF7EF',
+  successBorder: '#B8DFC7',
 };
 
+// ============================================================
+// SCREEN
+// ============================================================
+
 export default function SignUpScreen() {
-  const { height } =
+  const {
+    height,
+  } =
     useWindowDimensions();
 
-  /*
-    PRIMARY TARGET:
-    iPhone 16 Pro = approximately 402 x 874
-
-    iPhone 13 and other shorter phones
-    get slightly tighter spacing.
-  */
   const isSmallPhone =
-    Platform.OS !== 'web' &&
-    height <= 844;
+    Platform.OS !==
+      'web' &&
+    height <=
+      844;
 
-  const [email, setEmail] =
+  // ==========================================================
+  // FORM STATE
+  // ==========================================================
+
+  const [
+    email,
+    setEmail,
+  ] =
     useState('');
 
-  const [password, setPassword] =
+  const [
+    password,
+    setPassword,
+  ] =
     useState('');
 
   const [
     confirmPassword,
     setConfirmPassword,
-  ] = useState('');
+  ] =
+    useState('');
 
   const [
     showPassword,
     setShowPassword,
-  ] = useState(false);
+  ] =
+    useState(false);
 
   const [
     showConfirmPassword,
     setShowConfirmPassword,
-  ] = useState(false);
-
-  const [accepted, setAccepted] =
+  ] =
     useState(false);
 
-  const [loading, setLoading] =
+  const [
+    accepted,
+    setAccepted,
+  ] =
+    useState(false);
+
+  const [
+    loading,
+    setLoading,
+  ] =
     useState(false);
 
   const [
     errorMessage,
     setErrorMessage,
-  ] = useState('');
+  ] =
+    useState('');
+
+  const [
+    successMessage,
+    setSuccessMessage,
+  ] =
+    useState('');
 
   // ==========================================================
-  // MESSAGE
+  // ANIMATIONS
   // ==========================================================
 
-  function showMessage(
-    title: string,
+  const headerOpacity =
+    useRef(
+      new Animated.Value(0)
+    ).current;
+
+  const headerTranslateY =
+    useRef(
+      new Animated.Value(-10)
+    ).current;
+
+  const logoOpacity =
+    useRef(
+      new Animated.Value(0)
+    ).current;
+
+  const logoScale =
+    useRef(
+      new Animated.Value(0.88)
+    ).current;
+
+  const cardOpacity =
+    useRef(
+      new Animated.Value(0)
+    ).current;
+
+  const cardTranslateY =
+    useRef(
+      new Animated.Value(28)
+    ).current;
+
+  const buttonScale =
+    useRef(
+      new Animated.Value(1)
+    ).current;
+
+  const checkboxScale =
+    useRef(
+      new Animated.Value(1)
+    ).current;
+
+  const errorShake =
+    useRef(
+      new Animated.Value(0)
+    ).current;
+
+  // ==========================================================
+  // ENTRANCE ANIMATION
+  // ==========================================================
+
+  useEffect(
+    () => {
+      Animated.sequence([
+        Animated.parallel([
+          Animated.timing(
+            headerOpacity,
+            {
+              toValue: 1,
+              duration: 320,
+
+              easing:
+                Easing.out(
+                  Easing.ease
+                ),
+
+              useNativeDriver:
+                true,
+            }
+          ),
+
+          Animated.timing(
+            headerTranslateY,
+            {
+              toValue: 0,
+              duration: 320,
+
+              easing:
+                Easing.out(
+                  Easing.ease
+                ),
+
+              useNativeDriver:
+                true,
+            }
+          ),
+        ]),
+
+        Animated.parallel([
+          Animated.parallel([
+            Animated.timing(
+              logoOpacity,
+              {
+                toValue: 1,
+                duration: 330,
+
+                easing:
+                  Easing.out(
+                    Easing.ease
+                  ),
+
+                useNativeDriver:
+                  true,
+              }
+            ),
+
+            Animated.spring(
+              logoScale,
+              {
+                toValue: 1,
+                friction: 6,
+                tension: 70,
+
+                useNativeDriver:
+                  true,
+              }
+            ),
+          ]),
+
+          Animated.parallel([
+            Animated.timing(
+              cardOpacity,
+              {
+                toValue: 1,
+                duration: 430,
+
+                easing:
+                  Easing.out(
+                    Easing.cubic
+                  ),
+
+                useNativeDriver:
+                  true,
+              }
+            ),
+
+            Animated.timing(
+              cardTranslateY,
+              {
+                toValue: 0,
+                duration: 430,
+
+                easing:
+                  Easing.out(
+                    Easing.cubic
+                  ),
+
+                useNativeDriver:
+                  true,
+              }
+            ),
+          ]),
+        ]),
+      ]).start();
+    },
+    [
+      headerOpacity,
+      headerTranslateY,
+      logoOpacity,
+      logoScale,
+      cardOpacity,
+      cardTranslateY,
+    ]
+  );
+
+  // ==========================================================
+  // ERROR SHAKE
+  // ==========================================================
+
+  function triggerError(
     message: string
   ) {
-    if (
-      Platform.OS === 'web' &&
-      typeof window !== 'undefined'
-    ) {
-      window.alert(
-        `${title}\n\n${message}`
-      );
+    setSuccessMessage('');
+    setErrorMessage(
+      message
+    );
 
+    errorShake.setValue(
+      0
+    );
+
+    Animated.sequence([
+      Animated.timing(
+        errorShake,
+        {
+          toValue: -8,
+          duration: 55,
+          useNativeDriver: true,
+        }
+      ),
+
+      Animated.timing(
+        errorShake,
+        {
+          toValue: 8,
+          duration: 70,
+          useNativeDriver: true,
+        }
+      ),
+
+      Animated.timing(
+        errorShake,
+        {
+          toValue: -6,
+          duration: 65,
+          useNativeDriver: true,
+        }
+      ),
+
+      Animated.timing(
+        errorShake,
+        {
+          toValue: 6,
+          duration: 65,
+          useNativeDriver: true,
+        }
+      ),
+
+      Animated.timing(
+        errorShake,
+        {
+          toValue: -3,
+          duration: 55,
+          useNativeDriver: true,
+        }
+      ),
+
+      Animated.timing(
+        errorShake,
+        {
+          toValue: 3,
+          duration: 55,
+          useNativeDriver: true,
+        }
+      ),
+
+      Animated.timing(
+        errorShake,
+        {
+          toValue: 0,
+          duration: 55,
+          useNativeDriver: true,
+        }
+      ),
+    ]).start();
+  }
+
+  // ==========================================================
+  // CREATE BUTTON ANIMATION
+  // ==========================================================
+
+  function handleButtonPressIn() {
+    if (
+      loading
+    ) {
       return;
     }
 
-    Alert.alert(
-      title,
-      message
+    Animated.spring(
+      buttonScale,
+      {
+        toValue: 0.97,
+        friction: 7,
+        tension: 160,
+
+        useNativeDriver:
+          true,
+      }
+    ).start();
+  }
+
+  function handleButtonPressOut() {
+    Animated.spring(
+      buttonScale,
+      {
+        toValue: 1,
+        friction: 7,
+        tension: 160,
+
+        useNativeDriver:
+          true,
+      }
+    ).start();
+  }
+
+  // ==========================================================
+  // TERMS CHECKBOX
+  // ==========================================================
+
+  function handleToggleAgreement() {
+    if (
+      loading
+    ) {
+      return;
+    }
+
+    setAccepted(
+      current =>
+        !current
     );
+
+    Animated.sequence([
+      Animated.timing(
+        checkboxScale,
+        {
+          toValue: 0.82,
+          duration: 70,
+          useNativeDriver: true,
+        }
+      ),
+
+      Animated.spring(
+        checkboxScale,
+        {
+          toValue: 1,
+          friction: 5,
+          tension: 180,
+
+          useNativeDriver:
+            true,
+        }
+      ),
+    ]).start();
+
+    if (
+      errorMessage
+    ) {
+      setErrorMessage('');
+    }
   }
 
   // ==========================================================
@@ -117,31 +484,32 @@ export default function SignUpScreen() {
 
   async function handleCreateAccount() {
     setErrorMessage('');
+    setSuccessMessage('');
 
     const cleanEmail =
-      email.trim().toLowerCase();
+      email
+        .trim()
+        .toLowerCase();
 
+    // --------------------------------------------------------
     // REQUIRED
+    // --------------------------------------------------------
 
     if (
       !cleanEmail ||
       !password ||
       !confirmPassword
     ) {
-      const message =
-        'Please complete all required fields.';
-
-      setErrorMessage(message);
-
-      showMessage(
-        'Missing Information',
-        message
+      triggerError(
+        'Please complete all required fields.'
       );
 
       return;
     }
 
-    // EMAIL
+    // --------------------------------------------------------
+    // EMAIL FORMAT
+    // --------------------------------------------------------
 
     const emailPattern =
       /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -151,101 +519,90 @@ export default function SignUpScreen() {
         cleanEmail
       )
     ) {
-      const message =
-        'Please enter a valid email address.';
-
-      setErrorMessage(message);
-
-      showMessage(
-        'Invalid Email',
-        message
+      triggerError(
+        'Please enter a valid email address.'
       );
 
       return;
     }
 
+    // --------------------------------------------------------
     // PASSWORD LENGTH
+    // --------------------------------------------------------
 
     if (
-      password.length < 8
+      password.length <
+      8
     ) {
-      const message =
-        'Password must be at least 8 characters.';
-
-      setErrorMessage(message);
-
-      showMessage(
-        'Invalid Password',
-        message
+      triggerError(
+        'Password must be at least 8 characters.'
       );
 
       return;
     }
 
+    // --------------------------------------------------------
     // PASSWORD REQUIREMENTS
+    // --------------------------------------------------------
 
     const hasLetter =
-      /[A-Za-z]/.test(password);
+      /[A-Za-z]/.test(
+        password
+      );
 
     const hasNumber =
-      /[0-9]/.test(password);
+      /[0-9]/.test(
+        password
+      );
 
     if (
       !hasLetter ||
       !hasNumber
     ) {
-      const message =
-        'Password must contain at least one letter and one number.';
-
-      setErrorMessage(message);
-
-      showMessage(
-        'Invalid Password',
-        message
+      triggerError(
+        'Password must contain at least one letter and one number.'
       );
 
       return;
     }
 
+    // --------------------------------------------------------
     // PASSWORD MATCH
+    // --------------------------------------------------------
 
     if (
       password !==
       confirmPassword
     ) {
-      const message =
-        'Passwords do not match.';
-
-      setErrorMessage(message);
-
-      showMessage(
-        'Passwords Do Not Match',
-        message
+      triggerError(
+        'Passwords do not match.'
       );
 
       return;
     }
 
+    // --------------------------------------------------------
     // TERMS
+    // --------------------------------------------------------
 
-    if (!accepted) {
-      const message =
-        'Please agree to the Terms of Service and Privacy Policy.';
-
-      setErrorMessage(message);
-
-      showMessage(
-        'Agreement Required',
-        message
+    if (
+      !accepted
+    ) {
+      triggerError(
+        'Please agree to the Terms of Service and Privacy Policy.'
       );
 
       return;
     }
 
+    // --------------------------------------------------------
     // API
+    // --------------------------------------------------------
 
     try {
-      setLoading(true);
+      setLoading(
+        true
+      );
 
       const data =
         await registerUser(
@@ -270,9 +627,17 @@ export default function SignUpScreen() {
         setPassword('');
         setConfirmPassword('');
 
-        showMessage(
-          'Account Created',
-          'Your Hemo-Hero account was created successfully.'
+        setSuccessMessage(
+          'Account created successfully.'
+        );
+
+        setTimeout(
+          () => {
+            router.replace(
+              '/complete-profile/personal'
+            );
+          },
+          700
         );
 
         return;
@@ -294,7 +659,9 @@ export default function SignUpScreen() {
             cleanEmail,
         },
       });
-    } catch (error) {
+    } catch (
+      error
+    ) {
       console.log(
         'REGISTER ERROR:',
         error
@@ -304,20 +671,20 @@ export default function SignUpScreen() {
         'Unable to create your account. Please try again.';
 
       if (
-        error instanceof Error
+        error instanceof
+        Error
       ) {
         message =
           error.message;
       }
 
-      setErrorMessage(message);
-
-      showMessage(
-        'Sign Up Failed',
+      triggerError(
         message
       );
     } finally {
-      setLoading(false);
+      setLoading(
+        false
+      );
     }
   }
 
@@ -326,24 +693,43 @@ export default function SignUpScreen() {
   // ==========================================================
 
   return (
-    <View style={styles.desktopBackground}>
-      <View style={styles.phone}>
+    <View
+      style={
+        styles.desktopBackground
+      }
+    >
+      <View
+        style={
+          styles.phone
+        }
+      >
         <SafeAreaView
-          style={styles.safeArea}
-          edges={['top']}
+          style={
+            styles.safeArea
+          }
+          edges={[
+            'top',
+          ]}
         >
-          <StatusBar style="light" />
+          <StatusBar
+            style="light"
+          />
 
           <KeyboardAvoidingView
-            style={styles.flex}
+            style={
+              styles.flex
+            }
             behavior={
-              Platform.OS === 'ios'
+              Platform.OS ===
+                'ios'
                 ? 'padding'
                 : undefined
             }
           >
             <ScrollView
-              style={styles.flex}
+              style={
+                styles.flex
+              }
               contentContainerStyle={
                 styles.scroll
               }
@@ -351,9 +737,15 @@ export default function SignUpScreen() {
               showsVerticalScrollIndicator={
                 false
               }
-              bounces={false}
+              bounces={
+                false
+              }
             >
-              <View style={styles.authContent}>
+              <View
+                style={
+                  styles.authContent
+                }
+              >
                 {/* ==================================================
                     HEADER
                 ================================================== */}
@@ -387,24 +779,41 @@ export default function SignUpScreen() {
                       }
                     />
 
-                    <Text
-                      style={[
-                        styles.brandName,
+                    <Animated.View
+                      style={{
+                        alignItems:
+                          'center',
 
-                        isSmallPhone &&
-                          styles.brandNameSmall,
-                      ]}
-                    >
-                      Hemo-Hero
-                    </Text>
+                        opacity:
+                          headerOpacity,
 
-                    <Text
-                      style={
-                        styles.tagline
-                      }
+                        transform: [
+                          {
+                            translateY:
+                              headerTranslateY,
+                          },
+                        ],
+                      }}
                     >
-                      Connect to Donors Near You
-                    </Text>
+                      <Text
+                        style={[
+                          styles.brandName,
+
+                          isSmallPhone &&
+                            styles.brandNameSmall,
+                        ]}
+                      >
+                        Hemo-Hero
+                      </Text>
+
+                      <Text
+                        style={
+                          styles.tagline
+                        }
+                      >
+                        Connect to Donors Near You
+                      </Text>
+                    </Animated.View>
                   </LinearGradient>
                 </View>
 
@@ -412,16 +821,30 @@ export default function SignUpScreen() {
                     LOGO
                 ================================================== */}
 
-                <View
+                <Animated.View
                   style={[
                     styles.logoCircle,
 
                     isSmallPhone &&
                       styles.logoCircleSmall,
+
+                    {
+                      opacity:
+                        logoOpacity,
+
+                      transform: [
+                        {
+                          scale:
+                            logoScale,
+                        },
+                      ],
+                    },
                   ]}
                 >
                   <Image
-                    source={require('../../assets/images/LifeLine (5).png')}
+                    source={require(
+                      '../../assets/images/LifeLine (5).png'
+                    )}
                     style={[
                       styles.logoImage,
 
@@ -430,7 +853,7 @@ export default function SignUpScreen() {
                     ]}
                     resizeMode="contain"
                   />
-                </View>
+                </Animated.View>
 
                 {/* ==================================================
                     BODY
@@ -448,27 +871,45 @@ export default function SignUpScreen() {
                       styles.bodyBackgroundSmall,
                   ]}
                 >
-                  {/* ================================================
-                      CARD
-                  ================================================ */}
-
-                  <View
+                  <Animated.View
                     style={[
                       styles.card,
 
                       isSmallPhone &&
                         styles.cardSmall,
+
+                      {
+                        opacity:
+                          cardOpacity,
+
+                        transform: [
+                          {
+                            translateY:
+                              cardTranslateY,
+                          },
+                        ],
+                      },
                     ]}
                   >
-                    {/* TABS */}
+                    {/* ==============================================
+                        TABS
+                    ============================================== */}
 
-                    <View style={styles.tabs}>
+                    <View
+                      style={
+                        styles.tabs
+                      }
+                    >
                       <TouchableOpacity
                         style={
                           styles.inactiveTab
                         }
-                        activeOpacity={0.7}
-                        disabled={loading}
+                        activeOpacity={
+                          0.7
+                        }
+                        disabled={
+                          loading
+                        }
                         onPress={() =>
                           router.replace(
                             '/'
@@ -499,59 +940,130 @@ export default function SignUpScreen() {
                       </View>
                     </View>
 
-                    {/* ERROR */}
+                    {/* ==============================================
+                        ERROR
+                    ============================================== */}
 
                     {errorMessage ? (
-                      <View
-                        style={
-                          styles.errorContainer
-                        }
+                      <Animated.View
+                        style={[
+                          styles.errorContainer,
+
+                          {
+                            transform: [
+                              {
+                                translateX:
+                                  errorShake,
+                              },
+                            ],
+                          },
+                        ]}
                       >
                         <Text
                           style={
                             styles.errorText
                           }
                         >
-                          {errorMessage}
+                          {
+                            errorMessage
+                          }
+                        </Text>
+                      </Animated.View>
+                    ) : null}
+
+                    {/* ==============================================
+                        SUCCESS
+                    ============================================== */}
+
+                    {successMessage ? (
+                      <View
+                        style={
+                          styles.successContainer
+                        }
+                      >
+                        <MaterialIcons
+                          name="check-circle"
+                          size={17}
+                          color={
+                            COLORS.success
+                          }
+                        />
+
+                        <Text
+                          style={
+                            styles.successText
+                          }
+                        >
+                          {
+                            successMessage
+                          }
                         </Text>
                       </View>
                     ) : null}
 
-                    {/* EMAIL */}
+                    {/* ==============================================
+                        EMAIL
+                    ============================================== */}
 
                     <Text
-                      style={styles.label}
+                      style={
+                        styles.label
+                      }
                     >
                       Email Address
                     </Text>
 
                     <TextInput
-                      style={styles.input}
+                      style={
+                        styles.input
+                      }
                       placeholder="Enter your email"
                       placeholderTextColor={
                         COLORS.placeholder
                       }
-                      value={email}
+                      value={
+                        email
+                      }
                       keyboardType="email-address"
                       autoCapitalize="none"
-                      autoCorrect={false}
+                      autoCorrect={
+                        false
+                      }
                       autoComplete="email"
-                      editable={!loading}
+                      editable={
+                        !loading
+                      }
                       onChangeText={value => {
-                        setEmail(value);
+                        setEmail(
+                          value
+                        );
 
                         if (
                           errorMessage
                         ) {
-                          setErrorMessage('');
+                          setErrorMessage(
+                            ''
+                          );
+                        }
+
+                        if (
+                          successMessage
+                        ) {
+                          setSuccessMessage(
+                            ''
+                          );
                         }
                       }}
                     />
 
-                    {/* PASSWORD */}
+                    {/* ==============================================
+                        PASSWORD
+                    ============================================== */}
 
                     <Text
-                      style={styles.label}
+                      style={
+                        styles.label
+                      }
                     >
                       Password
                     </Text>
@@ -569,28 +1081,50 @@ export default function SignUpScreen() {
                         placeholderTextColor={
                           COLORS.placeholder
                         }
-                        value={password}
+                        value={
+                          password
+                        }
                         secureTextEntry={
                           !showPassword
                         }
                         autoCapitalize="none"
-                        autoCorrect={false}
+                        autoCorrect={
+                          false
+                        }
                         autoComplete="new-password"
-                        editable={!loading}
+                        editable={
+                          !loading
+                        }
                         onChangeText={value => {
-                          setPassword(value);
+                          setPassword(
+                            value
+                          );
 
                           if (
                             errorMessage
                           ) {
-                            setErrorMessage('');
+                            setErrorMessage(
+                              ''
+                            );
+                          }
+
+                          if (
+                            successMessage
+                          ) {
+                            setSuccessMessage(
+                              ''
+                            );
                           }
                         }}
                       />
 
                       <TouchableOpacity
-                        activeOpacity={0.7}
-                        disabled={loading}
+                        activeOpacity={
+                          0.7
+                        }
+                        disabled={
+                          loading
+                        }
                         onPress={() =>
                           setShowPassword(
                             current =>
@@ -610,7 +1144,9 @@ export default function SignUpScreen() {
                       </TouchableOpacity>
                     </View>
 
-                    {/* CONFIRM PASSWORD */}
+                    {/* ==============================================
+                        CONFIRM PASSWORD
+                    ============================================== */}
 
                     <Text
                       style={
@@ -640,9 +1176,13 @@ export default function SignUpScreen() {
                           !showConfirmPassword
                         }
                         autoCapitalize="none"
-                        autoCorrect={false}
+                        autoCorrect={
+                          false
+                        }
                         autoComplete="new-password"
-                        editable={!loading}
+                        editable={
+                          !loading
+                        }
                         returnKeyType="done"
                         onChangeText={value => {
                           setConfirmPassword(
@@ -652,7 +1192,17 @@ export default function SignUpScreen() {
                           if (
                             errorMessage
                           ) {
-                            setErrorMessage('');
+                            setErrorMessage(
+                              ''
+                            );
+                          }
+
+                          if (
+                            successMessage
+                          ) {
+                            setSuccessMessage(
+                              ''
+                            );
                           }
                         }}
                         onSubmitEditing={
@@ -661,8 +1211,12 @@ export default function SignUpScreen() {
                       />
 
                       <TouchableOpacity
-                        activeOpacity={0.7}
-                        disabled={loading}
+                        activeOpacity={
+                          0.7
+                        }
+                        disabled={
+                          loading
+                        }
                         onPress={() =>
                           setShowConfirmPassword(
                             current =>
@@ -682,108 +1236,143 @@ export default function SignUpScreen() {
                       </TouchableOpacity>
                     </View>
 
-                    {/* TERMS */}
+                    {/* ==============================================
+                        TERMS
+                    ============================================== */}
 
-<View
-  style={
-    styles.agreementRow
-  }
->
-  <TouchableOpacity
-    activeOpacity={0.7}
-    disabled={loading}
-    onPress={() =>
-      setAccepted(
-        current =>
-          !current
-      )
-    }
-  >
-    <View
-      style={[
-        styles.checkbox,
-
-        accepted &&
-          styles.checkboxChecked,
-      ]}
-    >
-      {accepted && (
-        <MaterialIcons
-          name="check"
-          size={13}
-          color={
-            COLORS.white
-          }
-        />
-      )}
-    </View>
-  </TouchableOpacity>
-
-  <Text
-    style={
-      styles.agreementText
-    }
-  >
-    I agree to the{' '}
-
-    <Text
-      style={
-        styles.linkText
-      }
-      onPress={() =>
-        router.push(
-          '/terms-of-service'
-        )
-      }
-    >
-      Terms of Service
-    </Text>
-
-    {' '}and{' '}
-
-    <Text
-      style={
-        styles.linkText
-      }
-      onPress={() =>
-        router.push(
-          '/privacy-policy'
-        )
-      }
-    >
-      Privacy Policy
-    </Text>
-
-    .
-  </Text>
-</View>
-
-                    {/* CREATE ACCOUNT */}
-
-                    <TouchableOpacity
-                      style={[
-                        styles.primaryButton,
-
-                        loading &&
-                          styles.disabledButton,
-                      ]}
-                      activeOpacity={0.85}
-                      disabled={loading}
-                      onPress={
-                        handleCreateAccount
+                    <View
+                      style={
+                        styles.agreementRow
                       }
                     >
-                      <Text
-                        style={
-                          styles.primaryButtonText
+                      <TouchableOpacity
+                        activeOpacity={
+                          0.7
+                        }
+                        disabled={
+                          loading
+                        }
+                        onPress={
+                          handleToggleAgreement
                         }
                       >
-                        {loading
-                          ? 'Creating Account...'
-                          : 'Create Account'}
+                        <Animated.View
+                          style={[
+                            styles.checkbox,
+
+                            accepted &&
+                              styles.checkboxChecked,
+
+                            {
+                              transform: [
+                                {
+                                  scale:
+                                    checkboxScale,
+                                },
+                              ],
+                            },
+                          ]}
+                        >
+                          {accepted ? (
+                            <MaterialIcons
+                              name="check"
+                              size={13}
+                              color={
+                                COLORS.white
+                              }
+                            />
+                          ) : null}
+                        </Animated.View>
+                      </TouchableOpacity>
+
+                      <Text
+                        style={
+                          styles.agreementText
+                        }
+                      >
+                        I agree to the{' '}
+
+                        <Text
+                          style={
+                            styles.linkText
+                          }
+                          onPress={() =>
+                            router.push(
+                              '/terms-of-service'
+                            )
+                          }
+                        >
+                          Terms of Service
+                        </Text>
+
+                        {' '}and{' '}
+
+                        <Text
+                          style={
+                            styles.linkText
+                          }
+                          onPress={() =>
+                            router.push(
+                              '/privacy-policy'
+                            )
+                          }
+                        >
+                          Privacy Policy
+                        </Text>
+
+                        .
                       </Text>
-                    </TouchableOpacity>
-                  </View>
+                    </View>
+
+                    {/* ==============================================
+                        CREATE ACCOUNT
+                    ============================================== */}
+
+                    <Animated.View
+                      style={{
+                        transform: [
+                          {
+                            scale:
+                              buttonScale,
+                          },
+                        ],
+                      }}
+                    >
+                      <TouchableOpacity
+                        style={[
+                          styles.primaryButton,
+
+                          loading &&
+                            styles.disabledButton,
+                        ]}
+                        activeOpacity={
+                          1
+                        }
+                        disabled={
+                          loading
+                        }
+                        onPressIn={
+                          handleButtonPressIn
+                        }
+                        onPressOut={
+                          handleButtonPressOut
+                        }
+                        onPress={
+                          handleCreateAccount
+                        }
+                      >
+                        <Text
+                          style={
+                            styles.primaryButtonText
+                          }
+                        >
+                          {loading
+                            ? 'Creating Account...'
+                            : 'Create Account'}
+                        </Text>
+                      </TouchableOpacity>
+                    </Animated.View>
+                  </Animated.View>
                 </LinearGradient>
               </View>
             </ScrollView>
@@ -798,575 +1387,666 @@ export default function SignUpScreen() {
 // STYLES
 // ============================================================
 
-const styles = StyleSheet.create({
-  flex: {
-    flex: 1,
-  },
-
-  // ==========================================================
-  // DESKTOP
-  // ==========================================================
-
-  desktopBackground: {
-    flex: 1,
-
-    alignItems: 'center',
-    justifyContent: 'center',
-
-    backgroundColor:
-      Platform.OS === 'web'
-        ? '#1E1E1E'
-        : COLORS.pinkBottom,
-  },
-
-  // ==========================================================
-  // PHONE
-  // ==========================================================
-
-  phone: {
-    width:
-      Platform.OS === 'web'
-        ? 402
-        : '100%',
-
-    height:
-      Platform.OS === 'web'
-        ? 874
-        : '100%',
-
-    maxWidth: '100%',
-
-    overflow: 'hidden',
-
-    backgroundColor:
-      COLORS.pinkBottom,
-  },
-
-  safeArea: {
-    flex: 1,
-
-    backgroundColor:
-      COLORS.red,
-  },
-
-  scroll: {
-    flexGrow: 1,
-
-    backgroundColor:
-      COLORS.pinkBottom,
-  },
-
-  authContent: {
-    flexGrow: 1,
-
-    position: 'relative',
-
-    backgroundColor:
-      COLORS.pinkTop,
-  },
-
-  // ==========================================================
-  // HEADER
-  // ==========================================================
-
-  headerWrapper: {
-    backgroundColor:
-      COLORS.pinkTop,
-
-    zIndex: 1,
-  },
-
-  header: {
-    height: 260,
-
-    alignItems: 'center',
-
-    paddingTop: 55,
-
-    borderBottomLeftRadius: 62,
-    borderBottomRightRadius: 62,
-
-    overflow: 'hidden',
-  },
-
-  headerSmall: {
-    height: 230,
-
-    paddingTop: 38,
-
-    borderBottomLeftRadius: 54,
-    borderBottomRightRadius: 54,
-  },
-
-  headerCircleLeft: {
-    position: 'absolute',
-
-    width: 180,
-    height: 180,
-
-    borderRadius: 90,
-
-    left: -100,
-    top: -50,
-
-    backgroundColor:
-      'rgba(255,255,255,0.07)',
-  },
-
-  headerCircleRight: {
-    position: 'absolute',
-
-    width: 180,
-    height: 180,
-
-    borderRadius: 90,
-
-    right: -92,
-    top: -55,
-
-    backgroundColor:
-      'rgba(255,255,255,0.07)',
-  },
-
-  brandName: {
-    color:
-      COLORS.white,
-
-    fontFamily:
-      'Poppins_700Bold',
-
-    fontSize: 31,
-  },
-
-  brandNameSmall: {
-    fontSize: 29,
-  },
-
-  tagline: {
-    marginTop: 7,
-
-    color:
-      COLORS.white,
-
-    fontFamily:
-      'Inter_400Regular',
-
-    fontSize: 12,
-  },
-
-  // ==========================================================
-  // LOGO
-  // ==========================================================
-
-  logoCircle: {
-    position: 'absolute',
-
-    top: 186,
-
-    alignSelf: 'center',
-
-    width: 148,
-    height: 148,
-
-    borderRadius: 74,
-
-    backgroundColor:
-      COLORS.white,
-
-    alignItems: 'center',
-    justifyContent: 'center',
-
-    overflow: 'hidden',
-
-    zIndex: 100,
-
-    elevation: 100,
-
-    shadowColor:
-      '#000000',
-
-    shadowOffset: {
-      width: 0,
-      height: 2,
+const styles =
+  StyleSheet.create({
+    flex: {
+      flex: 1,
     },
 
-    shadowOpacity: 0.08,
+    // ========================================================
+    // DESKTOP
+    // ========================================================
 
-    shadowRadius: 4,
-  },
+    desktopBackground: {
+      flex: 1,
 
-  logoCircleSmall: {
-    top: 167,
+      alignItems:
+        'center',
 
-    width: 126,
-    height: 126,
+      justifyContent:
+        'center',
 
-    borderRadius: 63,
-  },
-
-  logoImage: {
-    width: 128,
-    height: 128,
-  },
-
-  logoImageSmall: {
-    width: 108,
-    height: 108,
-  },
-
-  // ==========================================================
-  // BODY
-  // ==========================================================
-
-  bodyBackground: {
-    flexGrow: 1,
-
-    minHeight: 614,
-
-    paddingHorizontal: 26,
-
-    paddingTop:
-      Platform.OS === 'web'
-        ? 115
-        : 100,
-
-    paddingBottom: 36,
-
-    zIndex: 2,
-  },
-
-  bodyBackgroundSmall: {
-    minHeight: 614,
-
-    paddingHorizontal: 22,
-
-    paddingTop: 82,
-
-    paddingBottom: 28,
-  },
-
-  // ==========================================================
-  // CARD
-  // ==========================================================
-
-  card: {
-    backgroundColor:
-      COLORS.white,
-
-    borderRadius: 25,
-
-    paddingHorizontal: 22,
-    paddingTop: 17,
-    paddingBottom: 23,
-
-    shadowColor:
-      '#000000',
-
-    shadowOffset: {
-      width: 0,
-      height: 2,
+      backgroundColor:
+        Platform.OS === 'web'
+          ? '#1E1E1E'
+          : COLORS.pinkBottom,
     },
 
-    shadowOpacity: 0.06,
+    // ========================================================
+    // PHONE
+    // ========================================================
 
-    shadowRadius: 5,
+    phone: {
+      width:
+        Platform.OS === 'web'
+          ? 402
+          : '100%',
 
-    elevation: 2,
-  },
+      height:
+        Platform.OS === 'web'
+          ? 874
+          : '100%',
 
-  cardSmall: {
-    borderRadius: 23,
+      maxWidth:
+        '100%',
 
-    paddingHorizontal: 20,
-    paddingTop: 15,
-    paddingBottom: 20,
-  },
+      overflow:
+        'hidden',
 
-  // ==========================================================
-  // TABS
-  // ==========================================================
+      backgroundColor:
+        COLORS.pinkBottom,
+    },
 
-  tabs: {
-    flexDirection: 'row',
+    safeArea: {
+      flex: 1,
 
-    marginBottom: 19,
-  },
+      backgroundColor:
+        COLORS.red,
+    },
 
-  activeTab: {
-    flex: 1,
+    scroll: {
+      flexGrow: 1,
 
-    height: 43,
+      backgroundColor:
+        COLORS.pinkBottom,
+    },
 
-    marginHorizontal: 7,
+    authContent: {
+      flexGrow: 1,
 
-    borderRadius: 22,
+      position:
+        'relative',
 
-    backgroundColor:
-      COLORS.redButton,
+      backgroundColor:
+        COLORS.pinkTop,
+    },
 
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
+    // ========================================================
+    // HEADER
+    // ========================================================
 
-  inactiveTab: {
-    flex: 1,
+    headerWrapper: {
+      backgroundColor:
+        COLORS.pinkTop,
 
-    height: 43,
+      zIndex:
+        1,
+    },
 
-    marginHorizontal: 7,
+    header: {
+      height: 260,
 
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
+      alignItems:
+        'center',
 
-  activeTabText: {
-    color:
-      COLORS.white,
+      paddingTop: 55,
 
-    fontFamily:
-      'Poppins_600SemiBold',
+      borderBottomLeftRadius:
+        62,
 
-    fontSize: 13,
-  },
+      borderBottomRightRadius:
+        62,
 
-  inactiveTabText: {
-    color:
-      COLORS.black,
+      overflow:
+        'hidden',
+    },
 
-    fontFamily:
-      'Inter_500Medium',
+    headerSmall: {
+      height: 230,
 
-    fontSize: 13,
-  },
+      paddingTop: 38,
 
-  // ==========================================================
-  // ERROR
-  // ==========================================================
+      borderBottomLeftRadius:
+        54,
 
-  errorContainer: {
-    marginBottom: 15,
+      borderBottomRightRadius:
+        54,
+    },
 
-    paddingHorizontal: 12,
-    paddingVertical: 9,
+    headerCircleLeft: {
+      position:
+        'absolute',
 
-    borderWidth: 1,
+      width: 180,
+      height: 180,
 
-    borderColor:
-      '#F5BABA',
+      borderRadius: 90,
 
-    borderRadius: 8,
+      left: -100,
+      top: -50,
 
-    backgroundColor:
-      '#FDECEC',
-  },
+      backgroundColor:
+        'rgba(255,255,255,0.07)',
+    },
 
-  errorText: {
-    color:
-      COLORS.redButton,
+    headerCircleRight: {
+      position:
+        'absolute',
 
-    fontFamily:
-      'Inter_500Medium',
+      width: 180,
+      height: 180,
 
-    fontSize: 10,
+      borderRadius: 90,
 
-    lineHeight: 15,
+      right: -92,
+      top: -55,
 
-    textAlign: 'center',
-  },
+      backgroundColor:
+        'rgba(255,255,255,0.07)',
+    },
 
-  // ==========================================================
-  // FORM
-  // ==========================================================
+    brandName: {
+      color:
+        COLORS.white,
 
-  label: {
-    marginBottom: 6,
+      fontFamily:
+        'Poppins_700Bold',
 
-    color:
-      COLORS.black,
+      fontSize: 31,
+    },
 
-    fontFamily:
-      'Inter_500Medium',
+    brandNameSmall: {
+      fontSize: 29,
+    },
 
-    fontSize: 12,
-  },
+    tagline: {
+      marginTop: 7,
 
-  confirmLabel: {
-    marginTop: 14,
-    marginBottom: 6,
+      color:
+        COLORS.white,
 
-    color:
-      COLORS.black,
+      fontFamily:
+        'Inter_400Regular',
 
-    fontFamily:
-      'Inter_500Medium',
+      fontSize: 12,
+    },
 
-    fontSize: 12,
-  },
+    // ========================================================
+    // LOGO
+    // ========================================================
 
-  input: {
-    height: 43,
+    logoCircle: {
+      position:
+        'absolute',
 
-    marginBottom: 14,
+      top: 186,
 
-    paddingHorizontal: 15,
+      alignSelf:
+        'center',
 
-    borderWidth: 1,
+      width: 148,
+      height: 148,
 
-    borderColor:
-      COLORS.inputBorder,
+      borderRadius: 74,
 
-    borderRadius: 22,
+      backgroundColor:
+        COLORS.white,
 
-    color:
-      COLORS.black,
+      alignItems:
+        'center',
 
-    backgroundColor:
-      COLORS.white,
+      justifyContent:
+        'center',
 
-    fontFamily:
-      'Inter_400Regular',
+      overflow:
+        'hidden',
 
-    fontSize: 12,
+      zIndex: 100,
 
-    outlineStyle:
-      Platform.OS === 'web'
-        ? 'none'
-        : undefined,
-  } as any,
+      elevation: 100,
 
-  passwordBox: {
-    height: 43,
+      shadowColor:
+        '#000000',
 
-    flexDirection: 'row',
+      shadowOffset: {
+        width: 0,
+        height: 2,
+      },
 
-    alignItems: 'center',
+      shadowOpacity: 0.08,
 
-    paddingLeft: 15,
-    paddingRight: 13,
+      shadowRadius: 4,
+    },
 
-    borderWidth: 1,
+    logoCircleSmall: {
+      top: 167,
 
-    borderColor:
-      COLORS.inputBorder,
+      width: 126,
+      height: 126,
 
-    borderRadius: 22,
+      borderRadius: 63,
+    },
 
-    backgroundColor:
-      COLORS.white,
-  },
+    logoImage: {
+      width: 128,
+      height: 128,
+    },
 
-  passwordInput: {
-    flex: 1,
+    logoImageSmall: {
+      width: 108,
+      height: 108,
+    },
 
-    color:
-      COLORS.black,
+    // ========================================================
+    // BODY
+    // ========================================================
 
-    fontFamily:
-      'Inter_400Regular',
+    bodyBackground: {
+      flexGrow: 1,
 
-    fontSize: 12,
+      minHeight: 614,
 
-    outlineStyle:
-      Platform.OS === 'web'
-        ? 'none'
-        : undefined,
-  } as any,
+      paddingHorizontal: 26,
 
-  showText: {
-    color:
-      COLORS.muted,
+      paddingTop:
+        Platform.OS === 'web'
+          ? 115
+          : 100,
 
-    fontFamily:
-      'Inter_400Regular',
+      paddingBottom: 36,
 
-    fontSize: 11,
-  },
+      zIndex: 2,
+    },
 
-  // ==========================================================
-  // TERMS
-  // ==========================================================
+    bodyBackgroundSmall: {
+      minHeight: 614,
 
-  agreementRow: {
-    flexDirection: 'row',
+      paddingHorizontal: 22,
 
-    alignItems: 'flex-start',
+      paddingTop: 82,
 
-    marginTop: 15,
+      paddingBottom: 28,
+    },
 
-    paddingHorizontal: 4,
-  },
+    // ========================================================
+    // CARD
+    // ========================================================
 
-  checkbox: {
-  width: 15,
-  height: 15,
+    card: {
+      backgroundColor:
+        COLORS.white,
 
-  marginRight: 9,
+      borderRadius: 25,
 
-  borderWidth: 1,
+      paddingHorizontal: 22,
+      paddingTop: 17,
+      paddingBottom: 23,
 
-  borderColor:
-    '#CCCCCC',
+      shadowColor:
+        '#000000',
 
-  alignItems: 'center',
-  justifyContent: 'center',
-},
+      shadowOffset: {
+        width: 0,
+        height: 2,
+      },
 
-  checkboxChecked: {
-    borderColor:
-      COLORS.red,
+      shadowOpacity: 0.06,
 
-    backgroundColor:
-      COLORS.red,
-  },
+      shadowRadius: 5,
 
-  agreementText: {
-    flex: 1,
+      elevation: 2,
+    },
 
-    color:
-      COLORS.black,
+    cardSmall: {
+      borderRadius: 23,
 
-    fontFamily:
-      'Inter_400Regular',
+      paddingHorizontal: 20,
+      paddingTop: 15,
+      paddingBottom: 20,
+    },
 
-    fontSize: 9,
+    // ========================================================
+    // TABS
+    // ========================================================
 
-    lineHeight: 14,
-  },
+    tabs: {
+      flexDirection:
+        'row',
 
-  linkText: {
-    color:
-      COLORS.red,
-  },
+      marginBottom: 19,
+    },
 
-  // ==========================================================
-  // BUTTON
-  // ==========================================================
+    activeTab: {
+      flex: 1,
 
-  primaryButton: {
-    height: 50,
+      height: 43,
 
-    marginTop: 26,
+      marginHorizontal: 7,
 
-    borderRadius: 7,
+      borderRadius: 22,
 
-    backgroundColor:
-      COLORS.redButton,
+      backgroundColor:
+        COLORS.redButton,
 
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
+      alignItems:
+        'center',
 
-  disabledButton: {
-    opacity: 0.6,
-  },
+      justifyContent:
+        'center',
+    },
 
-  primaryButtonText: {
-    color:
-      COLORS.white,
+    inactiveTab: {
+      flex: 1,
 
-    fontFamily:
-      'Poppins_600SemiBold',
+      height: 43,
 
-    fontSize: 13,
-  },
-});
+      marginHorizontal: 7,
+
+      alignItems:
+        'center',
+
+      justifyContent:
+        'center',
+    },
+
+    activeTabText: {
+      color:
+        COLORS.white,
+
+      fontFamily:
+        'Poppins_600SemiBold',
+
+      fontSize: 13,
+    },
+
+    inactiveTabText: {
+      color:
+        COLORS.black,
+
+      fontFamily:
+        'Inter_500Medium',
+
+      fontSize: 13,
+    },
+
+    // ========================================================
+    // ERROR
+    // ========================================================
+
+    errorContainer: {
+      marginBottom: 15,
+
+      paddingHorizontal: 12,
+      paddingVertical: 9,
+
+      borderWidth: 1,
+
+      borderColor:
+        '#F5BABA',
+
+      borderRadius: 8,
+
+      backgroundColor:
+        '#FDECEC',
+    },
+
+    errorText: {
+      color:
+        COLORS.redButton,
+
+      fontFamily:
+        'Inter_500Medium',
+
+      fontSize: 10,
+
+      lineHeight: 15,
+
+      textAlign:
+        'center',
+    },
+
+    // ========================================================
+    // SUCCESS
+    // ========================================================
+
+    successContainer: {
+      marginBottom: 15,
+
+      paddingHorizontal: 12,
+      paddingVertical: 9,
+
+      flexDirection:
+        'row',
+
+      alignItems:
+        'center',
+
+      justifyContent:
+        'center',
+
+      gap: 7,
+
+      borderWidth: 1,
+
+      borderColor:
+        COLORS.successBorder,
+
+      borderRadius: 8,
+
+      backgroundColor:
+        COLORS.successBackground,
+    },
+
+    successText: {
+      flex: 1,
+
+      color:
+        COLORS.success,
+
+      fontFamily:
+        'Inter_500Medium',
+
+      fontSize: 10,
+
+      lineHeight: 15,
+
+      textAlign:
+        'center',
+    },
+
+    // ========================================================
+    // FORM
+    // ========================================================
+
+    label: {
+      marginBottom: 6,
+
+      color:
+        COLORS.black,
+
+      fontFamily:
+        'Inter_500Medium',
+
+      fontSize: 12,
+    },
+
+    confirmLabel: {
+      marginTop: 14,
+      marginBottom: 6,
+
+      color:
+        COLORS.black,
+
+      fontFamily:
+        'Inter_500Medium',
+
+      fontSize: 12,
+    },
+
+    input: {
+      height: 43,
+
+      marginBottom: 14,
+
+      paddingHorizontal: 15,
+
+      borderWidth: 1,
+
+      borderColor:
+        COLORS.inputBorder,
+
+      borderRadius: 22,
+
+      color:
+        COLORS.black,
+
+      backgroundColor:
+        COLORS.white,
+
+      fontFamily:
+        'Inter_400Regular',
+
+      fontSize: 12,
+
+      outlineStyle:
+        Platform.OS === 'web'
+          ? 'none'
+          : undefined,
+    } as any,
+
+    passwordBox: {
+      height: 43,
+
+      flexDirection:
+        'row',
+
+      alignItems:
+        'center',
+
+      paddingLeft: 15,
+      paddingRight: 13,
+
+      borderWidth: 1,
+
+      borderColor:
+        COLORS.inputBorder,
+
+      borderRadius: 22,
+
+      backgroundColor:
+        COLORS.white,
+    },
+
+    passwordInput: {
+      flex: 1,
+
+      color:
+        COLORS.black,
+
+      fontFamily:
+        'Inter_400Regular',
+
+      fontSize: 12,
+
+      outlineStyle:
+        Platform.OS === 'web'
+          ? 'none'
+          : undefined,
+    } as any,
+
+    showText: {
+      color:
+        COLORS.muted,
+
+      fontFamily:
+        'Inter_400Regular',
+
+      fontSize: 11,
+    },
+
+    // ========================================================
+    // TERMS
+    // ========================================================
+
+    agreementRow: {
+      flexDirection:
+        'row',
+
+      alignItems:
+        'flex-start',
+
+      marginTop: 15,
+
+      paddingHorizontal: 4,
+    },
+
+    checkbox: {
+      width: 15,
+      height: 15,
+
+      marginRight: 9,
+
+      borderWidth: 1,
+
+      borderColor:
+        '#CCCCCC',
+
+      alignItems:
+        'center',
+
+      justifyContent:
+        'center',
+    },
+
+    checkboxChecked: {
+      borderColor:
+        COLORS.red,
+
+      backgroundColor:
+        COLORS.red,
+    },
+
+    agreementText: {
+      flex: 1,
+
+      color:
+        COLORS.black,
+
+      fontFamily:
+        'Inter_400Regular',
+
+      fontSize: 9,
+
+      lineHeight: 14,
+    },
+
+    linkText: {
+      color:
+        COLORS.red,
+    },
+
+    // ========================================================
+    // BUTTON
+    // ========================================================
+
+    primaryButton: {
+      height: 50,
+
+      marginTop: 26,
+
+      borderRadius: 7,
+
+      backgroundColor:
+        COLORS.redButton,
+
+      alignItems:
+        'center',
+
+      justifyContent:
+        'center',
+    },
+
+    disabledButton: {
+      opacity: 0.6,
+    },
+
+    primaryButtonText: {
+      color:
+        COLORS.white,
+
+      fontFamily:
+        'Poppins_600SemiBold',
+
+      fontSize: 13,
+    },
+  });

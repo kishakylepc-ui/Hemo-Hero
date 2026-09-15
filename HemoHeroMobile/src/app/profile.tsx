@@ -6,6 +6,7 @@ import {
 import {
   Alert,
   Image,
+  Modal,
   Platform,
   ScrollView,
   StyleSheet,
@@ -151,6 +152,14 @@ export default function ProfileScreen() {
       false
     );
 
+  const [
+    logoutModalVisible,
+    setLogoutModalVisible,
+  ] =
+    useState(
+      false
+    );
+
   // ==========================================================
   // LOAD PROFILE
   // ==========================================================
@@ -168,10 +177,6 @@ export default function ProfileScreen() {
 
           return;
         }
-
-        // ----------------------------------------------------
-        // USER PROFILE
-        // ----------------------------------------------------
 
         try {
           setLoading(
@@ -215,10 +220,6 @@ export default function ProfileScreen() {
             false
           );
         }
-
-        // ----------------------------------------------------
-        // DONOR APPLICATION
-        // ----------------------------------------------------
 
         try {
           setLoadingDonorStatus(
@@ -615,6 +616,10 @@ export default function ProfileScreen() {
 
       await clearSession();
 
+      setLogoutModalVisible(
+        false
+      );
+
       router.replace(
         '/'
       );
@@ -622,6 +627,10 @@ export default function ProfileScreen() {
       console.log(
         'PROFILE LOGOUT ERROR:',
         error
+      );
+
+      setLogoutModalVisible(
+        false
       );
 
       showMessage(
@@ -637,49 +646,25 @@ export default function ProfileScreen() {
 
   function handleLogout() {
     if (
-      Platform.OS ===
-      'web'
+      signingOut
     ) {
-      const confirmed =
-        typeof window !==
-        'undefined'
-          ? window.confirm(
-              'Are you sure you want to sign out of Hemo-Hero?'
-            )
-          : false;
-
-      if (
-        confirmed
-      ) {
-        performLogout();
-      }
-
       return;
     }
 
-    Alert.alert(
-      'Sign Out',
-      'Are you sure you want to sign out of Hemo-Hero?',
-      [
-        {
-          text:
-            'Cancel',
+    setLogoutModalVisible(
+      true
+    );
+  }
 
-          style:
-            'cancel',
-        },
+  function handleCancelLogout() {
+    if (
+      signingOut
+    ) {
+      return;
+    }
 
-        {
-          text:
-            'Sign Out',
-
-          style:
-            'destructive',
-
-          onPress:
-            performLogout,
-        },
-      ]
+    setLogoutModalVisible(
+      false
     );
   }
 
@@ -740,10 +725,6 @@ export default function ProfileScreen() {
                   styles.heroCircleRight
                 }
               />
-
-              {/* ==============================================
-                  TOP BAR
-              ============================================== */}
 
               <View
                 style={
@@ -810,8 +791,6 @@ export default function ProfileScreen() {
                   styles.identityRow
                 }
               >
-                {/* AVATAR */}
-
                 <View
                   style={
                     styles.avatarContainer
@@ -864,8 +843,6 @@ export default function ProfileScreen() {
                     />
                   </TouchableOpacity>
                 </View>
-
-                {/* IDENTITY CONTENT */}
 
                 <View
                   style={
@@ -1080,10 +1057,6 @@ export default function ProfileScreen() {
               false
             }
           >
-            {/* ==================================================
-                ERROR
-            ================================================== */}
-
             {errorMessage ? (
               <TouchableOpacity
                 style={
@@ -1506,14 +1479,6 @@ export default function ProfileScreen() {
                 handleLogout
               }
             >
-              <MaterialIcons
-                name="logout"
-                size={18}
-                color={
-                  COLORS.white
-                }
-              />
-
               <Text
                 style={
                   styles.logoutText
@@ -1535,12 +1500,127 @@ export default function ProfileScreen() {
           </ScrollView>
 
           {/* ==================================================
-              SHARED BOTTOM NAVIGATION
+              BOTTOM NAVIGATION
           ================================================== */}
 
           <MainBottomNav
             activeTab="profile"
           />
+
+          {/* ==================================================
+              CUSTOM LOGOUT CONFIRMATION
+          ================================================== */}
+
+          <Modal
+            visible={
+              logoutModalVisible
+            }
+            transparent
+            animationType="fade"
+            statusBarTranslucent
+            onRequestClose={
+              handleCancelLogout
+            }
+          >
+            <View
+              style={
+                styles.logoutModalBackdrop
+              }
+            >
+              <View
+                style={
+                  styles.logoutModalCard
+                }
+              >
+                <View
+                  style={
+                    styles.logoutModalIcon
+                  }
+                >
+                  <MaterialIcons
+                    name="logout"
+                    size={28}
+                    color={
+                      COLORS.redButton
+                    }
+                  />
+                </View>
+
+                <Text
+                  style={
+                    styles.logoutModalTitle
+                  }
+                >
+                  Sign Out?
+                </Text>
+
+                <Text
+                  style={
+                    styles.logoutModalMessage
+                  }
+                >
+                  Are you sure you want to sign out of Hemo-Hero?
+                </Text>
+
+                <View
+                  style={
+                    styles.logoutModalActions
+                  }
+                >
+                  <TouchableOpacity
+                    style={
+                      styles.logoutCancelButton
+                    }
+                    activeOpacity={
+                      0.8
+                    }
+                    disabled={
+                      signingOut
+                    }
+                    onPress={
+                      handleCancelLogout
+                    }
+                  >
+                    <Text
+                      style={
+                        styles.logoutCancelText
+                      }
+                    >
+                      Cancel
+                    </Text>
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    style={[
+                      styles.logoutConfirmButton,
+
+                      signingOut &&
+                        styles.logoutConfirmDisabled,
+                    ]}
+                    activeOpacity={
+                      0.85
+                    }
+                    disabled={
+                      signingOut
+                    }
+                    onPress={
+                      performLogout
+                    }
+                  >
+                    <Text
+                      style={
+                        styles.logoutConfirmText
+                      }
+                    >
+                      {signingOut
+                        ? 'Signing Out...'
+                        : 'Sign Out'}
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            </View>
+          </Modal>
         </SafeAreaView>
       </View>
     </View>
@@ -2916,7 +2996,7 @@ const styles =
     },
 
     // ========================================================
-    // LOGOUT
+    // MAIN LOGOUT BUTTON
     // ========================================================
 
     logoutButton: {
@@ -2929,17 +3009,11 @@ const styles =
       borderRadius:
         12,
 
-      flexDirection:
-        'row',
-
       alignItems:
         'center',
 
       justifyContent:
         'center',
-
-      gap:
-        8,
 
       backgroundColor:
         COLORS.redButton,
@@ -2991,5 +3065,219 @@ const styles =
 
       textAlign:
         'center',
+    },
+
+    // ========================================================
+    // CUSTOM LOGOUT MODAL
+    // ========================================================
+
+    logoutModalBackdrop: {
+      flex:
+        1,
+
+      alignItems:
+        'center',
+
+      justifyContent:
+        'center',
+
+      paddingHorizontal:
+        24,
+
+      backgroundColor:
+        'rgba(0, 0, 0, 0.52)',
+    },
+
+    logoutModalCard: {
+      width:
+        '100%',
+
+      maxWidth:
+        340,
+
+      paddingHorizontal:
+        22,
+
+      paddingTop:
+        26,
+
+      paddingBottom:
+        20,
+
+      borderRadius:
+        22,
+
+      alignItems:
+        'center',
+
+      backgroundColor:
+        COLORS.white,
+
+      shadowColor:
+        '#000000',
+
+      shadowOffset: {
+        width:
+          0,
+
+        height:
+          8,
+      },
+
+      shadowOpacity:
+        0.18,
+
+      shadowRadius:
+        18,
+
+      elevation:
+        12,
+    },
+
+    logoutModalIcon: {
+      width:
+        58,
+
+      height:
+        58,
+
+      marginBottom:
+        15,
+
+      borderRadius:
+        29,
+
+      alignItems:
+        'center',
+
+      justifyContent:
+        'center',
+
+      backgroundColor:
+        COLORS.pinkSoft,
+    },
+
+    logoutModalTitle: {
+      color:
+        COLORS.black,
+
+      fontFamily:
+        'Poppins_700Bold',
+
+      fontSize:
+        19,
+
+      textAlign:
+        'center',
+    },
+
+    logoutModalMessage: {
+      maxWidth:
+        255,
+
+      marginTop:
+        7,
+
+      color:
+        COLORS.muted,
+
+      fontFamily:
+        'Inter_400Regular',
+
+      fontSize:
+        13,
+
+      lineHeight:
+        20,
+
+      textAlign:
+        'center',
+    },
+
+    logoutModalActions: {
+      width:
+        '100%',
+
+      marginTop:
+        23,
+
+      flexDirection:
+        'row',
+
+      gap:
+        10,
+    },
+
+    logoutCancelButton: {
+      flex:
+        1,
+
+      height:
+        46,
+
+      alignItems:
+        'center',
+
+      justifyContent:
+        'center',
+
+      borderWidth:
+        1,
+
+      borderColor:
+        COLORS.border,
+
+      borderRadius:
+        12,
+
+      backgroundColor:
+        COLORS.white,
+    },
+
+    logoutCancelText: {
+      color:
+        COLORS.black,
+
+      fontFamily:
+        'Inter_600SemiBold',
+
+      fontSize:
+        13,
+    },
+
+    logoutConfirmButton: {
+      flex:
+        1,
+
+      height:
+        46,
+
+      alignItems:
+        'center',
+
+      justifyContent:
+        'center',
+
+      borderRadius:
+        12,
+
+      backgroundColor:
+        COLORS.redButton,
+    },
+
+    logoutConfirmDisabled: {
+      opacity:
+        0.55,
+    },
+
+    logoutConfirmText: {
+      color:
+        COLORS.white,
+
+      fontFamily:
+        'Inter_600SemiBold',
+
+      fontSize:
+        13,
     },
   });
