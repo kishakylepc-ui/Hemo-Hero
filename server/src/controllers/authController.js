@@ -750,20 +750,79 @@ async function login(
     } = req.body;
 
     // --------------------------------------------------------
-    // REQUIRED
+    // REQUIRED FIELDS
+    // --------------------------------------------------------
+
+    const emailMissing =
+      typeof email !==
+        'string' ||
+      email.trim() ===
+        '';
+
+    const passwordMissing =
+      typeof password !==
+        'string' ||
+      password.length ===
+        0;
+
+    // --------------------------------------------------------
+    // BOTH EMPTY
     // --------------------------------------------------------
 
     if (
-      !email ||
-      !password
+      emailMissing &&
+      passwordMissing
     ) {
       return res
         .status(400)
         .json({
           error:
-            'email and password are required',
+            'Please enter your email and password.',
+
+          code:
+            'EMPTY_CREDENTIALS',
         });
     }
+
+    // --------------------------------------------------------
+    // EMAIL EMPTY
+    // --------------------------------------------------------
+
+    if (
+      emailMissing
+    ) {
+      return res
+        .status(400)
+        .json({
+          error:
+            'Please enter your email address.',
+
+          code:
+            'EMAIL_REQUIRED',
+        });
+    }
+
+    // --------------------------------------------------------
+    // PASSWORD EMPTY
+    // --------------------------------------------------------
+
+    if (
+      passwordMissing
+    ) {
+      return res
+        .status(400)
+        .json({
+          error:
+            'Please enter your password.',
+
+          code:
+            'PASSWORD_REQUIRED',
+        });
+    }
+
+    // --------------------------------------------------------
+    // INVALID TYPES
+    // --------------------------------------------------------
 
     if (
       typeof email !==
@@ -775,7 +834,10 @@ async function login(
         .status(400)
         .json({
           error:
-            'email and password must be text',
+            'Email and password must be text.',
+
+          code:
+            'INVALID_CREDENTIAL_FORMAT',
         });
     }
 
@@ -785,7 +847,105 @@ async function login(
         .toLowerCase();
 
     // --------------------------------------------------------
-    // SUPABASE LOGIN
+    // EMAIL FORMAT
+    // --------------------------------------------------------
+
+    const emailPattern =
+      /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+    if (
+      !emailPattern.test(
+        cleanEmail
+      )
+    ) {
+      return res
+        .status(400)
+        .json({
+          error:
+            'Please enter a valid email address.',
+
+          code:
+            'INVALID_EMAIL',
+        });
+    }
+
+    // --------------------------------------------------------
+    // CHECK IF ACCOUNT EXISTS
+    //
+    // Classroom/demo behavior:
+    //
+    // Nonexistent account:
+    // -> "Account does not exist."
+    // -> does NOT consume password attempts
+    //
+    // Existing account + wrong password:
+    // -> consumes one password attempt
+    // --------------------------------------------------------
+
+    const {
+      data: existingAccount,
+      error: accountLookupError,
+    } =
+      await supabaseAdmin
+        .from('users')
+        .select(
+          'id, email'
+        )
+        .eq(
+          'email',
+          cleanEmail
+        )
+        .maybeSingle();
+
+    // --------------------------------------------------------
+    // DATABASE LOOKUP ERROR
+    // --------------------------------------------------------
+
+    if (
+      accountLookupError
+    ) {
+      console.error(
+        'LOGIN ACCOUNT LOOKUP ERROR:',
+        accountLookupError
+      );
+
+      return res
+        .status(500)
+        .json({
+          error:
+            'Unable to check account information. Please try again.',
+
+          code:
+            'ACCOUNT_LOOKUP_FAILED',
+        });
+    }
+
+    // --------------------------------------------------------
+    // ACCOUNT DOES NOT EXIST
+    //
+    // IMPORTANT:
+    // Do NOT call recordFailedLogin() here.
+    // The attempt counter is only for wrong passwords on
+    // existing accounts.
+    // --------------------------------------------------------
+
+    if (
+      !existingAccount
+    ) {
+      return res
+        .status(404)
+        .json({
+          error:
+            'Account does not exist.',
+
+          code:
+            'ACCOUNT_NOT_FOUND',
+        });
+    }
+
+    // --------------------------------------------------------
+    // ACCOUNT EXISTS
+    // ATTEMPT SUPABASE LOGIN
     // --------------------------------------------------------
 
     const {
@@ -805,16 +965,19 @@ async function login(
     // LOGIN FAILED
     // --------------------------------------------------------
 
-    if (error) {
+    if (
+      error
+    ) {
       const message =
         String(
-          error.message || ''
+          error.message ||
+          ''
         );
 
       // ------------------------------------------------------
       // EMAIL NOT VERIFIED
       //
-      // Does NOT use one of the five attempts.
+      // Does NOT consume a password attempt.
       // ------------------------------------------------------
 
       if (
@@ -836,9 +999,10 @@ async function login(
       }
 
       // ------------------------------------------------------
-      // RECORD FAILED ATTEMPT
+      // EXISTING ACCOUNT + WRONG PASSWORD
       //
-      // Attached by loginRateLimiter.js.
+      // This is the ONLY normal authentication failure that
+      // consumes the 5 password attempts.
       // ------------------------------------------------------
 
       const attemptResult =
@@ -856,7 +1020,8 @@ async function login(
         );
 
       // ------------------------------------------------------
-      // FIFTH FAILED ATTEMPT
+      // FIFTH WRONG PASSWORD
+      // LOCK FOR 3 MINUTES
       // ------------------------------------------------------
 
       if (
@@ -875,13 +1040,13 @@ async function login(
           ) &&
           retryMinutes > 0
             ? retryMinutes
-            : 15;
+            : 3;
 
         return res
           .status(429)
           .json({
             error:
-              `Too many failed login attempts. Please try again in ${safeRetryMinutes} minute${safeRetryMinutes === 1 ? '' : 's'}.`,
+              `Too many incorrect password attempts. Please try again in ${safeRetryMinutes} minute${safeRetryMinutes === 1 ? '' : 's'}.`,
 
             code:
               'LOGIN_ACCOUNT_RATE_LIMIT',
@@ -895,17 +1060,11 @@ async function login(
       }
 
       // ------------------------------------------------------
-      // NORMAL WRONG PASSWORD
-      //
-      // IMPORTANT:
-      // Remaining attempts are included directly inside error.
-      //
-      // Even if the frontend only reads error.message,
-      // the warning will still be shown.
+      // WRONG PASSWORD MESSAGE
       // ------------------------------------------------------
 
       let loginError =
-        'Invalid email or password.';
+        'Incorrect password.';
 
       if (
         Number.isFinite(
@@ -917,12 +1076,12 @@ async function login(
           1
         ) {
           loginError =
-            'Invalid email or password. 1 attempt remaining before a 15-minute cooldown.';
+            'Incorrect password. 1 attempt remaining before a 3-minute cooldown.';
         } else if (
           attemptsRemaining > 1
         ) {
           loginError =
-            `Invalid email or password. ${attemptsRemaining} attempts remaining.`;
+            `Incorrect password. ${attemptsRemaining} attempts remaining.`;
         }
       }
 
@@ -933,7 +1092,7 @@ async function login(
             loginError,
 
           code:
-            'INVALID_CREDENTIALS',
+            'INCORRECT_PASSWORD',
 
           attempts_remaining:
             Number.isFinite(
@@ -947,7 +1106,7 @@ async function login(
     // --------------------------------------------------------
     // SUCCESSFUL LOGIN
     //
-    // Clear failed attempts for this email.
+    // Reset failed password attempts.
     // --------------------------------------------------------
 
     if (
@@ -993,9 +1152,16 @@ async function login(
         });
     }
 
+    // --------------------------------------------------------
+    // SUCCESS
+    // --------------------------------------------------------
+
     return res
       .status(200)
       .json({
+        message:
+          'Login successful.',
+
         session:
           data.session,
 
@@ -1005,7 +1171,9 @@ async function login(
         profile:
           dbUser,
       });
-  } catch (error) {
+  } catch (
+    error
+  ) {
     console.error(
       'LOGIN ERROR:',
       error
