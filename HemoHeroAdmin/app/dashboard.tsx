@@ -35,6 +35,8 @@ import {
   SafeAreaView,
 } from 'react-native-safe-area-context';
 
+import AdminBottomNav from './AdminBottomNav';
+
 import {
   getAdminDonorSummary,
   type AdminProfile,
@@ -51,33 +53,46 @@ import {
 // IPAD PRO
 // ============================================================
 
-const DESIGN_WIDTH = 1366;
-const DESIGN_HEIGHT = 1024;
+const DESIGN_WIDTH =
+  1366;
+
+const DESIGN_HEIGHT =
+  1024;
 
 // ============================================================
 // COLORS
 // ============================================================
 
 const COLORS = {
-  outer: '#02040A',
+  outer:
+    '#02040A',
 
-  navy: '#071126',
+  navy:
+    '#071126',
 
-  card: '#0D1830',
+  card:
+    '#0D1830',
 
-  cardLight: '#14223F',
+  cardLight:
+    '#14223F',
 
-  border: '#243554',
+  border:
+    '#243554',
 
-  red: '#DB0A0A',
+  red:
+    '#DB0A0A',
 
-  redBright: '#EF3340',
+  redBright:
+    '#EF3340',
 
-  white: '#FFFFFF',
+  white:
+    '#FFFFFF',
 
-  muted: '#909BB7',
+  muted:
+    '#909BB7',
 
-  green: '#38C983',
+  green:
+    '#38C983',
 };
 
 // ============================================================
@@ -90,6 +105,10 @@ export default function AdminDashboardScreen() {
     height,
   } =
     useWindowDimensions();
+
+  // ==========================================================
+  // RESPONSIVE TABLET FRAME
+  // ==========================================================
 
   const tablet =
     useMemo(
@@ -120,6 +139,7 @@ export default function AdminDashboardScreen() {
           Math.max(
             width -
               padding * 2,
+
             320
           );
 
@@ -127,6 +147,7 @@ export default function AdminDashboardScreen() {
           Math.max(
             height -
               padding * 2,
+
             320
           );
 
@@ -165,6 +186,10 @@ export default function AdminDashboardScreen() {
       0.68
     );
 
+  // ==========================================================
+  // STATE
+  // ==========================================================
+
   const [
     profile,
     setProfile,
@@ -188,7 +213,7 @@ export default function AdminDashboardScreen() {
     useState(true);
 
   // ==========================================================
-  // LOAD
+  // LOAD DASHBOARD
   // ==========================================================
 
   useEffect(
@@ -210,6 +235,10 @@ export default function AdminDashboardScreen() {
       const savedProfile =
         await getAdminProfile();
 
+      // ------------------------------------------------------
+      // PROTECT ADMIN DASHBOARD
+      // ------------------------------------------------------
+
       if (
         !token ||
         savedProfile?.role !==
@@ -227,6 +256,10 @@ export default function AdminDashboardScreen() {
       setProfile(
         savedProfile
       );
+
+      // ------------------------------------------------------
+      // LOAD DASHBOARD SUMMARY
+      // ------------------------------------------------------
 
       const result =
         await getAdminDonorSummary(
@@ -251,18 +284,6 @@ export default function AdminDashboardScreen() {
   }
 
   // ==========================================================
-  // LOGOUT
-  // ==========================================================
-
-  async function handleLogout() {
-    await clearAdminSession();
-
-    router.replace(
-      '/'
-    );
-  }
-
-  // ==========================================================
   // ADMIN NAME
   // ==========================================================
 
@@ -276,6 +297,11 @@ export default function AdminDashboardScreen() {
       .trim() ||
     profile?.email ||
     'Administrator';
+
+  const adminInitial =
+    adminName
+      .charAt(0)
+      .toUpperCase();
 
   // ==========================================================
   // UI
@@ -323,7 +349,9 @@ export default function AdminDashboardScreen() {
               styles.safeArea
             }
           >
-            {/* HEADER */}
+            {/* ==================================================
+                HEADER
+            ================================================== */}
 
             <View
               style={[
@@ -338,6 +366,10 @@ export default function AdminDashboardScreen() {
                 },
               ]}
             >
+              {/* ================================================
+                  BRAND
+              ================================================ */}
+
               <View>
                 <Text
                   style={[
@@ -356,6 +388,7 @@ export default function AdminDashboardScreen() {
                   >
                     Hemo-
                   </Text>
+
                   Hero
                 </Text>
 
@@ -376,11 +409,101 @@ export default function AdminDashboardScreen() {
                 </Text>
               </View>
 
+              {/* ================================================
+                  ADMIN AREA
+              ================================================ */}
+
               <View
                 style={
                   styles.adminSection
                 }
               >
+                {/* ==============================================
+                    NOTIFICATION BELL
+                ============================================== */}
+
+                <Pressable
+                  onPress={() => {
+                    console.log(
+                      'Admin notifications'
+                    );
+                  }}
+                  style={({ pressed }) => [
+                    styles.notificationButton,
+
+                    {
+                      width:
+                        46 * s,
+
+                      height:
+                        46 * s,
+
+                      borderRadius:
+                        23 * s,
+                    },
+
+                    pressed &&
+                      styles.headerButtonPressed,
+                  ]}
+                >
+                  <MaterialIcons
+                    name="notifications-none"
+                    size={
+                      24 * s
+                    }
+                    color={
+                      COLORS.muted
+                    }
+                  />
+
+                  {/* ============================================
+                      BADGE PLACEHOLDER
+
+                      This is visual only for now.
+                      We'll connect real unread count later.
+                  ============================================ */}
+
+                  <View
+                    style={[
+                      styles.notificationBadge,
+
+                      {
+                        width:
+                          15 * s,
+
+                        height:
+                          15 * s,
+
+                        borderRadius:
+                          8 * s,
+
+                        right:
+                          3 * s,
+
+                        top:
+                          3 * s,
+                      },
+                    ]}
+                  >
+                    <Text
+                      style={[
+                        styles.notificationBadgeText,
+
+                        {
+                          fontSize:
+                            8 * s,
+                        },
+                      ]}
+                    >
+                      !
+                    </Text>
+                  </View>
+                </Pressable>
+
+                {/* ==============================================
+                    ADMIN AVATAR
+                ============================================== */}
+
                 <View
                   style={[
                     styles.avatar,
@@ -407,16 +530,33 @@ export default function AdminDashboardScreen() {
                       },
                     ]}
                   >
-                    {adminName
-                      .charAt(
-                        0
-                      )
-                      .toUpperCase()}
+                    {
+                      adminInitial
+                    }
                   </Text>
                 </View>
 
-                <View>
+                {/* ==============================================
+                    ADMIN INFORMATION
+                ============================================== */}
+
+                <Pressable
+                  onPress={() =>
+                    router.push(
+                      '/settings'
+                    )
+                  }
+                  style={({ pressed }) => [
+                    styles.adminInfoButton,
+
+                    pressed &&
+                      styles.adminInfoPressed,
+                  ]}
+                >
                   <Text
+                    numberOfLines={
+                      1
+                    }
                     style={[
                       styles.adminName,
 
@@ -426,7 +566,9 @@ export default function AdminDashboardScreen() {
                       },
                     ]}
                   >
-                    {adminName}
+                    {
+                      adminName
+                    }
                   </Text>
 
                   <Text
@@ -441,41 +583,19 @@ export default function AdminDashboardScreen() {
                   >
                     Administrator
                   </Text>
-                </View>
-
-                <Pressable
-                  style={[
-                    styles.logoutButton,
-
-                    {
-                      width:
-                        46 * s,
-
-                      height:
-                        46 * s,
-
-                      borderRadius:
-                        11 * s,
-                    },
-                  ]}
-                  onPress={
-                    handleLogout
-                  }
-                >
-                  <MaterialIcons
-                    name="logout"
-                    size={
-                      22 * s
-                    }
-                    color={
-                      COLORS.redBright
-                    }
-                  />
                 </Pressable>
+
+                {/* ==============================================
+                    NO LOGOUT BUTTON HERE
+
+                    Sign Out has been moved to Settings.
+                ============================================== */}
               </View>
             </View>
 
-            {/* CONTENT */}
+            {/* ==================================================
+                CONTENT
+            ================================================== */}
 
             <ScrollView
               style={
@@ -488,14 +608,21 @@ export default function AdminDashboardScreen() {
                   paddingHorizontal:
                     48 * s,
 
-                  paddingVertical:
+                  paddingTop:
                     34 * s,
+
+                  paddingBottom:
+                    28 * s,
                 },
               ]}
               showsVerticalScrollIndicator={
                 false
               }
             >
+              {/* ================================================
+                  PAGE TITLE
+              ================================================ */}
+
               <View
                 style={[
                   styles.titleRow,
@@ -540,8 +667,15 @@ export default function AdminDashboardScreen() {
                   </Text>
                 </View>
 
+                {/* ==============================================
+                    REFRESH
+                ============================================== */}
+
                 <Pressable
-                  style={[
+                  disabled={
+                    loading
+                  }
+                  style={({ pressed }) => [
                     styles.refreshButton,
 
                     {
@@ -557,35 +691,56 @@ export default function AdminDashboardScreen() {
                       gap:
                         8 * s,
                     },
+
+                    pressed &&
+                      styles.refreshPressed,
+
+                    loading &&
+                      styles.refreshDisabled,
                   ]}
                   onPress={
                     loadDashboard
                   }
                 >
-                  <MaterialIcons
-                    name="refresh"
-                    size={
-                      21 * s
-                    }
-                    color={
-                      COLORS.white
-                    }
-                  />
+                  {loading ? (
+                    <ActivityIndicator
+                      size="small"
+                      color={
+                        COLORS.white
+                      }
+                    />
+                  ) : (
+                    <>
+                      <MaterialIcons
+                        name="refresh"
+                        size={
+                          21 * s
+                        }
+                        color={
+                          COLORS.white
+                        }
+                      />
 
-                  <Text
-                    style={[
-                      styles.refreshText,
+                      <Text
+                        style={[
+                          styles.refreshText,
 
-                      {
-                        fontSize:
-                          11 * s,
-                      },
-                    ]}
-                  >
-                    Refresh
-                  </Text>
+                          {
+                            fontSize:
+                              11 * s,
+                          },
+                        ]}
+                      >
+                        Refresh
+                      </Text>
+                    </>
+                  )}
                 </Pressable>
               </View>
+
+              {/* ================================================
+                  LOADING
+              ================================================ */}
 
               {loading ? (
                 <View
@@ -607,7 +762,9 @@ export default function AdminDashboardScreen() {
                 </View>
               ) : (
                 <>
-                  {/* STATS */}
+                  {/* ============================================
+                      STAT CARDS
+                  ============================================ */}
 
                   <View
                     style={[
@@ -622,6 +779,8 @@ export default function AdminDashboardScreen() {
                       },
                     ]}
                   >
+                    {/* TOTAL APPLICATIONS */}
+
                     <StatCard
                       scale={
                         s
@@ -633,6 +792,8 @@ export default function AdminDashboardScreen() {
                         0
                       }
                     />
+
+                    {/* VERIFIED DONORS */}
 
                     <StatCard
                       scale={
@@ -646,6 +807,8 @@ export default function AdminDashboardScreen() {
                       }
                       positive
                     />
+
+                    {/* PENDING */}
 
                     <StatCard
                       scale={
@@ -665,6 +828,8 @@ export default function AdminDashboardScreen() {
                       }
                     />
 
+                    {/* REJECTED */}
+
                     <StatCard
                       scale={
                         s
@@ -678,7 +843,9 @@ export default function AdminDashboardScreen() {
                     />
                   </View>
 
-                  {/* ATTENTION */}
+                  {/* ============================================
+                      NEEDS ATTENTION
+                  ============================================ */}
 
                   <View
                     style={[
@@ -771,8 +938,12 @@ export default function AdminDashboardScreen() {
                       </Text>
                     </View>
 
+                    {/* ==========================================
+                        REVIEW APPLICATIONS
+                    ========================================== */}
+
                     <Pressable
-                      style={[
+                      style={({ pressed }) => [
                         styles.reviewButton,
 
                         {
@@ -784,10 +955,10 @@ export default function AdminDashboardScreen() {
 
                           borderRadius:
                             10 * s,
-
-                          gap:
-                            8 * s,
                         },
+
+                        pressed &&
+                          styles.reviewPressed,
                       ]}
                       onPress={() =>
                         router.push(
@@ -795,16 +966,6 @@ export default function AdminDashboardScreen() {
                         )
                       }
                     >
-                      <MaterialIcons
-                        name="fact-check"
-                        size={
-                          21 * s
-                        }
-                        color={
-                          COLORS.white
-                        }
-                      />
-
                       <Text
                         style={[
                           styles.reviewText,
@@ -820,7 +981,9 @@ export default function AdminDashboardScreen() {
                     </Pressable>
                   </View>
 
-                  {/* LOWER */}
+                  {/* ============================================
+                      LOWER DASHBOARD
+                  ============================================ */}
 
                   <View
                     style={[
@@ -832,6 +995,10 @@ export default function AdminDashboardScreen() {
                       },
                     ]}
                   >
+                    {/* ==========================================
+                        BLOOD TYPE DEMAND
+                    ========================================== */}
+
                     <View
                       style={[
                         styles.largeCard,
@@ -893,6 +1060,10 @@ export default function AdminDashboardScreen() {
                         Live blood-request analytics will be connected here.
                       </Text>
                     </View>
+
+                    {/* ==========================================
+                        RECENT ACTIVITY
+                    ========================================== */}
 
                     <View
                       style={[
@@ -959,6 +1130,14 @@ export default function AdminDashboardScreen() {
                 </>
               )}
             </ScrollView>
+
+            {/* ==================================================
+                SHARED ADMIN HOTBAR
+            ================================================== */}
+
+            <AdminBottomNav
+              activeTab="dashboard"
+            />
           </SafeAreaView>
         </LinearGradient>
       </View>
@@ -981,7 +1160,10 @@ function StatCard({
 }: {
   scale: number;
 
-  icon: any;
+  icon:
+    React.ComponentProps<
+      typeof MaterialIcons
+    >['name'];
 
   title: string;
 
@@ -996,6 +1178,10 @@ function StatCard({
   const content =
     (
       <>
+        {/* ====================================================
+            STAT TOP
+        ==================================================== */}
+
         <View
           style={
             styles.statTop
@@ -1034,16 +1220,22 @@ function StatCard({
             />
           </View>
 
-          <MaterialIcons
-            name="chevron-right"
-            size={
-              23 * scale
-            }
-            color={
-              COLORS.muted
-            }
-          />
+          {onPress ? (
+            <MaterialIcons
+              name="chevron-right"
+              size={
+                23 * scale
+              }
+              color={
+                COLORS.muted
+              }
+            />
+          ) : null}
         </View>
+
+        {/* ====================================================
+            STAT LABEL
+        ==================================================== */}
 
         <Text
           style={[
@@ -1058,8 +1250,14 @@ function StatCard({
             },
           ]}
         >
-          {title}
+          {
+            title
+          }
         </Text>
+
+        {/* ====================================================
+            STAT VALUE
+        ==================================================== */}
 
         <Text
           style={[
@@ -1077,10 +1275,16 @@ function StatCard({
               styles.statValueAlert,
           ]}
         >
-          {value}
+          {
+            value
+          }
         </Text>
       </>
     );
+
+  // ==========================================================
+  // PRESSABLE CARD
+  // ==========================================================
 
   if (
     onPress
@@ -1090,9 +1294,7 @@ function StatCard({
         onPress={
           onPress
         }
-        style={({
-          pressed,
-        }) => [
+        style={({ pressed }) => [
           styles.statCard,
 
           {
@@ -1109,16 +1311,20 @@ function StatCard({
           alert &&
             styles.statCardAlert,
 
-          pressed && {
-            opacity:
-              0.88,
-          },
+          pressed &&
+            styles.statCardPressed,
         ]}
       >
-        {content}
+        {
+          content
+        }
       </Pressable>
     );
   }
+
+  // ==========================================================
+  // NORMAL CARD
+  // ==========================================================
 
   return (
     <View
@@ -1140,7 +1346,9 @@ function StatCard({
           styles.statCardAlert,
       ]}
     >
-      {content}
+      {
+        content
+      }
     </View>
   );
 }
@@ -1151,8 +1359,13 @@ function StatCard({
 
 const styles =
   StyleSheet.create({
+    // ========================================================
+    // PAGE
+    // ========================================================
+
     outer: {
-      flex: 1,
+      flex:
+        1,
 
       alignItems:
         'center',
@@ -1173,7 +1386,7 @@ const styles =
 
       borderRadius:
         Platform.OS ===
-        'web'
+          'web'
           ? 24
           : 0,
     },
@@ -1187,12 +1400,18 @@ const styles =
     },
 
     gradient: {
-      flex: 1,
+      flex:
+        1,
     },
 
     safeArea: {
-      flex: 1,
+      flex:
+        1,
     },
+
+    // ========================================================
+    // HEADER
+    // ========================================================
 
     header: {
       flexDirection:
@@ -1204,7 +1423,8 @@ const styles =
       justifyContent:
         'space-between',
 
-      borderBottomWidth: 1,
+      borderBottomWidth:
+        1,
 
       borderBottomColor:
         COLORS.border,
@@ -1231,6 +1451,10 @@ const styles =
         'Inter_700Bold',
     },
 
+    // ========================================================
+    // ADMIN HEADER
+    // ========================================================
+
     adminSection: {
       flexDirection:
         'row',
@@ -1238,7 +1462,49 @@ const styles =
       alignItems:
         'center',
 
-      gap: 11,
+      gap:
+        11,
+    },
+
+    notificationButton: {
+      position:
+        'relative',
+
+      alignItems:
+        'center',
+
+      justifyContent:
+        'center',
+    },
+
+    notificationBadge: {
+      position:
+        'absolute',
+
+      alignItems:
+        'center',
+
+      justifyContent:
+        'center',
+
+      backgroundColor:
+        COLORS.redBright,
+    },
+
+    notificationBadgeText: {
+      color:
+        COLORS.white,
+
+      fontFamily:
+        'Inter_700Bold',
+
+      lineHeight:
+        10,
+    },
+
+    headerButtonPressed: {
+      opacity:
+        0.65,
     },
 
     avatar: {
@@ -1248,7 +1514,8 @@ const styles =
       justifyContent:
         'center',
 
-      borderWidth: 1,
+      borderWidth:
+        1,
 
       borderColor:
         COLORS.border,
@@ -1265,6 +1532,16 @@ const styles =
         'Poppins_600SemiBold',
     },
 
+    adminInfoButton: {
+      minWidth:
+        90,
+    },
+
+    adminInfoPressed: {
+      opacity:
+        0.7,
+    },
+
     adminName: {
       color:
         COLORS.white,
@@ -1274,7 +1551,8 @@ const styles =
     },
 
     adminRole: {
-      marginTop: 2,
+      marginTop:
+        2,
 
       color:
         COLORS.muted,
@@ -1283,26 +1561,23 @@ const styles =
         'Inter_400Regular',
     },
 
-    logoutButton: {
-      marginLeft: 9,
-
-      alignItems:
-        'center',
-
-      justifyContent:
-        'center',
-
-      backgroundColor:
-        COLORS.cardLight,
-    },
+    // ========================================================
+    // CONTENT
+    // ========================================================
 
     scroll: {
-      flex: 1,
+      flex:
+        1,
     },
 
     content: {
-      flexGrow: 1,
+      flexGrow:
+        1,
     },
+
+    // ========================================================
+    // TITLE
+    // ========================================================
 
     titleRow: {
       flexDirection:
@@ -1331,6 +1606,10 @@ const styles =
         'Inter_400Regular',
     },
 
+    // ========================================================
+    // REFRESH
+    // ========================================================
+
     refreshButton: {
       flexDirection:
         'row',
@@ -1345,6 +1624,23 @@ const styles =
         COLORS.cardLight,
     },
 
+    refreshPressed: {
+      opacity:
+        0.76,
+
+      transform: [
+        {
+          scale:
+            0.98,
+        },
+      ],
+    },
+
+    refreshDisabled: {
+      opacity:
+        0.55,
+    },
+
     refreshText: {
       color:
         COLORS.white,
@@ -1352,6 +1648,10 @@ const styles =
       fontFamily:
         'Inter_600SemiBold',
     },
+
+    // ========================================================
+    // LOADING
+    // ========================================================
 
     loading: {
       alignItems:
@@ -1361,15 +1661,21 @@ const styles =
         'center',
     },
 
+    // ========================================================
+    // STATS
+    // ========================================================
+
     statRow: {
       flexDirection:
         'row',
     },
 
     statCard: {
-      flex: 1,
+      flex:
+        1,
 
-      borderWidth: 1,
+      borderWidth:
+        1,
 
       borderColor:
         COLORS.border,
@@ -1384,6 +1690,18 @@ const styles =
 
       backgroundColor:
         'rgba(65,17,31,0.76)',
+    },
+
+    statCardPressed: {
+      opacity:
+        0.85,
+
+      transform: [
+        {
+          scale:
+            0.99,
+        },
+      ],
     },
 
     statTop: {
@@ -1432,6 +1750,10 @@ const styles =
         COLORS.redBright,
     },
 
+    // ========================================================
+    // ATTENTION
+    // ========================================================
+
     attention: {
       flexDirection:
         'row',
@@ -1439,7 +1761,8 @@ const styles =
       alignItems:
         'center',
 
-      borderWidth: 1,
+      borderWidth:
+        1,
 
       borderColor:
         'rgba(239,51,64,0.60)',
@@ -1460,7 +1783,8 @@ const styles =
     },
 
     attentionBody: {
-      flex: 1,
+      flex:
+        1,
     },
 
     attentionTitle: {
@@ -1480,9 +1804,6 @@ const styles =
     },
 
     reviewButton: {
-      flexDirection:
-        'row',
-
       alignItems:
         'center',
 
@@ -1493,6 +1814,18 @@ const styles =
         COLORS.red,
     },
 
+    reviewPressed: {
+      opacity:
+        0.82,
+
+      transform: [
+        {
+          scale:
+            0.985,
+        },
+      ],
+    },
+
     reviewText: {
       color:
         COLORS.white,
@@ -1501,20 +1834,27 @@ const styles =
         'Inter_600SemiBold',
     },
 
+    // ========================================================
+    // LOWER CARDS
+    // ========================================================
+
     lowerRow: {
       flexDirection:
         'row',
 
-      flex: 1,
+      flex:
+        1,
     },
 
     largeCard: {
-      flex: 1,
+      flex:
+        1,
 
       justifyContent:
         'center',
 
-      borderWidth: 1,
+      borderWidth:
+        1,
 
       borderColor:
         COLORS.border,

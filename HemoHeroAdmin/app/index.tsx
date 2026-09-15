@@ -1,8 +1,14 @@
-import { useEffect, useMemo, useState } from 'react';
+import {
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
 
 import {
   ActivityIndicator,
-  Alert,
+  Animated,
+  Easing,
   Image,
   KeyboardAvoidingView,
   Platform,
@@ -14,15 +20,25 @@ import {
   View,
 } from 'react-native';
 
-import { MaterialIcons } from '@expo/vector-icons';
+import {
+  MaterialIcons,
+} from '@expo/vector-icons';
 
-import { LinearGradient } from 'expo-linear-gradient';
+import {
+  LinearGradient,
+} from 'expo-linear-gradient';
 
-import { router } from 'expo-router';
+import {
+  router,
+} from 'expo-router';
 
-import { StatusBar } from 'expo-status-bar';
+import {
+  StatusBar,
+} from 'expo-status-bar';
 
-import { SafeAreaView } from 'react-native-safe-area-context';
+import {
+  SafeAreaView,
+} from 'react-native-safe-area-context';
 
 import {
   loginAdmin,
@@ -41,37 +57,64 @@ import {
 // IPAD PRO DESIGN SIZE
 // ============================================================
 
-const DESIGN_WIDTH = 1366;
-const DESIGN_HEIGHT = 1024;
+const DESIGN_WIDTH =
+  1366;
+
+const DESIGN_HEIGHT =
+  1024;
 
 // ============================================================
 // COLORS
 // ============================================================
 
 const COLORS = {
-  outer: '#02040A',
+  outer:
+    '#02040A',
 
-  navy: '#071126',
-  navyLight: '#102044',
-  navyInput: '#152543',
+  navy:
+    '#071126',
 
-  card: 'rgba(11, 23, 49, 0.95)',
+  navyLight:
+    '#102044',
 
-  border: 'rgba(123, 147, 201, 0.28)',
+  navyInput:
+    '#152543',
 
-  red: '#DB0A0A',
-  redBright: '#EF3340',
-  redDark: '#8F1018',
+  card:
+    'rgba(11, 23, 49, 0.95)',
 
-  white: '#FFFFFF',
+  border:
+    'rgba(123, 147, 201, 0.28)',
 
-  text: '#F7F8FC',
+  red:
+    '#DB0A0A',
 
-  muted: '#8B97B6',
+  redBright:
+    '#EF3340',
 
-  soft: '#B9C3DA',
+  redDark:
+    '#8F1018',
 
-  error: '#FF727C',
+  white:
+    '#FFFFFF',
+
+  text:
+    '#F7F8FC',
+
+  muted:
+    '#8B97B6',
+
+  soft:
+    '#B9C3DA',
+
+  error:
+    '#FF727C',
+
+  success:
+    '#59D98E',
+
+  successBackground:
+    'rgba(89, 217, 142, 0.10)',
 };
 
 // ============================================================
@@ -79,89 +122,238 @@ const COLORS = {
 // ============================================================
 
 export default function AdminLoginScreen() {
-  const { width, height } = useWindowDimensions();
+  const {
+    width,
+    height,
+  } =
+    useWindowDimensions();
 
   // ==========================================================
   // IPAD PRO RESPONSIVE FRAME
   // ==========================================================
 
-  const tablet = useMemo(() => {
-    if (Platform.OS !== 'web') {
-      return {
+  const tablet =
+    useMemo(
+      () => {
+        if (
+          Platform.OS !==
+          'web'
+        ) {
+          return {
+            width,
+            height,
+
+            scale:
+              Math.min(
+                width /
+                  DESIGN_WIDTH,
+
+                height /
+                  DESIGN_HEIGHT
+              ),
+          };
+        }
+
+        const padding =
+          24;
+
+        const availableWidth =
+          Math.max(
+            width -
+              padding * 2,
+
+            320
+          );
+
+        const availableHeight =
+          Math.max(
+            height -
+              padding * 2,
+
+            320
+          );
+
+        const scale =
+          Math.min(
+            availableWidth /
+              DESIGN_WIDTH,
+
+            availableHeight /
+              DESIGN_HEIGHT,
+
+            1
+          );
+
+        return {
+          width:
+            DESIGN_WIDTH *
+            scale,
+
+          height:
+            DESIGN_HEIGHT *
+            scale,
+
+          scale,
+        };
+      },
+      [
         width,
         height,
-        scale: Math.min(
-          width / DESIGN_WIDTH,
-          height / DESIGN_HEIGHT
-        ),
-      };
-    }
-
-    const padding = 24;
-
-    const availableWidth = Math.max(
-      width - padding * 2,
-      320
+      ]
     );
 
-    const availableHeight = Math.max(
-      height - padding * 2,
-      320
+  const s =
+    Math.max(
+      tablet.scale,
+      0.68
     );
-
-    const scale = Math.min(
-      availableWidth / DESIGN_WIDTH,
-      availableHeight / DESIGN_HEIGHT,
-      1
-    );
-
-    return {
-      width: DESIGN_WIDTH * scale,
-      height: DESIGN_HEIGHT * scale,
-      scale,
-    };
-  }, [width, height]);
-
-  const s = Math.max(tablet.scale, 0.68);
 
   // ==========================================================
   // STATE
   // ==========================================================
 
-  const [email, setEmail] = useState('');
-
-  const [password, setPassword] = useState('');
-
-  const [showPassword, setShowPassword] =
-    useState(false);
-
-  const [rememberMe, setRememberMe] =
-    useState(true);
-
-  const [loading, setLoading] =
-    useState(false);
-
-  const [checkingSession, setCheckingSession] =
-    useState(true);
-
-  const [error, setError] =
+  const [
+    email,
+    setEmail,
+  ] =
     useState('');
+
+  const [
+    password,
+    setPassword,
+  ] =
+    useState('');
+
+  const [
+    showPassword,
+    setShowPassword,
+  ] =
+    useState(false);
+
+  const [
+    rememberMe,
+    setRememberMe,
+  ] =
+    useState(true);
+
+  const [
+    loading,
+    setLoading,
+  ] =
+    useState(false);
+
+  const [
+    resettingPassword,
+    setResettingPassword,
+  ] =
+    useState(false);
+
+  const [
+    checkingSession,
+    setCheckingSession,
+  ] =
+    useState(true);
+
+  const [
+    error,
+    setError,
+  ] =
+    useState('');
+
+  const [
+    successMessage,
+    setSuccessMessage,
+  ] =
+    useState('');
+
+  // ==========================================================
+  // ANIMATION VALUES
+  // ==========================================================
+
+  const brandOpacity =
+    useRef(
+      new Animated.Value(
+        0
+      )
+    ).current;
+
+  const brandTranslateY =
+    useRef(
+      new Animated.Value(
+        -16
+      )
+    ).current;
+
+  const cardOpacity =
+    useRef(
+      new Animated.Value(
+        0
+      )
+    ).current;
+
+  const cardTranslateY =
+    useRef(
+      new Animated.Value(
+        32
+      )
+    ).current;
+
+  const cardScale =
+    useRef(
+      new Animated.Value(
+        0.98
+      )
+    ).current;
+
+  const buttonScale =
+    useRef(
+      new Animated.Value(
+        1
+      )
+    ).current;
+
+  const checkboxScale =
+    useRef(
+      new Animated.Value(
+        1
+      )
+    ).current;
+
+  const errorShake =
+    useRef(
+      new Animated.Value(
+        0
+      )
+    ).current;
+
+  const securityOpacity =
+    useRef(
+      new Animated.Value(
+        0
+      )
+    ).current;
 
   // ==========================================================
   // EXISTING SESSION
   // ==========================================================
 
-  useEffect(() => {
-    checkExistingSession();
-  }, []);
+  useEffect(
+    () => {
+      checkExistingSession();
+    },
+    []
+  );
 
   async function checkExistingSession() {
     try {
       const remember =
         await getRememberAdmin();
 
-      if (!remember) {
+      if (
+        !remember
+      ) {
         await clearAdminSession();
+
         return;
       }
 
@@ -173,37 +365,381 @@ export default function AdminLoginScreen() {
 
       if (
         token &&
-        profile?.role === 'admin'
+        profile?.role ===
+          'admin'
       ) {
-        router.replace('/dashboard');
+        router.replace(
+          '/dashboard'
+        );
       }
-    } catch (sessionError) {
+    } catch (
+      sessionError
+    ) {
       console.log(
         'ADMIN SESSION ERROR:',
         sessionError
       );
+
+      await clearAdminSession();
     } finally {
-      setCheckingSession(false);
+      setCheckingSession(
+        false
+      );
     }
   }
 
   // ==========================================================
-  // ALERT
+  // ENTRANCE ANIMATION
   // ==========================================================
 
-  function showAlert(
-    title: string,
+  useEffect(
+    () => {
+      if (
+        checkingSession
+      ) {
+        return;
+      }
+
+      Animated.sequence([
+        Animated.parallel([
+          Animated.timing(
+            brandOpacity,
+            {
+              toValue:
+                1,
+
+              duration:
+                380,
+
+              easing:
+                Easing.out(
+                  Easing.ease
+                ),
+
+              useNativeDriver:
+                true,
+            }
+          ),
+
+          Animated.timing(
+            brandTranslateY,
+            {
+              toValue:
+                0,
+
+              duration:
+                380,
+
+              easing:
+                Easing.out(
+                  Easing.ease
+                ),
+
+              useNativeDriver:
+                true,
+            }
+          ),
+        ]),
+
+        Animated.parallel([
+          Animated.timing(
+            cardOpacity,
+            {
+              toValue:
+                1,
+
+              duration:
+                480,
+
+              easing:
+                Easing.out(
+                  Easing.cubic
+                ),
+
+              useNativeDriver:
+                true,
+            }
+          ),
+
+          Animated.timing(
+            cardTranslateY,
+            {
+              toValue:
+                0,
+
+              duration:
+                480,
+
+              easing:
+                Easing.out(
+                  Easing.cubic
+                ),
+
+              useNativeDriver:
+                true,
+            }
+          ),
+
+          Animated.spring(
+            cardScale,
+            {
+              toValue:
+                1,
+
+              friction:
+                8,
+
+              tension:
+                70,
+
+              useNativeDriver:
+                true,
+            }
+          ),
+        ]),
+
+        Animated.timing(
+          securityOpacity,
+          {
+            toValue:
+              1,
+
+            duration:
+              280,
+
+            useNativeDriver:
+              true,
+          }
+        ),
+      ]).start();
+    },
+    [
+      checkingSession,
+      brandOpacity,
+      brandTranslateY,
+      cardOpacity,
+      cardTranslateY,
+      cardScale,
+      securityOpacity,
+    ]
+  );
+
+  // ==========================================================
+  // ERROR SHAKE
+  // ==========================================================
+
+  function showError(
     message: string
   ) {
+    setSuccessMessage(
+      ''
+    );
+
+    setError(
+      message
+    );
+
+    errorShake.setValue(
+      0
+    );
+
+    Animated.sequence([
+      Animated.timing(
+        errorShake,
+        {
+          toValue:
+            -9,
+
+          duration:
+            55,
+
+          useNativeDriver:
+            true,
+        }
+      ),
+
+      Animated.timing(
+        errorShake,
+        {
+          toValue:
+            9,
+
+          duration:
+            70,
+
+          useNativeDriver:
+            true,
+        }
+      ),
+
+      Animated.timing(
+        errorShake,
+        {
+          toValue:
+            -6,
+
+          duration:
+            65,
+
+          useNativeDriver:
+            true,
+        }
+      ),
+
+      Animated.timing(
+        errorShake,
+        {
+          toValue:
+            6,
+
+          duration:
+            65,
+
+          useNativeDriver:
+            true,
+        }
+      ),
+
+      Animated.timing(
+        errorShake,
+        {
+          toValue:
+            -3,
+
+          duration:
+            55,
+
+          useNativeDriver:
+            true,
+        }
+      ),
+
+      Animated.timing(
+        errorShake,
+        {
+          toValue:
+            3,
+
+          duration:
+            55,
+
+          useNativeDriver:
+            true,
+        }
+      ),
+
+      Animated.timing(
+        errorShake,
+        {
+          toValue:
+            0,
+
+          duration:
+            55,
+
+          useNativeDriver:
+            true,
+        }
+      ),
+    ]).start();
+  }
+
+  // ==========================================================
+  // BUTTON ANIMATION
+  // ==========================================================
+
+  function handleButtonPressIn() {
     if (
-      Platform.OS === 'web' &&
-      typeof window !== 'undefined'
+      loading
     ) {
-      window.alert(`${title}\n\n${message}`);
       return;
     }
 
-    Alert.alert(title, message);
+    Animated.spring(
+      buttonScale,
+      {
+        toValue:
+          0.98,
+
+        friction:
+          8,
+
+        tension:
+          160,
+
+        useNativeDriver:
+          true,
+      }
+    ).start();
+  }
+
+  function handleButtonPressOut() {
+    Animated.spring(
+      buttonScale,
+      {
+        toValue:
+          1,
+
+        friction:
+          8,
+
+        tension:
+          160,
+
+        useNativeDriver:
+          true,
+      }
+    ).start();
+  }
+
+  // ==========================================================
+  // REMEMBER ME
+  // ==========================================================
+
+  function handleToggleRemember() {
+    if (
+      loading
+    ) {
+      return;
+    }
+
+    setRememberMe(
+      current =>
+        !current
+    );
+
+    Animated.sequence([
+      Animated.timing(
+        checkboxScale,
+        {
+          toValue:
+            0.82,
+
+          duration:
+            65,
+
+          useNativeDriver:
+            true,
+        }
+      ),
+
+      Animated.spring(
+        checkboxScale,
+        {
+          toValue:
+            1,
+
+          friction:
+            5,
+
+          tension:
+            180,
+
+          useNativeDriver:
+            true,
+        }
+      ),
+    ]).start();
   }
 
   // ==========================================================
@@ -211,24 +747,62 @@ export default function AdminLoginScreen() {
   // ==========================================================
 
   async function handleSignIn() {
-    if (loading) {
+    if (
+      loading ||
+      resettingPassword
+    ) {
       return;
     }
 
     setError('');
+    setSuccessMessage('');
 
-    const cleanEmail = email.trim();
+    const cleanEmail =
+      email
+        .trim()
+        .toLowerCase();
 
-    if (!cleanEmail) {
-      setError(
+    // --------------------------------------------------------
+    // EMAIL REQUIRED
+    // --------------------------------------------------------
+
+    if (
+      !cleanEmail
+    ) {
+      showError(
         'Please enter your admin email address.'
       );
 
       return;
     }
 
-    if (!password) {
-      setError(
+    // --------------------------------------------------------
+    // EMAIL FORMAT
+    // --------------------------------------------------------
+
+    const emailPattern =
+      /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+    if (
+      !emailPattern.test(
+        cleanEmail
+      )
+    ) {
+      showError(
+        'Please enter a valid admin email address.'
+      );
+
+      return;
+    }
+
+    // --------------------------------------------------------
+    // PASSWORD REQUIRED
+    // --------------------------------------------------------
+
+    if (
+      !password
+    ) {
+      showError(
         'Please enter your password.'
       );
 
@@ -236,12 +810,42 @@ export default function AdminLoginScreen() {
     }
 
     try {
-      setLoading(true);
-
-      const result = await loginAdmin(
-        cleanEmail,
-        password
+      setLoading(
+        true
       );
+
+      const result =
+        await loginAdmin(
+          cleanEmail,
+          password
+        );
+
+      // ------------------------------------------------------
+      // VERIFY RESPONSE
+      // ------------------------------------------------------
+
+      if (
+        !result?.session?.access_token
+      ) {
+        throw new Error(
+          'No administrator session was returned.'
+        );
+      }
+
+      if (
+        result?.profile?.role !==
+        'admin'
+      ) {
+        await clearAdminSession();
+
+        throw new Error(
+          'This account is not authorized to access the Admin Portal.'
+        );
+      }
+
+      // ------------------------------------------------------
+      // SAVE SESSION
+      // ------------------------------------------------------
 
       await saveAdminSession(
         result.session,
@@ -249,20 +853,34 @@ export default function AdminLoginScreen() {
         rememberMe
       );
 
-      router.replace('/dashboard');
-    } catch (signInError) {
+      setError('');
+      setSuccessMessage('');
+
+      router.replace(
+        '/dashboard'
+      );
+    } catch (
+      signInError
+    ) {
       console.log(
         'ADMIN LOGIN ERROR:',
         signInError
       );
 
-      setError(
-        signInError instanceof Error
+      showError(
+        signInError instanceof
+          Error
           ? signInError.message
           : 'Unable to sign in.'
       );
     } finally {
-      setLoading(false);
+      setLoading(
+        false
+      );
+
+      buttonScale.setValue(
+        1
+      );
     }
   }
 
@@ -271,32 +889,87 @@ export default function AdminLoginScreen() {
   // ==========================================================
 
   async function handleForgotPassword() {
-    const cleanEmail = email.trim();
+    if (
+      loading ||
+      resettingPassword
+    ) {
+      return;
+    }
 
-    if (!cleanEmail) {
-      showAlert(
-        'Email Required',
+    setError('');
+    setSuccessMessage('');
+
+    const cleanEmail =
+      email
+        .trim()
+        .toLowerCase();
+
+    // --------------------------------------------------------
+    // EMAIL REQUIRED
+    // --------------------------------------------------------
+
+    if (
+      !cleanEmail
+    ) {
+      showError(
         'Enter your administrator email address first.'
       );
 
       return;
     }
 
-    try {
-      await requestAdminPasswordReset(
+    // --------------------------------------------------------
+    // EMAIL FORMAT
+    // --------------------------------------------------------
+
+    const emailPattern =
+      /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+    if (
+      !emailPattern.test(
         cleanEmail
+      )
+    ) {
+      showError(
+        'Please enter a valid administrator email address.'
       );
 
-      showAlert(
-        'Password Reset Requested',
-        'Password reset instructions were requested for this administrator account.'
+      return;
+    }
+
+    try {
+      setResettingPassword(
+        true
       );
-    } catch (resetError) {
-      showAlert(
-        'Unable to Reset Password',
-        resetError instanceof Error
+
+      const result =
+        await requestAdminPasswordReset(
+          cleanEmail
+        );
+
+      setError('');
+
+      setSuccessMessage(
+        result?.message ||
+          'Password reset instructions have been sent to the administrator email.'
+      );
+    } catch (
+      resetError
+    ) {
+      console.log(
+        'ADMIN RESET ERROR:',
+        resetError
+      );
+
+      showError(
+        resetError instanceof
+          Error
           ? resetError.message
           : 'Unable to request a password reset.'
+      );
+    } finally {
+      setResettingPassword(
+        false
       );
     }
   }
@@ -305,12 +978,20 @@ export default function AdminLoginScreen() {
   // SESSION LOADER
   // ==========================================================
 
-  if (checkingSession) {
+  if (
+    checkingSession
+  ) {
     return (
-      <View style={styles.outerScreen}>
+      <View
+        style={
+          styles.outerScreen
+        }
+      >
         <ActivityIndicator
           size="large"
-          color={COLORS.redBright}
+          color={
+            COLORS.redBright
+          }
         />
       </View>
     );
@@ -321,21 +1002,31 @@ export default function AdminLoginScreen() {
   // ==========================================================
 
   return (
-    <View style={styles.outerScreen}>
+    <View
+      style={
+        styles.outerScreen
+      }
+    >
       <View
         style={[
           styles.ipadCanvas,
 
           {
-            width: tablet.width,
-            height: tablet.height,
+            width:
+              tablet.width,
+
+            height:
+              tablet.height,
           },
 
-          Platform.OS !== 'web' &&
+          Platform.OS !==
+            'web' &&
             styles.nativeCanvas,
         ]}
       >
-        <StatusBar style="light" />
+        <StatusBar
+          style="light"
+        />
 
         <LinearGradient
           colors={[
@@ -344,22 +1035,35 @@ export default function AdminLoginScreen() {
             '#040A18',
           ]}
           start={{
-            x: 0,
-            y: 0,
+            x:
+              0,
+
+            y:
+              0,
           }}
           end={{
-            x: 1,
-            y: 1,
+            x:
+              1,
+
+            y:
+              1,
           }}
-          style={styles.gradient}
+          style={
+            styles.gradient
+          }
         >
           <SafeAreaView
-            style={styles.safeArea}
+            style={
+              styles.safeArea
+            }
           >
             <KeyboardAvoidingView
-              style={styles.layout}
+              style={
+                styles.layout
+              }
               behavior={
-                Platform.OS === 'ios'
+                Platform.OS ===
+                  'ios'
                   ? 'padding'
                   : undefined
               }
@@ -368,14 +1072,21 @@ export default function AdminLoginScreen() {
               {/* LEFT DECORATION */}
               {/* ============================================== */}
 
-              <View style={styles.sideColumn}>
+              <View
+                style={
+                  styles.sideColumn
+                }
+              >
                 <View
                   style={[
                     styles.largeCross,
 
                     {
-                      width: 250 * s,
-                      height: 250 * s,
+                      width:
+                        250 * s,
+
+                      height:
+                        250 * s,
                     },
                   ]}
                 >
@@ -384,9 +1095,14 @@ export default function AdminLoginScreen() {
                       styles.crossHorizontal,
 
                       {
-                        width: 250 * s,
-                        height: 82 * s,
-                        top: 84 * s,
+                        width:
+                          250 * s,
+
+                        height:
+                          82 * s,
+
+                        top:
+                          84 * s,
                       },
                     ]}
                   />
@@ -396,24 +1112,40 @@ export default function AdminLoginScreen() {
                       styles.crossVertical,
 
                       {
-                        width: 82 * s,
-                        height: 250 * s,
-                        left: 84 * s,
+                        width:
+                          82 * s,
+
+                        height:
+                          250 * s,
+
+                        left:
+                          84 * s,
                       },
                     ]}
                   />
                 </View>
 
-                <View style={styles.leftMessage}>
-                  <View style={styles.redLine} />
+                <View
+                  style={
+                    styles.leftMessage
+                  }
+                >
+                  <View
+                    style={
+                      styles.redLine
+                    }
+                  />
 
                   <Text
                     style={[
                       styles.sideText,
 
                       {
-                        fontSize: 11 * s,
-                        lineHeight: 26 * s,
+                        fontSize:
+                          11 * s,
+
+                        lineHeight:
+                          26 * s,
                       },
                     ]}
                   >
@@ -429,103 +1161,187 @@ export default function AdminLoginScreen() {
               {/* LOGIN */}
               {/* ============================================== */}
 
-              <View style={styles.centerColumn}>
-                <View style={styles.brandRow}>
+              <View
+                style={
+                  styles.centerColumn
+                }
+              >
+                {/* ============================================ */}
+                {/* BRAND */}
+                {/* ============================================ */}
+
+                <Animated.View
+                  style={{
+                    alignItems:
+                      'center',
+
+                    opacity:
+                      brandOpacity,
+
+                    transform: [
+                      {
+                        translateY:
+                          brandTranslateY,
+                      },
+                    ],
+                  }}
+                >
                   <View
+                    style={
+                      styles.brandRow
+                    }
+                  >
+                    <View
+                      style={[
+                        styles.logoCircle,
+
+                        {
+                          width:
+                            76 * s,
+
+                          height:
+                            76 * s,
+
+                          borderRadius:
+                            38 * s,
+                        },
+                      ]}
+                    >
+                      <Image
+                        source={require(
+                          '../assets/images/hemo-hero-logo.png'
+                        )}
+                        style={{
+                          width:
+                            66 * s,
+
+                          height:
+                            66 * s,
+                        }}
+                        resizeMode="contain"
+                      />
+                    </View>
+
+                    <View>
+                      <Text
+                        style={[
+                          styles.brandName,
+
+                          {
+                            fontSize:
+                              38 * s,
+
+                            lineHeight:
+                              43 * s,
+                          },
+                        ]}
+                      >
+                        <Text
+                          style={
+                            styles.brandRed
+                          }
+                        >
+                          Hemo-
+                        </Text>
+
+                        Hero
+                      </Text>
+
+                      <Text
+                        style={[
+                          styles.portalLabel,
+
+                          {
+                            fontSize:
+                              11 * s,
+
+                            letterSpacing:
+                              2.5 * s,
+                          },
+                        ]}
+                      >
+                        ADMIN PORTAL
+                      </Text>
+                    </View>
+                  </View>
+
+                  <Text
                     style={[
-                      styles.logoCircle,
+                      styles.authorizedText,
 
                       {
-                        width: 76 * s,
-                        height: 76 * s,
-                        borderRadius: 38 * s,
+                        fontSize:
+                          13 * s,
+
+                        marginBottom:
+                          30 * s,
                       },
                     ]}
                   >
-                    <Image
-                      source={require('../assets/images/hemo-hero-logo.png')}
-                      style={{
-                        width: 66 * s,
-                        height: 66 * s,
-                      }}
-                      resizeMode="contain"
-                    />
-                  </View>
+                    Authorized personnel only
+                  </Text>
+                </Animated.View>
 
-                  <View>
-                    <Text
-                      style={[
-                        styles.brandName,
-
-                        {
-                          fontSize: 38 * s,
-                          lineHeight: 43 * s,
-                        },
-                      ]}
-                    >
-                      <Text style={styles.brandRed}>
-                        Hemo-
-                      </Text>
-                      Hero
-                    </Text>
-
-                    <Text
-                      style={[
-                        styles.portalLabel,
-
-                        {
-                          fontSize: 11 * s,
-                          letterSpacing: 2.5 * s,
-                        },
-                      ]}
-                    >
-                      ADMIN PORTAL
-                    </Text>
-                  </View>
-                </View>
-
-                <Text
-                  style={[
-                    styles.authorizedText,
-
-                    {
-                      fontSize: 13 * s,
-                      marginBottom: 30 * s,
-                    },
-                  ]}
-                >
-                  Authorized personnel only
-                </Text>
-
+                {/* ============================================ */}
                 {/* LOGIN CARD */}
+                {/* ============================================ */}
 
-                <View
+                <Animated.View
                   style={[
                     styles.loginCard,
 
                     {
-                      width: 560 * s,
-                      paddingHorizontal: 38 * s,
-                      paddingVertical: 35 * s,
-                      borderRadius: 22 * s,
+                      width:
+                        560 * s,
+
+                      paddingHorizontal:
+                        38 * s,
+
+                      paddingVertical:
+                        35 * s,
+
+                      borderRadius:
+                        22 * s,
+
+                      opacity:
+                        cardOpacity,
+
+                      transform: [
+                        {
+                          translateY:
+                            cardTranslateY,
+                        },
+
+                        {
+                          scale:
+                            cardScale,
+                        },
+                      ],
                     },
                   ]}
                 >
+                  {/* ========================================== */}
                   {/* EMAIL */}
+                  {/* ========================================== */}
 
                   <View
                     style={[
                       styles.labelRow,
 
                       {
-                        marginBottom: 10 * s,
+                        marginBottom:
+                          10 * s,
                       },
                     ]}
                   >
                     <MaterialIcons
                       name="mail-outline"
-                      size={21 * s}
-                      color={COLORS.soft}
+                      size={
+                        21 * s
+                      }
+                      color={
+                        COLORS.soft
+                      }
                     />
 
                     <Text
@@ -533,7 +1349,8 @@ export default function AdminLoginScreen() {
                         styles.label,
 
                         {
-                          fontSize: 11 * s,
+                          fontSize:
+                            11 * s,
                         },
                       ]}
                     >
@@ -546,23 +1363,35 @@ export default function AdminLoginScreen() {
                       styles.inputContainer,
 
                       {
-                        height: 64 * s,
-                        borderRadius: 12 * s,
+                        height:
+                          64 * s,
+
+                        borderRadius:
+                          12 * s,
                       },
                     ]}
                   >
                     <TextInput
-                      value={email}
+                      value={
+                        email
+                      }
                       onChangeText={value => {
-                        setEmail(value);
+                        setEmail(
+                          value
+                        );
+
                         setError('');
+                        setSuccessMessage('');
                       }}
                       style={[
                         styles.input,
 
                         {
-                          fontSize: 14 * s,
-                          paddingHorizontal: 18 * s,
+                          fontSize:
+                            14 * s,
+
+                          paddingHorizontal:
+                            18 * s,
                         },
                       ]}
                       placeholder="name@organization.com"
@@ -570,28 +1399,43 @@ export default function AdminLoginScreen() {
                         COLORS.muted
                       }
                       autoCapitalize="none"
-                      autoCorrect={false}
+                      autoCorrect={
+                        false
+                      }
                       keyboardType="email-address"
-                      editable={!loading}
+                      autoComplete="email"
+                      editable={
+                        !loading &&
+                        !resettingPassword
+                      }
                     />
                   </View>
 
+                  {/* ========================================== */}
                   {/* PASSWORD */}
+                  {/* ========================================== */}
 
                   <View
                     style={[
                       styles.labelRow,
 
                       {
-                        marginTop: 24 * s,
-                        marginBottom: 10 * s,
+                        marginTop:
+                          24 * s,
+
+                        marginBottom:
+                          10 * s,
                       },
                     ]}
                   >
                     <MaterialIcons
                       name="lock-outline"
-                      size={21 * s}
-                      color={COLORS.soft}
+                      size={
+                        21 * s
+                      }
+                      color={
+                        COLORS.soft
+                      }
                     />
 
                     <Text
@@ -599,7 +1443,8 @@ export default function AdminLoginScreen() {
                         styles.label,
 
                         {
-                          fontSize: 11 * s,
+                          fontSize:
+                            11 * s,
                         },
                       ]}
                     >
@@ -612,23 +1457,35 @@ export default function AdminLoginScreen() {
                       styles.inputContainer,
 
                       {
-                        height: 64 * s,
-                        borderRadius: 12 * s,
+                        height:
+                          64 * s,
+
+                        borderRadius:
+                          12 * s,
                       },
                     ]}
                   >
                     <TextInput
-                      value={password}
+                      value={
+                        password
+                      }
                       onChangeText={value => {
-                        setPassword(value);
+                        setPassword(
+                          value
+                        );
+
                         setError('');
+                        setSuccessMessage('');
                       }}
                       style={[
                         styles.input,
 
                         {
-                          fontSize: 14 * s,
-                          paddingLeft: 18 * s,
+                          fontSize:
+                            14 * s,
+
+                          paddingLeft:
+                            18 * s,
                         },
                       ]}
                       placeholder="Enter your password"
@@ -636,10 +1493,18 @@ export default function AdminLoginScreen() {
                         COLORS.muted
                       }
                       autoCapitalize="none"
+                      autoCorrect={
+                        false
+                      }
                       secureTextEntry={
                         !showPassword
                       }
-                      editable={!loading}
+                      autoComplete="password"
+                      editable={
+                        !loading &&
+                        !resettingPassword
+                      }
+                      returnKeyType="done"
                       onSubmitEditing={
                         handleSignIn
                       }
@@ -650,9 +1515,14 @@ export default function AdminLoginScreen() {
                         styles.eyeButton,
 
                         {
-                          width: 58 * s,
+                          width:
+                            58 * s,
                         },
                       ]}
+                      disabled={
+                        loading ||
+                        resettingPassword
+                      }
                       onPress={() =>
                         setShowPassword(
                           current =>
@@ -666,40 +1536,62 @@ export default function AdminLoginScreen() {
                             ? 'visibility'
                             : 'visibility-off'
                         }
-                        size={22 * s}
-                        color={COLORS.muted}
+                        size={
+                          22 * s
+                        }
+                        color={
+                          COLORS.muted
+                        }
                       />
                     </Pressable>
                   </View>
 
+                  {/* ========================================== */}
                   {/* OPTIONS */}
+                  {/* ========================================== */}
 
                   <View
                     style={[
                       styles.optionsRow,
 
                       {
-                        marginTop: 20 * s,
+                        marginTop:
+                          20 * s,
                       },
                     ]}
                   >
                     <Pressable
-                      style={styles.rememberRow}
-                      onPress={() =>
-                        setRememberMe(
-                          current =>
-                            !current
-                        )
+                      style={
+                        styles.rememberRow
+                      }
+                      disabled={
+                        loading ||
+                        resettingPassword
+                      }
+                      onPress={
+                        handleToggleRemember
                       }
                     >
-                      <View
+                      <Animated.View
                         style={[
                           styles.checkbox,
 
                           {
-                            width: 21 * s,
-                            height: 21 * s,
-                            borderRadius: 4 * s,
+                            width:
+                              21 * s,
+
+                            height:
+                              21 * s,
+
+                            borderRadius:
+                              4 * s,
+
+                            transform: [
+                              {
+                                scale:
+                                  checkboxScale,
+                              },
+                            ],
                           },
 
                           rememberMe &&
@@ -709,18 +1601,23 @@ export default function AdminLoginScreen() {
                         {rememberMe ? (
                           <MaterialIcons
                             name="check"
-                            size={15 * s}
-                            color={COLORS.white}
+                            size={
+                              15 * s
+                            }
+                            color={
+                              COLORS.white
+                            }
                           />
                         ) : null}
-                      </View>
+                      </Animated.View>
 
                       <Text
                         style={[
                           styles.optionText,
 
                           {
-                            fontSize: 12 * s,
+                            fontSize:
+                              12 * s,
                           },
                         ]}
                       >
@@ -729,6 +1626,10 @@ export default function AdminLoginScreen() {
                     </Pressable>
 
                     <Pressable
+                      disabled={
+                        loading ||
+                        resettingPassword
+                      }
                       onPress={
                         handleForgotPassword
                       }
@@ -738,33 +1639,54 @@ export default function AdminLoginScreen() {
                           styles.forgotText,
 
                           {
-                            fontSize: 12 * s,
+                            fontSize:
+                              12 * s,
                           },
                         ]}
                       >
-                        Forgot Password?
+                        {resettingPassword
+                          ? 'Sending...'
+                          : 'Forgot Password?'}
                       </Text>
                     </Pressable>
                   </View>
 
+                  {/* ========================================== */}
                   {/* ERROR */}
+                  {/* ========================================== */}
 
                   {error ? (
-                    <View
+                    <Animated.View
                       style={[
                         styles.errorBox,
 
                         {
-                          marginTop: 18 * s,
-                          padding: 12 * s,
-                          borderRadius: 9 * s,
+                          marginTop:
+                            18 * s,
+
+                          padding:
+                            12 * s,
+
+                          borderRadius:
+                            9 * s,
+
+                          transform: [
+                            {
+                              translateX:
+                                errorShake,
+                            },
+                          ],
                         },
                       ]}
                     >
                       <MaterialIcons
                         name="error-outline"
-                        size={19 * s}
-                        color={COLORS.error}
+                        size={
+                          19 * s
+                        }
+                        color={
+                          COLORS.error
+                        }
                       />
 
                       <Text
@@ -772,105 +1694,214 @@ export default function AdminLoginScreen() {
                           styles.errorText,
 
                           {
-                            fontSize: 11 * s,
-                            lineHeight: 16 * s,
+                            fontSize:
+                              11 * s,
+
+                            lineHeight:
+                              16 * s,
                           },
                         ]}
                       >
-                        {error}
+                        {
+                          error
+                        }
+                      </Text>
+                    </Animated.View>
+                  ) : null}
+
+                  {/* ========================================== */}
+                  {/* SUCCESS */}
+                  {/* ========================================== */}
+
+                  {successMessage ? (
+                    <View
+                      style={[
+                        styles.successBox,
+
+                        {
+                          marginTop:
+                            18 * s,
+
+                          padding:
+                            12 * s,
+
+                          borderRadius:
+                            9 * s,
+                        },
+                      ]}
+                    >
+                      <MaterialIcons
+                        name="check-circle-outline"
+                        size={
+                          19 * s
+                        }
+                        color={
+                          COLORS.success
+                        }
+                      />
+
+                      <Text
+                        style={[
+                          styles.successText,
+
+                          {
+                            fontSize:
+                              11 * s,
+
+                            lineHeight:
+                              16 * s,
+                          },
+                        ]}
+                      >
+                        {
+                          successMessage
+                        }
                       </Text>
                     </View>
                   ) : null}
 
+                  {/* ========================================== */}
                   {/* SIGN IN */}
+                  {/* ========================================== */}
 
-                  <Pressable
-                    disabled={loading}
-                    onPress={handleSignIn}
-                    style={({ pressed }) => [
-                      {
-                        marginTop: 26 * s,
-                        borderRadius: 12 * s,
-                        overflow: 'hidden',
-                      },
-
-                      pressed && {
-                        opacity: 0.88,
-                      },
-
-                      loading && {
-                        opacity: 0.6,
-                      },
-                    ]}
-                  >
-                    <LinearGradient
-                      colors={[
-                        COLORS.redBright,
-                        COLORS.red,
-                        COLORS.redDark,
-                      ]}
-                      start={{
-                        x: 0,
-                        y: 0,
-                      }}
-                      end={{
-                        x: 1,
-                        y: 0,
-                      }}
-                      style={[
-                        styles.signInButton,
-
+                  <Animated.View
+                    style={{
+                      transform: [
                         {
-                          height: 64 * s,
-                          gap: 11 * s,
+                          scale:
+                            buttonScale,
                         },
-                      ]}
+                      ],
+                    }}
+                  >
+                    <Pressable
+                      disabled={
+                        loading ||
+                        resettingPassword
+                      }
+                      onPressIn={
+                        handleButtonPressIn
+                      }
+                      onPressOut={
+                        handleButtonPressOut
+                      }
+                      onPress={
+                        handleSignIn
+                      }
+                      style={{
+                        marginTop:
+                          26 * s,
+
+                        borderRadius:
+                          12 * s,
+
+                        overflow:
+                          'hidden',
+
+                        opacity:
+                          loading ||
+                          resettingPassword
+                            ? 0.6
+                            : 1,
+                      }}
                     >
-                      {loading ? (
-                        <ActivityIndicator
-                          color={COLORS.white}
-                        />
-                      ) : (
-                        <>
-                          <Text
-                            style={[
-                              styles.signInText,
+                      <LinearGradient
+                        colors={[
+                          COLORS.redBright,
+                          COLORS.red,
+                          COLORS.redDark,
+                        ]}
+                        start={{
+                          x:
+                            0,
 
-                              {
-                                fontSize: 15 * s,
-                              },
-                            ]}
-                          >
-                            Sign In
-                          </Text>
+                          y:
+                            0,
+                        }}
+                        end={{
+                          x:
+                            1,
 
-                          <MaterialIcons
-                            name="arrow-forward"
-                            size={22 * s}
-                            color={COLORS.white}
+                          y:
+                            0,
+                        }}
+                        style={[
+                          styles.signInButton,
+
+                          {
+                            height:
+                              64 * s,
+
+                            gap:
+                              11 * s,
+                          },
+                        ]}
+                      >
+                        {loading ? (
+                          <ActivityIndicator
+                            color={
+                              COLORS.white
+                            }
                           />
-                        </>
-                      )}
-                    </LinearGradient>
-                  </Pressable>
-                </View>
+                        ) : (
+                          <>
+                            <Text
+                              style={[
+                                styles.signInText,
 
+                                {
+                                  fontSize:
+                                    15 * s,
+                                },
+                              ]}
+                            >
+                              Sign In
+                            </Text>
+
+                            <MaterialIcons
+                              name="arrow-forward"
+                              size={
+                                22 * s
+                              }
+                              color={
+                                COLORS.white
+                              }
+                            />
+                          </>
+                        )}
+                      </LinearGradient>
+                    </Pressable>
+                  </Animated.View>
+                </Animated.View>
+
+                {/* ============================================ */}
                 {/* SECURITY */}
+                {/* ============================================ */}
 
-                <View
+                <Animated.View
                   style={[
                     styles.securityRow,
 
                     {
-                      marginTop: 22 * s,
-                      gap: 8 * s,
+                      marginTop:
+                        22 * s,
+
+                      gap:
+                        8 * s,
+
+                      opacity:
+                        securityOpacity,
                     },
                   ]}
                 >
                   <MaterialIcons
                     name="verified-user"
-                    size={18 * s}
-                    color={COLORS.muted}
+                    size={
+                      18 * s
+                    }
+                    color={
+                      COLORS.muted
+                    }
                   />
 
                   <Text
@@ -878,30 +1909,46 @@ export default function AdminLoginScreen() {
                       styles.securityText,
 
                       {
-                        fontSize: 10 * s,
+                        fontSize:
+                          10 * s,
                       },
                     ]}
                   >
                     Access restricted to authorized Hemo-Hero system administrators.
                   </Text>
-                </View>
+                </Animated.View>
               </View>
 
               {/* ============================================== */}
               {/* RIGHT DECORATION */}
               {/* ============================================== */}
 
-              <View style={styles.sideColumn}>
-                <View style={styles.rightMessage}>
-                  <View style={styles.redLine} />
+              <View
+                style={
+                  styles.sideColumn
+                }
+              >
+                <View
+                  style={
+                    styles.rightMessage
+                  }
+                >
+                  <View
+                    style={
+                      styles.redLine
+                    }
+                  />
 
                   <Text
                     style={[
                       styles.sideText,
 
                       {
-                        fontSize: 11 * s,
-                        lineHeight: 26 * s,
+                        fontSize:
+                          11 * s,
+
+                        lineHeight:
+                          26 * s,
                       },
                     ]}
                   >
@@ -925,344 +1972,539 @@ export default function AdminLoginScreen() {
 // STYLES
 // ============================================================
 
-const styles = StyleSheet.create({
-  outerScreen: {
-    flex: 1,
+const styles =
+  StyleSheet.create({
+    outerScreen: {
+      flex:
+        1,
 
-    alignItems: 'center',
-    justifyContent: 'center',
+      alignItems:
+        'center',
 
-    backgroundColor: COLORS.outer,
-  },
+      justifyContent:
+        'center',
 
-  ipadCanvas: {
-    overflow: 'hidden',
-
-    backgroundColor: COLORS.navy,
-
-    borderRadius:
-      Platform.OS === 'web'
-        ? 24
-        : 0,
-  },
-
-  nativeCanvas: {
-    width: '100%',
-    height: '100%',
-  },
-
-  gradient: {
-    flex: 1,
-  },
-
-  safeArea: {
-    flex: 1,
-  },
-
-  layout: {
-    flex: 1,
-
-    flexDirection: 'row',
-
-    alignItems: 'stretch',
-  },
-
-  sideColumn: {
-    flex: 1,
-
-    position: 'relative',
-
-    overflow: 'hidden',
-  },
-
-  centerColumn: {
-    flex: 1.75,
-
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-
-  largeCross: {
-    position: 'absolute',
-
-    left: -35,
-    top: '18%',
-
-    opacity: 0.2,
-  },
-
-  crossHorizontal: {
-    position: 'absolute',
-
-    left: 0,
-
-    borderWidth: 1,
-
-    borderColor: COLORS.red,
-
-    borderRadius: 20,
-
-    backgroundColor:
-      'rgba(219,10,10,0.06)',
-  },
-
-  crossVertical: {
-    position: 'absolute',
-
-    top: 0,
-
-    borderWidth: 1,
-
-    borderColor: COLORS.red,
-
-    borderRadius: 20,
-
-    backgroundColor:
-      'rgba(219,10,10,0.06)',
-  },
-
-  leftMessage: {
-    position: 'absolute',
-
-    left: '18%',
-    bottom: '15%',
-  },
-
-  rightMessage: {
-    position: 'absolute',
-
-    right: '20%',
-    top: '24%',
-  },
-
-  redLine: {
-    width: 28,
-    height: 2,
-
-    marginBottom: 14,
-
-    backgroundColor:
-      COLORS.redBright,
-  },
-
-  sideText: {
-    color:
-      'rgba(164,179,211,0.60)',
-
-    fontFamily:
-      'Inter_500Medium',
-
-    letterSpacing: 3,
-  },
-
-  brandRow: {
-    flexDirection: 'row',
-
-    alignItems: 'center',
-
-    marginBottom: 10,
-  },
-
-  logoCircle: {
-    marginRight: 16,
-
-    backgroundColor: COLORS.white,
-
-    alignItems: 'center',
-    justifyContent: 'center',
-
-    overflow: 'hidden',
-  },
-
-  brandName: {
-    color: COLORS.white,
-
-    fontFamily:
-      'Poppins_700Bold',
-  },
-
-  brandRed: {
-    color: COLORS.redBright,
-  },
-
-  portalLabel: {
-    color: COLORS.redBright,
-
-    fontFamily:
-      'Inter_700Bold',
-
-    textAlign: 'center',
-  },
-
-  authorizedText: {
-    color: COLORS.muted,
-
-    fontFamily:
-      'Inter_400Regular',
-  },
-
-  loginCard: {
-    borderWidth: 1,
-
-    borderColor: COLORS.border,
-
-    backgroundColor: COLORS.card,
-
-    shadowColor: '#000000',
-
-    shadowOpacity: 0.32,
-
-    shadowRadius: 22,
-
-    shadowOffset: {
-      width: 0,
-      height: 12,
+      backgroundColor:
+        COLORS.outer,
     },
 
-    elevation: 10,
-  },
+    ipadCanvas: {
+      overflow:
+        'hidden',
 
-  labelRow: {
-    flexDirection: 'row',
+      backgroundColor:
+        COLORS.navy,
 
-    alignItems: 'center',
+      borderRadius:
+        Platform.OS ===
+          'web'
+          ? 24
+          : 0,
+    },
 
-    gap: 9,
-  },
+    nativeCanvas: {
+      width:
+        '100%',
 
-  label: {
-    color: COLORS.soft,
+      height:
+        '100%',
+    },
 
-    fontFamily:
-      'Inter_600SemiBold',
+    gradient: {
+      flex:
+        1,
+    },
 
-    letterSpacing: 0.7,
-  },
+    safeArea: {
+      flex:
+        1,
+    },
 
-  inputContainer: {
-    flexDirection: 'row',
+    layout: {
+      flex:
+        1,
 
-    alignItems: 'center',
+      flexDirection:
+        'row',
 
-    borderWidth: 1,
+      alignItems:
+        'stretch',
+    },
 
-    borderColor:
-      'rgba(133,154,203,0.28)',
+    sideColumn: {
+      flex:
+        1,
 
-    backgroundColor:
-      COLORS.navyInput,
-  },
+      position:
+        'relative',
 
-  input: {
-    flex: 1,
+      overflow:
+        'hidden',
+    },
 
-    height: '100%',
+    centerColumn: {
+      flex:
+        1.75,
 
-    color: COLORS.white,
+      alignItems:
+        'center',
 
-    fontFamily:
-      'Inter_400Regular',
-  },
+      justifyContent:
+        'center',
+    },
 
-  eyeButton: {
-    height: '100%',
+    // ========================================================
+    // DECORATION
+    // ========================================================
 
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
+    largeCross: {
+      position:
+        'absolute',
 
-  optionsRow: {
-    flexDirection: 'row',
+      left:
+        -35,
 
-    alignItems: 'center',
+      top:
+        '18%',
 
-    justifyContent: 'space-between',
-  },
+      opacity:
+        0.2,
+    },
 
-  rememberRow: {
-    flexDirection: 'row',
+    crossHorizontal: {
+      position:
+        'absolute',
 
-    alignItems: 'center',
+      left:
+        0,
 
-    gap: 9,
-  },
+      borderWidth:
+        1,
 
-  checkbox: {
-    alignItems: 'center',
-    justifyContent: 'center',
+      borderColor:
+        COLORS.red,
 
-    borderWidth: 1,
+      borderRadius:
+        20,
 
-    borderColor: '#8492B2',
-  },
+      backgroundColor:
+        'rgba(219,10,10,0.06)',
+    },
 
-  checkboxSelected: {
-    borderColor:
-      COLORS.redBright,
+    crossVertical: {
+      position:
+        'absolute',
 
-    backgroundColor:
-      COLORS.red,
-  },
+      top:
+        0,
 
-  optionText: {
-    color: COLORS.soft,
+      borderWidth:
+        1,
 
-    fontFamily:
-      'Inter_400Regular',
-  },
+      borderColor:
+        COLORS.red,
 
-  forgotText: {
-    color: COLORS.redBright,
+      borderRadius:
+        20,
 
-    fontFamily:
-      'Inter_600SemiBold',
-  },
+      backgroundColor:
+        'rgba(219,10,10,0.06)',
+    },
 
-  errorBox: {
-    flexDirection: 'row',
+    leftMessage: {
+      position:
+        'absolute',
 
-    alignItems: 'center',
+      left:
+        '18%',
 
-    gap: 8,
+      bottom:
+        '15%',
+    },
 
-    backgroundColor:
-      'rgba(255,114,124,0.10)',
-  },
+    rightMessage: {
+      position:
+        'absolute',
 
-  errorText: {
-    flex: 1,
+      right:
+        '20%',
 
-    color: COLORS.error,
+      top:
+        '24%',
+    },
 
-    fontFamily:
-      'Inter_400Regular',
-  },
+    redLine: {
+      width:
+        28,
 
-  signInButton: {
-    flexDirection: 'row',
+      height:
+        2,
 
-    alignItems: 'center',
+      marginBottom:
+        14,
 
-    justifyContent: 'center',
-  },
+      backgroundColor:
+        COLORS.redBright,
+    },
 
-  signInText: {
-    color: COLORS.white,
+    sideText: {
+      color:
+        'rgba(164,179,211,0.60)',
 
-    fontFamily:
-      'Poppins_600SemiBold',
-  },
+      fontFamily:
+        'Inter_500Medium',
 
-  securityRow: {
-    flexDirection: 'row',
+      letterSpacing:
+        3,
+    },
 
-    alignItems: 'center',
-  },
+    // ========================================================
+    // BRAND
+    // ========================================================
 
-  securityText: {
-    color: COLORS.muted,
+    brandRow: {
+      flexDirection:
+        'row',
 
-    fontFamily:
-      'Inter_400Regular',
-  },
-});
+      alignItems:
+        'center',
+
+      marginBottom:
+        10,
+    },
+
+    logoCircle: {
+      marginRight:
+        16,
+
+      backgroundColor:
+        COLORS.white,
+
+      alignItems:
+        'center',
+
+      justifyContent:
+        'center',
+
+      overflow:
+        'hidden',
+    },
+
+    brandName: {
+      color:
+        COLORS.white,
+
+      fontFamily:
+        'Poppins_700Bold',
+    },
+
+    brandRed: {
+      color:
+        COLORS.redBright,
+    },
+
+    portalLabel: {
+      color:
+        COLORS.redBright,
+
+      fontFamily:
+        'Inter_700Bold',
+
+      textAlign:
+        'center',
+    },
+
+    authorizedText: {
+      color:
+        COLORS.muted,
+
+      fontFamily:
+        'Inter_400Regular',
+    },
+
+    // ========================================================
+    // CARD
+    // ========================================================
+
+    loginCard: {
+      borderWidth:
+        1,
+
+      borderColor:
+        COLORS.border,
+
+      backgroundColor:
+        COLORS.card,
+
+      shadowColor:
+        '#000000',
+
+      shadowOpacity:
+        0.32,
+
+      shadowRadius:
+        22,
+
+      shadowOffset: {
+        width:
+          0,
+
+        height:
+          12,
+      },
+
+      elevation:
+        10,
+    },
+
+    // ========================================================
+    // INPUTS
+    // ========================================================
+
+    labelRow: {
+      flexDirection:
+        'row',
+
+      alignItems:
+        'center',
+
+      gap:
+        9,
+    },
+
+    label: {
+      color:
+        COLORS.soft,
+
+      fontFamily:
+        'Inter_600SemiBold',
+
+      letterSpacing:
+        0.7,
+    },
+
+    inputContainer: {
+      flexDirection:
+        'row',
+
+      alignItems:
+        'center',
+
+      borderWidth:
+        1,
+
+      borderColor:
+        'rgba(133,154,203,0.28)',
+
+      backgroundColor:
+        COLORS.navyInput,
+    },
+
+    input: {
+      flex:
+        1,
+
+      height:
+        '100%',
+
+      color:
+        COLORS.white,
+
+      fontFamily:
+        'Inter_400Regular',
+
+      outlineStyle:
+        Platform.OS ===
+          'web'
+          ? 'none'
+          : undefined,
+    } as any,
+
+    eyeButton: {
+      height:
+        '100%',
+
+      alignItems:
+        'center',
+
+      justifyContent:
+        'center',
+    },
+
+    // ========================================================
+    // OPTIONS
+    // ========================================================
+
+    optionsRow: {
+      flexDirection:
+        'row',
+
+      alignItems:
+        'center',
+
+      justifyContent:
+        'space-between',
+    },
+
+    rememberRow: {
+      flexDirection:
+        'row',
+
+      alignItems:
+        'center',
+
+      gap:
+        9,
+    },
+
+    checkbox: {
+      alignItems:
+        'center',
+
+      justifyContent:
+        'center',
+
+      borderWidth:
+        1,
+
+      borderColor:
+        '#8492B2',
+    },
+
+    checkboxSelected: {
+      borderColor:
+        COLORS.redBright,
+
+      backgroundColor:
+        COLORS.red,
+    },
+
+    optionText: {
+      color:
+        COLORS.soft,
+
+      fontFamily:
+        'Inter_400Regular',
+    },
+
+    forgotText: {
+      color:
+        COLORS.redBright,
+
+      fontFamily:
+        'Inter_600SemiBold',
+    },
+
+    // ========================================================
+    // ERROR
+    // ========================================================
+
+    errorBox: {
+      flexDirection:
+        'row',
+
+      alignItems:
+        'center',
+
+      gap:
+        8,
+
+      borderWidth:
+        1,
+
+      borderColor:
+        'rgba(255,114,124,0.24)',
+
+      backgroundColor:
+        'rgba(255,114,124,0.10)',
+    },
+
+    errorText: {
+      flex:
+        1,
+
+      color:
+        COLORS.error,
+
+      fontFamily:
+        'Inter_400Regular',
+    },
+
+    // ========================================================
+    // SUCCESS
+    // ========================================================
+
+    successBox: {
+      flexDirection:
+        'row',
+
+      alignItems:
+        'center',
+
+      gap:
+        8,
+
+      borderWidth:
+        1,
+
+      borderColor:
+        'rgba(89,217,142,0.24)',
+
+      backgroundColor:
+        COLORS.successBackground,
+    },
+
+    successText: {
+      flex:
+        1,
+
+      color:
+        COLORS.success,
+
+      fontFamily:
+        'Inter_400Regular',
+    },
+
+    // ========================================================
+    // SIGN IN BUTTON
+    // ========================================================
+
+    signInButton: {
+      flexDirection:
+        'row',
+
+      alignItems:
+        'center',
+
+      justifyContent:
+        'center',
+    },
+
+    signInText: {
+      color:
+        COLORS.white,
+
+      fontFamily:
+        'Poppins_600SemiBold',
+    },
+
+    // ========================================================
+    // SECURITY
+    // ========================================================
+
+    securityRow: {
+      flexDirection:
+        'row',
+
+      alignItems:
+        'center',
+    },
+
+    securityText: {
+      color:
+        COLORS.muted,
+
+      fontFamily:
+        'Inter_400Regular',
+    },
+  });
