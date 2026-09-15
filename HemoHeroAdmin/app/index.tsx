@@ -762,10 +762,6 @@ export default function AdminLoginScreen() {
         .trim()
         .toLowerCase();
 
-    // --------------------------------------------------------
-    // EMAIL REQUIRED
-    // --------------------------------------------------------
-
     if (
       !cleanEmail
     ) {
@@ -775,10 +771,6 @@ export default function AdminLoginScreen() {
 
       return;
     }
-
-    // --------------------------------------------------------
-    // EMAIL FORMAT
-    // --------------------------------------------------------
 
     const emailPattern =
       /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -794,10 +786,6 @@ export default function AdminLoginScreen() {
 
       return;
     }
-
-    // --------------------------------------------------------
-    // PASSWORD REQUIRED
-    // --------------------------------------------------------
 
     if (
       !password
@@ -820,10 +808,6 @@ export default function AdminLoginScreen() {
           password
         );
 
-      // ------------------------------------------------------
-      // VERIFY RESPONSE
-      // ------------------------------------------------------
-
       if (
         !result?.session?.access_token
       ) {
@@ -842,10 +826,6 @@ export default function AdminLoginScreen() {
           'This account is not authorized to access the Admin Portal.'
         );
       }
-
-      // ------------------------------------------------------
-      // SAVE SESSION
-      // ------------------------------------------------------
 
       await saveAdminSession(
         result.session,
@@ -904,10 +884,6 @@ export default function AdminLoginScreen() {
         .trim()
         .toLowerCase();
 
-    // --------------------------------------------------------
-    // EMAIL REQUIRED
-    // --------------------------------------------------------
-
     if (
       !cleanEmail
     ) {
@@ -917,10 +893,6 @@ export default function AdminLoginScreen() {
 
       return;
     }
-
-    // --------------------------------------------------------
-    // EMAIL FORMAT
-    // --------------------------------------------------------
 
     const emailPattern =
       /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -1068,9 +1040,7 @@ export default function AdminLoginScreen() {
                   : undefined
               }
             >
-              {/* ============================================== */}
               {/* LEFT DECORATION */}
-              {/* ============================================== */}
 
               <View
                 style={
@@ -1157,18 +1127,14 @@ export default function AdminLoginScreen() {
                 </View>
               </View>
 
-              {/* ============================================== */}
               {/* LOGIN */}
-              {/* ============================================== */}
 
               <View
                 style={
                   styles.centerColumn
                 }
               >
-                {/* ============================================ */}
                 {/* BRAND */}
-                {/* ============================================ */}
 
                 <Animated.View
                   style={{
@@ -1282,9 +1248,7 @@ export default function AdminLoginScreen() {
                   </Text>
                 </Animated.View>
 
-                {/* ============================================ */}
                 {/* LOGIN CARD */}
-                {/* ============================================ */}
 
                 <Animated.View
                   style={[
@@ -1320,9 +1284,7 @@ export default function AdminLoginScreen() {
                     },
                   ]}
                 >
-                  {/* ========================================== */}
                   {/* EMAIL */}
-                  {/* ========================================== */}
 
                   <View
                     style={[
@@ -1411,9 +1373,7 @@ export default function AdminLoginScreen() {
                     />
                   </View>
 
-                  {/* ========================================== */}
                   {/* PASSWORD */}
-                  {/* ========================================== */}
 
                   <View
                     style={[
@@ -1546,9 +1506,7 @@ export default function AdminLoginScreen() {
                     </Pressable>
                   </View>
 
-                  {/* ========================================== */}
                   {/* OPTIONS */}
-                  {/* ========================================== */}
 
                   <View
                     style={[
@@ -1651,9 +1609,7 @@ export default function AdminLoginScreen() {
                     </Pressable>
                   </View>
 
-                  {/* ========================================== */}
                   {/* ERROR */}
-                  {/* ========================================== */}
 
                   {error ? (
                     <Animated.View
@@ -1709,9 +1665,7 @@ export default function AdminLoginScreen() {
                     </Animated.View>
                   ) : null}
 
-                  {/* ========================================== */}
                   {/* SUCCESS */}
-                  {/* ========================================== */}
 
                   {successMessage ? (
                     <View
@@ -1760,9 +1714,7 @@ export default function AdminLoginScreen() {
                     </View>
                   ) : null}
 
-                  {/* ========================================== */}
                   {/* SIGN IN */}
-                  {/* ========================================== */}
 
                   <Animated.View
                     style={{
@@ -1831,9 +1783,6 @@ export default function AdminLoginScreen() {
                           {
                             height:
                               64 * s,
-
-                            gap:
-                              11 * s,
                           },
                         ]}
                       >
@@ -1844,39 +1793,25 @@ export default function AdminLoginScreen() {
                             }
                           />
                         ) : (
-                          <>
-                            <Text
-                              style={[
-                                styles.signInText,
+                          <Text
+                            style={[
+                              styles.signInText,
 
-                                {
-                                  fontSize:
-                                    15 * s,
-                                },
-                              ]}
-                            >
-                              Sign In
-                            </Text>
-
-                            <MaterialIcons
-                              name="arrow-forward"
-                              size={
-                                22 * s
-                              }
-                              color={
-                                COLORS.white
-                              }
-                            />
-                          </>
+                              {
+                                fontSize:
+                                  15 * s,
+                              },
+                            ]}
+                          >
+                            Sign In
+                          </Text>
                         )}
                       </LinearGradient>
                     </Pressable>
                   </Animated.View>
                 </Animated.View>
 
-                {/* ============================================ */}
                 {/* SECURITY */}
-                {/* ============================================ */}
 
                 <Animated.View
                   style={[
@@ -1919,9 +1854,7 @@ export default function AdminLoginScreen() {
                 </Animated.View>
               </View>
 
-              {/* ============================================== */}
               {/* RIGHT DECORATION */}
-              {/* ============================================== */}
 
               <View
                 style={
@@ -2053,10 +1986,6 @@ const styles =
         'center',
     },
 
-    // ========================================================
-    // DECORATION
-    // ========================================================
-
     largeCross: {
       position:
         'absolute',
@@ -2158,10 +2087,6 @@ const styles =
         3,
     },
 
-    // ========================================================
-    // BRAND
-    // ========================================================
-
     brandRow: {
       flexDirection:
         'row',
@@ -2222,10 +2147,6 @@ const styles =
         'Inter_400Regular',
     },
 
-    // ========================================================
-    // CARD
-    // ========================================================
-
     loginCard: {
       borderWidth:
         1,
@@ -2256,10 +2177,6 @@ const styles =
       elevation:
         10,
     },
-
-    // ========================================================
-    // INPUTS
-    // ========================================================
 
     labelRow: {
       flexDirection:
@@ -2331,10 +2248,6 @@ const styles =
         'center',
     },
 
-    // ========================================================
-    // OPTIONS
-    // ========================================================
-
     optionsRow: {
       flexDirection:
         'row',
@@ -2395,10 +2308,6 @@ const styles =
         'Inter_600SemiBold',
     },
 
-    // ========================================================
-    // ERROR
-    // ========================================================
-
     errorBox: {
       flexDirection:
         'row',
@@ -2429,10 +2338,6 @@ const styles =
       fontFamily:
         'Inter_400Regular',
     },
-
-    // ========================================================
-    // SUCCESS
-    // ========================================================
 
     successBox: {
       flexDirection:
@@ -2465,14 +2370,7 @@ const styles =
         'Inter_400Regular',
     },
 
-    // ========================================================
-    // SIGN IN BUTTON
-    // ========================================================
-
     signInButton: {
-      flexDirection:
-        'row',
-
       alignItems:
         'center',
 
@@ -2487,10 +2385,6 @@ const styles =
       fontFamily:
         'Poppins_600SemiBold',
     },
-
-    // ========================================================
-    // SECURITY
-    // ========================================================
 
     securityRow: {
       flexDirection:
