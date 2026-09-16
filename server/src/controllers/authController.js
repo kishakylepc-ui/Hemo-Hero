@@ -42,7 +42,9 @@ function cleanOptionalText(value) {
     return null;
   }
 
-  if (typeof value !== 'string') {
+  if (
+    typeof value !== 'string'
+  ) {
     return null;
   }
 
@@ -50,6 +52,113 @@ function cleanOptionalText(value) {
     value.trim();
 
   return cleaned || null;
+}
+
+// ------------------------------------------------------------
+// PASSWORD VALIDATION
+// ------------------------------------------------------------
+
+function validatePassword(
+  password
+) {
+  if (
+    typeof password !==
+    'string'
+  ) {
+    return {
+      valid: false,
+
+      error:
+        'Password must be text',
+    };
+  }
+
+  // ----------------------------------------------------------
+  // MINIMUM LENGTH
+  // ----------------------------------------------------------
+
+  if (
+    password.length < 8
+  ) {
+    return {
+      valid: false,
+
+      error:
+        'Password must be at least 8 characters',
+    };
+  }
+
+  // ----------------------------------------------------------
+  // LOWERCASE
+  // ----------------------------------------------------------
+
+  if (
+    !/[a-z]/.test(
+      password
+    )
+  ) {
+    return {
+      valid: false,
+
+      error:
+        'Password must contain at least one lowercase letter',
+    };
+  }
+
+  // ----------------------------------------------------------
+  // UPPERCASE
+  // ----------------------------------------------------------
+
+  if (
+    !/[A-Z]/.test(
+      password
+    )
+  ) {
+    return {
+      valid: false,
+
+      error:
+        'Password must contain at least one uppercase letter',
+    };
+  }
+
+  // ----------------------------------------------------------
+  // NUMBER
+  // ----------------------------------------------------------
+
+  if (
+    !/[0-9]/.test(
+      password
+    )
+  ) {
+    return {
+      valid: false,
+
+      error:
+        'Password must contain at least one number',
+    };
+  }
+
+  // ----------------------------------------------------------
+  // SPECIAL CHARACTER
+  // ----------------------------------------------------------
+
+  if (
+    !/[^A-Za-z0-9]/.test(
+      password
+    )
+  ) {
+    return {
+      valid: false,
+
+      error:
+        'Password must contain at least one special character',
+    };
+  }
+
+  return {
+    valid: true,
+  };
 }
 
 // ------------------------------------------------------------
@@ -65,6 +174,7 @@ function validateDateOfBirth(
   ) {
     return {
       valid: false,
+
       error:
         'date_of_birth must be text',
     };
@@ -83,6 +193,7 @@ function validateDateOfBirth(
   ) {
     return {
       valid: false,
+
       error:
         'date_of_birth must use YYYY-MM-DD format',
     };
@@ -116,6 +227,7 @@ function validateDateOfBirth(
   ) {
     return {
       valid: false,
+
       error:
         'Invalid date of birth',
     };
@@ -139,6 +251,7 @@ function validateDateOfBirth(
   ) {
     return {
       valid: false,
+
       error:
         'Date of birth cannot be in the future',
     };
@@ -146,6 +259,7 @@ function validateDateOfBirth(
 
   return {
     valid: true,
+
     value:
       cleanDate,
   };
@@ -165,6 +279,7 @@ function parseCoordinate(
   ) {
     return {
       valid: true,
+
       value: null,
     };
   }
@@ -181,6 +296,7 @@ function parseCoordinate(
   ) {
     return {
       valid: false,
+
       error:
         `${type} must be a valid number`,
     };
@@ -195,6 +311,7 @@ function parseCoordinate(
   ) {
     return {
       valid: false,
+
       error:
         'latitude must be between -90 and 90',
     };
@@ -209,6 +326,7 @@ function parseCoordinate(
   ) {
     return {
       valid: false,
+
       error:
         'longitude must be between -180 and 180',
     };
@@ -216,6 +334,7 @@ function parseCoordinate(
 
   return {
     valid: true,
+
     value:
       number,
   };
@@ -234,6 +353,7 @@ function validateProfilePhotoUrl(
   ) {
     return {
       valid: true,
+
       value: null,
     };
   }
@@ -244,6 +364,7 @@ function validateProfilePhotoUrl(
   ) {
     return {
       valid: false,
+
       error:
         'profile_photo_url must be text',
     };
@@ -252,16 +373,21 @@ function validateProfilePhotoUrl(
   const cleanUrl =
     value.trim();
 
-  if (!cleanUrl) {
+  if (
+    !cleanUrl
+  ) {
     return {
       valid: true,
+
       value: null,
     };
   }
 
   try {
     const url =
-      new URL(cleanUrl);
+      new URL(
+        cleanUrl
+      );
 
     if (
       url.protocol !==
@@ -271,6 +397,7 @@ function validateProfilePhotoUrl(
     ) {
       return {
         valid: false,
+
         error:
           'profile_photo_url must use http or https',
       };
@@ -278,12 +405,14 @@ function validateProfilePhotoUrl(
 
     return {
       valid: true,
+
       value:
         cleanUrl,
     };
   } catch {
     return {
       valid: false,
+
       error:
         'profile_photo_url must be a valid URL',
     };
@@ -303,7 +432,12 @@ async function register(
       email,
       password,
       confirm_password,
-    } = req.body;
+    } =
+      req.body;
+
+    // --------------------------------------------------------
+    // REQUIRED FIELDS
+    // --------------------------------------------------------
 
     if (
       !email ||
@@ -317,6 +451,10 @@ async function register(
             'email, password, and confirm_password are required',
         });
     }
+
+    // --------------------------------------------------------
+    // FIELD TYPES
+    // --------------------------------------------------------
 
     if (
       typeof email !==
@@ -339,6 +477,10 @@ async function register(
         .trim()
         .toLowerCase();
 
+    // --------------------------------------------------------
+    // EMAIL FORMAT
+    // --------------------------------------------------------
+
     const emailPattern =
       /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -355,38 +497,9 @@ async function register(
         });
     }
 
-    if (
-      password.length < 8
-    ) {
-      return res
-        .status(400)
-        .json({
-          error:
-            'Password must be at least 8 characters',
-        });
-    }
-
-    const hasLetter =
-      /[A-Za-z]/.test(
-        password
-      );
-
-    const hasNumber =
-      /[0-9]/.test(
-        password
-      );
-
-    if (
-      !hasLetter ||
-      !hasNumber
-    ) {
-      return res
-        .status(400)
-        .json({
-          error:
-            'Password must contain at least one letter and one number',
-        });
-    }
+    // --------------------------------------------------------
+    // CONFIRM PASSWORD
+    // --------------------------------------------------------
 
     if (
       password !==
@@ -399,6 +512,37 @@ async function register(
             'Passwords do not match',
         });
     }
+
+    // --------------------------------------------------------
+    // PASSWORD POLICY
+    //
+    // Required:
+    // - Minimum 8 characters
+    // - Lowercase
+    // - Uppercase
+    // - Number
+    // - Special character
+    // --------------------------------------------------------
+
+    const passwordValidation =
+      validatePassword(
+        password
+      );
+
+    if (
+      !passwordValidation.valid
+    ) {
+      return res
+        .status(400)
+        .json({
+          error:
+            passwordValidation.error,
+        });
+    }
+
+    // --------------------------------------------------------
+    // CREATE SUPABASE AUTH ACCOUNT
+    // --------------------------------------------------------
 
     const frontendUrl =
       process.env.FRONTEND_URL ||
@@ -427,7 +571,9 @@ async function register(
           },
         });
 
-    if (error) {
+    if (
+      error
+    ) {
       console.log(
         'REGISTER ERROR:',
         error.message
@@ -441,7 +587,9 @@ async function register(
         });
     }
 
-    if (!data?.user) {
+    if (
+      !data?.user
+    ) {
       return res
         .status(400)
         .json({
@@ -470,7 +618,9 @@ async function register(
           data.session ??
           null,
       });
-  } catch (error) {
+  } catch (
+    error
+  ) {
     console.log(
       'REGISTER CONTROLLER ERROR:',
       error
@@ -497,7 +647,8 @@ async function verifyEmail(
     const {
       email,
       code,
-    } = req.body;
+    } =
+      req.body;
 
     if (
       !email ||
@@ -579,7 +730,9 @@ async function verifyEmail(
             'email',
         });
 
-    if (error) {
+    if (
+      error
+    ) {
       console.error(
         'VERIFY EMAIL SUPABASE ERROR:',
         error.message
@@ -593,7 +746,9 @@ async function verifyEmail(
         });
     }
 
-    if (!data?.user) {
+    if (
+      !data?.user
+    ) {
       return res
         .status(400)
         .json({
@@ -616,7 +771,9 @@ async function verifyEmail(
             data.user.email,
         },
       });
-  } catch (error) {
+  } catch (
+    error
+  ) {
     console.error(
       'VERIFY EMAIL ERROR:',
       error
@@ -642,7 +799,8 @@ async function resendVerification(
   try {
     const {
       email,
-    } = req.body;
+    } =
+      req.body;
 
     if (
       !email ||
@@ -700,7 +858,9 @@ async function resendVerification(
           },
         });
 
-    if (error) {
+    if (
+      error
+    ) {
       console.error(
         'RESEND VERIFICATION SUPABASE ERROR:',
         error.message
@@ -720,7 +880,9 @@ async function resendVerification(
         message:
           'A new verification code has been sent to your email.',
       });
-  } catch (error) {
+  } catch (
+    error
+  ) {
     console.error(
       'RESEND VERIFICATION ERROR:',
       error
@@ -747,7 +909,8 @@ async function login(
     const {
       email,
       password,
-    } = req.body;
+    } =
+      req.body;
 
     // --------------------------------------------------------
     // REQUIRED FIELDS
@@ -883,13 +1046,18 @@ async function login(
     // --------------------------------------------------------
 
     const {
-      data: existingAccount,
-      error: accountLookupError,
+      data:
+        existingAccount,
+
+      error:
+        accountLookupError,
     } =
       await supabaseAdmin
-        .from('users')
+        .from(
+          'users'
+        )
         .select(
-          'id, email'
+          'id, email, is_active'
         )
         .eq(
           'email',
@@ -922,11 +1090,6 @@ async function login(
 
     // --------------------------------------------------------
     // ACCOUNT DOES NOT EXIST
-    //
-    // IMPORTANT:
-    // Do NOT call recordFailedLogin() here.
-    // The attempt counter is only for wrong passwords on
-    // existing accounts.
     // --------------------------------------------------------
 
     if (
@@ -940,6 +1103,30 @@ async function login(
 
           code:
             'ACCOUNT_NOT_FOUND',
+        });
+    }
+
+    // --------------------------------------------------------
+    // ACCOUNT DEACTIVATED
+    //
+    // Block the login before Supabase creates a new session.
+    //
+    // This uses public.users.is_active as the application-level
+    // account status source of truth.
+    // --------------------------------------------------------
+
+    if (
+      existingAccount.is_active ===
+      false
+    ) {
+      return res
+        .status(403)
+        .json({
+          error:
+            'Your account has been deactivated. Please contact an administrator.',
+
+          code:
+            'ACCOUNT_DEACTIVATED',
         });
     }
 
@@ -977,7 +1164,7 @@ async function login(
       // ------------------------------------------------------
       // EMAIL NOT VERIFIED
       //
-      // Does NOT consume a password attempt.
+      // Does not consume a failed password attempt.
       // ------------------------------------------------------
 
       if (
@@ -1001,8 +1188,8 @@ async function login(
       // ------------------------------------------------------
       // EXISTING ACCOUNT + WRONG PASSWORD
       //
-      // This is the ONLY normal authentication failure that
-      // consumes the 5 password attempts.
+      // Attempt limits and lockout duration are handled by
+      // loginRateLimiter.js.
       // ------------------------------------------------------
 
       const attemptResult =
@@ -1020,8 +1207,7 @@ async function login(
         );
 
       // ------------------------------------------------------
-      // FIFTH WRONG PASSWORD
-      // LOCK FOR 3 MINUTES
+      // ACCOUNT LOCKED
       // ------------------------------------------------------
 
       if (
@@ -1040,7 +1226,7 @@ async function login(
           ) &&
           retryMinutes > 0
             ? retryMinutes
-            : 3;
+            : 1;
 
         return res
           .status(429)
@@ -1076,7 +1262,7 @@ async function login(
           1
         ) {
           loginError =
-            'Incorrect password. 1 attempt remaining before a 3-minute cooldown.';
+            'Incorrect password. 1 attempt remaining before temporary lockout.';
         } else if (
           attemptsRemaining > 1
         ) {
@@ -1123,12 +1309,19 @@ async function login(
     // --------------------------------------------------------
 
     const {
-      data: dbUser,
-      error: dbError,
+      data:
+        dbUser,
+
+      error:
+        dbError,
     } =
       await supabaseAdmin
-        .from('users')
-        .select('*')
+        .from(
+          'users'
+        )
+        .select(
+          '*'
+        )
         .eq(
           'id',
           data.user.id
@@ -1198,17 +1391,22 @@ async function logout(
 ) {
   try {
     const authHeader =
-      req.headers.authorization ||
+      req.headers
+        .authorization ||
       '';
 
     const token =
       authHeader.startsWith(
         'Bearer '
       )
-        ? authHeader.slice(7)
+        ? authHeader.slice(
+            7
+          )
         : null;
 
-    if (!token) {
+    if (
+      !token
+    ) {
       return res
         .status(401)
         .json({
@@ -1223,9 +1421,13 @@ async function logout(
       await supabaseAdmin
         .auth
         .admin
-        .signOut(token);
+        .signOut(
+          token
+        );
 
-    if (error) {
+    if (
+      error
+    ) {
       console.error(
         'LOGOUT SUPABASE ERROR:',
         error.message
@@ -1245,7 +1447,9 @@ async function logout(
         message:
           'Logged out successfully',
       });
-  } catch (error) {
+  } catch (
+    error
+  ) {
     console.error(
       'LOGOUT ERROR:',
       error
@@ -1271,7 +1475,8 @@ async function forgotPassword(
   try {
     const {
       email,
-    } = req.body;
+    } =
+      req.body;
 
     if (
       !email ||
@@ -1324,7 +1529,9 @@ async function forgotPassword(
           }
         );
 
-    if (error) {
+    if (
+      error
+    ) {
       /*
         Keep this generic so the API
         does not reveal whether the
@@ -1343,7 +1550,9 @@ async function forgotPassword(
         message:
           'If an account exists for this email, a password reset email will be sent.',
       });
-  } catch (error) {
+  } catch (
+    error
+  ) {
     console.error(
       'FORGOT PASSWORD ERROR:',
       error
@@ -1370,7 +1579,8 @@ async function verifyRecoveryCode(
     const {
       email,
       code,
-    } = req.body;
+    } =
+      req.body;
 
     if (
       !email ||
@@ -1494,9 +1704,12 @@ async function verifyRecoveryCode(
           'Verification code confirmed.',
 
         recovery_token:
-          data.session.access_token,
+          data.session
+            .access_token,
       });
-  } catch (error) {
+  } catch (
+    error
+  ) {
     console.error(
       'VERIFY RECOVERY CODE ERROR:',
       error
@@ -1524,7 +1737,12 @@ async function resetPassword(
       recovery_token,
       password,
       confirm_password,
-    } = req.body;
+    } =
+      req.body;
+
+    // --------------------------------------------------------
+    // REQUIRED
+    // --------------------------------------------------------
 
     if (
       !recovery_token ||
@@ -1538,6 +1756,10 @@ async function resetPassword(
             'Recovery verification is required before changing the password',
         });
     }
+
+    // --------------------------------------------------------
+    // TYPES
+    // --------------------------------------------------------
 
     if (
       typeof recovery_token !==
@@ -1555,38 +1777,9 @@ async function resetPassword(
         });
     }
 
-    if (
-      password.length < 8
-    ) {
-      return res
-        .status(400)
-        .json({
-          error:
-            'Password must be at least 8 characters',
-        });
-    }
-
-    const hasLetter =
-      /[A-Za-z]/.test(
-        password
-      );
-
-    const hasNumber =
-      /[0-9]/.test(
-        password
-      );
-
-    if (
-      !hasLetter ||
-      !hasNumber
-    ) {
-      return res
-        .status(400)
-        .json({
-          error:
-            'Password must contain at least one letter and one number',
-        });
-    }
+    // --------------------------------------------------------
+    // CONFIRM PASSWORD
+    // --------------------------------------------------------
 
     if (
       password !==
@@ -1600,9 +1793,36 @@ async function resetPassword(
         });
     }
 
+    // --------------------------------------------------------
+    // PASSWORD POLICY
+    // --------------------------------------------------------
+
+    const passwordValidation =
+      validatePassword(
+        password
+      );
+
+    if (
+      !passwordValidation.valid
+    ) {
+      return res
+        .status(400)
+        .json({
+          error:
+            passwordValidation.error,
+        });
+    }
+
+    // --------------------------------------------------------
+    // VERIFY RECOVERY TOKEN
+    // --------------------------------------------------------
+
     const {
-      data: userData,
-      error: userError,
+      data:
+        userData,
+
+      error:
+        userError,
     } =
       await supabaseAnon
         .auth
@@ -1627,8 +1847,13 @@ async function resetPassword(
         });
     }
 
+    // --------------------------------------------------------
+    // UPDATE PASSWORD
+    // --------------------------------------------------------
+
     const {
-      error: updateError,
+      error:
+        updateError,
     } =
       await supabaseAdmin
         .auth
@@ -1640,7 +1865,9 @@ async function resetPassword(
           }
         );
 
-    if (updateError) {
+    if (
+      updateError
+    ) {
       console.error(
         'RESET PASSWORD UPDATE ERROR:',
         updateError.message
@@ -1660,7 +1887,9 @@ async function resetPassword(
         message:
           'Password reset successfully. You can now sign in with your new password.',
       });
-  } catch (error) {
+  } catch (
+    error
+  ) {
     console.error(
       'RESET PASSWORD ERROR:',
       error
@@ -1726,9 +1955,11 @@ async function updateProfile(
       profile_photo_url,
 
       complete_onboarding,
-    } = req.body;
+    } =
+      req.body;
 
-    const updates = {};
+    const updates =
+      {};
 
     // ========================================================
     // FIRST NAME
@@ -1743,7 +1974,9 @@ async function updateProfile(
           first_name
         );
 
-      if (!cleanValue) {
+      if (
+        !cleanValue
+      ) {
         return res
           .status(400)
           .json({
@@ -1783,7 +2016,9 @@ async function updateProfile(
           last_name
         );
 
-      if (!cleanValue) {
+      if (
+        !cleanValue
+      ) {
         return res
           .status(400)
           .json({
@@ -1905,7 +2140,9 @@ async function updateProfile(
           barangay
         );
 
-      if (!cleanValue) {
+      if (
+        !cleanValue
+      ) {
         return res
           .status(400)
           .json({
@@ -1931,7 +2168,9 @@ async function updateProfile(
           city
         );
 
-      if (!cleanValue) {
+      if (
+        !cleanValue
+      ) {
         return res
           .status(400)
           .json({
@@ -1957,7 +2196,9 @@ async function updateProfile(
           province
         );
 
-      if (!cleanValue) {
+      if (
+        !cleanValue
+      ) {
         return res
           .status(400)
           .json({
@@ -1984,7 +2225,9 @@ async function updateProfile(
           'latitude'
         );
 
-      if (!parsed.valid) {
+      if (
+        !parsed.valid
+      ) {
         return res
           .status(400)
           .json({
@@ -2011,7 +2254,9 @@ async function updateProfile(
           'longitude'
         );
 
-      if (!parsed.valid) {
+      if (
+        !parsed.valid
+      ) {
         return res
           .status(400)
           .json({
@@ -2033,8 +2278,10 @@ async function updateProfile(
       undefined
     ) {
       if (
-        blood_type === null ||
-        blood_type === ''
+        blood_type ===
+          null ||
+        blood_type ===
+          ''
       ) {
         updates.blood_type =
           null;
@@ -2192,7 +2439,8 @@ async function updateProfile(
                 ];
 
               return (
-                value === null ||
+                value ===
+                  null ||
                 value ===
                   undefined ||
                 String(
@@ -2231,7 +2479,8 @@ async function updateProfile(
     if (
       Object.keys(
         updates
-      ).length === 0
+      ).length ===
+      0
     ) {
       return res
         .status(400)
@@ -2250,7 +2499,9 @@ async function updateProfile(
       error,
     } =
       await supabaseAdmin
-        .from('users')
+        .from(
+          'users'
+        )
         .update(
           updates
         )
@@ -2258,10 +2509,14 @@ async function updateProfile(
           'id',
           req.dbUser.id
         )
-        .select('*')
+        .select(
+          '*'
+        )
         .single();
 
-    if (error) {
+    if (
+      error
+    ) {
       console.error(
         'UPDATE PROFILE SUPABASE ERROR:',
         error
@@ -2286,7 +2541,9 @@ async function updateProfile(
         user:
           data,
       });
-  } catch (error) {
+  } catch (
+    error
+  ) {
     console.error(
       'UPDATE PROFILE ERROR:',
       error

@@ -69,6 +69,9 @@ const COLORS = {
   successText: '#237A3B',
 
   codeActive: '#FDECEC',
+
+  requirementInactive: '#8B8B8B',
+  requirementActive: '#198754',
 };
 
 const CODE_LENGTH =
@@ -104,6 +107,10 @@ export default function ResetPasswordScreen() {
     useRef<TextInput>(
       null
     );
+
+  // ==========================================================
+  // FORM STATE
+  // ==========================================================
 
   const [
     code,
@@ -176,6 +183,47 @@ export default function ResetPasswordScreen() {
     setSuccessMessage,
   ] =
     useState('');
+
+  // ==========================================================
+  // PASSWORD REQUIREMENTS
+  // ==========================================================
+
+  const passwordHasMinimumLength =
+    password.length >=
+    8;
+
+  const passwordHasLowercase =
+    /[a-z]/.test(
+      password
+    );
+
+  const passwordHasUppercase =
+    /[A-Z]/.test(
+      password
+    );
+
+  const passwordHasNumber =
+    /[0-9]/.test(
+      password
+    );
+
+  const passwordHasSpecialCharacter =
+    /[^A-Za-z0-9]/.test(
+      password
+    );
+
+  const passwordIsValid =
+    passwordHasMinimumLength &&
+    passwordHasLowercase &&
+    passwordHasUppercase &&
+    passwordHasNumber &&
+    passwordHasSpecialCharacter;
+
+  const passwordsMatch =
+    confirmPassword.length >
+      0 &&
+    password ===
+      confirmPassword;
 
   // ==========================================================
   // CODE INPUT
@@ -440,12 +488,11 @@ export default function ResetPasswordScreen() {
     }
 
     // --------------------------------------------------------
-    // PASSWORD LENGTH
+    // MINIMUM LENGTH
     // --------------------------------------------------------
 
     if (
-      password.length <
-      8
+      !passwordHasMinimumLength
     ) {
       setErrorMessage(
         'Password must be at least 8 characters.'
@@ -455,25 +502,56 @@ export default function ResetPasswordScreen() {
     }
 
     // --------------------------------------------------------
-    // PASSWORD COMPLEXITY
+    // LOWERCASE
     // --------------------------------------------------------
 
-    const hasLetter =
-      /[A-Za-z]/.test(
-        password
-      );
-
-    const hasNumber =
-      /[0-9]/.test(
-        password
-      );
-
     if (
-      !hasLetter ||
-      !hasNumber
+      !passwordHasLowercase
     ) {
       setErrorMessage(
-        'Password must contain at least one letter and one number.'
+        'Password must contain at least one lowercase letter.'
+      );
+
+      return;
+    }
+
+    // --------------------------------------------------------
+    // UPPERCASE
+    // --------------------------------------------------------
+
+    if (
+      !passwordHasUppercase
+    ) {
+      setErrorMessage(
+        'Password must contain at least one uppercase letter.'
+      );
+
+      return;
+    }
+
+    // --------------------------------------------------------
+    // NUMBER
+    // --------------------------------------------------------
+
+    if (
+      !passwordHasNumber
+    ) {
+      setErrorMessage(
+        'Password must contain at least one number.'
+      );
+
+      return;
+    }
+
+    // --------------------------------------------------------
+    // SPECIAL CHARACTER
+    // --------------------------------------------------------
+
+    if (
+      !passwordHasSpecialCharacter
+    ) {
+      setErrorMessage(
+        'Password must contain at least one special character.'
       );
 
       return;
@@ -484,11 +562,24 @@ export default function ResetPasswordScreen() {
     // --------------------------------------------------------
 
     if (
-      password !==
-      confirmPassword
+      !passwordsMatch
     ) {
       setErrorMessage(
         'Passwords do not match.'
+      );
+
+      return;
+    }
+
+    // --------------------------------------------------------
+    // FINAL PASSWORD VALIDITY CHECK
+    // --------------------------------------------------------
+
+    if (
+      !passwordIsValid
+    ) {
+      setErrorMessage(
+        'Please complete all password requirements.'
       );
 
       return;
@@ -516,6 +607,9 @@ export default function ResetPasswordScreen() {
         data?.message ||
           'Your password has been changed successfully.'
       );
+
+      setPassword('');
+      setConfirmPassword('');
 
       // ------------------------------------------------------
       // RETURN TO SIGN IN AFTER SUCCESS
@@ -561,6 +655,51 @@ export default function ResetPasswordScreen() {
   }
 
   // ==========================================================
+  // PASSWORD REQUIREMENT ITEM
+  // ==========================================================
+
+  function PasswordRequirement({
+    valid,
+    label,
+  }: {
+    valid: boolean;
+    label: string;
+  }) {
+    return (
+      <View
+        style={
+          styles.requirementItem
+        }
+      >
+        <MaterialIcons
+          name={
+            valid
+              ? 'check-circle'
+              : 'radio-button-unchecked'
+          }
+          size={13}
+          color={
+            valid
+              ? COLORS.requirementActive
+              : COLORS.requirementInactive
+          }
+        />
+
+        <Text
+          style={[
+            styles.requirementText,
+
+            valid &&
+              styles.requirementTextValid,
+          ]}
+        >
+          {label}
+        </Text>
+      </View>
+    );
+  }
+
+  // ==========================================================
   // UI
   // ==========================================================
 
@@ -593,7 +732,7 @@ export default function ResetPasswordScreen() {
             }
             behavior={
               Platform.OS ===
-              'ios'
+                'ios'
                 ? 'padding'
                 : undefined
             }
@@ -1076,13 +1215,68 @@ export default function ResetPasswordScreen() {
                           </TouchableOpacity>
                         </View>
 
-                        <Text
+                        {/* ==========================================
+                            PASSWORD REQUIREMENTS
+                        ========================================== */}
+
+                        <View
                           style={
-                            styles.passwordHint
+                            styles.requirementsContainer
                           }
                         >
-                          At least 8 characters with one letter and one number.
-                        </Text>
+                          <Text
+                            style={
+                              styles.requirementsTitle
+                            }
+                          >
+                            Password must contain:
+                          </Text>
+
+                          <View
+                            style={
+                              styles.requirementsGrid
+                            }
+                          >
+                            <PasswordRequirement
+                              valid={
+                                passwordHasMinimumLength
+                              }
+                              label="8+ characters"
+                            />
+
+                            <PasswordRequirement
+                              valid={
+                                passwordHasLowercase
+                              }
+                              label="Lowercase letter"
+                            />
+
+                            <PasswordRequirement
+                              valid={
+                                passwordHasUppercase
+                              }
+                              label="Uppercase letter"
+                            />
+
+                            <PasswordRequirement
+                              valid={
+                                passwordHasNumber
+                              }
+                              label="Number"
+                            />
+
+                            <PasswordRequirement
+                              valid={
+                                passwordHasSpecialCharacter
+                              }
+                              label="Special character"
+                            />
+                          </View>
+                        </View>
+
+                        {/* ==========================================
+                            CONFIRM PASSWORD
+                        ========================================== */}
 
                         <Text
                           style={
@@ -1093,9 +1287,14 @@ export default function ResetPasswordScreen() {
                         </Text>
 
                         <View
-                          style={
-                            styles.passwordBox
-                          }
+                          style={[
+                            styles.passwordBox,
+
+                            confirmPassword.length >
+                              0 &&
+                              passwordsMatch &&
+                              styles.passwordBoxSuccess,
+                          ]}
                         >
                           <TextInput
                             style={
@@ -1159,6 +1358,47 @@ export default function ResetPasswordScreen() {
                             </Text>
                           </TouchableOpacity>
                         </View>
+
+                        {/* ==========================================
+                            PASSWORD MATCH
+                        ========================================== */}
+
+                        {confirmPassword.length >
+                        0 ? (
+                          <View
+                            style={
+                              styles.passwordMatchRow
+                            }
+                          >
+                            <MaterialIcons
+                              name={
+                                passwordsMatch
+                                  ? 'check-circle'
+                                  : 'cancel'
+                              }
+                              size={13}
+                              color={
+                                passwordsMatch
+                                  ? COLORS.successText
+                                  : COLORS.redButton
+                              }
+                            />
+
+                            <Text
+                              style={[
+                                styles.passwordMatchText,
+
+                                passwordsMatch
+                                  ? styles.passwordMatchTextSuccess
+                                  : styles.passwordMatchTextError,
+                              ]}
+                            >
+                              {passwordsMatch
+                                ? 'Passwords match'
+                                : 'Passwords do not match'}
+                            </Text>
+                          </View>
+                        ) : null}
 
                         {/* ==========================================
                             CHANGE PASSWORD BUTTON
@@ -1336,11 +1576,13 @@ const styles =
         'absolute',
 
       width: 180,
+
       height: 180,
 
       borderRadius: 90,
 
       left: -100,
+
       top: -50,
 
       backgroundColor:
@@ -1352,11 +1594,13 @@ const styles =
         'absolute',
 
       width: 180,
+
       height: 180,
 
       borderRadius: 90,
 
       right: -92,
+
       top: -55,
 
       backgroundColor:
@@ -1399,6 +1643,7 @@ const styles =
         'center',
 
       width: 130,
+
       height: 130,
 
       borderRadius: 65,
@@ -1422,6 +1667,7 @@ const styles =
 
     logoImage: {
       width: 110,
+
       height: 110,
     },
 
@@ -1525,15 +1771,21 @@ const styles =
     // ========================================================
 
     verifiedBox: {
-      flexDirection: 'row',
+      flexDirection:
+        'row',
 
-      alignItems: 'center',
-      justifyContent: 'center',
+      alignItems:
+        'center',
+
+      justifyContent:
+        'center',
 
       marginTop: 15,
+
       marginBottom: 20,
 
       paddingVertical: 10,
+
       paddingHorizontal: 12,
 
       borderWidth: 1,
@@ -1567,6 +1819,7 @@ const styles =
       marginBottom: 15,
 
       paddingHorizontal: 12,
+
       paddingVertical: 9,
 
       borderWidth: 1,
@@ -1602,12 +1855,17 @@ const styles =
       marginBottom: 15,
 
       paddingHorizontal: 12,
+
       paddingVertical: 10,
 
-      flexDirection: 'row',
+      flexDirection:
+        'row',
 
-      alignItems: 'center',
-      justifyContent: 'center',
+      alignItems:
+        'center',
+
+      justifyContent:
+        'center',
 
       gap: 7,
 
@@ -1643,9 +1901,11 @@ const styles =
     // ========================================================
 
     codeArea: {
-      position: 'relative',
+      position:
+        'relative',
 
-      flexDirection: 'row',
+      flexDirection:
+        'row',
 
       justifyContent:
         'space-between',
@@ -1655,6 +1915,7 @@ const styles =
 
     codeBox: {
       width: 43,
+
       height: 50,
 
       borderWidth: 1,
@@ -1664,8 +1925,11 @@ const styles =
 
       borderRadius: 10,
 
-      alignItems: 'center',
-      justifyContent: 'center',
+      alignItems:
+        'center',
+
+      justifyContent:
+        'center',
 
       backgroundColor:
         COLORS.white,
@@ -1692,18 +1956,22 @@ const styles =
     },
 
     hiddenInput: {
-      position: 'absolute',
+      position:
+        'absolute',
 
       width: 1,
+
       height: 1,
 
       opacity: 0,
     },
 
     resendRow: {
-      flexDirection: 'row',
+      flexDirection:
+        'row',
 
-      justifyContent: 'center',
+      justifyContent:
+        'center',
 
       marginTop: 16,
     },
@@ -1746,6 +2014,7 @@ const styles =
 
     confirmLabel: {
       marginTop: 14,
+
       marginBottom: 6,
 
       color:
@@ -1760,11 +2029,14 @@ const styles =
     passwordBox: {
       height: 43,
 
-      flexDirection: 'row',
+      flexDirection:
+        'row',
 
-      alignItems: 'center',
+      alignItems:
+        'center',
 
       paddingLeft: 15,
+
       paddingRight: 13,
 
       borderWidth: 1,
@@ -1776,6 +2048,11 @@ const styles =
 
       backgroundColor:
         COLORS.white,
+    },
+
+    passwordBoxSuccess: {
+      borderColor:
+        COLORS.successText,
     },
 
     passwordInput: {
@@ -1795,20 +2072,6 @@ const styles =
           : undefined,
     } as any,
 
-    passwordHint: {
-      marginTop: 6,
-
-      color:
-        COLORS.muted,
-
-      fontFamily:
-        'Inter_400Regular',
-
-      fontSize: 9,
-
-      lineHeight: 13,
-    },
-
     showText: {
       color:
         COLORS.muted,
@@ -1817,6 +2080,96 @@ const styles =
         'Inter_400Regular',
 
       fontSize: 11,
+    },
+
+    // ========================================================
+    // PASSWORD REQUIREMENTS
+    // ========================================================
+
+    requirementsContainer: {
+      marginTop: 10,
+
+      paddingHorizontal: 5,
+    },
+
+    requirementsTitle: {
+      marginBottom: 6,
+
+      color:
+        COLORS.muted,
+
+      fontFamily:
+        'Inter_500Medium',
+
+      fontSize: 9,
+    },
+
+    requirementsGrid: {
+      flexDirection:
+        'row',
+
+      flexWrap:
+        'wrap',
+
+      columnGap: 12,
+
+      rowGap: 5,
+    },
+
+    requirementItem: {
+      flexDirection:
+        'row',
+
+      alignItems:
+        'center',
+
+      gap: 4,
+    },
+
+    requirementText: {
+      color:
+        COLORS.requirementInactive,
+
+      fontFamily:
+        'Inter_400Regular',
+
+      fontSize: 9,
+    },
+
+    requirementTextValid: {
+      color:
+        COLORS.requirementActive,
+    },
+
+    passwordMatchRow: {
+      marginTop: 6,
+
+      marginLeft: 5,
+
+      flexDirection:
+        'row',
+
+      alignItems:
+        'center',
+
+      gap: 4,
+    },
+
+    passwordMatchText: {
+      fontFamily:
+        'Inter_400Regular',
+
+      fontSize: 9,
+    },
+
+    passwordMatchTextSuccess: {
+      color:
+        COLORS.successText,
+    },
+
+    passwordMatchTextError: {
+      color:
+        COLORS.redButton,
     },
 
     // ========================================================
@@ -1833,9 +2186,11 @@ const styles =
       backgroundColor:
         COLORS.redButton,
 
-      alignItems: 'center',
+      alignItems:
+        'center',
 
-      justifyContent: 'center',
+      justifyContent:
+        'center',
     },
 
     disabledButton: {
@@ -1857,11 +2212,13 @@ const styles =
     // ========================================================
 
     backButton: {
-      alignSelf: 'center',
+      alignSelf:
+        'center',
 
       marginTop: 18,
 
       paddingVertical: 5,
+
       paddingHorizontal: 8,
     },
 

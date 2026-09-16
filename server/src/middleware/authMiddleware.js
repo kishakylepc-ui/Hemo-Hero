@@ -1,7 +1,13 @@
-const { supabaseAnon, supabaseAdmin } = require('../config/supabase');
+const {
+  supabaseAnon,
+  supabaseAdmin,
+} = require(
+  '../config/supabase'
+);
 
-// ------------------------------------------------------------
+// ============================================================
 // AUTHENTICATION MIDDLEWARE
+// ============================================================
 //
 // Verifies the Supabase Bearer access token and attaches:
 //
@@ -9,138 +15,327 @@ const { supabaseAnon, supabaseAdmin } = require('../config/supabase');
 // req.authUser  -> Supabase auth.users account
 // req.dbUser    -> matching public.users profile
 //
+// Also blocks deactivated Hemo-Hero accounts.
+//
 // Client request format:
 //
 // Authorization: Bearer <access_token>
-// ------------------------------------------------------------
+// ============================================================
 
-async function requireAuth(req, res, next) {
+async function requireAuth(
+  req,
+  res,
+  next
+) {
   try {
-    const authHeader = req.headers.authorization;
+    const authHeader =
+      req.headers.authorization;
 
     // --------------------------------------------------------
-    // Validate Authorization header
+    // VALIDATE AUTHORIZATION HEADER
     // --------------------------------------------------------
 
-    if (!authHeader || typeof authHeader !== 'string') {
-      return res.status(401).json({
-        error: 'Missing Authorization header'
-      });
+    if (
+      !authHeader ||
+      typeof authHeader !==
+        'string'
+    ) {
+      return res
+        .status(401)
+        .json({
+          error:
+            'Missing Authorization header',
+
+          code:
+            'AUTH_HEADER_MISSING',
+        });
     }
 
     // Accept:
+    //
     // Bearer eyJ...
     //
-    // Case-insensitive for "Bearer"
-    const match = authHeader.match(/^Bearer\s+(.+)$/i);
+    // "Bearer" is case-insensitive.
+    const match =
+      authHeader.match(
+        /^Bearer\s+(.+)$/i
+      );
 
-    if (!match) {
-      return res.status(401).json({
-        error: 'Invalid Authorization header'
-      });
+    if (
+      !match
+    ) {
+      return res
+        .status(401)
+        .json({
+          error:
+            'Invalid Authorization header',
+
+          code:
+            'AUTH_HEADER_INVALID',
+        });
     }
 
-    const token = match[1].trim();
+    const token =
+      match[1].trim();
 
-    if (!token) {
-      return res.status(401).json({
-        error: 'Missing authentication token'
-      });
+    if (
+      !token
+    ) {
+      return res
+        .status(401)
+        .json({
+          error:
+            'Missing authentication token',
+
+          code:
+            'AUTH_TOKEN_MISSING',
+        });
     }
 
     // --------------------------------------------------------
-    // Verify token with Supabase Auth
+    // VERIFY TOKEN WITH SUPABASE AUTH
     // --------------------------------------------------------
 
-    const { data, error } = await supabaseAnon.auth.getUser(token);
+    const {
+      data,
+      error,
+    } =
+      await supabaseAnon
+        .auth
+        .getUser(
+          token
+        );
 
-    if (error || !data?.user) {
-      if (error) {
-        console.error('Supabase token validation failed:', error.message);
+    if (
+      error ||
+      !data?.user
+    ) {
+      if (
+        error
+      ) {
+        console.error(
+          'Supabase token validation failed:',
+          error.message
+        );
       }
 
-      return res.status(401).json({
-        error: 'Invalid or expired token'
-      });
+      return res
+        .status(401)
+        .json({
+          error:
+            'Invalid or expired token',
+
+          code:
+            'AUTH_TOKEN_INVALID',
+        });
     }
 
-    // Save authentication information for later middleware
-    // and controllers.
-    req.authToken = token;
-    req.authUser = data.user;
-
     // --------------------------------------------------------
-    // Retrieve Hemo-Hero public.users profile
+    // SAVE AUTH INFORMATION
     // --------------------------------------------------------
 
-    const { data: dbUser, error: dbError } = await supabaseAdmin
-      .from('users')
-      .select('*')
-      .eq('id', data.user.id)
-      .maybeSingle();
+    req.authToken =
+      token;
 
-    // A database failure is different from a missing profile.
-    if (dbError) {
+    req.authUser =
+      data.user;
+
+    // --------------------------------------------------------
+    // LOAD PUBLIC.USERS PROFILE
+    // --------------------------------------------------------
+
+    const {
+      data: dbUser,
+      error: dbError,
+    } =
+      await supabaseAdmin
+        .from(
+          'users'
+        )
+        .select(
+          '*'
+        )
+        .eq(
+          'id',
+          data.user.id
+        )
+        .maybeSingle();
+
+    // --------------------------------------------------------
+    // DATABASE ERROR
+    // --------------------------------------------------------
+
+    if (
+      dbError
+    ) {
       console.error(
         'public.users lookup error:',
         dbError.message
       );
 
-      return res.status(500).json({
-        error: 'Unable to load user profile'
-      });
+      return res
+        .status(500)
+        .json({
+          error:
+            'Unable to load user profile',
+
+          code:
+            'USER_PROFILE_LOOKUP_FAILED',
+        });
     }
 
-    // Auth account exists but corresponding public.users
-    // profile does not.
-    if (!dbUser) {
+    // --------------------------------------------------------
+    // PUBLIC PROFILE NOT FOUND
+    // --------------------------------------------------------
+
+    if (
+      !dbUser
+    ) {
       console.error(
-        'Authenticated user does not have a public.users profile'
+        'Authenticated user does not have a public.users profile:',
+        data.user.id
       );
 
-      return res.status(404).json({
-        error: 'User profile not found. Contact support.'
-      });
+      return res
+        .status(404)
+        .json({
+          error:
+            'User profile not found. Contact support.',
+
+          code:
+            'USER_PROFILE_NOT_FOUND',
+        });
     }
 
-    req.dbUser = dbUser;
+    // --------------------------------------------------------
+    // ACCOUNT STATUS CHECK
+    // --------------------------------------------------------
+    //
+    // public.users.is_active is the source of truth for
+    // whether the Hemo-Hero account may use the application.
+    //
+    // This check is important because a user may still possess
+    // a technically valid Supabase access token after an admin
+    // deactivates the account.
+    // --------------------------------------------------------
+
+    if (
+      dbUser.is_active ===
+      false
+    ) {
+      return res
+        .status(403)
+        .json({
+          error:
+            'Your account has been deactivated. Please contact an administrator.',
+
+          code:
+            'ACCOUNT_DEACTIVATED',
+        });
+    }
+
+    // --------------------------------------------------------
+    // ATTACH DATABASE USER
+    // --------------------------------------------------------
+
+    req.dbUser =
+      dbUser;
 
     return next();
-  } catch (err) {
-    console.error('requireAuth error:', err);
+  } catch (
+    err
+  ) {
+    console.error(
+      'requireAuth error:',
+      err
+    );
 
-    return res.status(500).json({
-      error: 'Authentication check failed'
-    });
+    return res
+      .status(500)
+      .json({
+        error:
+          'Authentication check failed',
+
+        code:
+          'AUTH_CHECK_FAILED',
+      });
   }
 }
 
-// ------------------------------------------------------------
+// ============================================================
 // ADMIN AUTHORIZATION MIDDLEWARE
+// ============================================================
 //
 // Always use AFTER requireAuth.
 //
 // Example:
-// router.get('/admin', requireAuth, requireAdmin, controller);
-// ------------------------------------------------------------
+//
+// router.get(
+//   '/admin',
+//   requireAuth,
+//   requireAdmin,
+//   controller
+// );
+//
+// requireAuth already guarantees:
+//
+// - valid Supabase session
+// - matching public.users profile
+// - active account
+//
+// requireAdmin only needs to verify the role.
+// ============================================================
 
-function requireAdmin(req, res, next) {
-  if (!req.dbUser) {
-    return res.status(401).json({
-      error: 'Authentication required'
-    });
+function requireAdmin(
+  req,
+  res,
+  next
+) {
+  // ----------------------------------------------------------
+  // AUTHENTICATION REQUIRED
+  // ----------------------------------------------------------
+
+  if (
+    !req.dbUser
+  ) {
+    return res
+      .status(401)
+      .json({
+        error:
+          'Authentication required',
+
+        code:
+          'AUTH_REQUIRED',
+      });
   }
 
-  if (req.dbUser.role !== 'admin') {
-    return res.status(403).json({
-      error: 'Admin access required'
-    });
+  // ----------------------------------------------------------
+  // ADMIN ROLE REQUIRED
+  // ----------------------------------------------------------
+
+  if (
+    req.dbUser.role !==
+    'admin'
+  ) {
+    return res
+      .status(403)
+      .json({
+        error:
+          'Admin access required',
+
+        code:
+          'ADMIN_REQUIRED',
+      });
   }
 
   return next();
 }
 
+// ============================================================
+// EXPORTS
+// ============================================================
+
 module.exports = {
   requireAuth,
-  requireAdmin
+  requireAdmin,
 };

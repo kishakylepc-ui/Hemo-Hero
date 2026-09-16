@@ -36,25 +36,25 @@ import {
   SafeAreaView,
 } from 'react-native-safe-area-context';
 
-import MainBottomNav from '../components/MainBottomNav';
+import MainBottomNav from '../../components/MainBottomNav';
 
 import {
   getCurrentUser,
   logoutUser,
-} from '../lib/api';
+} from '../../lib/api';
 
 import {
   getMyDonorApplication,
-} from '../lib/donorApplication';
+} from '../../lib/donorApplication';
 
 import type {
   DonorApplication,
-} from '../lib/donorApplication';
+} from '../../lib/donorApplication';
 
 import {
   clearSession,
   getAccessToken,
-} from '../lib/session';
+} from '../../lib/session';
 
 // ============================================================
 // COLORS
@@ -481,7 +481,7 @@ export default function ProfileScreen() {
 
   function handleEditProfile() {
     router.push(
-      '/edit-profile'
+      '/profile/edit'
     );
   }
 
@@ -545,9 +545,8 @@ export default function ProfileScreen() {
   // ==========================================================
 
   function handleAccountSecurity() {
-    showMessage(
-      'Account & Security',
-      'Password and security settings will be connected next.'
+    router.push(
+      '/profile/account-security'
     );
   }
 
@@ -782,10 +781,6 @@ export default function ProfileScreen() {
                 </TouchableOpacity>
               </View>
 
-              {/* ==============================================
-                  USER IDENTITY
-              ============================================== */}
-
               <View
                 style={
                   styles.identityRow
@@ -927,10 +922,6 @@ export default function ProfileScreen() {
               </View>
             </LinearGradient>
 
-            {/* ==================================================
-                FLOATING BLOOD TYPE + LOCATION
-            ================================================== */}
-
             <View
               style={
                 styles.quickCard
@@ -1039,10 +1030,6 @@ export default function ProfileScreen() {
             </View>
           </View>
 
-          {/* ==================================================
-              SCROLL CONTENT
-          ================================================== */}
-
           <ScrollView
             style={
               styles.content
@@ -1101,10 +1088,6 @@ export default function ProfileScreen() {
               </TouchableOpacity>
             ) : null}
 
-            {/* ==================================================
-                MY ACTIVITY
-            ================================================== */}
-
             <SectionTitle
               title="My Activity"
             />
@@ -1149,10 +1132,6 @@ export default function ProfileScreen() {
                 </>
               ) : null}
             </View>
-
-            {/* ==================================================
-                PERSONAL INFORMATION
-            ================================================== */}
 
             <SectionTitle
               title="Personal Information"
@@ -1238,10 +1217,6 @@ export default function ProfileScreen() {
               />
             </View>
 
-            {/* ==================================================
-                MEDICAL INFORMATION
-            ================================================== */}
-
             <SectionTitle
               title="Medical Information"
             />
@@ -1313,10 +1288,6 @@ export default function ProfileScreen() {
               </View>
             </View>
 
-            {/* ==================================================
-                ACCOUNT STATUS
-            ================================================== */}
-
             <SectionTitle
               title="Account Status"
             />
@@ -1366,10 +1337,6 @@ export default function ProfileScreen() {
                 </>
               ) : null}
             </View>
-
-            {/* ==================================================
-                SETTINGS
-            ================================================== */}
 
             <SectionTitle
               title="Settings"
@@ -1427,10 +1394,6 @@ export default function ProfileScreen() {
               />
             </View>
 
-            {/* ==================================================
-                SUPPORT
-            ================================================== */}
-
             <SectionTitle
               title="Support"
             />
@@ -1460,10 +1423,6 @@ export default function ProfileScreen() {
                 }
               />
             </View>
-
-            {/* ==================================================
-                SIGN OUT
-            ================================================== */}
 
             <TouchableOpacity
               style={
@@ -1499,17 +1458,9 @@ export default function ProfileScreen() {
             </Text>
           </ScrollView>
 
-          {/* ==================================================
-              BOTTOM NAVIGATION
-          ================================================== */}
-
           <MainBottomNav
             activeTab="profile"
           />
-
-          {/* ==================================================
-              CUSTOM LOGOUT CONFIRMATION
-          ================================================== */}
 
           <Modal
             visible={
@@ -1920,13 +1871,8 @@ function Divider() {
 
 const styles =
   StyleSheet.create({
-    // ========================================================
-    // PAGE
-    // ========================================================
-
     desktopBackground: {
-      flex:
-        1,
+      flex: 1,
 
       alignItems:
         'center',
@@ -1965,16 +1911,11 @@ const styles =
     },
 
     safeArea: {
-      flex:
-        1,
+      flex: 1,
 
       backgroundColor:
         COLORS.redDark,
     },
-
-    // ========================================================
-    // HEADER AREA
-    // ========================================================
 
     headerArea: {
       position:
@@ -1992,10 +1933,6 @@ const styles =
       backgroundColor:
         COLORS.page,
     },
-
-    // ========================================================
-    // HERO
-    // ========================================================
 
     hero: {
       height:
@@ -2054,10 +1991,6 @@ const styles =
         'rgba(255,255,255,0.07)',
     },
 
-    // ========================================================
-    // TOP BAR
-    // ========================================================
-
     topBar: {
       height:
         58,
@@ -2096,10 +2029,6 @@ const styles =
       fontSize:
         18,
     },
-
-    // ========================================================
-    // IDENTITY
-    // ========================================================
 
     identityRow: {
       flexDirection:
@@ -2254,10 +2183,6 @@ const styles =
         11,
     },
 
-    // ========================================================
-    // DONOR BADGE
-    // ========================================================
-
     donorBadge: {
       alignSelf:
         'flex-start',
@@ -2302,10 +2227,6 @@ const styles =
       borderRadius:
         3,
     },
-
-    // ========================================================
-    // FLOATING QUICK CARD
-    // ========================================================
 
     quickCard: {
       position:
@@ -2455,10 +2376,6 @@ const styles =
         COLORS.border,
     },
 
-    // ========================================================
-    // CONTENT
-    // ========================================================
-
     content: {
       flex:
         1,
@@ -2477,10 +2394,6 @@ const styles =
       paddingBottom:
         32,
     },
-
-    // ========================================================
-    // SECTION
-    // ========================================================
 
     sectionTitle: {
       marginLeft:
@@ -2552,10 +2465,6 @@ const styles =
       backgroundColor:
         COLORS.border,
     },
-
-    // ========================================================
-    // MENU
-    // ========================================================
 
     menuRow: {
       minHeight:
@@ -2630,10 +2539,6 @@ const styles =
         10,
     },
 
-    // ========================================================
-    // PERSONAL INFORMATION
-    // ========================================================
-
     infoRow: {
       minHeight:
         63,
@@ -2706,10 +2611,6 @@ const styles =
       lineHeight:
         16,
     },
-
-    // ========================================================
-    // MEDICAL
-    // ========================================================
 
     medicalRow: {
       minHeight:
@@ -2818,10 +2719,6 @@ const styles =
         13,
     },
 
-    // ========================================================
-    // STATUS
-    // ========================================================
-
     statusRow: {
       minHeight:
         62,
@@ -2926,10 +2823,6 @@ const styles =
         COLORS.muted,
     },
 
-    // ========================================================
-    // ERROR
-    // ========================================================
-
     errorCard: {
       minHeight:
         58,
@@ -2994,10 +2887,6 @@ const styles =
       fontSize:
         10,
     },
-
-    // ========================================================
-    // MAIN LOGOUT BUTTON
-    // ========================================================
 
     logoutButton: {
       height:
@@ -3066,10 +2955,6 @@ const styles =
       textAlign:
         'center',
     },
-
-    // ========================================================
-    // CUSTOM LOGOUT MODAL
-    // ========================================================
 
     logoutModalBackdrop: {
       flex:

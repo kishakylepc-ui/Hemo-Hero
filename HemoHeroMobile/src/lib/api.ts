@@ -566,6 +566,10 @@ export async function resetPassword(
   );
 }
 
+// ============================================================
+// CURRENT ACCOUNT
+// ============================================================
+
 // ------------------------------------------------------------
 // CURRENT USER
 // ------------------------------------------------------------
@@ -616,6 +620,150 @@ export async function updateProfile(
     }
   );
 }
+
+// ============================================================
+// ACCOUNT SECURITY
+// ============================================================
+
+// ------------------------------------------------------------
+// CHANGE PASSWORD
+//
+// PATCH /api/auth/me/password
+// ------------------------------------------------------------
+
+export async function changePassword(
+  accessToken: string,
+  currentPassword: string,
+  newPassword: string,
+  confirmPassword: string
+) {
+  return request(
+    '/api/auth/me/password',
+    {
+      method:
+        'PATCH',
+
+      headers: {
+        Authorization:
+          `Bearer ${accessToken}`,
+      },
+
+      body:
+        JSON.stringify({
+          current_password:
+            currentPassword,
+
+          new_password:
+            newPassword,
+
+          confirm_password:
+            confirmPassword,
+        }),
+    }
+  );
+}
+
+// ------------------------------------------------------------
+// CHANGE EMAIL
+//
+// PATCH /api/auth/me/email
+// ------------------------------------------------------------
+
+export async function changeEmail(
+  accessToken: string,
+  currentPassword: string,
+  newEmail: string,
+  confirmEmail: string
+) {
+  return request(
+    '/api/auth/me/email',
+    {
+      method:
+        'PATCH',
+
+      headers: {
+        Authorization:
+          `Bearer ${accessToken}`,
+      },
+
+      body:
+        JSON.stringify({
+          current_password:
+            currentPassword,
+
+          new_email:
+            newEmail
+              .trim()
+              .toLowerCase(),
+
+          confirm_email:
+            confirmEmail
+              .trim()
+              .toLowerCase(),
+        }),
+    }
+  );
+}
+
+// ------------------------------------------------------------
+// DEACTIVATE ACCOUNT
+//
+// DELETE /api/auth/me
+// ------------------------------------------------------------
+
+export async function deactivateAccount(
+  accessToken: string
+) {
+  return request(
+    '/api/auth/me',
+    {
+      method:
+        'DELETE',
+
+      headers: {
+        Authorization:
+          `Bearer ${accessToken}`,
+      },
+    }
+  );
+}
+
+// ------------------------------------------------------------
+// PERMANENTLY DELETE ACCOUNT
+//
+// DELETE /api/auth/me/permanent
+// ------------------------------------------------------------
+
+export async function deleteAccountPermanently(
+  accessToken: string,
+  currentPassword: string,
+  confirmation: string
+) {
+  return request(
+    '/api/auth/me/permanent',
+    {
+      method:
+        'DELETE',
+
+      headers: {
+        Authorization:
+          `Bearer ${accessToken}`,
+      },
+
+      body:
+        JSON.stringify({
+          current_password:
+            currentPassword,
+
+          confirmation:
+            confirmation
+              .trim()
+              .toUpperCase(),
+        }),
+    }
+  );
+}
+
 
 // ------------------------------------------------------------
 // LOGOUT
@@ -1028,3 +1176,4 @@ export async function markAllNotificationsAsRead(
     }
   );
 }
+

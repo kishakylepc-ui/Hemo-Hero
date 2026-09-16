@@ -46,19 +46,19 @@ import {
   getCurrentUser,
   updateProfile,
   uploadProfilePhoto,
-} from '../lib/api';
+} from '../../lib/api';
 
 import {
   getMyDonorApplication,
-} from '../lib/donorApplication';
+} from '../../lib/donorApplication';
 
 import type {
   DonorApplication,
-} from '../lib/donorApplication';
+} from '../../lib/donorApplication';
 
 import {
   getAccessToken,
-} from '../lib/session';
+} from '../../lib/session';
 
 // ============================================================
 // COLORS
@@ -147,6 +147,13 @@ const DEFAULT_BIRTHDAY =
     0,
     1
   );
+
+const CURRENT_YEAR =
+  new Date()
+    .getFullYear();
+
+const MIN_BIRTH_YEAR =
+  CURRENT_YEAR - 120;
 
 // ============================================================
 // EDIT PROFILE SCREEN
@@ -281,6 +288,14 @@ export default function EditProfileScreen() {
         DEFAULT_BIRTHDAY.getMonth(),
         1
       )
+    );
+
+  const [
+    showYearPicker,
+    setShowYearPicker,
+  ] =
+    useState(
+      false
     );
 
   // ==========================================================
@@ -748,6 +763,30 @@ export default function EditProfileScreen() {
     ]);
 
   // ==========================================================
+  // BIRTH YEAR OPTIONS
+  // ==========================================================
+
+  const birthYears =
+    useMemo(() => {
+      const years:
+        number[] = [];
+
+      for (
+        let year =
+          CURRENT_YEAR;
+        year >=
+        MIN_BIRTH_YEAR;
+        year -= 1
+      ) {
+        years.push(
+          year
+        );
+      }
+
+      return years;
+    }, []);
+
+  // ==========================================================
   // CALENDAR CONTROLS
   // ==========================================================
 
@@ -778,18 +817,55 @@ export default function EditProfileScreen() {
       )
     );
 
+    setShowYearPicker(
+      false
+    );
+
     setShowBirthdayPicker(
       true
     );
   }
 
   function closeBirthdayPicker() {
+    setShowYearPicker(
+      false
+    );
+
     setShowBirthdayPicker(
       false
     );
   }
 
+  function toggleYearPicker() {
+    setShowYearPicker(
+      current =>
+        !current
+    );
+  }
+
+  function selectCalendarYear(
+    year: number
+  ) {
+    setCalendarMonth(
+      current =>
+        new Date(
+          year,
+          current
+            .getMonth(),
+          1
+        )
+    );
+
+    setShowYearPicker(
+      false
+    );
+  }
+
   function goPreviousMonth() {
+    setShowYearPicker(
+      false
+    );
+
     setCalendarMonth(
       current =>
         new Date(
@@ -806,6 +882,10 @@ export default function EditProfileScreen() {
   }
 
   function goNextMonth() {
+    setShowYearPicker(
+      false
+    );
+
     const nextMonth =
       new Date(
         calendarMonth
@@ -2512,20 +2592,60 @@ export default function EditProfileScreen() {
                 />
               </TouchableOpacity>
 
-              <Text
+              <View
                 style={
-                  styles.calendarMonthText
+                  styles.calendarMonthCenter
                 }
               >
-                {
-                  MONTH_NAMES[
-                    calendarMonth
-                      .getMonth()
-                  ]
-                }{' '}
-                {calendarMonth
-                  .getFullYear()}
-              </Text>
+                <Text
+                  style={
+                    styles.calendarMonthText
+                  }
+                >
+                  {
+                    MONTH_NAMES[
+                      calendarMonth
+                        .getMonth()
+                    ]
+                  }
+                </Text>
+
+                <TouchableOpacity
+                  style={[
+                    styles.calendarYearButton,
+
+                    showYearPicker &&
+                      styles.calendarYearButtonActive,
+                  ]}
+                  activeOpacity={
+                    0.75
+                  }
+                  onPress={
+                    toggleYearPicker
+                  }
+                >
+                  <Text
+                    style={
+                      styles.calendarYearText
+                    }
+                  >
+                    {calendarMonth
+                      .getFullYear()}
+                  </Text>
+
+                  <MaterialIcons
+                    name={
+                      showYearPicker
+                        ? 'keyboard-arrow-up'
+                        : 'keyboard-arrow-down'
+                    }
+                    size={17}
+                    color={
+                      COLORS.redButton
+                    }
+                  />
+                </TouchableOpacity>
+              </View>
 
               <TouchableOpacity
                 style={[
@@ -2556,6 +2676,93 @@ export default function EditProfileScreen() {
               </TouchableOpacity>
             </View>
 
+            {/* ==================================================
+                YEAR PICKER
+            ================================================== */}
+
+            {showYearPicker ? (
+              <View
+                style={
+                  styles.calendarYearPicker
+                }
+              >
+                <Text
+                  style={
+                    styles.calendarYearPickerTitle
+                  }
+                >
+                  Select Year
+                </Text>
+
+                <ScrollView
+                  style={
+                    styles.calendarYearList
+                  }
+                  contentContainerStyle={
+                    styles.calendarYearListContent
+                  }
+                  showsVerticalScrollIndicator={
+                    true
+                  }
+                  nestedScrollEnabled
+                >
+                  {birthYears.map(
+                    year => {
+                      const selectedYear =
+                        calendarMonth
+                          .getFullYear() ===
+                        year;
+
+                      return (
+                        <TouchableOpacity
+                          key={
+                            year
+                          }
+                          style={[
+                            styles.calendarYearOption,
+
+                            selectedYear &&
+                              styles.calendarYearOptionSelected,
+                          ]}
+                          activeOpacity={
+                            0.75
+                          }
+                          onPress={() =>
+                            selectCalendarYear(
+                              year
+                            )
+                          }
+                        >
+                          <Text
+                            style={[
+                              styles.calendarYearOptionText,
+
+                              selectedYear &&
+                                styles.calendarYearOptionTextSelected,
+                            ]}
+                          >
+                            {year}
+                          </Text>
+
+                          {selectedYear ? (
+                            <MaterialIcons
+                              name="check"
+                              size={17}
+                              color={
+                                COLORS.white
+                              }
+                            />
+                          ) : null}
+                        </TouchableOpacity>
+                      );
+                    }
+                  )}
+                </ScrollView>
+              </View>
+            ) : null}
+
+            {!showYearPicker ? (
+              <>
             {/* ==================================================
                 WEEKDAYS
             ================================================== */}
@@ -2682,6 +2889,9 @@ export default function EditProfileScreen() {
                 }
               )}
             </View>
+
+              </>
+            ) : null}
 
             {/* ==================================================
                 SELECTED DATE
@@ -4162,6 +4372,26 @@ const styles =
         '#F5F5F6',
     },
 
+    calendarMonthCenter: {
+      flex:
+        1,
+
+      marginHorizontal:
+        10,
+
+      flexDirection:
+        'row',
+
+      alignItems:
+        'center',
+
+      justifyContent:
+        'center',
+
+      gap:
+        8,
+    },
+
     calendarMonthText: {
       color:
         COLORS.black,
@@ -4170,6 +4400,161 @@ const styles =
         'Poppins_600SemiBold',
 
       fontSize: 12,
+    },
+
+    calendarYearButton: {
+      minWidth:
+        76,
+
+      height:
+        34,
+
+      paddingHorizontal:
+        9,
+
+      flexDirection:
+        'row',
+
+      alignItems:
+        'center',
+
+      justifyContent:
+        'center',
+
+      gap:
+        2,
+
+      borderWidth:
+        1,
+
+      borderColor:
+        '#E7C5C7',
+
+      borderRadius:
+        10,
+
+      backgroundColor:
+        COLORS.pinkSoft,
+    },
+
+    calendarYearButtonActive: {
+      borderColor:
+        COLORS.redButton,
+
+      backgroundColor:
+        '#FFE8E9',
+    },
+
+    calendarYearText: {
+      color:
+        COLORS.redButton,
+
+      fontFamily:
+        'Inter_600SemiBold',
+
+      fontSize:
+        10.5,
+    },
+
+    // ========================================================
+    // YEAR PICKER
+    // ========================================================
+
+    calendarYearPicker: {
+      marginTop:
+        4,
+
+      marginBottom:
+        12,
+
+      padding:
+        10,
+
+      borderWidth:
+        1,
+
+      borderColor:
+        COLORS.border,
+
+      borderRadius:
+        14,
+
+      backgroundColor:
+        '#FCFCFD',
+    },
+
+    calendarYearPickerTitle: {
+      marginBottom:
+        7,
+
+      color:
+        COLORS.muted,
+
+      fontFamily:
+        'Inter_600SemiBold',
+
+      fontSize:
+        9.5,
+
+      textAlign:
+        'center',
+    },
+
+    calendarYearList: {
+      maxHeight:
+        190,
+    },
+
+    calendarYearListContent: {
+      paddingBottom:
+        2,
+
+      gap:
+        5,
+    },
+
+    calendarYearOption: {
+      minHeight:
+        38,
+
+      paddingHorizontal:
+        13,
+
+      flexDirection:
+        'row',
+
+      alignItems:
+        'center',
+
+      justifyContent:
+        'space-between',
+
+      borderRadius:
+        10,
+
+      backgroundColor:
+        COLORS.white,
+    },
+
+    calendarYearOptionSelected: {
+      backgroundColor:
+        COLORS.redButton,
+    },
+
+    calendarYearOptionText: {
+      color:
+        COLORS.black,
+
+      fontFamily:
+        'Inter_600SemiBold',
+
+      fontSize:
+        10.5,
+    },
+
+    calendarYearOptionTextSelected: {
+      color:
+        COLORS.white,
     },
 
     // ========================================================

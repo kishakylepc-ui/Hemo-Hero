@@ -69,6 +69,9 @@ const COLORS = {
   success: '#198754',
   successBackground: '#EAF7EF',
   successBorder: '#B8DFC7',
+
+  requirementInactive: '#8B8B8B',
+  requirementActive: '#198754',
 };
 
 // ============================================================
@@ -81,6 +84,13 @@ export default function SignUpScreen() {
   } =
     useWindowDimensions();
 
+  /*
+    PRIMARY TARGET:
+    iPhone 17 Pro = approximately 402 x 874
+
+    Smaller phones such as iPhone 13
+    receive slightly tighter spacing.
+  */
   const isSmallPhone =
     Platform.OS !==
       'web' &&
@@ -146,6 +156,47 @@ export default function SignUpScreen() {
     useState('');
 
   // ==========================================================
+  // PASSWORD REQUIREMENTS
+  // ==========================================================
+
+  const passwordHasMinimumLength =
+    password.length >=
+    8;
+
+  const passwordHasLowercase =
+    /[a-z]/.test(
+      password
+    );
+
+  const passwordHasUppercase =
+    /[A-Z]/.test(
+      password
+    );
+
+  const passwordHasNumber =
+    /[0-9]/.test(
+      password
+    );
+
+  const passwordHasSpecialCharacter =
+    /[^A-Za-z0-9]/.test(
+      password
+    );
+
+  const passwordIsValid =
+    passwordHasMinimumLength &&
+    passwordHasLowercase &&
+    passwordHasUppercase &&
+    passwordHasNumber &&
+    passwordHasSpecialCharacter;
+
+  const passwordsMatch =
+    confirmPassword.length >
+      0 &&
+    password ===
+      confirmPassword;
+
+  // ==========================================================
   // ANIMATIONS
   // ==========================================================
 
@@ -206,6 +257,7 @@ export default function SignUpScreen() {
             headerOpacity,
             {
               toValue: 1,
+
               duration: 320,
 
               easing:
@@ -222,6 +274,7 @@ export default function SignUpScreen() {
             headerTranslateY,
             {
               toValue: 0,
+
               duration: 320,
 
               easing:
@@ -241,6 +294,7 @@ export default function SignUpScreen() {
               logoOpacity,
               {
                 toValue: 1,
+
                 duration: 330,
 
                 easing:
@@ -257,7 +311,9 @@ export default function SignUpScreen() {
               logoScale,
               {
                 toValue: 1,
+
                 friction: 6,
+
                 tension: 70,
 
                 useNativeDriver:
@@ -271,6 +327,7 @@ export default function SignUpScreen() {
               cardOpacity,
               {
                 toValue: 1,
+
                 duration: 430,
 
                 easing:
@@ -287,6 +344,7 @@ export default function SignUpScreen() {
               cardTranslateY,
               {
                 toValue: 0,
+
                 duration: 430,
 
                 easing:
@@ -320,6 +378,7 @@ export default function SignUpScreen() {
     message: string
   ) {
     setSuccessMessage('');
+
     setErrorMessage(
       message
     );
@@ -333,8 +392,11 @@ export default function SignUpScreen() {
         errorShake,
         {
           toValue: -8,
+
           duration: 55,
-          useNativeDriver: true,
+
+          useNativeDriver:
+            true,
         }
       ),
 
@@ -342,8 +404,11 @@ export default function SignUpScreen() {
         errorShake,
         {
           toValue: 8,
+
           duration: 70,
-          useNativeDriver: true,
+
+          useNativeDriver:
+            true,
         }
       ),
 
@@ -351,8 +416,11 @@ export default function SignUpScreen() {
         errorShake,
         {
           toValue: -6,
+
           duration: 65,
-          useNativeDriver: true,
+
+          useNativeDriver:
+            true,
         }
       ),
 
@@ -360,8 +428,11 @@ export default function SignUpScreen() {
         errorShake,
         {
           toValue: 6,
+
           duration: 65,
-          useNativeDriver: true,
+
+          useNativeDriver:
+            true,
         }
       ),
 
@@ -369,8 +440,11 @@ export default function SignUpScreen() {
         errorShake,
         {
           toValue: -3,
+
           duration: 55,
-          useNativeDriver: true,
+
+          useNativeDriver:
+            true,
         }
       ),
 
@@ -378,8 +452,11 @@ export default function SignUpScreen() {
         errorShake,
         {
           toValue: 3,
+
           duration: 55,
-          useNativeDriver: true,
+
+          useNativeDriver:
+            true,
         }
       ),
 
@@ -387,8 +464,11 @@ export default function SignUpScreen() {
         errorShake,
         {
           toValue: 0,
+
           duration: 55,
-          useNativeDriver: true,
+
+          useNativeDriver:
+            true,
         }
       ),
     ]).start();
@@ -409,7 +489,9 @@ export default function SignUpScreen() {
       buttonScale,
       {
         toValue: 0.97,
+
         friction: 7,
+
         tension: 160,
 
         useNativeDriver:
@@ -423,7 +505,9 @@ export default function SignUpScreen() {
       buttonScale,
       {
         toValue: 1,
+
         friction: 7,
+
         tension: 160,
 
         useNativeDriver:
@@ -453,8 +537,11 @@ export default function SignUpScreen() {
         checkboxScale,
         {
           toValue: 0.82,
+
           duration: 70,
-          useNativeDriver: true,
+
+          useNativeDriver:
+            true,
         }
       ),
 
@@ -462,7 +549,9 @@ export default function SignUpScreen() {
         checkboxScale,
         {
           toValue: 1,
+
           friction: 5,
+
           tension: 180,
 
           useNativeDriver:
@@ -531,8 +620,7 @@ export default function SignUpScreen() {
     // --------------------------------------------------------
 
     if (
-      password.length <
-      8
+      !passwordHasMinimumLength
     ) {
       triggerError(
         'Password must be at least 8 characters.'
@@ -542,25 +630,56 @@ export default function SignUpScreen() {
     }
 
     // --------------------------------------------------------
-    // PASSWORD REQUIREMENTS
+    // LOWERCASE
     // --------------------------------------------------------
 
-    const hasLetter =
-      /[A-Za-z]/.test(
-        password
-      );
-
-    const hasNumber =
-      /[0-9]/.test(
-        password
-      );
-
     if (
-      !hasLetter ||
-      !hasNumber
+      !passwordHasLowercase
     ) {
       triggerError(
-        'Password must contain at least one letter and one number.'
+        'Password must contain at least one lowercase letter.'
+      );
+
+      return;
+    }
+
+    // --------------------------------------------------------
+    // UPPERCASE
+    // --------------------------------------------------------
+
+    if (
+      !passwordHasUppercase
+    ) {
+      triggerError(
+        'Password must contain at least one uppercase letter.'
+      );
+
+      return;
+    }
+
+    // --------------------------------------------------------
+    // NUMBER
+    // --------------------------------------------------------
+
+    if (
+      !passwordHasNumber
+    ) {
+      triggerError(
+        'Password must contain at least one number.'
+      );
+
+      return;
+    }
+
+    // --------------------------------------------------------
+    // SPECIAL CHARACTER
+    // --------------------------------------------------------
+
+    if (
+      !passwordHasSpecialCharacter
+    ) {
+      triggerError(
+        'Password must contain at least one special character.'
       );
 
       return;
@@ -571,8 +690,7 @@ export default function SignUpScreen() {
     // --------------------------------------------------------
 
     if (
-      password !==
-      confirmPassword
+      !passwordsMatch
     ) {
       triggerError(
         'Passwords do not match.'
@@ -625,6 +743,7 @@ export default function SignUpScreen() {
         );
 
         setPassword('');
+
         setConfirmPassword('');
 
         setSuccessMessage(
@@ -648,6 +767,7 @@ export default function SignUpScreen() {
       // ------------------------------------------------------
 
       setPassword('');
+
       setConfirmPassword('');
 
       router.push({
@@ -686,6 +806,51 @@ export default function SignUpScreen() {
         false
       );
     }
+  }
+
+  // ==========================================================
+  // PASSWORD REQUIREMENT ITEM
+  // ==========================================================
+
+  function PasswordRequirement({
+    valid,
+    label,
+  }: {
+    valid: boolean;
+    label: string;
+  }) {
+    return (
+      <View
+        style={
+          styles.requirementItem
+        }
+      >
+        <MaterialIcons
+          name={
+            valid
+              ? 'check-circle'
+              : 'radio-button-unchecked'
+          }
+          size={13}
+          color={
+            valid
+              ? COLORS.requirementActive
+              : COLORS.requirementInactive
+          }
+        />
+
+        <Text
+          style={[
+            styles.requirementText,
+
+            valid &&
+              styles.requirementTextValid,
+          ]}
+        >
+          {label}
+        </Text>
+      </View>
+    );
   }
 
   // ==========================================================
@@ -1145,6 +1310,65 @@ export default function SignUpScreen() {
                     </View>
 
                     {/* ==============================================
+                        PASSWORD REQUIREMENTS
+                    ============================================== */}
+
+                    <View
+                      style={
+                        styles.requirementsContainer
+                      }
+                    >
+                      <Text
+                        style={
+                          styles.requirementsTitle
+                        }
+                      >
+                        Password must contain:
+                      </Text>
+
+                      <View
+                        style={
+                          styles.requirementsGrid
+                        }
+                      >
+                        <PasswordRequirement
+                          valid={
+                            passwordHasMinimumLength
+                          }
+                          label="8+ characters"
+                        />
+
+                        <PasswordRequirement
+                          valid={
+                            passwordHasLowercase
+                          }
+                          label="Lowercase letter"
+                        />
+
+                        <PasswordRequirement
+                          valid={
+                            passwordHasUppercase
+                          }
+                          label="Uppercase letter"
+                        />
+
+                        <PasswordRequirement
+                          valid={
+                            passwordHasNumber
+                          }
+                          label="Number"
+                        />
+
+                        <PasswordRequirement
+                          valid={
+                            passwordHasSpecialCharacter
+                          }
+                          label="Special character"
+                        />
+                      </View>
+                    </View>
+
+                    {/* ==============================================
                         CONFIRM PASSWORD
                     ============================================== */}
 
@@ -1157,9 +1381,14 @@ export default function SignUpScreen() {
                     </Text>
 
                     <View
-                      style={
-                        styles.passwordBox
-                      }
+                      style={[
+                        styles.passwordBox,
+
+                        confirmPassword.length >
+                          0 &&
+                          passwordsMatch &&
+                          styles.passwordBoxSuccess,
+                      ]}
                     >
                       <TextInput
                         style={
@@ -1235,6 +1464,43 @@ export default function SignUpScreen() {
                         </Text>
                       </TouchableOpacity>
                     </View>
+
+                    {confirmPassword.length >
+                    0 ? (
+                      <View
+                        style={
+                          styles.passwordMatchRow
+                        }
+                      >
+                        <MaterialIcons
+                          name={
+                            passwordsMatch
+                              ? 'check-circle'
+                              : 'cancel'
+                          }
+                          size={13}
+                          color={
+                            passwordsMatch
+                              ? COLORS.success
+                              : COLORS.redButton
+                          }
+                        />
+
+                        <Text
+                          style={[
+                            styles.passwordMatchText,
+
+                            passwordsMatch
+                              ? styles.passwordMatchTextSuccess
+                              : styles.passwordMatchTextError,
+                          ]}
+                        >
+                          {passwordsMatch
+                            ? 'Passwords match'
+                            : 'Passwords do not match'}
+                        </Text>
+                      </View>
+                    ) : null}
 
                     {/* ==============================================
                         TERMS
@@ -1508,11 +1774,13 @@ const styles =
         'absolute',
 
       width: 180,
+
       height: 180,
 
       borderRadius: 90,
 
       left: -100,
+
       top: -50,
 
       backgroundColor:
@@ -1524,11 +1792,13 @@ const styles =
         'absolute',
 
       width: 180,
+
       height: 180,
 
       borderRadius: 90,
 
       right: -92,
+
       top: -55,
 
       backgroundColor:
@@ -1575,6 +1845,7 @@ const styles =
         'center',
 
       width: 148,
+
       height: 148,
 
       borderRadius: 74,
@@ -1612,6 +1883,7 @@ const styles =
       top: 167,
 
       width: 126,
+
       height: 126,
 
       borderRadius: 63,
@@ -1619,11 +1891,13 @@ const styles =
 
     logoImage: {
       width: 128,
+
       height: 128,
     },
 
     logoImageSmall: {
       width: 108,
+
       height: 108,
     },
 
@@ -1669,7 +1943,9 @@ const styles =
       borderRadius: 25,
 
       paddingHorizontal: 22,
+
       paddingTop: 17,
+
       paddingBottom: 23,
 
       shadowColor:
@@ -1691,7 +1967,9 @@ const styles =
       borderRadius: 23,
 
       paddingHorizontal: 20,
+
       paddingTop: 15,
+
       paddingBottom: 20,
     },
 
@@ -1767,6 +2045,7 @@ const styles =
       marginBottom: 15,
 
       paddingHorizontal: 12,
+
       paddingVertical: 9,
 
       borderWidth: 1,
@@ -1803,6 +2082,7 @@ const styles =
       marginBottom: 15,
 
       paddingHorizontal: 12,
+
       paddingVertical: 9,
 
       flexDirection:
@@ -1862,6 +2142,7 @@ const styles =
 
     confirmLabel: {
       marginTop: 14,
+
       marginBottom: 6,
 
       color:
@@ -1914,6 +2195,7 @@ const styles =
         'center',
 
       paddingLeft: 15,
+
       paddingRight: 13,
 
       borderWidth: 1,
@@ -1925,6 +2207,11 @@ const styles =
 
       backgroundColor:
         COLORS.white,
+    },
+
+    passwordBoxSuccess: {
+      borderColor:
+        COLORS.success,
     },
 
     passwordInput: {
@@ -1955,6 +2242,96 @@ const styles =
     },
 
     // ========================================================
+    // PASSWORD REQUIREMENTS
+    // ========================================================
+
+    requirementsContainer: {
+      marginTop: 10,
+
+      paddingHorizontal: 5,
+    },
+
+    requirementsTitle: {
+      marginBottom: 6,
+
+      color:
+        COLORS.muted,
+
+      fontFamily:
+        'Inter_500Medium',
+
+      fontSize: 9,
+    },
+
+    requirementsGrid: {
+      flexDirection:
+        'row',
+
+      flexWrap:
+        'wrap',
+
+      columnGap: 12,
+
+      rowGap: 5,
+    },
+
+    requirementItem: {
+      flexDirection:
+        'row',
+
+      alignItems:
+        'center',
+
+      gap: 4,
+    },
+
+    requirementText: {
+      color:
+        COLORS.requirementInactive,
+
+      fontFamily:
+        'Inter_400Regular',
+
+      fontSize: 9,
+    },
+
+    requirementTextValid: {
+      color:
+        COLORS.requirementActive,
+    },
+
+    passwordMatchRow: {
+      marginTop: 6,
+
+      marginLeft: 5,
+
+      flexDirection:
+        'row',
+
+      alignItems:
+        'center',
+
+      gap: 4,
+    },
+
+    passwordMatchText: {
+      fontFamily:
+        'Inter_400Regular',
+
+      fontSize: 9,
+    },
+
+    passwordMatchTextSuccess: {
+      color:
+        COLORS.success,
+    },
+
+    passwordMatchTextError: {
+      color:
+        COLORS.redButton,
+    },
+
+    // ========================================================
     // TERMS
     // ========================================================
 
@@ -1972,6 +2349,7 @@ const styles =
 
     checkbox: {
       width: 15,
+
       height: 15,
 
       marginRight: 9,
