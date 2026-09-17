@@ -1258,13 +1258,13 @@ const styles =
       maxWidth:
         Platform.OS ===
         'web'
-          ? 402
+          ? 440
           : undefined,
 
       maxHeight:
         Platform.OS ===
         'web'
-          ? 874
+          ? '100%'
           : undefined,
 
       backgroundColor:

@@ -2479,8 +2479,8 @@ const styles = StyleSheet.create({
   phone: {
     width: '100%',
     height: '100%',
-    maxWidth: Platform.OS === 'web' ? 402 : undefined,
-    maxHeight: Platform.OS === 'web' ? 874 : undefined,
+    maxWidth: Platform.OS === 'web' ? 440 : undefined,
+    maxHeight: Platform.OS === 'web' ? '100%' : undefined,
     overflow: 'hidden',
     backgroundColor: COLORS.page,
   },

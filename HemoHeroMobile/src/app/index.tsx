@@ -1393,47 +1393,41 @@ const styles =
     // ========================================================
 
     desktopBackground: {
-      flex: 1,
+  flex: 1,
 
-      alignItems:
-        'center',
+  alignItems:
+    'center',
 
-      justifyContent:
-        'center',
+  justifyContent:
+    'center',
 
-      backgroundColor:
-        Platform.OS ===
-          'web'
-          ? '#1E1E1E'
-          : COLORS.pinkBottom,
-    },
+  backgroundColor:
+    COLORS.pinkBottom,
+},
 
     // ========================================================
     // PHONE
     // ========================================================
 
     phone: {
-      width:
-        Platform.OS ===
-          'web'
-          ? 402
-          : '100%',
+  width:
+    '100%',
 
-      height:
-        Platform.OS ===
-          'web'
-          ? 874
-          : '100%',
+  height:
+    '100%',
 
-      maxWidth:
-        '100%',
+  maxWidth:
+    Platform.OS ===
+      'web'
+      ? 440
+      : '100%',
 
-      overflow:
-        'hidden',
+  overflow:
+    'hidden',
 
-      backgroundColor:
-        COLORS.pinkBottom,
-    },
+  backgroundColor:
+    COLORS.pinkBottom,
+},
 
     safeArea: {
       flex: 1,

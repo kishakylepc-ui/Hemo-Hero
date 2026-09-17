@@ -1685,12 +1685,12 @@ const styles =
     phone: {
       width:
         Platform.OS === 'web'
-          ? 402
+          ? 440
           : '100%',
 
       height:
         Platform.OS === 'web'
-          ? 874
+          ? '100%'
           : '100%',
 
       maxWidth:
