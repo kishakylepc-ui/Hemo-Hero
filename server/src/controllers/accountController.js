@@ -6,6 +6,17 @@ const {
 );
 
 // ============================================================
+// ACTIVITY LOG HELPERS
+// ============================================================
+
+const {
+  setActivityUser,
+  setActivityEntity,
+} = require(
+  '../middleware/activityLogMiddleware'
+);
+
+// ============================================================
 // HELPERS
 // ============================================================
 
@@ -188,6 +199,41 @@ async function verifyCurrentPassword(
 }
 
 // ============================================================
+// SET CURRENT ACCOUNT ACTIVITY
+// ============================================================
+
+function setCurrentAccountActivity(
+  req,
+  res
+) {
+  if (
+    !req?.dbUser
+  ) {
+    return;
+  }
+
+  setActivityUser(
+    res,
+    {
+      id:
+        req.dbUser.id,
+
+      email:
+        req.dbUser.email,
+
+      role:
+        req.dbUser.role,
+    }
+  );
+
+  setActivityEntity(
+    res,
+    'user_account',
+    req.dbUser.id
+  );
+}
+
+// ============================================================
 // PATCH /api/auth/me/password
 //
 // CHANGE PASSWORD
@@ -212,6 +258,15 @@ async function changePassword(
             'AUTH_REQUIRED',
         });
     }
+
+    // --------------------------------------------------------
+    // ACTIVITY IDENTITY
+    // --------------------------------------------------------
+
+    setCurrentAccountActivity(
+      req,
+      res
+    );
 
     const {
       current_password,
@@ -441,6 +496,15 @@ async function changeEmail(
             'AUTH_REQUIRED',
         });
     }
+
+    // --------------------------------------------------------
+    // ACTIVITY IDENTITY
+    // --------------------------------------------------------
+
+    setCurrentAccountActivity(
+      req,
+      res
+    );
 
     const {
       current_password,
@@ -768,6 +832,33 @@ async function changeEmail(
     }
 
     // --------------------------------------------------------
+    // UPDATE ACTIVITY SNAPSHOT
+    //
+    // The account still has the same ID, but its email has
+    // changed. Store the new email in the successful log.
+    // --------------------------------------------------------
+
+    setActivityUser(
+      res,
+      {
+        id:
+          req.dbUser.id,
+
+        email:
+          cleanEmail,
+
+        role:
+          req.dbUser.role,
+      }
+    );
+
+    setActivityEntity(
+      res,
+      'user_account',
+      req.dbUser.id
+    );
+
+    // --------------------------------------------------------
     // REVOKE SESSION
     // --------------------------------------------------------
 
@@ -850,6 +941,15 @@ async function deactivateAccount(
             'AUTH_REQUIRED',
         });
     }
+
+    // --------------------------------------------------------
+    // ACTIVITY IDENTITY
+    // --------------------------------------------------------
+
+    setCurrentAccountActivity(
+      req,
+      res
+    );
 
     // --------------------------------------------------------
     // ADMIN PROTECTION
@@ -956,6 +1056,30 @@ async function deactivateAccount(
     }
 
     // --------------------------------------------------------
+    // UPDATE ACTIVITY SNAPSHOT
+    // --------------------------------------------------------
+
+    setActivityUser(
+      res,
+      {
+        id:
+          deactivatedUser.id,
+
+        email:
+          deactivatedUser.email,
+
+        role:
+          deactivatedUser.role,
+      }
+    );
+
+    setActivityEntity(
+      res,
+      'user_account',
+      deactivatedUser.id
+    );
+
+    // --------------------------------------------------------
     // REVOKE SESSION
     // --------------------------------------------------------
 
@@ -1052,6 +1176,18 @@ async function deleteAccountPermanently(
     }
 
     // --------------------------------------------------------
+    // INITIAL ACTIVITY IDENTITY
+    //
+    // Failed attempts before deletion can safely reference
+    // the existing user row.
+    // --------------------------------------------------------
+
+    setCurrentAccountActivity(
+      req,
+      res
+    );
+
+    // --------------------------------------------------------
     // ADMIN PROTECTION
     // --------------------------------------------------------
 
@@ -1142,10 +1278,16 @@ async function deleteAccountPermanently(
     const userId =
       req.dbUser.id;
 
+    const userEmail =
+      req.dbUser.email;
+
+    const userRole =
+      req.dbUser.role;
+
     // --------------------------------------------------------
     // DELETE PUBLIC USER
     //
-    // Database foreign keys now handle:
+    // Database foreign keys handle:
     //
     // CASCADE:
     // - blood requests
@@ -1217,6 +1359,46 @@ async function deleteAccountPermanently(
     }
 
     // --------------------------------------------------------
+    // IMPORTANT AUDIT-LOG HANDLING
+    //
+    // public.users has now been deleted.
+    //
+    // activity_logs.user_id has a foreign key to public.users.
+    // The log middleware writes after the response finishes.
+    //
+    // Therefore we MUST NOT try to insert the deleted UUID
+    // into activity_logs.user_id.
+    //
+    // Instead:
+    // - user_id becomes NULL
+    // - email snapshot remains
+    // - role snapshot remains
+    // - entity_id keeps the deleted user's UUID as text
+    //
+    // This allows the DELETE_ACCOUNT audit record to survive.
+    // --------------------------------------------------------
+
+    setActivityUser(
+      res,
+      {
+        id:
+          null,
+
+        email:
+          userEmail,
+
+        role:
+          userRole,
+      }
+    );
+
+    setActivityEntity(
+      res,
+      'user_account',
+      userId
+    );
+
+    // --------------------------------------------------------
     // DELETE SUPABASE AUTH USER
     // --------------------------------------------------------
 
@@ -1238,12 +1420,6 @@ async function deleteAccountPermanently(
         'PERMANENT ACCOUNT AUTH DELETE ERROR:',
         authDeleteError
       );
-
-      /*
-       * At this point, public account data has already been
-       * removed. Log this clearly because the remaining Auth
-       * identity may require administrator cleanup.
-       */
 
       return res
         .status(500)

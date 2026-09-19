@@ -10,6 +10,13 @@ const {
     '../services/notificationService'
   );
 
+const {
+  setActivityEntity
+} =
+  require(
+    '../middleware/activityLogMiddleware'
+  );
+
 // ============================================================
 // HELPERS
 // ============================================================
@@ -557,10 +564,6 @@ async function notifyRequesterAboutResponse(
 // POST /api/requests/:id/respond
 //
 // VERIFIED DONOR OFFERS TO DONATE
-//
-// IMPORTANT:
-// The donor's verified blood type must EXACTLY match the
-// blood type required by the request.
 // ============================================================
 
 async function respondToBloodRequest(
@@ -568,10 +571,6 @@ async function respondToBloodRequest(
   res
 ) {
   try {
-    // ========================================================
-    // AUTH
-    // ========================================================
-
     const donorId =
       getAuthenticatedUserId(
         req
@@ -588,10 +587,6 @@ async function respondToBloodRequest(
         });
     }
 
-    // ========================================================
-    // REQUEST ID
-    // ========================================================
-
     const requestId =
       getRequestId(
         req
@@ -607,10 +602,6 @@ async function respondToBloodRequest(
             'Request ID is required.'
         });
     }
-
-    // ========================================================
-    // MESSAGE
-    // ========================================================
 
     const message =
       cleanText(
@@ -811,6 +802,20 @@ async function respondToBloodRequest(
         });
     }
 
+    // --------------------------------------------------------
+    // IF AN EXISTING RESPONSE EXISTS, USE ITS ID FOR AUDIT
+    // --------------------------------------------------------
+
+    if (
+      existingResponse?.id
+    ) {
+      setActivityEntity(
+        res,
+        'donor_response',
+        existingResponse.id
+      );
+    }
+
     // ========================================================
     // EXISTING PENDING / ACCEPTED RESPONSE
     // ========================================================
@@ -890,6 +895,16 @@ async function respondToBloodRequest(
           });
       }
 
+      // ------------------------------------------------------
+      // ACTIVITY ENTITY
+      // ------------------------------------------------------
+
+      setActivityEntity(
+        res,
+        'donor_response',
+        updatedResponse.id
+      );
+
       await notifyRequesterAboutResponse(
         bloodRequest,
         updatedResponse
@@ -952,6 +967,16 @@ async function respondToBloodRequest(
             'Unable to submit donor response.'
         });
     }
+
+    // --------------------------------------------------------
+    // ACTIVITY ENTITY
+    // --------------------------------------------------------
+
+    setActivityEntity(
+      res,
+      'donor_response',
+      createdResponse.id
+    );
 
     await notifyRequesterAboutResponse(
       bloodRequest,
@@ -1174,6 +1199,16 @@ async function withdrawDonorResponse(
         });
     }
 
+    // --------------------------------------------------------
+    // ACTIVITY ENTITY
+    // --------------------------------------------------------
+
+    setActivityEntity(
+      res,
+      'donor_response',
+      existingResponse.id
+    );
+
     if (
       existingResponse.status !==
       'pending'
@@ -1229,6 +1264,16 @@ async function withdrawDonorResponse(
             'Unable to withdraw donor response.'
         });
     }
+
+    // --------------------------------------------------------
+    // ACTIVITY ENTITY
+    // --------------------------------------------------------
+
+    setActivityEntity(
+      res,
+      'donor_response',
+      updatedResponse.id
+    );
 
     // ========================================================
     // REQUEST OWNER
@@ -1513,11 +1558,6 @@ async function getResponsesForMyBloodRequest(
 
 // ============================================================
 // PATCH /api/requests/:id/responses/:responseId/accept
-//
-// REQUEST OWNER ACCEPTS DONOR OFFER
-//
-// Exact blood type is revalidated here to prevent an older
-// mismatched donor response from being accepted.
 // ============================================================
 
 async function acceptDonorResponse(
@@ -1572,6 +1612,16 @@ async function acceptDonorResponse(
             'Response ID is required.'
         });
     }
+
+    // --------------------------------------------------------
+    // ACTIVITY ENTITY
+    // --------------------------------------------------------
+
+    setActivityEntity(
+      res,
+      'donor_response',
+      responseId
+    );
 
     // ========================================================
     // REQUEST
@@ -1795,6 +1845,12 @@ async function acceptDonorResponse(
         });
     }
 
+    setActivityEntity(
+      res,
+      'donor_response',
+      updatedResponse.id
+    );
+
     // ========================================================
     // NOTIFY DONOR
     // ========================================================
@@ -1916,6 +1972,16 @@ async function rejectDonorResponse(
             'Response ID is required.'
         });
     }
+
+    // --------------------------------------------------------
+    // ACTIVITY ENTITY
+    // --------------------------------------------------------
+
+    setActivityEntity(
+      res,
+      'donor_response',
+      responseId
+    );
 
     const bloodRequest =
       await getOwnedBloodRequest(
@@ -2064,6 +2130,12 @@ async function rejectDonorResponse(
             'This donor offer is no longer pending.'
         });
     }
+
+    setActivityEntity(
+      res,
+      'donor_response',
+      updatedResponse.id
+    );
 
     // ========================================================
     // NOTIFY DONOR

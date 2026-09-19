@@ -10,18 +10,29 @@ const {
   require('../middleware/authMiddleware');
 
 const {
+  activityLog
+} =
+  require(
+    '../middleware/activityLogMiddleware'
+  );
+
+const {
   getMyDonorApplication,
   getNearbyDonors,
   uploadVerificationId,
   submitDonorApplication,
   withdrawDonorApplication
 } =
-  require('../controllers/donorApplicationController');
+  require(
+    '../controllers/donorApplicationController'
+  );
 
 const {
   getPublicDonorProfile
 } =
-  require('../controllers/donorProfileController');
+  require(
+    '../controllers/donorProfileController'
+  );
 
 const router =
   express.Router();
@@ -82,14 +93,6 @@ router.use(
 // GET NEARBY DONORS
 //
 // GET /api/donors/nearby
-//
-// Query:
-// latitude
-// longitude
-// radius
-// blood_type
-// urgent
-// limit
 // ============================================================
 
 router.get(
@@ -113,13 +116,7 @@ router.get(
 //
 // GET /api/donors/:id
 //
-// Optional query:
-// latitude
-// longitude
-//
-// IMPORTANT:
-// Keep this route AFTER /nearby and /me so Express does not
-// interpret "nearby" or "me" as a donor ID.
+// Keep this GET route after /nearby and /me.
 // ============================================================
 
 router.get(
@@ -131,13 +128,36 @@ router.get(
 // UPLOAD VERIFICATION ID
 //
 // POST /api/donors/verification-id
+//
+// IMPORTANT:
+// activityLog is placed BEFORE multer so failed upload
+// attempts such as oversized/invalid files are also logged.
 // ============================================================
 
 router.post(
   '/verification-id',
+
+  activityLog({
+    action:
+      'UPLOAD_DONOR_VERIFICATION_ID',
+
+    module:
+      'Donor Applications',
+
+    successDescription:
+      'User uploaded a donor verification ID.',
+
+    failureDescription:
+      'Donor verification ID upload attempt failed.',
+
+    entityType:
+      'donor_verification'
+  }),
+
   upload.single(
     'file'
   ),
+
   uploadVerificationId
 );
 
@@ -145,10 +165,32 @@ router.post(
 // SUBMIT DONOR APPLICATION
 //
 // POST /api/donors/apply
+//
+// Covers:
+// - New application
+// - Reapplication after rejection/withdrawal
 // ============================================================
 
 router.post(
   '/apply',
+
+  activityLog({
+    action:
+      'SUBMIT_DONOR_APPLICATION',
+
+    module:
+      'Donor Applications',
+
+    successDescription:
+      'User submitted a donor application.',
+
+    failureDescription:
+      'Donor application submission attempt failed.',
+
+    entityType:
+      'donor_application'
+  }),
+
   submitDonorApplication
 );
 
@@ -160,6 +202,24 @@ router.post(
 
 router.patch(
   '/me/withdraw',
+
+  activityLog({
+    action:
+      'WITHDRAW_DONOR_APPLICATION',
+
+    module:
+      'Donor Applications',
+
+    successDescription:
+      'User withdrew their donor application.',
+
+    failureDescription:
+      'Donor application withdrawal attempt failed.',
+
+    entityType:
+      'donor_application'
+  }),
+
   withdrawDonorApplication
 );
 
@@ -213,6 +273,10 @@ router.use(
     next();
   }
 );
+
+// ============================================================
+// EXPORT
+// ============================================================
 
 module.exports =
   router;

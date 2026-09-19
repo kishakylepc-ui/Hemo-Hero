@@ -8,6 +8,12 @@ const {
   supabaseAdmin
 } = require('../config/supabase');
 
+const {
+  setActivityEntity
+} = require(
+  '../middleware/activityLogMiddleware'
+);
+
 // ============================================================
 // CONSTANTS
 // ============================================================
@@ -61,10 +67,6 @@ const MAX_DONOR_LIMIT =
 // Key = recipient/requested blood type
 // Value = donor blood types that may donate red blood cells
 // to that recipient.
-//
-// Example:
-// A+ recipient may receive:
-// A+, A-, O+, O-
 // ============================================================
 
 const COMPATIBLE_DONOR_TYPES = {
@@ -280,12 +282,6 @@ function parseQueryBoolean(
 
 // ============================================================
 // HAVERSINE DISTANCE
-//
-// Calculates straight-line distance between two coordinates.
-//
-// Returns kilometers.
-//
-// Exact donor coordinates NEVER leave the backend.
 // ============================================================
 
 function calculateDistanceKm(
@@ -484,31 +480,6 @@ async function getMyDonorApplication(
 
 // ============================================================
 // GET /api/donors/nearby
-//
-// Finds approved + available donors near the authenticated user.
-//
-// Query:
-// latitude
-// longitude
-// radius
-// blood_type
-// urgent
-// limit
-//
-// Example:
-// /api/donors/nearby
-//   ?latitude=11.006
-//   &longitude=124.607
-//   &radius=25
-//   &blood_type=A+
-//   &limit=50
-//
-// PRIVACY:
-// - Exact donor latitude/longitude is NOT returned.
-// - Email is NOT returned.
-// - Phone is NOT returned.
-// - Barangay is NOT returned.
-// - Only general city/province + calculated distance is returned.
 // ============================================================
 
 async function getNearbyDonors(
@@ -634,9 +605,6 @@ async function getNearbyDonors(
 
     // ========================================================
     // BLOOD TYPE
-    //
-    // This is the blood type NEEDED by the recipient.
-    // We return donors compatible with that recipient.
     // ========================================================
 
     let requestedBloodType =
@@ -727,10 +695,6 @@ async function getNearbyDonors(
           null
         );
 
-    // ========================================================
-    // COMPATIBLE DONOR BLOOD TYPES
-    // ========================================================
-
     if (
       requestedBloodType
     ) {
@@ -746,10 +710,6 @@ async function getNearbyDonors(
           compatibleTypes
         );
     }
-
-    // ========================================================
-    // URGENT REQUEST PREFERENCE
-    // ========================================================
 
     if (
       urgentOnly
@@ -820,12 +780,6 @@ async function getNearbyDonors(
 
     // ========================================================
     // DISTANCE FILTER
-    //
-    // We calculate distance before fetching profile data.
-    //
-    // A donor must be:
-    // 1. inside the requester's selected search radius
-    // 2. inside the donor's own selected travel radius
     // ========================================================
 
     const candidates =
@@ -869,20 +823,12 @@ async function getNearbyDonors(
                   .travel_radius_km
               );
 
-            // -----------------------------------------------
-            // OUTSIDE SEARCH RADIUS
-            // -----------------------------------------------
-
             if (
               distance >
               radiusKm
             ) {
               return null;
             }
-
-            // -----------------------------------------------
-            // OUTSIDE DONOR'S TRAVEL RADIUS
-            // -----------------------------------------------
 
             if (
               Number.isFinite(
@@ -983,10 +929,6 @@ async function getNearbyDonors(
         });
     }
 
-    // ========================================================
-    // PROFILE LOOKUP
-    // ========================================================
-
     const userMap =
       new Map();
 
@@ -1000,19 +942,6 @@ async function getNearbyDonors(
         user
       );
     }
-
-    // ========================================================
-    // SAFE RESPONSE
-    //
-    // DO NOT add:
-    // - latitude
-    // - longitude
-    // - email
-    // - phone
-    // - barangay
-    //
-    // Those should remain private.
-    // ========================================================
 
     const safeDonors =
       candidates
@@ -1114,10 +1043,6 @@ async function getNearbyDonors(
             first.distance_km -
             second.distance_km
         );
-
-    // ========================================================
-    // LIMIT AFTER DISTANCE SORT
-    // ========================================================
 
     const totalCount =
       safeDonors.length;
@@ -1297,6 +1222,19 @@ async function uploadVerificationId(
             'Unable to upload verification ID.'
         });
     }
+
+    // --------------------------------------------------------
+    // ACTIVITY ENTITY
+    //
+    // The uploaded storage path uniquely identifies the
+    // verification document without recording its contents.
+    // --------------------------------------------------------
+
+    setActivityEntity(
+      res,
+      'donor_verification',
+      data.path
+    );
 
     return res
       .status(201)
@@ -1696,6 +1634,20 @@ async function submitDonorApplication(
         });
     }
 
+    // --------------------------------------------------------
+    // EXISTING ENTITY FOR FAILED/REAPPLICATION ATTEMPTS
+    // --------------------------------------------------------
+
+    if (
+      existingApplication?.id
+    ) {
+      setActivityEntity(
+        res,
+        'donor_application',
+        existingApplication.id
+      );
+    }
+
     if (
       existingApplication
         ?.status ===
@@ -1824,6 +1776,16 @@ async function submitDonorApplication(
           });
       }
 
+      // ------------------------------------------------------
+      // ACTIVITY ENTITY
+      // ------------------------------------------------------
+
+      setActivityEntity(
+        res,
+        'donor_application',
+        updatedApplication.id
+      );
+
       return res
         .status(200)
         .json({
@@ -1870,6 +1832,16 @@ async function submitDonorApplication(
             'Unable to submit donor application.'
         });
     }
+
+    // --------------------------------------------------------
+    // ACTIVITY ENTITY
+    // --------------------------------------------------------
+
+    setActivityEntity(
+      res,
+      'donor_application',
+      createdApplication.id
+    );
 
     return res
       .status(201)
@@ -1966,6 +1938,16 @@ async function withdrawDonorApplication(
         });
     }
 
+    // --------------------------------------------------------
+    // ACTIVITY ENTITY
+    // --------------------------------------------------------
+
+    setActivityEntity(
+      res,
+      'donor_application',
+      application.id
+    );
+
     if (
       application.status !==
       'pending'
@@ -2014,6 +1996,16 @@ async function withdrawDonorApplication(
             'Unable to withdraw donor application.'
         });
     }
+
+    // --------------------------------------------------------
+    // ACTIVITY ENTITY
+    // --------------------------------------------------------
+
+    setActivityEntity(
+      res,
+      'donor_application',
+      updatedApplication.id
+    );
 
     return res
       .status(200)

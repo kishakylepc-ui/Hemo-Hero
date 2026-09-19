@@ -1,7 +1,20 @@
 const {
   supabaseAnon,
   supabaseAdmin,
-} = require('../config/supabase');
+} = require(
+  '../config/supabase'
+);
+
+// ============================================================
+// ACTIVITY LOG HELPERS
+// ============================================================
+
+const {
+  setActivityUser,
+  setActivityEntity,
+} = require(
+  '../middleware/activityLogMiddleware'
+);
 
 // ============================================================
 // CONSTANTS
@@ -28,13 +41,18 @@ const VALID_BLOOD_TYPES = [
 // HELPERS
 // ============================================================
 
-function cleanRequiredText(value) {
-  return typeof value === 'string'
+function cleanRequiredText(
+  value
+) {
+  return typeof value ===
+    'string'
     ? value.trim()
     : '';
 }
 
-function cleanOptionalText(value) {
+function cleanOptionalText(
+  value
+) {
   if (
     value === null ||
     value === undefined
@@ -43,7 +61,8 @@ function cleanOptionalText(value) {
   }
 
   if (
-    typeof value !== 'string'
+    typeof value !==
+    'string'
   ) {
     return null;
   }
@@ -51,12 +70,13 @@ function cleanOptionalText(value) {
   const cleaned =
     value.trim();
 
-  return cleaned || null;
+  return cleaned ||
+    null;
 }
 
-// ------------------------------------------------------------
+// ============================================================
 // PASSWORD VALIDATION
-// ------------------------------------------------------------
+// ============================================================
 
 function validatePassword(
   password
@@ -73,12 +93,9 @@ function validatePassword(
     };
   }
 
-  // ----------------------------------------------------------
-  // MINIMUM LENGTH
-  // ----------------------------------------------------------
-
   if (
-    password.length < 8
+    password.length <
+    8
   ) {
     return {
       valid: false,
@@ -87,10 +104,6 @@ function validatePassword(
         'Password must be at least 8 characters',
     };
   }
-
-  // ----------------------------------------------------------
-  // LOWERCASE
-  // ----------------------------------------------------------
 
   if (
     !/[a-z]/.test(
@@ -105,10 +118,6 @@ function validatePassword(
     };
   }
 
-  // ----------------------------------------------------------
-  // UPPERCASE
-  // ----------------------------------------------------------
-
   if (
     !/[A-Z]/.test(
       password
@@ -122,10 +131,6 @@ function validatePassword(
     };
   }
 
-  // ----------------------------------------------------------
-  // NUMBER
-  // ----------------------------------------------------------
-
   if (
     !/[0-9]/.test(
       password
@@ -138,10 +143,6 @@ function validatePassword(
         'Password must contain at least one number',
     };
   }
-
-  // ----------------------------------------------------------
-  // SPECIAL CHARACTER
-  // ----------------------------------------------------------
 
   if (
     !/[^A-Za-z0-9]/.test(
@@ -161,9 +162,9 @@ function validatePassword(
   };
 }
 
-// ------------------------------------------------------------
+// ============================================================
 // DATE OF BIRTH
-// ------------------------------------------------------------
+// ============================================================
 
 function validateDateOfBirth(
   dateOfBirth
@@ -205,8 +206,12 @@ function validateDateOfBirth(
     day,
   ] =
     cleanDate
-      .split('-')
-      .map(Number);
+      .split(
+        '-'
+      )
+      .map(
+        Number
+      );
 
   const birthDate =
     new Date(
@@ -218,11 +223,14 @@ function validateDateOfBirth(
     );
 
   if (
-    birthDate.getUTCFullYear() !==
+    birthDate
+      .getUTCFullYear() !==
       year ||
-    birthDate.getUTCMonth() !==
+    birthDate
+      .getUTCMonth() !==
       month - 1 ||
-    birthDate.getUTCDate() !==
+    birthDate
+      .getUTCDate() !==
       day
   ) {
     return {
@@ -239,9 +247,14 @@ function validateDateOfBirth(
   const todayUtc =
     new Date(
       Date.UTC(
-        today.getUTCFullYear(),
-        today.getUTCMonth(),
-        today.getUTCDate()
+        today
+          .getUTCFullYear(),
+
+        today
+          .getUTCMonth(),
+
+        today
+          .getUTCDate()
       )
     );
 
@@ -265,9 +278,9 @@ function validateDateOfBirth(
   };
 }
 
-// ------------------------------------------------------------
+// ============================================================
 // COORDINATE
-// ------------------------------------------------------------
+// ============================================================
 
 function parseCoordinate(
   value,
@@ -285,9 +298,12 @@ function parseCoordinate(
   }
 
   const number =
-    typeof value === 'number'
+    typeof value ===
+      'number'
       ? value
-      : Number(value);
+      : Number(
+          value
+        );
 
   if (
     !Number.isFinite(
@@ -303,10 +319,13 @@ function parseCoordinate(
   }
 
   if (
-    type === 'latitude' &&
+    type ===
+      'latitude' &&
     (
-      number < -90 ||
-      number > 90
+      number <
+        -90 ||
+      number >
+        90
     )
   ) {
     return {
@@ -318,10 +337,13 @@ function parseCoordinate(
   }
 
   if (
-    type === 'longitude' &&
+    type ===
+      'longitude' &&
     (
-      number < -180 ||
-      number > 180
+      number <
+        -180 ||
+      number >
+        180
     )
   ) {
     return {
@@ -340,9 +362,9 @@ function parseCoordinate(
   };
 }
 
-// ------------------------------------------------------------
+// ============================================================
 // PROFILE PHOTO URL
-// ------------------------------------------------------------
+// ============================================================
 
 function validateProfilePhotoUrl(
   value
@@ -373,9 +395,7 @@ function validateProfilePhotoUrl(
   const cleanUrl =
     value.trim();
 
-  if (
-    !cleanUrl
-  ) {
+  if (!cleanUrl) {
     return {
       valid: true,
 
@@ -445,7 +465,9 @@ async function register(
       !confirm_password
     ) {
       return res
-        .status(400)
+        .status(
+          400
+        )
         .json({
           error:
             'email, password, and confirm_password are required',
@@ -465,7 +487,9 @@ async function register(
         'string'
     ) {
       return res
-        .status(400)
+        .status(
+          400
+        )
         .json({
           error:
             'email and password fields must be text',
@@ -490,7 +514,9 @@ async function register(
       )
     ) {
       return res
-        .status(400)
+        .status(
+          400
+        )
         .json({
           error:
             'Please enter a valid email address',
@@ -506,7 +532,9 @@ async function register(
       confirm_password
     ) {
       return res
-        .status(400)
+        .status(
+          400
+        )
         .json({
           error:
             'Passwords do not match',
@@ -515,13 +543,6 @@ async function register(
 
     // --------------------------------------------------------
     // PASSWORD POLICY
-    //
-    // Required:
-    // - Minimum 8 characters
-    // - Lowercase
-    // - Uppercase
-    // - Number
-    // - Special character
     // --------------------------------------------------------
 
     const passwordValidation =
@@ -530,13 +551,17 @@ async function register(
       );
 
     if (
-      !passwordValidation.valid
+      !passwordValidation
+        .valid
     ) {
       return res
-        .status(400)
+        .status(
+          400
+        )
         .json({
           error:
-            passwordValidation.error,
+            passwordValidation
+              .error,
         });
     }
 
@@ -545,7 +570,8 @@ async function register(
     // --------------------------------------------------------
 
     const frontendUrl =
-      process.env.FRONTEND_URL ||
+      process.env
+        .FRONTEND_URL ||
       'http://localhost:8081';
 
     const {
@@ -571,16 +597,16 @@ async function register(
           },
         });
 
-    if (
-      error
-    ) {
+    if (error) {
       console.log(
         'REGISTER ERROR:',
         error.message
       );
 
       return res
-        .status(400)
+        .status(
+          400
+        )
         .json({
           error:
             error.message,
@@ -591,15 +617,47 @@ async function register(
       !data?.user
     ) {
       return res
-        .status(400)
+        .status(
+          400
+        )
         .json({
           error:
             'Unable to create account',
         });
     }
 
+    // --------------------------------------------------------
+    // ACTIVITY IDENTITY
+    // --------------------------------------------------------
+
+    setActivityUser(
+      res,
+      {
+        id:
+          data.user.id,
+
+        email:
+          data.user.email,
+
+        role:
+          'user',
+      }
+    );
+
+    setActivityEntity(
+      res,
+      'user_account',
+      data.user.id
+    );
+
+    // --------------------------------------------------------
+    // SUCCESS
+    // --------------------------------------------------------
+
     return res
-      .status(201)
+      .status(
+        201
+      )
       .json({
         message:
           data.session
@@ -611,7 +669,8 @@ async function register(
             data.user.id,
 
           email:
-            data.user.email,
+            data.user
+              .email,
         },
 
         session:
@@ -627,7 +686,9 @@ async function register(
     );
 
     return res
-      .status(500)
+      .status(
+        500
+      )
       .json({
         error:
           'Internal server error',
@@ -655,7 +716,9 @@ async function verifyEmail(
       !code
     ) {
       return res
-        .status(400)
+        .status(
+          400
+        )
         .json({
           error:
             'email and code are required',
@@ -669,7 +732,9 @@ async function verifyEmail(
         'string'
     ) {
       return res
-        .status(400)
+        .status(
+          400
+        )
         .json({
           error:
             'email and code must be text',
@@ -693,7 +758,9 @@ async function verifyEmail(
       )
     ) {
       return res
-        .status(400)
+        .status(
+          400
+        )
         .json({
           error:
             'Please enter a valid email address',
@@ -706,7 +773,9 @@ async function verifyEmail(
       )
     ) {
       return res
-        .status(400)
+        .status(
+          400
+        )
         .json({
           error:
             'Verification code must be 6 digits',
@@ -730,16 +799,16 @@ async function verifyEmail(
             'email',
         });
 
-    if (
-      error
-    ) {
+    if (error) {
       console.error(
         'VERIFY EMAIL SUPABASE ERROR:',
         error.message
       );
 
       return res
-        .status(400)
+        .status(
+          400
+        )
         .json({
           error:
             'Invalid or expired verification code',
@@ -750,15 +819,43 @@ async function verifyEmail(
       !data?.user
     ) {
       return res
-        .status(400)
+        .status(
+          400
+        )
         .json({
           error:
             'Unable to verify email',
         });
     }
 
+    // --------------------------------------------------------
+    // ACTIVITY IDENTITY
+    // --------------------------------------------------------
+
+    setActivityUser(
+      res,
+      {
+        id:
+          data.user.id,
+
+        email:
+          data.user.email,
+
+        role:
+          null,
+      }
+    );
+
+    setActivityEntity(
+      res,
+      'user_account',
+      data.user.id
+    );
+
     return res
-      .status(200)
+      .status(
+        200
+      )
       .json({
         message:
           'Email verified successfully. You can now sign in.',
@@ -768,7 +865,8 @@ async function verifyEmail(
             data.user.id,
 
           email:
-            data.user.email,
+            data.user
+              .email,
         },
       });
   } catch (
@@ -780,7 +878,9 @@ async function verifyEmail(
     );
 
     return res
-      .status(500)
+      .status(
+        500
+      )
       .json({
         error:
           'Email verification failed',
@@ -808,7 +908,9 @@ async function resendVerification(
         'string'
     ) {
       return res
-        .status(400)
+        .status(
+          400
+        )
         .json({
           error:
             'email is required',
@@ -829,7 +931,9 @@ async function resendVerification(
       )
     ) {
       return res
-        .status(400)
+        .status(
+          400
+        )
         .json({
           error:
             'Please enter a valid email address',
@@ -837,7 +941,8 @@ async function resendVerification(
     }
 
     const frontendUrl =
-      process.env.FRONTEND_URL ||
+      process.env
+        .FRONTEND_URL ||
       'http://localhost:8081';
 
     const {
@@ -858,16 +963,16 @@ async function resendVerification(
           },
         });
 
-    if (
-      error
-    ) {
+    if (error) {
       console.error(
         'RESEND VERIFICATION SUPABASE ERROR:',
         error.message
       );
 
       return res
-        .status(400)
+        .status(
+          400
+        )
         .json({
           error:
             'Unable to resend verification code. Please wait and try again.',
@@ -875,7 +980,9 @@ async function resendVerification(
     }
 
     return res
-      .status(200)
+      .status(
+        200
+      )
       .json({
         message:
           'A new verification code has been sent to your email.',
@@ -889,7 +996,9 @@ async function resendVerification(
     );
 
     return res
-      .status(500)
+      .status(
+        500
+      )
       .json({
         error:
           'Unable to resend verification code',
@@ -937,7 +1046,9 @@ async function login(
       passwordMissing
     ) {
       return res
-        .status(400)
+        .status(
+          400
+        )
         .json({
           error:
             'Please enter your email and password.',
@@ -955,7 +1066,9 @@ async function login(
       emailMissing
     ) {
       return res
-        .status(400)
+        .status(
+          400
+        )
         .json({
           error:
             'Please enter your email address.',
@@ -973,7 +1086,9 @@ async function login(
       passwordMissing
     ) {
       return res
-        .status(400)
+        .status(
+          400
+        )
         .json({
           error:
             'Please enter your password.',
@@ -994,7 +1109,9 @@ async function login(
         'string'
     ) {
       return res
-        .status(400)
+        .status(
+          400
+        )
         .json({
           error:
             'Email and password must be text.',
@@ -1022,7 +1139,9 @@ async function login(
       )
     ) {
       return res
-        .status(400)
+        .status(
+          400
+        )
         .json({
           error:
             'Please enter a valid email address.',
@@ -1034,15 +1153,6 @@ async function login(
 
     // --------------------------------------------------------
     // CHECK IF ACCOUNT EXISTS
-    //
-    // Classroom/demo behavior:
-    //
-    // Nonexistent account:
-    // -> "Account does not exist."
-    // -> does NOT consume password attempts
-    //
-    // Existing account + wrong password:
-    // -> consumes one password attempt
     // --------------------------------------------------------
 
     const {
@@ -1057,17 +1167,13 @@ async function login(
           'users'
         )
         .select(
-          'id, email, is_active'
+          'id, email, role, is_active'
         )
         .eq(
           'email',
           cleanEmail
         )
         .maybeSingle();
-
-    // --------------------------------------------------------
-    // DATABASE LOOKUP ERROR
-    // --------------------------------------------------------
 
     if (
       accountLookupError
@@ -1078,7 +1184,9 @@ async function login(
       );
 
       return res
-        .status(500)
+        .status(
+          500
+        )
         .json({
           error:
             'Unable to check account information. Please try again.',
@@ -1096,7 +1204,9 @@ async function login(
       !existingAccount
     ) {
       return res
-        .status(404)
+        .status(
+          404
+        )
         .json({
           error:
             'Account does not exist.',
@@ -1107,20 +1217,45 @@ async function login(
     }
 
     // --------------------------------------------------------
+    // ACTIVITY IDENTITY
+    //
+    // From this point onward we know which existing account
+    // is attempting to sign in, even if the password is wrong.
+    // --------------------------------------------------------
+
+    setActivityUser(
+      res,
+      {
+        id:
+          existingAccount.id,
+
+        email:
+          existingAccount.email,
+
+        role:
+          existingAccount.role,
+      }
+    );
+
+    setActivityEntity(
+      res,
+      'user_account',
+      existingAccount.id
+    );
+
+    // --------------------------------------------------------
     // ACCOUNT DEACTIVATED
-    //
-    // Block the login before Supabase creates a new session.
-    //
-    // This uses public.users.is_active as the application-level
-    // account status source of truth.
     // --------------------------------------------------------
 
     if (
-      existingAccount.is_active ===
+      existingAccount
+        .is_active ===
       false
     ) {
       return res
-        .status(403)
+        .status(
+          403
+        )
         .json({
           error:
             'Your account has been deactivated. Please contact an administrator.',
@@ -1131,7 +1266,6 @@ async function login(
     }
 
     // --------------------------------------------------------
-    // ACCOUNT EXISTS
     // ATTEMPT SUPABASE LOGIN
     // --------------------------------------------------------
 
@@ -1152,9 +1286,7 @@ async function login(
     // LOGIN FAILED
     // --------------------------------------------------------
 
-    if (
-      error
-    ) {
+    if (error) {
       const message =
         String(
           error.message ||
@@ -1163,8 +1295,6 @@ async function login(
 
       // ------------------------------------------------------
       // EMAIL NOT VERIFIED
-      //
-      // Does not consume a failed password attempt.
       // ------------------------------------------------------
 
       if (
@@ -1175,7 +1305,9 @@ async function login(
           )
       ) {
         return res
-          .status(403)
+          .status(
+            403
+          )
           .json({
             error:
               'Please verify your email before signing in.',
@@ -1186,10 +1318,7 @@ async function login(
       }
 
       // ------------------------------------------------------
-      // EXISTING ACCOUNT + WRONG PASSWORD
-      //
-      // Attempt limits and lockout duration are handled by
-      // loginRateLimiter.js.
+      // FAILED PASSWORD ATTEMPT
       // ------------------------------------------------------
 
       const attemptResult =
@@ -1207,7 +1336,7 @@ async function login(
         );
 
       // ------------------------------------------------------
-      // ACCOUNT LOCKED
+      // LOCKED
       // ------------------------------------------------------
 
       if (
@@ -1224,12 +1353,15 @@ async function login(
           Number.isFinite(
             retryMinutes
           ) &&
-          retryMinutes > 0
+          retryMinutes >
+            0
             ? retryMinutes
             : 1;
 
         return res
-          .status(429)
+          .status(
+            429
+          )
           .json({
             error:
               `Too many incorrect password attempts. Please try again in ${safeRetryMinutes} minute${safeRetryMinutes === 1 ? '' : 's'}.`,
@@ -1264,7 +1396,8 @@ async function login(
           loginError =
             'Incorrect password. 1 attempt remaining before temporary lockout.';
         } else if (
-          attemptsRemaining > 1
+          attemptsRemaining >
+          1
         ) {
           loginError =
             `Incorrect password. ${attemptsRemaining} attempts remaining.`;
@@ -1272,7 +1405,9 @@ async function login(
       }
 
       return res
-        .status(401)
+        .status(
+          401
+        )
         .json({
           error:
             loginError,
@@ -1291,8 +1426,6 @@ async function login(
 
     // --------------------------------------------------------
     // SUCCESSFUL LOGIN
-    //
-    // Reset failed password attempts.
     // --------------------------------------------------------
 
     if (
@@ -1338,7 +1471,9 @@ async function login(
       );
 
       return res
-        .status(404)
+        .status(
+          404
+        )
         .json({
           error:
             'User profile not found',
@@ -1346,11 +1481,37 @@ async function login(
     }
 
     // --------------------------------------------------------
+    // UPDATE ACTIVITY IDENTITY WITH FULL PROFILE
+    // --------------------------------------------------------
+
+    setActivityUser(
+      res,
+      {
+        id:
+          dbUser.id,
+
+        email:
+          dbUser.email,
+
+        role:
+          dbUser.role,
+      }
+    );
+
+    setActivityEntity(
+      res,
+      'user_account',
+      dbUser.id
+    );
+
+    // --------------------------------------------------------
     // SUCCESS
     // --------------------------------------------------------
 
     return res
-      .status(200)
+      .status(
+        200
+      )
       .json({
         message:
           'Login successful.',
@@ -1373,7 +1534,9 @@ async function login(
     );
 
     return res
-      .status(500)
+      .status(
+        500
+      )
       .json({
         error:
           'Login failed',
@@ -1396,23 +1559,43 @@ async function logout(
       '';
 
     const token =
-      authHeader.startsWith(
-        'Bearer '
-      )
+      authHeader
+        .startsWith(
+          'Bearer '
+        )
         ? authHeader.slice(
             7
           )
         : null;
 
-    if (
-      !token
-    ) {
+    if (!token) {
       return res
-        .status(401)
+        .status(
+          401
+        )
         .json({
           error:
             'Missing authentication token',
         });
+    }
+
+    // --------------------------------------------------------
+    // ACTIVITY IDENTITY
+    // --------------------------------------------------------
+
+    if (
+      req.dbUser
+    ) {
+      setActivityUser(
+        res,
+        req.dbUser
+      );
+
+      setActivityEntity(
+        res,
+        'user_account',
+        req.dbUser.id
+      );
     }
 
     const {
@@ -1425,16 +1608,16 @@ async function logout(
           token
         );
 
-    if (
-      error
-    ) {
+    if (error) {
       console.error(
         'LOGOUT SUPABASE ERROR:',
         error.message
       );
 
       return res
-        .status(400)
+        .status(
+          400
+        )
         .json({
           error:
             'Unable to log out',
@@ -1442,7 +1625,9 @@ async function logout(
     }
 
     return res
-      .status(200)
+      .status(
+        200
+      )
       .json({
         message:
           'Logged out successfully',
@@ -1456,7 +1641,9 @@ async function logout(
     );
 
     return res
-      .status(500)
+      .status(
+        500
+      )
       .json({
         error:
           'Logout failed',
@@ -1484,7 +1671,9 @@ async function forgotPassword(
         'string'
     ) {
       return res
-        .status(400)
+        .status(
+          400
+        )
         .json({
           error:
             'email is required',
@@ -1505,7 +1694,9 @@ async function forgotPassword(
       )
     ) {
       return res
-        .status(400)
+        .status(
+          400
+        )
         .json({
           error:
             'Invalid email address',
@@ -1513,7 +1704,8 @@ async function forgotPassword(
     }
 
     const frontendUrl =
-      process.env.FRONTEND_URL ||
+      process.env
+        .FRONTEND_URL ||
       'http://localhost:8081';
 
     const {
@@ -1529,15 +1721,7 @@ async function forgotPassword(
           }
         );
 
-    if (
-      error
-    ) {
-      /*
-        Keep this generic so the API
-        does not reveal whether the
-        account exists.
-      */
-
+    if (error) {
       console.error(
         'FORGOT PASSWORD SUPABASE ERROR:',
         error.message
@@ -1545,7 +1729,9 @@ async function forgotPassword(
     }
 
     return res
-      .status(200)
+      .status(
+        200
+      )
       .json({
         message:
           'If an account exists for this email, a password reset email will be sent.',
@@ -1559,7 +1745,9 @@ async function forgotPassword(
     );
 
     return res
-      .status(500)
+      .status(
+        500
+      )
       .json({
         error:
           'Request failed',
@@ -1587,7 +1775,9 @@ async function verifyRecoveryCode(
       !code
     ) {
       return res
-        .status(400)
+        .status(
+          400
+        )
         .json({
           error:
             'email and code are required',
@@ -1601,7 +1791,9 @@ async function verifyRecoveryCode(
         'string'
     ) {
       return res
-        .status(400)
+        .status(
+          400
+        )
         .json({
           error:
             'email and code must be text',
@@ -1625,7 +1817,9 @@ async function verifyRecoveryCode(
       )
     ) {
       return res
-        .status(400)
+        .status(
+          400
+        )
         .json({
           error:
             'Please enter a valid email address',
@@ -1638,7 +1832,9 @@ async function verifyRecoveryCode(
       )
     ) {
       return res
-        .status(400)
+        .status(
+          400
+        )
         .json({
           error:
             'Verification code must be 6 digits',
@@ -1665,7 +1861,8 @@ async function verifyRecoveryCode(
     if (
       error ||
       !data?.user ||
-      !data?.session?.access_token
+      !data?.session
+        ?.access_token
     ) {
       console.error(
         'VERIFY RECOVERY CODE ERROR:',
@@ -1673,7 +1870,9 @@ async function verifyRecoveryCode(
       );
 
       return res
-        .status(400)
+        .status(
+          400
+        )
         .json({
           error:
             'Invalid or expired password reset code',
@@ -1690,15 +1889,43 @@ async function verifyRecoveryCode(
       cleanEmail
     ) {
       return res
-        .status(400)
+        .status(
+          400
+        )
         .json({
           error:
             'Verification email does not match',
         });
     }
 
+    // --------------------------------------------------------
+    // ACTIVITY IDENTITY
+    // --------------------------------------------------------
+
+    setActivityUser(
+      res,
+      {
+        id:
+          data.user.id,
+
+        email:
+          data.user.email,
+
+        role:
+          null,
+      }
+    );
+
+    setActivityEntity(
+      res,
+      'user_account',
+      data.user.id
+    );
+
     return res
-      .status(200)
+      .status(
+        200
+      )
       .json({
         message:
           'Verification code confirmed.',
@@ -1716,7 +1943,9 @@ async function verifyRecoveryCode(
     );
 
     return res
-      .status(500)
+      .status(
+        500
+      )
       .json({
         error:
           'Unable to verify password reset code',
@@ -1750,7 +1979,9 @@ async function resetPassword(
       !confirm_password
     ) {
       return res
-        .status(400)
+        .status(
+          400
+        )
         .json({
           error:
             'Recovery verification is required before changing the password',
@@ -1770,7 +2001,9 @@ async function resetPassword(
         'string'
     ) {
       return res
-        .status(400)
+        .status(
+          400
+        )
         .json({
           error:
             'Invalid password reset information',
@@ -1786,7 +2019,9 @@ async function resetPassword(
       confirm_password
     ) {
       return res
-        .status(400)
+        .status(
+          400
+        )
         .json({
           error:
             'Passwords do not match',
@@ -1803,13 +2038,17 @@ async function resetPassword(
       );
 
     if (
-      !passwordValidation.valid
+      !passwordValidation
+        .valid
     ) {
       return res
-        .status(400)
+        .status(
+          400
+        )
         .json({
           error:
-            passwordValidation.error,
+            passwordValidation
+              .error,
         });
     }
 
@@ -1840,12 +2079,39 @@ async function resetPassword(
       );
 
       return res
-        .status(401)
+        .status(
+          401
+        )
         .json({
           error:
             'Your password reset session has expired. Please request a new code.',
         });
     }
+
+    // --------------------------------------------------------
+    // ACTIVITY IDENTITY
+    // --------------------------------------------------------
+
+    setActivityUser(
+      res,
+      {
+        id:
+          userData.user.id,
+
+        email:
+          userData.user
+            .email,
+
+        role:
+          null,
+      }
+    );
+
+    setActivityEntity(
+      res,
+      'user_account',
+      userData.user.id
+    );
 
     // --------------------------------------------------------
     // UPDATE PASSWORD
@@ -1870,11 +2136,14 @@ async function resetPassword(
     ) {
       console.error(
         'RESET PASSWORD UPDATE ERROR:',
-        updateError.message
+        updateError
+          .message
       );
 
       return res
-        .status(400)
+        .status(
+          400
+        )
         .json({
           error:
             'Unable to update password',
@@ -1882,7 +2151,9 @@ async function resetPassword(
     }
 
     return res
-      .status(200)
+      .status(
+        200
+      )
       .json({
         message:
           'Password reset successfully. You can now sign in with your new password.',
@@ -1896,7 +2167,9 @@ async function resetPassword(
     );
 
     return res
-      .status(500)
+      .status(
+        500
+      )
       .json({
         error:
           'Password reset failed',
@@ -1912,8 +2185,25 @@ async function getProfile(
   req,
   res
 ) {
+  if (
+    req.dbUser
+  ) {
+    setActivityUser(
+      res,
+      req.dbUser
+    );
+
+    setActivityEntity(
+      res,
+      'user_profile',
+      req.dbUser.id
+    );
+  }
+
   return res
-    .status(200)
+    .status(
+      200
+    )
     .json({
       user:
         req.dbUser,
@@ -1924,8 +2214,6 @@ async function getProfile(
 // PATCH /api/auth/me
 //
 // SAFE PROFILE UPDATE
-//
-// User CANNOT change email, role, or password here.
 // ============================================================
 
 async function updateProfile(
@@ -1974,11 +2262,11 @@ async function updateProfile(
           first_name
         );
 
-      if (
-        !cleanValue
-      ) {
+      if (!cleanValue) {
         return res
-          .status(400)
+          .status(
+            400
+          )
           .json({
             error:
               'first_name cannot be empty',
@@ -2016,11 +2304,11 @@ async function updateProfile(
           last_name
         );
 
-      if (
-        !cleanValue
-      ) {
+      if (!cleanValue) {
         return res
-          .status(400)
+          .status(
+            400
+          )
           .json({
             error:
               'last_name cannot be empty',
@@ -2076,7 +2364,9 @@ async function updateProfile(
         !validation.valid
       ) {
         return res
-          .status(400)
+          .status(
+            400
+          )
           .json({
             error:
               validation.error,
@@ -2100,7 +2390,9 @@ async function updateProfile(
         'string'
       ) {
         return res
-          .status(400)
+          .status(
+            400
+          )
           .json({
             error:
               'gender must be text',
@@ -2116,7 +2408,9 @@ async function updateProfile(
         )
       ) {
         return res
-          .status(400)
+          .status(
+            400
+          )
           .json({
             error:
               'Invalid gender value',
@@ -2140,11 +2434,11 @@ async function updateProfile(
           barangay
         );
 
-      if (
-        !cleanValue
-      ) {
+      if (!cleanValue) {
         return res
-          .status(400)
+          .status(
+            400
+          )
           .json({
             error:
               'barangay cannot be empty',
@@ -2168,11 +2462,11 @@ async function updateProfile(
           city
         );
 
-      if (
-        !cleanValue
-      ) {
+      if (!cleanValue) {
         return res
-          .status(400)
+          .status(
+            400
+          )
           .json({
             error:
               'city cannot be empty',
@@ -2196,11 +2490,11 @@ async function updateProfile(
           province
         );
 
-      if (
-        !cleanValue
-      ) {
+      if (!cleanValue) {
         return res
-          .status(400)
+          .status(
+            400
+          )
           .json({
             error:
               'province cannot be empty',
@@ -2229,7 +2523,9 @@ async function updateProfile(
         !parsed.valid
       ) {
         return res
-          .status(400)
+          .status(
+            400
+          )
           .json({
             error:
               parsed.error,
@@ -2258,7 +2554,9 @@ async function updateProfile(
         !parsed.valid
       ) {
         return res
-          .status(400)
+          .status(
+            400
+          )
           .json({
             error:
               parsed.error,
@@ -2291,7 +2589,9 @@ async function updateProfile(
           'string'
         ) {
           return res
-            .status(400)
+            .status(
+              400
+            )
             .json({
               error:
                 'blood_type must be text or null',
@@ -2304,12 +2604,15 @@ async function updateProfile(
             .toUpperCase();
 
         if (
-          !VALID_BLOOD_TYPES.includes(
-            cleanBloodType
-          )
+          !VALID_BLOOD_TYPES
+            .includes(
+              cleanBloodType
+            )
         ) {
           return res
-            .status(400)
+            .status(
+              400
+            )
             .json({
               error:
                 'Invalid blood type',
@@ -2338,7 +2641,9 @@ async function updateProfile(
         !validation.valid
       ) {
         return res
-          .status(400)
+          .status(
+            400
+          )
           .json({
             error:
               validation.error,
@@ -2357,13 +2662,15 @@ async function updateProfile(
       updates.latitude !==
       undefined
         ? updates.latitude
-        : req.dbUser.latitude;
+        : req.dbUser
+            .latitude;
 
     const nextLongitude =
       updates.longitude !==
       undefined
         ? updates.longitude
-        : req.dbUser.longitude;
+        : req.dbUser
+            .longitude;
 
     if (
       (
@@ -2384,7 +2691,9 @@ async function updateProfile(
       )
     ) {
       return res
-        .status(400)
+        .status(
+          400
+        )
         .json({
           error:
             'latitude and longitude must be provided together',
@@ -2404,7 +2713,9 @@ async function updateProfile(
         'boolean'
       ) {
         return res
-          .status(400)
+          .status(
+            400
+          )
           .json({
             error:
               'complete_onboarding must be true or false',
@@ -2431,33 +2742,37 @@ async function updateProfile(
         ];
 
         const missingFields =
-          requiredFields.filter(
-            field => {
-              const value =
-                profile[
-                  field
-                ];
+          requiredFields
+            .filter(
+              field => {
+                const value =
+                  profile[
+                    field
+                  ];
 
-              return (
-                value ===
-                  null ||
-                value ===
-                  undefined ||
-                String(
-                  value
-                )
-                  .trim() ===
-                  ''
-              );
-            }
-          );
+                return (
+                  value ===
+                    null ||
+                  value ===
+                    undefined ||
+                  String(
+                    value
+                  )
+                    .trim() ===
+                    ''
+                );
+              }
+            );
 
         if (
-          missingFields.length >
+          missingFields
+            .length >
           0
         ) {
           return res
-            .status(400)
+            .status(
+              400
+            )
             .json({
               error:
                 'Profile is incomplete',
@@ -2483,7 +2798,9 @@ async function updateProfile(
       0
     ) {
       return res
-        .status(400)
+        .status(
+          400
+        )
         .json({
           error:
             'No valid fields to update',
@@ -2514,27 +2831,58 @@ async function updateProfile(
         )
         .single();
 
-    if (
-      error
-    ) {
+    if (error) {
       console.error(
         'UPDATE PROFILE SUPABASE ERROR:',
         error
       );
 
       return res
-        .status(400)
+        .status(
+          400
+        )
         .json({
           error:
             'Unable to update profile',
         });
     }
 
+    // --------------------------------------------------------
+    // ACTIVITY IDENTITY
+    // --------------------------------------------------------
+
+    setActivityUser(
+      res,
+      {
+        id:
+          data.id,
+
+        email:
+          data.email,
+
+        role:
+          data.role,
+      }
+    );
+
+    setActivityEntity(
+      res,
+      'user_profile',
+      data.id
+    );
+
+    // ========================================================
+    // SUCCESS
+    // ========================================================
+
     return res
-      .status(200)
+      .status(
+        200
+      )
       .json({
         message:
-          data.onboarding_complete
+          data
+            .onboarding_complete
             ? 'Profile completed successfully'
             : 'Profile updated successfully',
 
@@ -2550,7 +2898,9 @@ async function updateProfile(
     );
 
     return res
-      .status(500)
+      .status(
+        500
+      )
       .json({
         error:
           'Update failed',
@@ -2573,4 +2923,4 @@ module.exports = {
   resetPassword,
   getProfile,
   updateProfile,
-};
+}

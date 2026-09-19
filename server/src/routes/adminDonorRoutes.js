@@ -10,6 +10,13 @@ const {
   );
 
 const {
+  activityLog
+} =
+  require(
+    '../middleware/activityLogMiddleware'
+  );
+
+const {
   getDonorApplicationSummary,
   getDonorApplications,
   getDonorApplicationById,
@@ -88,6 +95,24 @@ router.get(
 
 router.post(
   '/:id/approve',
+
+  activityLog({
+    action:
+      'APPROVE_DONOR_APPLICATION',
+
+    module:
+      'Donor Applications',
+
+    successDescription:
+      'Administrator approved a donor application.',
+
+    failureDescription:
+      'Donor application approval attempt failed.',
+
+    entityType:
+      'donor_application'
+  }),
+
   approveDonorApplication
 );
 
@@ -99,8 +124,30 @@ router.post(
 
 router.post(
   '/:id/reject',
+
+  activityLog({
+    action:
+      'REJECT_DONOR_APPLICATION',
+
+    module:
+      'Donor Applications',
+
+    successDescription:
+      'Administrator rejected a donor application.',
+
+    failureDescription:
+      'Donor application rejection attempt failed.',
+
+    entityType:
+      'donor_application'
+  }),
+
   rejectDonorApplication
 );
+
+// ============================================================
+// EXPORT
+// ============================================================
 
 module.exports =
   router;

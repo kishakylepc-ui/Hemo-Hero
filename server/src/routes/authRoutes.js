@@ -51,7 +51,7 @@ const {
 );
 
 // ============================================================
-// MIDDLEWARE
+// AUTH MIDDLEWARE
 // ============================================================
 
 const {
@@ -64,6 +64,16 @@ const {
   loginLimiter,
 } = require(
   '../middleware/loginRateLimiter'
+);
+
+// ============================================================
+// ACTIVITY LOG MIDDLEWARE
+// ============================================================
+
+const {
+  activityLog,
+} = require(
+  '../middleware/activityLogMiddleware'
 );
 
 // ============================================================
@@ -170,6 +180,24 @@ function handleProfilePhotoUpload(
 
 router.post(
   '/register',
+
+  activityLog({
+    action:
+      'REGISTER',
+
+    module:
+      'Authentication',
+
+    successDescription:
+      'User registered a new account.',
+
+    failureDescription:
+      'Account registration attempt failed.',
+
+    entityType:
+      'user_account',
+  }),
+
   register
 );
 
@@ -179,6 +207,24 @@ router.post(
 
 router.post(
   '/verify-email',
+
+  activityLog({
+    action:
+      'VERIFY_EMAIL',
+
+    module:
+      'Authentication',
+
+    successDescription:
+      'User verified their email address.',
+
+    failureDescription:
+      'Email verification attempt failed.',
+
+    entityType:
+      'user_account',
+  }),
+
   verifyEmail
 );
 
@@ -188,16 +234,56 @@ router.post(
 
 router.post(
   '/resend-verification',
+
+  activityLog({
+    action:
+      'RESEND_VERIFICATION',
+
+    module:
+      'Authentication',
+
+    successDescription:
+      'User requested a new email verification code.',
+
+    failureDescription:
+      'Verification-code resend request failed.',
+
+    entityType:
+      'user_account',
+  }),
+
   resendVerification
 );
 
 // ------------------------------------------------------------
 // LOGIN
+//
+// Activity logger comes BEFORE loginLimiter so blocked
+// login attempts are also included in the log trail.
 // ------------------------------------------------------------
 
 router.post(
   '/login',
+
+  activityLog({
+    action:
+      'LOGIN',
+
+    module:
+      'Authentication',
+
+    successDescription:
+      'User logged in successfully.',
+
+    failureDescription:
+      'User login attempt failed.',
+
+    entityType:
+      'user_account',
+  }),
+
   loginLimiter,
+
   login
 );
 
@@ -207,6 +293,24 @@ router.post(
 
 router.post(
   '/forgot-password',
+
+  activityLog({
+    action:
+      'FORGOT_PASSWORD',
+
+    module:
+      'Authentication',
+
+    successDescription:
+      'User requested password recovery.',
+
+    failureDescription:
+      'Password recovery request failed.',
+
+    entityType:
+      'user_account',
+  }),
+
   forgotPassword
 );
 
@@ -216,6 +320,24 @@ router.post(
 
 router.post(
   '/verify-recovery-code',
+
+  activityLog({
+    action:
+      'VERIFY_RECOVERY_CODE',
+
+    module:
+      'Authentication',
+
+    successDescription:
+      'User verified a password recovery code.',
+
+    failureDescription:
+      'Password recovery-code verification failed.',
+
+    entityType:
+      'user_account',
+  }),
+
   verifyRecoveryCode
 );
 
@@ -225,6 +347,24 @@ router.post(
 
 router.post(
   '/reset-password',
+
+  activityLog({
+    action:
+      'RESET_PASSWORD',
+
+    module:
+      'Authentication',
+
+    successDescription:
+      'User reset their account password.',
+
+    failureDescription:
+      'Password reset attempt failed.',
+
+    entityType:
+      'user_account',
+  }),
+
   resetPassword
 );
 
@@ -234,11 +374,33 @@ router.post(
 
 // ------------------------------------------------------------
 // LOGOUT
+//
+// Logger is before requireAuth so unsuccessful attempts are
+// also visible in the audit trail.
 // ------------------------------------------------------------
 
 router.post(
   '/logout',
+
+  activityLog({
+    action:
+      'LOGOUT',
+
+    module:
+      'Authentication',
+
+    successDescription:
+      'User logged out successfully.',
+
+    failureDescription:
+      'User logout attempt failed.',
+
+    entityType:
+      'user_account',
+  }),
+
   requireAuth,
+
   logout
 );
 
@@ -251,7 +413,26 @@ router.post(
 
 router.get(
   '/me',
+
+  activityLog({
+    action:
+      'VIEW_PROFILE',
+
+    module:
+      'Profile',
+
+    successDescription:
+      'User viewed their account profile.',
+
+    failureDescription:
+      'Profile view request failed.',
+
+    entityType:
+      'user_profile',
+  }),
+
   requireAuth,
+
   getProfile
 );
 
@@ -264,7 +445,36 @@ router.get(
 
 router.patch(
   '/me',
+
+  activityLog({
+    action:
+      'UPDATE_PROFILE',
+
+    module:
+      'Profile',
+
+    successDescription:
+      'User updated their account profile.',
+
+    failureDescription:
+      'Profile update attempt failed.',
+
+    entityType:
+      'user_profile',
+
+    metadata: ({
+      req,
+    }) => ({
+      changed_fields:
+        Object.keys(
+          req.body ||
+            {}
+        ),
+    }),
+  }),
+
   requireAuth,
+
   updateProfile
 );
 
@@ -274,25 +484,59 @@ router.patch(
 
 // ------------------------------------------------------------
 // CHANGE PASSWORD
-//
-// PATCH /api/auth/me/password
 // ------------------------------------------------------------
 
 router.patch(
   '/me/password',
+
+  activityLog({
+    action:
+      'CHANGE_PASSWORD',
+
+    module:
+      'Account Security',
+
+    successDescription:
+      'User changed their account password.',
+
+    failureDescription:
+      'Password change attempt failed.',
+
+    entityType:
+      'user_account',
+  }),
+
   requireAuth,
+
   changePassword
 );
 
 // ------------------------------------------------------------
 // CHANGE EMAIL
-//
-// PATCH /api/auth/me/email
 // ------------------------------------------------------------
 
 router.patch(
   '/me/email',
+
+  activityLog({
+    action:
+      'CHANGE_EMAIL',
+
+    module:
+      'Account Security',
+
+    successDescription:
+      'User changed their account email address.',
+
+    failureDescription:
+      'Email change attempt failed.',
+
+    entityType:
+      'user_account',
+  }),
+
   requireAuth,
+
   changeEmail
 );
 
@@ -300,13 +544,30 @@ router.patch(
 // DEACTIVATE ACCOUNT
 //
 // DELETE /api/auth/me
-//
-// Reversible soft deletion.
 // ------------------------------------------------------------
 
 router.delete(
   '/me',
+
+  activityLog({
+    action:
+      'DEACTIVATE_ACCOUNT',
+
+    module:
+      'Account Security',
+
+    successDescription:
+      'User deactivated their account.',
+
+    failureDescription:
+      'Account deactivation attempt failed.',
+
+    entityType:
+      'user_account',
+  }),
+
   requireAuth,
+
   deactivateAccount
 );
 
@@ -314,17 +575,30 @@ router.delete(
 // PERMANENTLY DELETE ACCOUNT
 //
 // DELETE /api/auth/me/permanent
-//
-// Requires:
-// - current password
-// - confirmation = DELETE
-//
-// Permanent operation.
 // ------------------------------------------------------------
 
 router.delete(
   '/me/permanent',
+
+  activityLog({
+    action:
+      'DELETE_ACCOUNT',
+
+    module:
+      'Account Security',
+
+    successDescription:
+      'User permanently deleted their account.',
+
+    failureDescription:
+      'Permanent account deletion attempt failed.',
+
+    entityType:
+      'user_account',
+  }),
+
   requireAuth,
+
   deleteAccountPermanently
 );
 
@@ -334,16 +608,32 @@ router.delete(
 
 // ------------------------------------------------------------
 // UPLOAD / REPLACE PROFILE PHOTO
-//
-// multipart/form-data
-// field name: photo
-// max size: 5 MB
 // ------------------------------------------------------------
 
 router.post(
   '/profile-photo',
+
+  activityLog({
+    action:
+      'UPDATE_PROFILE_PHOTO',
+
+    module:
+      'Profile',
+
+    successDescription:
+      'User updated their profile photo.',
+
+    failureDescription:
+      'Profile-photo update attempt failed.',
+
+    entityType:
+      'user_profile',
+  }),
+
   requireAuth,
+
   handleProfilePhotoUpload,
+
   uploadProfilePhoto
 );
 
@@ -353,7 +643,26 @@ router.post(
 
 router.delete(
   '/profile-photo',
+
+  activityLog({
+    action:
+      'DELETE_PROFILE_PHOTO',
+
+    module:
+      'Profile',
+
+    successDescription:
+      'User removed their profile photo.',
+
+    failureDescription:
+      'Profile-photo removal attempt failed.',
+
+    entityType:
+      'user_profile',
+  }),
+
   requireAuth,
+
   deleteProfilePhoto
 );
 

@@ -6,6 +6,12 @@ const {
   createNotification,
 } = require('../services/notificationService');
 
+const {
+  setActivityEntity,
+} = require(
+  '../middleware/activityLogMiddleware'
+);
+
 // ============================================================
 // CONSTANTS
 // ============================================================
@@ -549,6 +555,21 @@ async function approveDonorApplication(
     } = req.body || {};
 
     // --------------------------------------------------------
+    // ACTIVITY ENTITY
+    //
+    // Set immediately so even a failed approval attempt
+    // points to the donor application that was targeted.
+    // --------------------------------------------------------
+
+    if (id) {
+      setActivityEntity(
+        res,
+        'donor_application',
+        id
+      );
+    }
+
+    // --------------------------------------------------------
     // ADMIN
     // --------------------------------------------------------
 
@@ -630,6 +651,16 @@ async function approveDonorApplication(
             'Donor application not found.',
         });
     }
+
+    // --------------------------------------------------------
+    // CONFIRM ACTIVITY ENTITY
+    // --------------------------------------------------------
+
+    setActivityEntity(
+      res,
+      'donor_application',
+      existing.id
+    );
 
     // --------------------------------------------------------
     // MUST STILL BE PENDING
@@ -759,6 +790,16 @@ async function approveDonorApplication(
             'The donor application is no longer pending.',
         });
     }
+
+    // --------------------------------------------------------
+    // CONFIRM UPDATED ENTITY
+    // --------------------------------------------------------
+
+    setActivityEntity(
+      res,
+      'donor_application',
+      updated.id
+    );
 
     // ========================================================
     // SYNC VERIFIED BLOOD TYPE TO USERS TABLE
@@ -942,6 +983,21 @@ async function rejectDonorApplication(
     } = req.body || {};
 
     // --------------------------------------------------------
+    // ACTIVITY ENTITY
+    //
+    // Set immediately so both successful and failed attempts
+    // retain the targeted donor application ID.
+    // --------------------------------------------------------
+
+    if (id) {
+      setActivityEntity(
+        res,
+        'donor_application',
+        id
+      );
+    }
+
+    // --------------------------------------------------------
     // ADMIN
     // --------------------------------------------------------
 
@@ -986,8 +1042,6 @@ async function rejectDonorApplication(
 
     // --------------------------------------------------------
     // LOAD APPLICATION
-    //
-    // user_id is required so the donor can be notified.
     // --------------------------------------------------------
 
     const {
@@ -1036,6 +1090,16 @@ async function rejectDonorApplication(
             'Donor application not found.',
         });
     }
+
+    // --------------------------------------------------------
+    // CONFIRM ACTIVITY ENTITY
+    // --------------------------------------------------------
+
+    setActivityEntity(
+      res,
+      'donor_application',
+      existing.id
+    );
 
     // --------------------------------------------------------
     // ONLY PENDING CAN BE REJECTED
@@ -1120,6 +1184,16 @@ async function rejectDonorApplication(
             'The donor application is no longer pending.',
         });
     }
+
+    // --------------------------------------------------------
+    // CONFIRM UPDATED ENTITY
+    // --------------------------------------------------------
+
+    setActivityEntity(
+      res,
+      'donor_application',
+      updated.id
+    );
 
     // ========================================================
     // NOTIFY DONOR

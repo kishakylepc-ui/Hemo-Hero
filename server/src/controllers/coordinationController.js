@@ -6,6 +6,12 @@ const {
   createNotification
 } = require('../services/notificationService');
 
+const {
+  setActivityEntity
+} = require(
+  '../middleware/activityLogMiddleware'
+);
+
 // ============================================================
 // HELPERS
 // ============================================================
@@ -967,6 +973,19 @@ async function sendCoordinationMessage(
         });
     }
 
+    // --------------------------------------------------------
+    // ACTIVITY ENTITY
+    //
+    // Store the actual created coordination message ID.
+    // The message text itself is NOT copied into the audit log.
+    // --------------------------------------------------------
+
+    setActivityEntity(
+      res,
+      'coordination_message',
+      createdMessage.id
+    );
+
     const sender =
       senderId ===
       context.requester_user_id
@@ -1254,6 +1273,24 @@ async function setCoordinationSchedule(
         });
     }
 
+    // --------------------------------------------------------
+    // EXISTING ACTIVITY ENTITY
+    //
+    // If this is an update, attach the existing schedule ID
+    // before saving so a failed update can still identify the
+    // schedule that was targeted.
+    // --------------------------------------------------------
+
+    if (
+      existingSchedule?.id
+    ) {
+      setActivityEntity(
+        res,
+        'coordination_schedule',
+        existingSchedule.id
+      );
+    }
+
     let schedule;
     let scheduleError;
 
@@ -1342,6 +1379,18 @@ async function setCoordinationSchedule(
             'Unable to save donation schedule.'
         });
     }
+
+    // --------------------------------------------------------
+    // ACTIVITY ENTITY
+    //
+    // Store the actual created/updated schedule UUID.
+    // --------------------------------------------------------
+
+    setActivityEntity(
+      res,
+      'coordination_schedule',
+      schedule.id
+    );
 
     // ========================================================
     // NOTIFY OTHER PARTICIPANT ABOUT SCHEDULE

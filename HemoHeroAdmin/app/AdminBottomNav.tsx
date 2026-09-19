@@ -24,6 +24,7 @@ export type AdminTab =
   | 'requests'
   | 'analytics'
   | 'issues'
+  | 'activityLogs'
   | 'settings';
 
 type Props = {
@@ -149,6 +150,24 @@ const NAV_ITEMS: {
 
     route:
       '/issues',
+  },
+
+  // ==========================================================
+  // LOG TRAILS
+  // ==========================================================
+
+  {
+    key:
+      'activityLogs',
+
+    label:
+      'Log Trails',
+
+    icon:
+      'history',
+
+    route:
+      '/activity-logs',
   },
 
   {

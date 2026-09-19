@@ -2,6 +2,12 @@ const {
   supabaseAdmin
 } = require('../config/supabase');
 
+const {
+  setActivityEntity
+} = require(
+  '../middleware/activityLogMiddleware'
+);
+
 // ============================================================
 // HELPERS
 // ============================================================
@@ -313,6 +319,20 @@ async function markNotificationAsRead(
     }
 
     // --------------------------------------------------------
+    // ACTIVITY ENTITY
+    //
+    // Attach the requested notification ID immediately.
+    // This means failed lookup attempts can still identify
+    // which notification ID was targeted.
+    // --------------------------------------------------------
+
+    setActivityEntity(
+      res,
+      'notification',
+      notificationId
+    );
+
+    // --------------------------------------------------------
     // FIND NOTIFICATION
     // --------------------------------------------------------
 
@@ -361,6 +381,16 @@ async function markNotificationAsRead(
             'Notification not found.'
         });
     }
+
+    // --------------------------------------------------------
+    // CONFIRM ENTITY
+    // --------------------------------------------------------
+
+    setActivityEntity(
+      res,
+      'notification',
+      notification.id
+    );
 
     // --------------------------------------------------------
     // ALREADY READ
@@ -426,6 +456,16 @@ async function markNotificationAsRead(
         });
     }
 
+    // --------------------------------------------------------
+    // FINAL ACTIVITY ENTITY
+    // --------------------------------------------------------
+
+    setActivityEntity(
+      res,
+      'notification',
+      updatedNotification.id
+    );
+
     return res
       .status(200)
       .json({
@@ -472,6 +512,20 @@ async function markAllNotificationsAsRead(
             'Unauthorized'
         });
     }
+
+    // --------------------------------------------------------
+    // ACTIVITY ENTITY
+    //
+    // This action affects a collection rather than one row.
+    // The authenticated user's ID identifies whose notification
+    // collection was affected.
+    // --------------------------------------------------------
+
+    setActivityEntity(
+      res,
+      'notification_batch',
+      userId
+    );
 
     const {
       data:

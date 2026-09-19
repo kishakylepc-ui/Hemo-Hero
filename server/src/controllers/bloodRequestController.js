@@ -8,6 +8,12 @@ const {
   '../services/notificationService'
 );
 
+const {
+  setActivityEntity
+} = require(
+  '../middleware/activityLogMiddleware'
+);
+
 // ============================================================
 // CONSTANTS
 // ============================================================
@@ -591,6 +597,18 @@ async function createBloodRequest(
             'Unable to create blood request.'
         });
     }
+
+    // --------------------------------------------------------
+    // ACTIVITY ENTITY
+    //
+    // Store the actual newly created blood request ID.
+    // --------------------------------------------------------
+
+    setActivityEntity(
+      res,
+      'blood_request',
+      createdRequest.id
+    );
 
     return res
       .status(201)
@@ -1242,6 +1260,17 @@ async function fulfillBloodRequest(
     }
 
     // --------------------------------------------------------
+    // ACTIVITY ENTITY
+    // --------------------------------------------------------
+
+    setActivityEntity(
+      res,
+      'blood_request',
+      updatedRequest.id ||
+      requestId
+    );
+
+    // --------------------------------------------------------
     // NOTIFY ACCEPTED DONORS
     // --------------------------------------------------------
 
@@ -1499,6 +1528,17 @@ async function cancelBloodRequest(
             'Unable to cancel blood request.'
         });
     }
+
+    // --------------------------------------------------------
+    // ACTIVITY ENTITY
+    // --------------------------------------------------------
+
+    setActivityEntity(
+      res,
+      'blood_request',
+      updatedRequest.id ||
+      requestId
+    );
 
     // --------------------------------------------------------
     // NOTIFY DONORS

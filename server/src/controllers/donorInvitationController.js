@@ -10,6 +10,13 @@ const {
     '../services/notificationService'
   );
 
+const {
+  setActivityEntity
+} =
+  require(
+    '../middleware/activityLogMiddleware'
+  );
+
 // ============================================================
 // HELPERS
 // ============================================================
@@ -349,7 +356,8 @@ async function enrichInvitations(
     !Array.isArray(
       invitations
     ) ||
-    invitations.length === 0
+    invitations.length ===
+      0
   ) {
     return [];
   }
@@ -565,10 +573,6 @@ async function enrichInvitations(
     );
   }
 
-  // ----------------------------------------------------------
-  // RESPONSE
-  // ----------------------------------------------------------
-
   return invitations.map(
     invitation => ({
       ...invitation,
@@ -749,18 +753,6 @@ async function notifyRequesterInvitationDeclined(
 
 // ============================================================
 // POST /api/requests/:id/invitations
-//
-// REQUESTER INVITES A DONOR
-//
-// IMPORTANT:
-// Direct invitations require an EXACT verified blood-type match.
-//
-// BODY:
-//
-// {
-//   "donor_id": "...",
-//   "message": "optional"
-// }
 // ============================================================
 
 async function sendDonorInvitation(
@@ -768,10 +760,6 @@ async function sendDonorInvitation(
   res
 ) {
   try {
-    // ========================================================
-    // AUTH
-    // ========================================================
-
     const requesterId =
       getAuthenticatedUserId(
         req
@@ -788,10 +776,6 @@ async function sendDonorInvitation(
         });
     }
 
-    // ========================================================
-    // REQUEST ID
-    // ========================================================
-
     const requestId =
       getRequestId(
         req
@@ -807,10 +791,6 @@ async function sendDonorInvitation(
             'Request ID is required.'
         });
     }
-
-    // ========================================================
-    // DONOR ID
-    // ========================================================
 
     const donorId =
       String(
@@ -841,10 +821,6 @@ async function sendDonorInvitation(
         });
     }
 
-    // ========================================================
-    // MESSAGE
-    // ========================================================
-
     const message =
       cleanText(
         req.body?.message
@@ -862,10 +838,6 @@ async function sendDonorInvitation(
             'Message must not exceed 250 characters.'
         });
     }
-
-    // ========================================================
-    // VERIFY BLOOD REQUEST
-    // ========================================================
 
     const bloodRequest =
       await getOwnedBloodRequest(
@@ -896,10 +868,6 @@ async function sendDonorInvitation(
         });
     }
 
-    // ========================================================
-    // VERIFY DONOR
-    // ========================================================
-
     const donorApplication =
       await getVerifiedDonor(
         donorId
@@ -917,10 +885,6 @@ async function sendDonorInvitation(
             'This user is not currently a verified donor.'
         });
     }
-
-    // ========================================================
-    // EXACT BLOOD TYPE MATCH
-    // ========================================================
 
     if (
       !bloodTypesMatchExactly(
@@ -946,10 +910,6 @@ async function sendDonorInvitation(
         });
     }
 
-    // ========================================================
-    // DONOR AVAILABILITY
-    // ========================================================
-
     if (
       donorApplication
         .availability_status !==
@@ -962,10 +922,6 @@ async function sendDonorInvitation(
             'This donor is currently unavailable.'
         });
     }
-
-    // ========================================================
-    // URGENT REQUEST SETTING
-    // ========================================================
 
     if (
       bloodRequest.urgency ===
@@ -980,10 +936,6 @@ async function sendDonorInvitation(
             'This donor is not accepting urgent requests.'
         });
     }
-
-    // ========================================================
-    // EXISTING INVITATION
-    // ========================================================
 
     const {
       data:
@@ -1022,9 +974,22 @@ async function sendDonorInvitation(
         });
     }
 
-    // ========================================================
-    // ALREADY PENDING
-    // ========================================================
+    // --------------------------------------------------------
+    // EXISTING INVITATION ENTITY
+    //
+    // This also allows failed duplicate attempts to reference
+    // the invitation that already exists.
+    // --------------------------------------------------------
+
+    if (
+      existingInvitation?.id
+    ) {
+      setActivityEntity(
+        res,
+        'donor_invitation',
+        existingInvitation.id
+      );
+    }
 
     if (
       existingInvitation?.status ===
@@ -1040,10 +1005,6 @@ async function sendDonorInvitation(
             existingInvitation
         });
     }
-
-    // ========================================================
-    // ALREADY ACCEPTED
-    // ========================================================
 
     if (
       existingInvitation?.status ===
@@ -1178,28 +1139,26 @@ async function sendDonorInvitation(
         createdInvitation;
     }
 
-    // ========================================================
-    // REQUESTER SAFE PROFILE
-    // ========================================================
+    // --------------------------------------------------------
+    // ACTIVITY ENTITY
+    // --------------------------------------------------------
+
+    setActivityEntity(
+      res,
+      'donor_invitation',
+      invitation.id
+    );
 
     const requester =
       await getSafeUser(
         requesterId
       );
 
-    // ========================================================
-    // NOTIFY DONOR
-    // ========================================================
-
     await notifyDonorAboutInvitation(
       invitation,
       bloodRequest,
       requester
     );
-
-    // ========================================================
-    // RESPONSE
-    // ========================================================
 
     return res
       .status(
@@ -1240,8 +1199,6 @@ async function sendDonorInvitation(
 
 // ============================================================
 // GET /api/donor-invitations/me
-//
-// DONOR VIEWS THEIR INCOMING INVITATIONS
 // ============================================================
 
 async function getMyDonorInvitations(
@@ -1395,17 +1352,6 @@ async function getMyDonorInvitations(
 
 // ============================================================
 // PATCH /api/donor-invitations/:invitationId/accept
-//
-// DONOR ACCEPTS REQUESTER INVITATION
-//
-// IMPORTANT:
-// Blood type is revalidated here as well.
-// This prevents an older mismatched invitation from being
-// accepted after the new exact-match rule is enabled.
-//
-// Accepted invitation becomes an ACCEPTED
-// blood_request_responses row so the existing coordination
-// and chat flow can be reused.
 // ============================================================
 
 async function acceptDonorInvitation(
@@ -1413,10 +1359,6 @@ async function acceptDonorInvitation(
   res
 ) {
   try {
-    // ========================================================
-    // AUTH
-    // ========================================================
-
     const donorId =
       getAuthenticatedUserId(
         req
@@ -1432,10 +1374,6 @@ async function acceptDonorInvitation(
             'Unauthorized'
         });
     }
-
-    // ========================================================
-    // INVITATION ID
-    // ========================================================
 
     const invitationId =
       getInvitationId(
@@ -1453,9 +1391,18 @@ async function acceptDonorInvitation(
         });
     }
 
-    // ========================================================
-    // INVITATION
-    // ========================================================
+    // --------------------------------------------------------
+    // ACTIVITY ENTITY
+    //
+    // Set immediately so even failed attempts reference the
+    // invitation ID supplied in the request.
+    // --------------------------------------------------------
+
+    setActivityEntity(
+      res,
+      'donor_invitation',
+      invitationId
+    );
 
     const {
       data:
@@ -1505,6 +1452,12 @@ async function acceptDonorInvitation(
         });
     }
 
+    setActivityEntity(
+      res,
+      'donor_invitation',
+      invitation.id
+    );
+
     if (
       invitation.status ===
       'accepted'
@@ -1528,10 +1481,6 @@ async function acceptDonorInvitation(
             'Only pending donor invitations can be accepted.'
         });
     }
-
-    // ========================================================
-    // BLOOD REQUEST
-    // ========================================================
 
     const {
       data:
@@ -1614,10 +1563,6 @@ async function acceptDonorInvitation(
         });
     }
 
-    // ========================================================
-    // VERIFY DONOR STILL APPROVED
-    // ========================================================
-
     const donorApplication =
       await getVerifiedDonor(
         donorId
@@ -1635,10 +1580,6 @@ async function acceptDonorInvitation(
             'Your donor verification is no longer active.'
         });
     }
-
-    // ========================================================
-    // REVALIDATE EXACT BLOOD TYPE MATCH
-    // ========================================================
 
     if (
       !bloodTypesMatchExactly(
@@ -1663,10 +1604,6 @@ async function acceptDonorInvitation(
             )
         });
     }
-
-    // ========================================================
-    // EXISTING DONOR RESPONSE
-    // ========================================================
 
     const {
       data:
@@ -1707,10 +1644,6 @@ async function acceptDonorInvitation(
 
     let donorResponse =
       null;
-
-    // ========================================================
-    // UPDATE EXISTING RESPONSE
-    // ========================================================
 
     if (
       existingResponse
@@ -1764,10 +1697,6 @@ async function acceptDonorInvitation(
       donorResponse =
         updatedResponse;
     } else {
-      // ======================================================
-      // CREATE ACCEPTED DONOR RESPONSE
-      // ======================================================
-
       const {
         data:
           createdResponse,
@@ -1814,10 +1743,6 @@ async function acceptDonorInvitation(
       donorResponse =
         createdResponse;
     }
-
-    // ========================================================
-    // MARK INVITATION ACCEPTED
-    // ========================================================
 
     const now =
       new Date()
@@ -1881,19 +1806,17 @@ async function acceptDonorInvitation(
         });
     }
 
-    // ========================================================
-    // NOTIFY REQUESTER
-    // ========================================================
+    setActivityEntity(
+      res,
+      'donor_invitation',
+      updatedInvitation.id
+    );
 
     await notifyRequesterInvitationAccepted(
       updatedInvitation,
       bloodRequest,
       donorResponse
     );
-
-    // ========================================================
-    // RESPONSE
-    // ========================================================
 
     return res
       .status(200)
@@ -1934,10 +1857,6 @@ async function declineDonorInvitation(
   res
 ) {
   try {
-    // ========================================================
-    // AUTH
-    // ========================================================
-
     const donorId =
       getAuthenticatedUserId(
         req
@@ -1953,10 +1872,6 @@ async function declineDonorInvitation(
             'Unauthorized'
         });
     }
-
-    // ========================================================
-    // INVITATION ID
-    // ========================================================
 
     const invitationId =
       getInvitationId(
@@ -1974,9 +1889,15 @@ async function declineDonorInvitation(
         });
     }
 
-    // ========================================================
-    // INVITATION
-    // ========================================================
+    // --------------------------------------------------------
+    // ACTIVITY ENTITY
+    // --------------------------------------------------------
+
+    setActivityEntity(
+      res,
+      'donor_invitation',
+      invitationId
+    );
 
     const {
       data:
@@ -2026,6 +1947,12 @@ async function declineDonorInvitation(
         });
     }
 
+    setActivityEntity(
+      res,
+      'donor_invitation',
+      invitation.id
+    );
+
     if (
       invitation.status !==
       'pending'
@@ -2040,10 +1967,6 @@ async function declineDonorInvitation(
               : 'Only pending donor invitations can be declined.'
         });
     }
-
-    // ========================================================
-    // BLOOD REQUEST
-    // ========================================================
 
     const {
       data:
@@ -2075,10 +1998,6 @@ async function declineDonorInvitation(
         requestError
       );
     }
-
-    // ========================================================
-    // DECLINE
-    // ========================================================
 
     const now =
       new Date()
@@ -2142,9 +2061,11 @@ async function declineDonorInvitation(
         });
     }
 
-    // ========================================================
-    // NOTIFY REQUESTER
-    // ========================================================
+    setActivityEntity(
+      res,
+      'donor_invitation',
+      updatedInvitation.id
+    );
 
     if (
       bloodRequest
@@ -2154,10 +2075,6 @@ async function declineDonorInvitation(
         bloodRequest
       );
     }
-
-    // ========================================================
-    // RESPONSE
-    // ========================================================
 
     return res
       .status(200)

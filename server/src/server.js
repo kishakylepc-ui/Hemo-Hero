@@ -31,6 +31,9 @@ const donorInvitationRoutes =
 const adminDonorRoutes =
   require('./routes/adminDonorRoutes');
 
+const adminActivityLogRoutes =
+  require('./routes/adminActivityLogRoutes');
+
 const notificationRoutes =
   require('./routes/notificationRoutes');
 
@@ -157,6 +160,20 @@ app.use(
 );
 
 // ============================================================
+// ADMIN ACTIVITY LOGS
+//
+// GET /api/admin/activity-logs
+// GET /api/admin/activity-logs/summary
+//
+// ADMIN ONLY
+// ============================================================
+
+app.use(
+  '/api/admin/activity-logs',
+  adminActivityLogRoutes
+);
+
+// ============================================================
 // NOTIFICATIONS
 //
 // GET   /api/notifications
@@ -240,6 +257,14 @@ app.listen(
 
     console.log(
       `Admin Donor Reviews: http://localhost:${PORT}/api/admin/donor-applications`
+    );
+
+    console.log(
+      `Admin Activity Logs: http://localhost:${PORT}/api/admin/activity-logs`
+    );
+
+    console.log(
+      `Admin Activity Summary: http://localhost:${PORT}/api/admin/activity-logs/summary`
     );
 
     console.log(
