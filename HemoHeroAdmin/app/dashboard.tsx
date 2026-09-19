@@ -6,6 +6,7 @@ import {
 
 import {
   ActivityIndicator,
+  Image,
   Platform,
   Pressable,
   ScrollView,
@@ -61,6 +62,8 @@ const DESIGN_HEIGHT =
 
 // ============================================================
 // COLORS
+//
+// Matched to the Donor Applications module.
 // ============================================================
 
 const COLORS = {
@@ -68,13 +71,13 @@ const COLORS = {
     '#02040A',
 
   navy:
-    '#071126',
+    '#050B19',
 
   card:
-    '#0D1830',
+    '#091126',
 
   cardLight:
-    '#14223F',
+    '#101A35',
 
   border:
     '#243554',
@@ -89,10 +92,13 @@ const COLORS = {
     '#FFFFFF',
 
   muted:
-    '#909BB7',
+    '#7F889F',
+
+  soft:
+    '#B7C1D8',
 
   green:
-    '#38C983',
+    '#35C982',
 };
 
 // ============================================================
@@ -334,11 +340,15 @@ export default function AdminDashboardScreen() {
           style="light"
         />
 
+        {/* ====================================================
+            SAME BACKGROUND PALETTE AS APPLICATIONS
+        ==================================================== */}
+
         <LinearGradient
           colors={[
-            '#102454',
-            COLORS.navy,
+            '#081430',
             '#050B19',
+            '#030814',
           ]}
           style={
             styles.gradient
@@ -370,44 +380,84 @@ export default function AdminDashboardScreen() {
                   BRAND
               ================================================ */}
 
-              <View>
-                <Text
+              <Pressable
+                style={
+                  styles.brandArea
+                }
+                onPress={() =>
+                  router.replace(
+                    '/dashboard'
+                  )
+                }
+              >
+                <View
                   style={[
-                    styles.brand,
+                    styles.logoCircle,
 
                     {
-                      fontSize:
-                        27 * s,
+                      width:
+                        52 * s,
+
+                      height:
+                        52 * s,
+
+                      borderRadius:
+                        26 * s,
                     },
                   ]}
                 >
+                  <Image
+                    source={require('../assets/images/hemo-hero-logo.png')}
+                    style={{
+                      width:
+                        46 * s,
+
+                      height:
+                        46 * s,
+                    }}
+                    resizeMode="contain"
+                  />
+                </View>
+
+                <View>
                   <Text
-                    style={
-                      styles.brandRed
-                    }
+                    style={[
+                      styles.brand,
+
+                      {
+                        fontSize:
+                          27 * s,
+                      },
+                    ]}
                   >
-                    Hemo-
+                    <Text
+                      style={
+                        styles.brandRed
+                      }
+                    >
+                      Hemo-
+                    </Text>
+
+                    Hero
                   </Text>
 
-                  Hero
-                </Text>
+                  <Text
+                    style={[
+                      styles.portal,
 
-                <Text
-                  style={[
-                    styles.portal,
+                      {
+                        fontSize:
+                          9 * s,
 
-                    {
-                      fontSize:
-                        9 * s,
-
-                      letterSpacing:
-                        1.8 * s,
-                    },
-                  ]}
-                >
-                  ADMIN PORTAL
-                </Text>
-              </View>
+                        letterSpacing:
+                          1.6 * s,
+                      },
+                    ]}
+                  >
+                    ADMIN PORTAL
+                  </Text>
+                </View>
+              </Pressable>
 
               {/* ================================================
                   ADMIN AREA
@@ -419,7 +469,7 @@ export default function AdminDashboardScreen() {
                 }
               >
                 {/* ==============================================
-                    NOTIFICATION BELL
+                    NOTIFICATION
                 ============================================== */}
 
                 <Pressable
@@ -429,18 +479,7 @@ export default function AdminDashboardScreen() {
                     );
                   }}
                   style={({ pressed }) => [
-                    styles.notificationButton,
-
-                    {
-                      width:
-                        46 * s,
-
-                      height:
-                        46 * s,
-
-                      borderRadius:
-                        23 * s,
-                    },
+                    styles.notificationWrap,
 
                     pressed &&
                       styles.headerButtonPressed,
@@ -452,36 +491,23 @@ export default function AdminDashboardScreen() {
                       24 * s
                     }
                     color={
-                      COLORS.muted
+                      COLORS.white
                     }
                   />
-
-                  {/* ============================================
-                      BADGE PLACEHOLDER
-
-                      This is visual only for now.
-                      We'll connect real unread count later.
-                  ============================================ */}
 
                   <View
                     style={[
                       styles.notificationBadge,
 
                       {
-                        width:
-                          15 * s,
+                        minWidth:
+                          18 * s,
 
                         height:
-                          15 * s,
+                          18 * s,
 
                         borderRadius:
-                          8 * s,
-
-                        right:
-                          3 * s,
-
-                        top:
-                          3 * s,
+                          9 * s,
                       },
                     ]}
                   >
@@ -491,7 +517,7 @@ export default function AdminDashboardScreen() {
 
                         {
                           fontSize:
-                            8 * s,
+                            9 * s,
                         },
                       ]}
                     >
@@ -581,15 +607,9 @@ export default function AdminDashboardScreen() {
                       },
                     ]}
                   >
-                    Administrator
+                    Admin
                   </Text>
                 </Pressable>
-
-                {/* ==============================================
-                    NO LOGOUT BUTTON HERE
-
-                    Sign Out has been moved to Settings.
-                ============================================== */}
               </View>
             </View>
 
@@ -779,8 +799,6 @@ export default function AdminDashboardScreen() {
                       },
                     ]}
                   >
-                    {/* TOTAL APPLICATIONS */}
-
                     <StatCard
                       scale={
                         s
@@ -792,8 +810,6 @@ export default function AdminDashboardScreen() {
                         0
                       }
                     />
-
-                    {/* VERIFIED DONORS */}
 
                     <StatCard
                       scale={
@@ -807,8 +823,6 @@ export default function AdminDashboardScreen() {
                       }
                       positive
                     />
-
-                    {/* PENDING */}
 
                     <StatCard
                       scale={
@@ -827,8 +841,6 @@ export default function AdminDashboardScreen() {
                         )
                       }
                     />
-
-                    {/* REJECTED */}
 
                     <StatCard
                       scale={
@@ -859,7 +871,7 @@ export default function AdminDashboardScreen() {
                           24 * s,
 
                         borderRadius:
-                          16 * s,
+                          14 * s,
 
                         marginBottom:
                           22 * s,
@@ -938,10 +950,6 @@ export default function AdminDashboardScreen() {
                       </Text>
                     </View>
 
-                    {/* ==========================================
-                        REVIEW APPLICATIONS
-                    ========================================== */}
-
                     <Pressable
                       style={({ pressed }) => [
                         styles.reviewButton,
@@ -1008,7 +1016,7 @@ export default function AdminDashboardScreen() {
                             285 * s,
 
                           borderRadius:
-                            16 * s,
+                            14 * s,
 
                           padding:
                             27 * s,
@@ -1074,7 +1082,7 @@ export default function AdminDashboardScreen() {
                             285 * s,
 
                           borderRadius:
-                            16 * s,
+                            14 * s,
 
                           padding:
                             27 * s,
@@ -1132,7 +1140,7 @@ export default function AdminDashboardScreen() {
             </ScrollView>
 
             {/* ==================================================
-                SHARED ADMIN HOTBAR
+                SHARED ADMIN BOTTOM NAV
             ================================================== */}
 
             <AdminBottomNav
@@ -1178,10 +1186,6 @@ function StatCard({
   const content =
     (
       <>
-        {/* ====================================================
-            STAT TOP
-        ==================================================== */}
-
         <View
           style={
             styles.statTop
@@ -1215,7 +1219,7 @@ function StatCard({
                   ? COLORS.redBright
                   : positive
                     ? COLORS.green
-                    : '#B5C7F1'
+                    : COLORS.soft
               }
             />
           </View>
@@ -1232,10 +1236,6 @@ function StatCard({
             />
           ) : null}
         </View>
-
-        {/* ====================================================
-            STAT LABEL
-        ==================================================== */}
 
         <Text
           style={[
@@ -1254,10 +1254,6 @@ function StatCard({
             title
           }
         </Text>
-
-        {/* ====================================================
-            STAT VALUE
-        ==================================================== */}
 
         <Text
           style={[
@@ -1282,10 +1278,6 @@ function StatCard({
       </>
     );
 
-  // ==========================================================
-  // PRESSABLE CARD
-  // ==========================================================
-
   if (
     onPress
   ) {
@@ -1305,7 +1297,7 @@ function StatCard({
               20 * scale,
 
             borderRadius:
-              16 * scale,
+              14 * scale,
           },
 
           alert &&
@@ -1322,10 +1314,6 @@ function StatCard({
     );
   }
 
-  // ==========================================================
-  // NORMAL CARD
-  // ==========================================================
-
   return (
     <View
       style={[
@@ -1339,7 +1327,7 @@ function StatCard({
             20 * scale,
 
           borderRadius:
-            16 * scale,
+            14 * scale,
         },
 
         alert &&
@@ -1430,6 +1418,31 @@ const styles =
         COLORS.border,
     },
 
+    brandArea: {
+      flexDirection:
+        'row',
+
+      alignItems:
+        'center',
+
+      gap:
+        14,
+    },
+
+    logoCircle: {
+      alignItems:
+        'center',
+
+      justifyContent:
+        'center',
+
+      backgroundColor:
+        COLORS.white,
+
+      overflow:
+        'hidden',
+    },
+
     brand: {
       color:
         COLORS.white,
@@ -1448,7 +1461,10 @@ const styles =
         COLORS.redBright,
 
       fontFamily:
-        'Inter_700Bold',
+        'Inter_600SemiBold',
+
+      marginTop:
+        1,
     },
 
     // ========================================================
@@ -1463,12 +1479,18 @@ const styles =
         'center',
 
       gap:
-        11,
+        12,
     },
 
-    notificationButton: {
+    notificationWrap: {
+      marginRight:
+        4,
+
       position:
         'relative',
+
+      width:
+        28,
 
       alignItems:
         'center',
@@ -1481,14 +1503,23 @@ const styles =
       position:
         'absolute',
 
+      top:
+        -4,
+
+      right:
+        -6,
+
+      paddingHorizontal:
+        4,
+
+      backgroundColor:
+        COLORS.redBright,
+
       alignItems:
         'center',
 
       justifyContent:
         'center',
-
-      backgroundColor:
-        COLORS.redBright,
     },
 
     notificationBadgeText: {
@@ -1497,9 +1528,6 @@ const styles =
 
       fontFamily:
         'Inter_700Bold',
-
-      lineHeight:
-        10,
     },
 
     headerButtonPressed: {
@@ -1514,19 +1542,13 @@ const styles =
       justifyContent:
         'center',
 
-      borderWidth:
-        1,
-
-      borderColor:
-        COLORS.border,
-
       backgroundColor:
-        COLORS.cardLight,
+        '#ECECEC',
     },
 
     avatarText: {
       color:
-        COLORS.white,
+        '#111111',
 
       fontFamily:
         'Poppins_600SemiBold',
@@ -1620,8 +1642,14 @@ const styles =
       justifyContent:
         'center',
 
+      borderWidth:
+        1,
+
+      borderColor:
+        COLORS.border,
+
       backgroundColor:
-        COLORS.cardLight,
+        COLORS.card,
     },
 
     refreshPressed: {
@@ -1728,7 +1756,7 @@ const styles =
 
     statTitle: {
       color:
-        '#B8C1D7',
+        COLORS.soft,
 
       fontFamily:
         'Inter_600SemiBold',

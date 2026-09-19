@@ -6,6 +6,7 @@ import {
 
 import {
   ActivityIndicator,
+  Image,
   Platform,
   Pressable,
   ScrollView,
@@ -68,6 +69,8 @@ const PAGE_LIMIT =
 
 // ============================================================
 // COLORS
+//
+// MATCHED WITH DONOR APPLICATIONS
 // ============================================================
 
 const COLORS = {
@@ -75,13 +78,13 @@ const COLORS = {
     '#02040A',
 
   navy:
-    '#071126',
+    '#050B19',
 
   card:
-    '#0D1830',
+    '#091126',
 
   cardLight:
-    '#14223F',
+    '#101A35',
 
   border:
     '#243554',
@@ -96,13 +99,19 @@ const COLORS = {
     '#FFFFFF',
 
   muted:
-    '#909BB7',
+    '#7F889F',
+
+  soft:
+    '#B7C1D8',
 
   green:
-    '#38C983',
+    '#35C982',
 
   blue:
     '#6EA8FE',
+
+  rowBorder:
+    'rgba(36,53,84,0.78)',
 };
 
 // ============================================================
@@ -561,7 +570,9 @@ export default function ActivityLogsScreen() {
       profile?.first_name,
       profile?.last_name,
     ]
-      .filter(Boolean)
+      .filter(
+        Boolean
+      )
       .join(' ')
       .trim() ||
     profile?.email ||
@@ -605,9 +616,9 @@ export default function ActivityLogsScreen() {
 
         <LinearGradient
           colors={[
-            '#102454',
-            COLORS.navy,
+            '#081430',
             '#050B19',
+            '#030814',
           ]}
           style={
             styles.gradient
@@ -640,54 +651,82 @@ export default function ActivityLogsScreen() {
               ================================================ */}
 
               <Pressable
+                style={
+                  styles.brandArea
+                }
                 onPress={() =>
                   router.replace(
                     '/dashboard'
                   )
                 }
-                style={({ pressed }) => [
-                  styles.brandButton,
-
-                  pressed &&
-                    styles.pressed,
-                ]}
               >
-                <Text
+                <View
                   style={[
-                    styles.brand,
+                    styles.logoCircle,
 
                     {
-                      fontSize:
-                        27 * s,
+                      width:
+                        52 * s,
+
+                      height:
+                        52 * s,
+
+                      borderRadius:
+                        26 * s,
                     },
                   ]}
                 >
+                  <Image
+                    source={require('../../assets/images/hemo-hero-logo.png')}
+                    style={{
+                      width:
+                        46 * s,
+
+                      height:
+                        46 * s,
+                    }}
+                    resizeMode="contain"
+                  />
+                </View>
+
+                <View>
                   <Text
-                    style={
-                      styles.brandRed
-                    }
+                    style={[
+                      styles.brand,
+
+                      {
+                        fontSize:
+                          27 * s,
+                      },
+                    ]}
                   >
-                    Hemo-
+                    <Text
+                      style={
+                        styles.brandRed
+                      }
+                    >
+                      Hemo-
+                    </Text>
+
+                    Hero
                   </Text>
 
-                  Hero
-                </Text>
+                  <Text
+                    style={[
+                      styles.portal,
 
-                <Text
-                  style={[
-                    styles.portal,
+                      {
+                        fontSize:
+                          9 * s,
 
-                    {
-                      fontSize:
-                        9 * s,
-
-                      letterSpacing:
-                        1.8 * s,
-                    },
-                  ]}
-                >
-                  ADMIN PORTAL
-                </Text>
+                        letterSpacing:
+                          1.6 * s,
+                      },
+                    ]}
+                  >
+                    ADMIN PORTAL
+                  </Text>
+                </View>
               </Pressable>
 
               {/* ================================================
@@ -699,6 +738,60 @@ export default function ActivityLogsScreen() {
                   styles.adminSection
                 }
               >
+                {/* ==============================================
+                    NOTIFICATION
+                ============================================== */}
+
+                <View
+                  style={
+                    styles.notificationWrap
+                  }
+                >
+                  <MaterialIcons
+                    name="notifications-none"
+                    size={
+                      24 * s
+                    }
+                    color={
+                      COLORS.white
+                    }
+                  />
+
+                  <View
+                    style={[
+                      styles.notificationBadge,
+
+                      {
+                        minWidth:
+                          18 * s,
+
+                        height:
+                          18 * s,
+
+                        borderRadius:
+                          9 * s,
+                      },
+                    ]}
+                  >
+                    <Text
+                      style={[
+                        styles.notificationBadgeText,
+
+                        {
+                          fontSize:
+                            9 * s,
+                        },
+                      ]}
+                    >
+                      3
+                    </Text>
+                  </View>
+                </View>
+
+                {/* ==============================================
+                    AVATAR
+                ============================================== */}
+
                 <View
                   style={[
                     styles.avatar,
@@ -731,7 +824,23 @@ export default function ActivityLogsScreen() {
                   </Text>
                 </View>
 
-                <View>
+                {/* ==============================================
+                    ADMIN DETAILS
+                ============================================== */}
+
+                <Pressable
+                  onPress={() =>
+                    router.push(
+                      '/settings'
+                    )
+                  }
+                  style={({ pressed }) => [
+                    styles.adminInfo,
+
+                    pressed &&
+                      styles.pressed,
+                  ]}
+                >
                   <Text
                     numberOfLines={
                       1
@@ -760,9 +869,9 @@ export default function ActivityLogsScreen() {
                       },
                     ]}
                   >
-                    Administrator
+                    Admin
                   </Text>
-                </View>
+                </Pressable>
               </View>
             </View>
 
@@ -782,10 +891,10 @@ export default function ActivityLogsScreen() {
                     48 * s,
 
                   paddingTop:
-                    28 * s,
+                    32 * s,
 
                   paddingBottom:
-                    36 * s,
+                    32 * s,
                 },
               ]}
               showsVerticalScrollIndicator={
@@ -806,83 +915,43 @@ export default function ActivityLogsScreen() {
                   },
                 ]}
               >
-                <View
-                  style={
-                    styles.titleLeft
-                  }
-                >
-                  <Pressable
-                    onPress={() =>
-                      router.replace(
-                        '/dashboard'
-                      )
-                    }
-                    style={({ pressed }) => [
-                      styles.backButton,
+                <View>
+                  <Text
+                    style={[
+                      styles.title,
 
                       {
-                        width:
-                          43 * s,
+                        fontSize:
+                          32 * s,
 
-                        height:
-                          43 * s,
-
-                        borderRadius:
-                          11 * s,
-
-                        marginRight:
-                          14 * s,
+                        lineHeight:
+                          40 * s,
                       },
-
-                      pressed &&
-                        styles.pressed,
                     ]}
                   >
-                    <MaterialIcons
-                      name="arrow-back"
-                      size={
-                        21 * s
-                      }
-                      color={
-                        COLORS.white
-                      }
-                    />
-                  </Pressable>
+                    Log Trails
+                  </Text>
 
-                  <View>
-                    <Text
-                      style={[
-                        styles.title,
+                  <Text
+                    style={[
+                      styles.subtitle,
 
-                        {
-                          fontSize:
-                            30 * s,
+                      {
+                        fontSize:
+                          13 * s,
 
-                          lineHeight:
-                            38 * s,
-                        },
-                      ]}
-                    >
-                      Log Trails
-                    </Text>
-
-                    <Text
-                      style={[
-                        styles.subtitle,
-
-                        {
-                          fontSize:
-                            12 * s,
-
-                          marginTop:
-                            3 * s,
-                        },
-                      ]}
-                    >
-                      Review recorded user and system activities.
-                    </Text>
-                  </View>
+                        marginTop:
+                          4 * s,
+                      },
+                    ]}
+                  >
+                    Review recorded user and system activities.
+                  </Text>
                 </View>
+
+                {/* ==============================================
+                    REFRESH
+                ============================================== */}
 
                 <Pressable
                   disabled={
@@ -1026,7 +1095,7 @@ export default function ActivityLogsScreen() {
                       18 * s,
 
                     borderRadius:
-                      15 * s,
+                      14 * s,
 
                     marginBottom:
                       18 * s,
@@ -1085,7 +1154,7 @@ export default function ActivityLogsScreen() {
                       }
                       placeholder="Search by user email"
                       placeholderTextColor={
-                        '#66738F'
+                        COLORS.muted
                       }
                       autoCapitalize="none"
                       autoCorrect={
@@ -1390,7 +1459,7 @@ export default function ActivityLogsScreen() {
 
                   {
                     borderRadius:
-                      15 * s,
+                      14 * s,
                   },
                 ]}
               >
@@ -1404,7 +1473,7 @@ export default function ActivityLogsScreen() {
 
                     {
                       minHeight:
-                        49 * s,
+                        52 * s,
 
                       paddingHorizontal:
                         17 * s,
@@ -1522,10 +1591,6 @@ export default function ActivityLogsScreen() {
                   </View>
                 ) : logs.length ===
                   0 ? (
-                  // ============================================
-                  // EMPTY
-                  // ============================================
-
                   <View
                     style={[
                       styles.emptyState,
@@ -1793,7 +1858,7 @@ export default function ActivityLogsScreen() {
             </ScrollView>
 
             {/* ==================================================
-                SHARED ADMIN HOTBAR
+                SHARED BOTTOM NAVIGATION
             ================================================== */}
 
             <AdminBottomNav
@@ -2565,9 +2630,29 @@ const styles =
         COLORS.border,
     },
 
-    brandButton: {
-      alignSelf:
+    brandArea: {
+      flexDirection:
+        'row',
+
+      alignItems:
         'center',
+
+      gap:
+        14,
+    },
+
+    logoCircle: {
+      alignItems:
+        'center',
+
+      justifyContent:
+        'center',
+
+      backgroundColor:
+        COLORS.white,
+
+      overflow:
+        'hidden',
     },
 
     brand: {
@@ -2588,8 +2673,15 @@ const styles =
         COLORS.redBright,
 
       fontFamily:
-        'Inter_700Bold',
+        'Inter_600SemiBold',
+
+      marginTop:
+        1,
     },
+
+    // ========================================================
+    // ADMIN
+    // ========================================================
 
     adminSection: {
       flexDirection:
@@ -2599,7 +2691,55 @@ const styles =
         'center',
 
       gap:
-        11,
+        12,
+    },
+
+    notificationWrap: {
+      marginRight:
+        4,
+
+      position:
+        'relative',
+
+      width:
+        28,
+
+      alignItems:
+        'center',
+
+      justifyContent:
+        'center',
+    },
+
+    notificationBadge: {
+      position:
+        'absolute',
+
+      top:
+        -4,
+
+      right:
+        -6,
+
+      paddingHorizontal:
+        4,
+
+      backgroundColor:
+        COLORS.redBright,
+
+      alignItems:
+        'center',
+
+      justifyContent:
+        'center',
+    },
+
+    notificationBadgeText: {
+      color:
+        COLORS.white,
+
+      fontFamily:
+        'Inter_700Bold',
     },
 
     avatar: {
@@ -2609,22 +2749,21 @@ const styles =
       justifyContent:
         'center',
 
-      borderWidth:
-        1,
-
-      borderColor:
-        COLORS.border,
-
       backgroundColor:
-        COLORS.cardLight,
+        '#ECECEC',
     },
 
     avatarText: {
       color:
-        COLORS.white,
+        '#111111',
 
       fontFamily:
         'Poppins_600SemiBold',
+    },
+
+    adminInfo: {
+      minWidth:
+        90,
     },
 
     adminName: {
@@ -2664,31 +2803,6 @@ const styles =
         'space-between',
     },
 
-    titleLeft: {
-      flexDirection:
-        'row',
-
-      alignItems:
-        'center',
-    },
-
-    backButton: {
-      alignItems:
-        'center',
-
-      justifyContent:
-        'center',
-
-      borderWidth:
-        1,
-
-      borderColor:
-        COLORS.border,
-
-      backgroundColor:
-        COLORS.cardLight,
-    },
-
     title: {
       color:
         COLORS.white,
@@ -2715,8 +2829,14 @@ const styles =
       justifyContent:
         'center',
 
+      borderWidth:
+        1,
+
+      borderColor:
+        COLORS.border,
+
       backgroundColor:
-        COLORS.cardLight,
+        COLORS.card,
     },
 
     refreshText: {
@@ -2777,7 +2897,7 @@ const styles =
 
     summaryTitle: {
       color:
-        COLORS.muted,
+        COLORS.soft,
 
       fontFamily:
         'Inter_600SemiBold',
@@ -2840,7 +2960,7 @@ const styles =
         COLORS.border,
 
       backgroundColor:
-        '#091327',
+        COLORS.cardLight,
     },
 
     searchInput: {
@@ -2921,20 +3041,20 @@ const styles =
         COLORS.border,
 
       backgroundColor:
-        '#091327',
+        COLORS.cardLight,
     },
 
     filterChipSelected: {
       borderColor:
-        'rgba(239,51,64,0.75)',
+        COLORS.redBright,
 
       backgroundColor:
-        'rgba(239,51,64,0.14)',
+        'rgba(219,10,10,0.15)',
     },
 
     filterChipText: {
       color:
-        COLORS.muted,
+        COLORS.soft,
 
       fontFamily:
         'Inter_600SemiBold',
@@ -2942,7 +3062,7 @@ const styles =
 
     filterChipTextSelected: {
       color:
-        COLORS.redBright,
+        COLORS.white,
     },
 
     // ========================================================
@@ -3012,15 +3132,15 @@ const styles =
         COLORS.border,
 
       backgroundColor:
-        COLORS.cardLight,
+        'rgba(12,20,40,0.94)',
     },
 
     tableHeaderText: {
       color:
-        COLORS.muted,
+        COLORS.white,
 
       fontFamily:
-        'Inter_700Bold',
+        'Inter_600SemiBold',
 
       letterSpacing:
         0.45,
@@ -3037,7 +3157,7 @@ const styles =
         1,
 
       borderBottomColor:
-        'rgba(36,53,84,0.65)',
+        COLORS.rowBorder,
     },
 
     colActivity: {
@@ -3124,16 +3244,25 @@ const styles =
 
       gap:
         6,
+
+      borderWidth:
+        1,
     },
 
     statusDot: {},
 
     successBadge: {
+      borderColor:
+        'rgba(53,201,130,0.35)',
+
       backgroundColor:
-        'rgba(56,201,131,0.12)',
+        'rgba(53,201,130,0.12)',
     },
 
     failedBadge: {
+      borderColor:
+        'rgba(239,51,64,0.40)',
+
       backgroundColor:
         'rgba(239,51,64,0.12)',
     },
@@ -3256,8 +3385,14 @@ const styles =
       justifyContent:
         'center',
 
+      borderWidth:
+        1,
+
+      borderColor:
+        COLORS.border,
+
       backgroundColor:
-        COLORS.cardLight,
+        COLORS.card,
     },
 
     pageButtonText: {

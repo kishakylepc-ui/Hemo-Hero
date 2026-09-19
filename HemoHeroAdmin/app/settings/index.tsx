@@ -6,6 +6,7 @@ import {
 
 import {
   ActivityIndicator,
+  Image,
   Modal,
   Platform,
   Pressable,
@@ -55,6 +56,8 @@ const DESIGN_HEIGHT =
 
 // ============================================================
 // COLORS
+//
+// MATCHED TO DASHBOARD / APPLICATIONS / LOG TRAILS
 // ============================================================
 
 const COLORS = {
@@ -62,13 +65,13 @@ const COLORS = {
     '#02040A',
 
   navy:
-    '#071126',
+    '#050B19',
 
   card:
-    '#0D1830',
+    '#091126',
 
   cardLight:
-    '#14223F',
+    '#101A35',
 
   border:
     '#243554',
@@ -86,16 +89,16 @@ const COLORS = {
     '#F7F8FC',
 
   muted:
-    '#909BB7',
+    '#7F889F',
 
   soft:
-    '#B9C3DA',
+    '#B7C1D8',
 
   overlay:
     'rgba(0,0,0,0.74)',
 
   cancel:
-    '#14223F',
+    '#101A35',
 };
 
 // ============================================================
@@ -130,7 +133,7 @@ export default function AdminSettingsScreen() {
     useWindowDimensions();
 
   // ==========================================================
-  // SAME IPAD PRO FRAME AS DASHBOARD
+  // RESPONSIVE TABLET FRAME
   // ==========================================================
 
   const tablet =
@@ -225,19 +228,25 @@ export default function AdminSettingsScreen() {
     loading,
     setLoading,
   ] =
-    useState(true);
+    useState(
+      true
+    );
 
   const [
     logoutVisible,
     setLogoutVisible,
   ] =
-    useState(false);
+    useState(
+      false
+    );
 
   const [
     loggingOut,
     setLoggingOut,
   ] =
-    useState(false);
+    useState(
+      false
+    );
 
   // ==========================================================
   // LOAD PROFILE
@@ -303,8 +312,14 @@ export default function AdminSettingsScreen() {
       profile?.last_name,
       profile?.suffix,
     ]
-      .filter(Boolean)
+      .filter(
+        Boolean
+      )
       .join(' ')
+      .replace(
+        /\s+/g,
+        ' '
+      )
       .trim() ||
     profile?.email ||
     'Administrator';
@@ -433,9 +448,9 @@ export default function AdminSettingsScreen() {
 
         <LinearGradient
           colors={[
-            '#102454',
-            COLORS.navy,
+            '#081430',
             '#050B19',
+            '#030814',
           ]}
           style={
             styles.gradient
@@ -467,44 +482,87 @@ export default function AdminSettingsScreen() {
                   BRAND
               ================================================ */}
 
-              <View>
-                <Text
+              <Pressable
+                style={({ pressed }) => [
+                  styles.brandArea,
+
+                  pressed &&
+                    styles.headerPressed,
+                ]}
+                onPress={() =>
+                  router.replace(
+                    '/dashboard'
+                  )
+                }
+              >
+                <View
                   style={[
-                    styles.brand,
+                    styles.logoCircle,
 
                     {
-                      fontSize:
-                        27 * s,
+                      width:
+                        52 * s,
+
+                      height:
+                        52 * s,
+
+                      borderRadius:
+                        26 * s,
                     },
                   ]}
                 >
+                  <Image
+                    source={require('../../assets/images/hemo-hero-logo.png')}
+                    style={{
+                      width:
+                        46 * s,
+
+                      height:
+                        46 * s,
+                    }}
+                    resizeMode="contain"
+                  />
+                </View>
+
+                <View>
                   <Text
-                    style={
-                      styles.brandRed
-                    }
+                    style={[
+                      styles.brand,
+
+                      {
+                        fontSize:
+                          27 * s,
+                      },
+                    ]}
                   >
-                    Hemo-
+                    <Text
+                      style={
+                        styles.brandRed
+                      }
+                    >
+                      Hemo-
+                    </Text>
+
+                    Hero
                   </Text>
 
-                  Hero
-                </Text>
+                  <Text
+                    style={[
+                      styles.portal,
 
-                <Text
-                  style={[
-                    styles.portal,
+                      {
+                        fontSize:
+                          9 * s,
 
-                    {
-                      fontSize:
-                        9 * s,
-
-                      letterSpacing:
-                        1.8 * s,
-                    },
-                  ]}
-                >
-                  ADMIN PORTAL
-                </Text>
-              </View>
+                        letterSpacing:
+                          1.6 * s,
+                      },
+                    ]}
+                  >
+                    ADMIN PORTAL
+                  </Text>
+                </View>
+              </Pressable>
 
               {/* ================================================
                   ADMIN AREA
@@ -515,20 +573,13 @@ export default function AdminSettingsScreen() {
                   styles.adminSection
                 }
               >
+                {/* ==============================================
+                    NOTIFICATION
+                ============================================== */}
+
                 <Pressable
                   style={({ pressed }) => [
-                    styles.notificationButton,
-
-                    {
-                      width:
-                        46 * s,
-
-                      height:
-                        46 * s,
-
-                      borderRadius:
-                        23 * s,
-                    },
+                    styles.notificationWrap,
 
                     pressed &&
                       styles.headerPressed,
@@ -545,10 +596,44 @@ export default function AdminSettingsScreen() {
                       24 * s
                     }
                     color={
-                      COLORS.muted
+                      COLORS.white
                     }
                   />
+
+                  <View
+                    style={[
+                      styles.notificationBadge,
+
+                      {
+                        minWidth:
+                          18 * s,
+
+                        height:
+                          18 * s,
+
+                        borderRadius:
+                          9 * s,
+                      },
+                    ]}
+                  >
+                    <Text
+                      style={[
+                        styles.notificationBadgeText,
+
+                        {
+                          fontSize:
+                            9 * s,
+                        },
+                      ]}
+                    >
+                      3
+                    </Text>
+                  </View>
                 </Pressable>
+
+                {/* ==============================================
+                    AVATAR
+                ============================================== */}
 
                 <View
                   style={[
@@ -582,7 +667,15 @@ export default function AdminSettingsScreen() {
                   </Text>
                 </View>
 
-                <View>
+                {/* ==============================================
+                    ADMIN INFO
+                ============================================== */}
+
+                <View
+                  style={
+                    styles.adminInfo
+                  }
+                >
                   <Text
                     numberOfLines={
                       1
@@ -611,7 +704,7 @@ export default function AdminSettingsScreen() {
                       },
                     ]}
                   >
-                    Administrator
+                    Admin
                   </Text>
                 </View>
               </View>
@@ -633,7 +726,7 @@ export default function AdminSettingsScreen() {
                     48 * s,
 
                   paddingTop:
-                    34 * s,
+                    32 * s,
 
                   paddingBottom:
                     30 * s,
@@ -718,7 +811,7 @@ export default function AdminSettingsScreen() {
                       24 * s,
 
                     borderRadius:
-                      16 * s,
+                      14 * s,
 
                     marginBottom:
                       24 * s,
@@ -885,7 +978,7 @@ export default function AdminSettingsScreen() {
 
                       {
                         borderRadius:
-                          16 * s,
+                          14 * s,
 
                         paddingHorizontal:
                           22 * s,
@@ -959,7 +1052,7 @@ export default function AdminSettingsScreen() {
 
                       {
                         borderRadius:
-                          16 * s,
+                          14 * s,
 
                         paddingHorizontal:
                           22 * s,
@@ -1038,7 +1131,7 @@ export default function AdminSettingsScreen() {
                       24 * s,
 
                     borderRadius:
-                      16 * s,
+                      14 * s,
                   },
                 ]}
               >
@@ -1116,7 +1209,7 @@ export default function AdminSettingsScreen() {
             </ScrollView>
 
             {/* ==================================================
-                SHARED HOTBAR
+                SHARED BOTTOM NAV
             ================================================== */}
 
             <AdminBottomNav
@@ -1266,9 +1359,6 @@ export default function AdminSettingsScreen() {
 
                 {/* ============================================
                     SIGN OUT
-
-                    NO ICON
-                    NO LOGO
                 ============================================ */}
 
                 <Pressable
@@ -1546,6 +1636,31 @@ const styles =
         COLORS.border,
     },
 
+    brandArea: {
+      flexDirection:
+        'row',
+
+      alignItems:
+        'center',
+
+      gap:
+        14,
+    },
+
+    logoCircle: {
+      alignItems:
+        'center',
+
+      justifyContent:
+        'center',
+
+      backgroundColor:
+        COLORS.white,
+
+      overflow:
+        'hidden',
+    },
+
     brand: {
       color:
         COLORS.white,
@@ -1564,8 +1679,15 @@ const styles =
         COLORS.redBright,
 
       fontFamily:
-        'Inter_700Bold',
+        'Inter_600SemiBold',
+
+      marginTop:
+        1,
     },
+
+    // ========================================================
+    // ADMIN AREA
+    // ========================================================
 
     adminSection: {
       flexDirection:
@@ -1575,10 +1697,19 @@ const styles =
         'center',
 
       gap:
-        11,
+        12,
     },
 
-    notificationButton: {
+    notificationWrap: {
+      marginRight:
+        4,
+
+      position:
+        'relative',
+
+      width:
+        28,
+
       alignItems:
         'center',
 
@@ -1586,9 +1717,40 @@ const styles =
         'center',
     },
 
+    notificationBadge: {
+      position:
+        'absolute',
+
+      top:
+        -4,
+
+      right:
+        -6,
+
+      paddingHorizontal:
+        4,
+
+      backgroundColor:
+        COLORS.redBright,
+
+      alignItems:
+        'center',
+
+      justifyContent:
+        'center',
+    },
+
+    notificationBadgeText: {
+      color:
+        COLORS.white,
+
+      fontFamily:
+        'Inter_700Bold',
+    },
+
     headerPressed: {
       opacity:
-        0.65,
+        0.68,
     },
 
     avatar: {
@@ -1598,22 +1760,21 @@ const styles =
       justifyContent:
         'center',
 
-      borderWidth:
-        1,
-
-      borderColor:
-        COLORS.border,
-
       backgroundColor:
-        COLORS.cardLight,
+        '#ECECEC',
     },
 
     avatarText: {
       color:
-        COLORS.white,
+        '#111111',
 
       fontFamily:
         'Poppins_600SemiBold',
+    },
+
+    adminInfo: {
+      minWidth:
+        90,
     },
 
     adminName: {
@@ -1716,19 +1877,13 @@ const styles =
       justifyContent:
         'center',
 
-      borderWidth:
-        1,
-
-      borderColor:
-        COLORS.border,
-
       backgroundColor:
-        COLORS.cardLight,
+        '#ECECEC',
     },
 
     profileAvatarText: {
       color:
-        COLORS.white,
+        '#111111',
 
       fontFamily:
         'Poppins_600SemiBold',
@@ -1758,6 +1913,12 @@ const styles =
     roleBadge: {
       alignSelf:
         'flex-start',
+
+      borderWidth:
+        1,
+
+      borderColor:
+        'rgba(239,51,64,0.35)',
 
       backgroundColor:
         'rgba(239,51,64,0.12)',
@@ -1811,6 +1972,9 @@ const styles =
     settingsRowPressed: {
       opacity:
         0.66,
+
+      backgroundColor:
+        'rgba(255,255,255,0.02)',
     },
 
     settingsIcon: {
@@ -1819,6 +1983,12 @@ const styles =
 
       justifyContent:
         'center',
+
+      borderWidth:
+        1,
+
+      borderColor:
+        'rgba(239,51,64,0.24)',
 
       backgroundColor:
         'rgba(239,51,64,0.09)',

@@ -18,18 +18,28 @@ import {
   View,
 } from 'react-native';
 
-import { MaterialIcons } from '@expo/vector-icons';
+import {
+  MaterialIcons,
+} from '@expo/vector-icons';
 
-import { LinearGradient } from 'expo-linear-gradient';
+import {
+  LinearGradient,
+} from 'expo-linear-gradient';
 
 import {
   router,
   useFocusEffect,
 } from 'expo-router';
 
-import { StatusBar } from 'expo-status-bar';
+import {
+  StatusBar,
+} from 'expo-status-bar';
 
-import { SafeAreaView } from 'react-native-safe-area-context';
+import {
+  SafeAreaView,
+} from 'react-native-safe-area-context';
+
+import AdminBottomNav from '../AdminBottomNav';
 
 import {
   getAdminDonorApplications,
@@ -49,37 +59,52 @@ import {
 // IPAD PRO LANDSCAPE
 // ============================================================
 
-const DESIGN_WIDTH = 1366;
-const DESIGN_HEIGHT = 1024;
+const DESIGN_WIDTH =
+  1366;
+
+const DESIGN_HEIGHT =
+  1024;
 
 // ============================================================
 // COLORS
 // ============================================================
 
 const COLORS = {
-  outer: '#02040A',
+  outer:
+    '#02040A',
 
-  navy: '#050B19',
+  navy:
+    '#050B19',
 
-  card: '#091126',
+  card:
+    '#091126',
 
-  cardLight: '#101A35',
+  cardLight:
+    '#101A35',
 
-  border: '#243554',
+  border:
+    '#243554',
 
-  red: '#DB0A0A',
+  red:
+    '#DB0A0A',
 
-  redBright: '#EF3340',
+  redBright:
+    '#EF3340',
 
-  white: '#FFFFFF',
+  white:
+    '#FFFFFF',
 
-  muted: '#7F889F',
+  muted:
+    '#7F889F',
 
-  soft: '#B7C1D8',
+  soft:
+    '#B7C1D8',
 
-  green: '#35C982',
+  green:
+    '#35C982',
 
-  orange: '#F3A34A',
+  orange:
+    '#F3A34A',
 
   rowBorder:
     'rgba(36,53,84,0.78)',
@@ -104,67 +129,82 @@ export default function ApplicationsScreen() {
   const {
     width,
     height,
-  } = useWindowDimensions();
+  } =
+    useWindowDimensions();
 
   // ==========================================================
   // IPAD PRO CANVAS
   // ==========================================================
 
   const tablet =
-    useMemo(() => {
-      if (
-        Platform.OS !== 'web'
-      ) {
+    useMemo(
+      () => {
+        if (
+          Platform.OS !==
+          'web'
+        ) {
+          return {
+            width,
+            height,
+
+            scale:
+              Math.min(
+                width /
+                  DESIGN_WIDTH,
+
+                height /
+                  DESIGN_HEIGHT
+              ),
+          };
+        }
+
+        const padding =
+          24;
+
+        const availableWidth =
+          Math.max(
+            width -
+              padding * 2,
+
+            320
+          );
+
+        const availableHeight =
+          Math.max(
+            height -
+              padding * 2,
+
+            320
+          );
+
+        const scale =
+          Math.min(
+            availableWidth /
+              DESIGN_WIDTH,
+
+            availableHeight /
+              DESIGN_HEIGHT,
+
+            1
+          );
+
         return {
-          width,
-          height,
+          width:
+            DESIGN_WIDTH *
+            scale,
 
-          scale:
-            Math.min(
-              width / DESIGN_WIDTH,
-              height / DESIGN_HEIGHT
-            ),
+          height:
+            DESIGN_HEIGHT *
+            scale,
+
+          scale,
         };
-      }
-
-      const padding = 24;
-
-      const availableWidth =
-        Math.max(
-          width - padding * 2,
-          320
-        );
-
-      const availableHeight =
-        Math.max(
-          height - padding * 2,
-          320
-        );
-
-      const scale =
-        Math.min(
-          availableWidth /
-            DESIGN_WIDTH,
-
-          availableHeight /
-            DESIGN_HEIGHT,
-
-          1
-        );
-
-      return {
-        width:
-          DESIGN_WIDTH * scale,
-
-        height:
-          DESIGN_HEIGHT * scale,
-
-        scale,
-      };
-    }, [
-      width,
-      height,
-    ]);
+      },
+      [
+        width,
+        height,
+      ]
+    );
 
   const s =
     Math.max(
@@ -230,27 +270,49 @@ export default function ApplicationsScreen() {
   // LOAD
   // ==========================================================
 
-  useEffect(() => {
-    loadApplications(false);
-  }, [filter]);
+  useEffect(
+    () => {
+      loadApplications(
+        false
+      );
+    },
+    [
+      filter,
+    ]
+  );
 
   useFocusEffect(
-    useCallback(() => {
-      loadApplications(false);
-    }, [filter])
+    useCallback(
+      () => {
+        loadApplications(
+          false
+        );
+      },
+      [
+        filter,
+      ]
+    )
   );
 
   async function loadApplications(
     isRefresh: boolean
   ) {
     try {
-      if (isRefresh) {
-        setRefreshing(true);
+      if (
+        isRefresh
+      ) {
+        setRefreshing(
+          true
+        );
       } else {
-        setLoading(true);
+        setLoading(
+          true
+        );
       }
 
-      setError('');
+      setError(
+        ''
+      );
 
       const token =
         await getAdminAccessToken();
@@ -265,7 +327,9 @@ export default function ApplicationsScreen() {
       ) {
         await clearAdminSession();
 
-        router.replace('/');
+        router.replace(
+          '/'
+        );
 
         return;
       }
@@ -282,7 +346,8 @@ export default function ApplicationsScreen() {
           getAdminDonorApplications(
             token,
 
-            filter === 'all'
+            filter ===
+              'all'
               ? undefined
               : filter
           ),
@@ -317,13 +382,19 @@ export default function ApplicationsScreen() {
       );
 
       setError(
-        loadError instanceof Error
+        loadError instanceof
+          Error
           ? loadError.message
           : 'Unable to load donor applications.'
       );
     } finally {
-      setLoading(false);
-      setRefreshing(false);
+      setLoading(
+        false
+      );
+
+      setRefreshing(
+        false
+      );
     }
   }
 
@@ -336,7 +407,9 @@ export default function ApplicationsScreen() {
       profile?.first_name,
       profile?.last_name,
     ]
-      .filter(Boolean)
+      .filter(
+        Boolean
+      )
       .join(' ')
       .trim() ||
     profile?.email ||
@@ -359,7 +432,11 @@ export default function ApplicationsScreen() {
   // ==========================================================
 
   return (
-    <View style={styles.outer}>
+    <View
+      style={
+        styles.outer
+      }
+    >
       <View
         style={[
           styles.ipadCanvas,
@@ -377,7 +454,9 @@ export default function ApplicationsScreen() {
             styles.nativeCanvas,
         ]}
       >
-        <StatusBar style="light" />
+        <StatusBar
+          style="light"
+        />
 
         <LinearGradient
           colors={[
@@ -385,10 +464,14 @@ export default function ApplicationsScreen() {
             '#050B19',
             '#030814',
           ]}
-          style={styles.gradient}
+          style={
+            styles.gradient
+          }
         >
           <SafeAreaView
-            style={styles.safeArea}
+            style={
+              styles.safeArea
+            }
           >
             {/* ============================================== */}
             {/* HEADER */}
@@ -417,8 +500,6 @@ export default function ApplicationsScreen() {
                   )
                 }
               >
-                {/* REAL HEMO-HERO LOGO */}
-
                 <View
                   style={[
                     styles.logoCircle,
@@ -466,6 +547,7 @@ export default function ApplicationsScreen() {
                     >
                       Hemo-
                     </Text>
+
                     Hero
                   </Text>
 
@@ -478,7 +560,8 @@ export default function ApplicationsScreen() {
                           9 * s,
 
                         letterSpacing:
-                          1.6 * s,
+                          1.6 *
+                          s,
                       },
                     ]}
                   >
@@ -501,7 +584,9 @@ export default function ApplicationsScreen() {
                 >
                   <MaterialIcons
                     name="notifications-none"
-                    size={24 * s}
+                    size={
+                      24 * s
+                    }
                     color={
                       COLORS.white
                     }
@@ -565,7 +650,9 @@ export default function ApplicationsScreen() {
                     ]}
                   >
                     {adminName
-                      .charAt(0)
+                      .charAt(
+                        0
+                      )
                       .toUpperCase()}
                   </Text>
                 </View>
@@ -581,7 +668,9 @@ export default function ApplicationsScreen() {
                       },
                     ]}
                   >
-                    {adminName}
+                    {
+                      adminName
+                    }
                   </Text>
 
                   <Text
@@ -605,7 +694,9 @@ export default function ApplicationsScreen() {
             {/* ============================================== */}
 
             <ScrollView
-              style={styles.scroll}
+              style={
+                styles.scroll
+              }
               refreshControl={
                 <RefreshControl
                   refreshing={
@@ -695,7 +786,9 @@ export default function ApplicationsScreen() {
                 ]}
               >
                 <FilterButton
-                  scale={s}
+                  scale={
+                    s
+                  }
                   label="All"
                   count={
                     summary?.total ??
@@ -713,7 +806,9 @@ export default function ApplicationsScreen() {
                 />
 
                 <FilterButton
-                  scale={s}
+                  scale={
+                    s
+                  }
                   label="Pending"
                   count={
                     summary?.pending ??
@@ -732,7 +827,9 @@ export default function ApplicationsScreen() {
                 />
 
                 <FilterButton
-                  scale={s}
+                  scale={
+                    s
+                  }
                   label="Approved"
                   count={
                     summary?.approved ??
@@ -751,7 +848,9 @@ export default function ApplicationsScreen() {
                 />
 
                 <FilterButton
-                  scale={s}
+                  scale={
+                    s
+                  }
                   label="Rejected"
                   count={
                     summary?.rejected ??
@@ -769,7 +868,9 @@ export default function ApplicationsScreen() {
                 />
 
                 <FilterButton
-                  scale={s}
+                  scale={
+                    s
+                  }
                   label="Withdrawn"
                   count={
                     summary?.withdrawn ??
@@ -944,8 +1045,6 @@ export default function ApplicationsScreen() {
                     </Text>
                   </View>
                 ) : error ? (
-                  /* ERROR */
-
                   <View
                     style={[
                       styles.emptyArea,
@@ -958,7 +1057,9 @@ export default function ApplicationsScreen() {
                   >
                     <MaterialIcons
                       name="error-outline"
-                      size={42 * s}
+                      size={
+                        42 * s
+                      }
                       color={
                         COLORS.redBright
                       }
@@ -993,13 +1094,13 @@ export default function ApplicationsScreen() {
                         },
                       ]}
                     >
-                      {error}
+                      {
+                        error
+                      }
                     </Text>
                   </View>
                 ) : applications.length ===
                   0 ? (
-                  /* EMPTY */
-
                   <View
                     style={[
                       styles.emptyArea,
@@ -1012,7 +1113,9 @@ export default function ApplicationsScreen() {
                   >
                     <MaterialIcons
                       name="assignment-turned-in"
-                      size={46 * s}
+                      size={
+                        46 * s
+                      }
                       color={
                         COLORS.muted
                       }
@@ -1048,15 +1151,14 @@ export default function ApplicationsScreen() {
                       ]}
                     >
                       There are no{' '}
-                      {filter === 'all'
+                      {filter ===
+                      'all'
                         ? ''
                         : filter}{' '}
                       donor applications right now.
                     </Text>
                   </View>
                 ) : (
-                  /* ROWS */
-
                   applications.map(
                     application => (
                       <ApplicationRow
@@ -1066,7 +1168,9 @@ export default function ApplicationsScreen() {
                         application={
                           application
                         }
-                        scale={s}
+                        scale={
+                          s
+                        }
                         onPress={() =>
                           openApplication(
                             application.id
@@ -1078,6 +1182,14 @@ export default function ApplicationsScreen() {
                 )}
               </View>
             </ScrollView>
+
+            {/* ============================================== */}
+            {/* SHARED ADMIN BOTTOM NAVIGATION */}
+            {/* ============================================== */}
+
+            <AdminBottomNav
+              activeTab="applications"
+            />
           </SafeAreaView>
         </LinearGradient>
       </View>
@@ -1114,7 +1226,9 @@ function FilterButton({
 }) {
   return (
     <Pressable
-      onPress={onPress}
+      onPress={
+        onPress
+      }
       style={[
         styles.filterButton,
 
@@ -1149,7 +1263,9 @@ function FilterButton({
             styles.filterTextActive,
         ]}
       >
-        {label}
+        {
+          label
+        }
       </Text>
 
       <View
@@ -1187,7 +1303,9 @@ function FilterButton({
             },
           ]}
         >
-          {count}
+          {
+            count
+          }
         </Text>
       </View>
     </Pressable>
@@ -1209,10 +1327,6 @@ function ApplicationRow({
 
   onPress: () => void;
 }) {
-  // ==========================================================
-  // PROFILE SHAPE
-  // ==========================================================
-
   const rawApplication =
     application as any;
 
@@ -1222,10 +1336,6 @@ function ApplicationRow({
     rawApplication.applicant ||
     null;
 
-  // ==========================================================
-  // FULL NAME
-  // ==========================================================
-
   const fullName =
     [
       user?.first_name,
@@ -1233,9 +1343,14 @@ function ApplicationRow({
       user?.last_name,
       user?.suffix,
     ]
-      .filter(Boolean)
+      .filter(
+        Boolean
+      )
       .join(' ')
-      .replace(/\s+/g, ' ')
+      .replace(
+        /\s+/g,
+        ' '
+      )
       .trim();
 
   const displayName =
@@ -1252,13 +1367,11 @@ function ApplicationRow({
         application.created_at
     );
 
-  // ==========================================================
-  // ROW
-  // ==========================================================
-
   return (
     <Pressable
-      onPress={onPress}
+      onPress={
+        onPress
+      }
       style={({ pressed }) => [
         styles.applicationRow,
 
@@ -1274,10 +1387,6 @@ function ApplicationRow({
           styles.rowPressed,
       ]}
     >
-      {/* ============================================== */}
-      {/* APPLICANT NAME + EMAIL */}
-      {/* ============================================== */}
-
       <View
         style={
           styles.applicantColumn
@@ -1289,7 +1398,9 @@ function ApplicationRow({
           }
         >
           <Text
-            numberOfLines={1}
+            numberOfLines={
+              1
+            }
             style={[
               styles.applicantName,
 
@@ -1299,11 +1410,15 @@ function ApplicationRow({
               },
             ]}
           >
-            {displayName}
+            {
+              displayName
+            }
           </Text>
 
           <Text
-            numberOfLines={1}
+            numberOfLines={
+              1
+            }
             style={[
               styles.applicantEmail,
 
@@ -1316,14 +1431,12 @@ function ApplicationRow({
               },
             ]}
           >
-            {displayEmail}
+            {
+              displayEmail
+            }
           </Text>
         </View>
       </View>
-
-      {/* ============================================== */}
-      {/* BLOOD TYPE */}
-      {/* ============================================== */}
 
       <View
         style={
@@ -1339,10 +1452,6 @@ function ApplicationRow({
           }
         />
       </View>
-
-      {/* ============================================== */}
-      {/* AVAILABILITY */}
-      {/* ============================================== */}
 
       <View
         style={
@@ -1383,10 +1492,6 @@ function ApplicationRow({
         </View>
       </View>
 
-      {/* ============================================== */}
-      {/* RADIUS */}
-      {/* ============================================== */}
-
       <View
         style={
           styles.radiusColumn
@@ -1407,10 +1512,6 @@ function ApplicationRow({
         </Text>
       </View>
 
-      {/* ============================================== */}
-      {/* SUBMITTED */}
-      {/* ============================================== */}
-
       <View
         style={
           styles.submittedColumn
@@ -1426,13 +1527,11 @@ function ApplicationRow({
             },
           ]}
         >
-          {submitted}
+          {
+            submitted
+          }
         </Text>
       </View>
-
-      {/* ============================================== */}
-      {/* STATUS */}
-      {/* ============================================== */}
 
       <View
         style={
@@ -1449,10 +1548,6 @@ function ApplicationRow({
         />
       </View>
 
-      {/* ============================================== */}
-      {/* OPEN */}
-      {/* ============================================== */}
-
       <View
         style={
           styles.actionColumn
@@ -1460,7 +1555,9 @@ function ApplicationRow({
       >
         <MaterialIcons
           name="chevron-right"
-          size={22 * scale}
+          size={
+            22 * scale
+          }
           color={
             COLORS.white
           }
@@ -1512,7 +1609,9 @@ function BloodTypeBadge({
           },
         ]}
       >
-        {value}
+        {
+          value
+        }
       </Text>
     </View>
   );
@@ -1531,8 +1630,9 @@ function StatusBadge({
   scale: number;
 }) {
   const normalized =
-    String(status)
-      .toLowerCase();
+    String(
+      status
+    ).toLowerCase();
 
   return (
     <View
@@ -1596,9 +1696,11 @@ function StatusBadge({
             styles.withdrawnPillText,
         ]}
       >
-        {statusLabel(
-          normalized
-        )}
+        {
+          statusLabel(
+            normalized
+          )
+        }
       </Text>
     </View>
   );
@@ -1611,27 +1713,39 @@ function StatusBadge({
 function statusLabel(
   value: string
 ) {
-  if (!value) {
+  if (
+    !value
+  ) {
     return '';
   }
 
   return (
     value
-      .charAt(0)
+      .charAt(
+        0
+      )
       .toUpperCase() +
-    value.slice(1)
+    value.slice(
+      1
+    )
   );
 }
 
 function formatDate(
-  value?: string | null
+  value?:
+    | string
+    | null
 ) {
-  if (!value) {
+  if (
+    !value
+  ) {
     return '—';
   }
 
   const date =
-    new Date(value);
+    new Date(
+      value
+    );
 
   if (
     Number.isNaN(
@@ -1644,9 +1758,14 @@ function formatDate(
   return date.toLocaleDateString(
     undefined,
     {
-      month: 'short',
-      day: 'numeric',
-      year: 'numeric',
+      month:
+        'short',
+
+      day:
+        'numeric',
+
+      year:
+        'numeric',
     }
   );
 }
@@ -1658,7 +1777,8 @@ function formatDate(
 const styles =
   StyleSheet.create({
     outer: {
-      flex: 1,
+      flex:
+        1,
 
       alignItems:
         'center',
@@ -1679,22 +1799,27 @@ const styles =
 
       borderRadius:
         Platform.OS ===
-        'web'
+          'web'
           ? 24
           : 0,
     },
 
     nativeCanvas: {
-      width: '100%',
-      height: '100%',
+      width:
+        '100%',
+
+      height:
+        '100%',
     },
 
     gradient: {
-      flex: 1,
+      flex:
+        1,
     },
 
     safeArea: {
-      flex: 1,
+      flex:
+        1,
     },
 
     header: {
@@ -1707,7 +1832,8 @@ const styles =
       justifyContent:
         'space-between',
 
-      borderBottomWidth: 1,
+      borderBottomWidth:
+        1,
 
       borderBottomColor:
         COLORS.border,
@@ -1720,7 +1846,8 @@ const styles =
       alignItems:
         'center',
 
-      gap: 14,
+      gap:
+        14,
     },
 
     logoCircle: {
@@ -1757,7 +1884,8 @@ const styles =
       fontFamily:
         'Inter_600SemiBold',
 
-      marginTop: 1,
+      marginTop:
+        1,
     },
 
     adminSection: {
@@ -1767,16 +1895,19 @@ const styles =
       alignItems:
         'center',
 
-      gap: 12,
+      gap:
+        12,
     },
 
     notificationWrap: {
-      marginRight: 4,
+      marginRight:
+        4,
 
       position:
         'relative',
 
-      width: 28,
+      width:
+        28,
 
       alignItems:
         'center',
@@ -1789,8 +1920,11 @@ const styles =
       position:
         'absolute',
 
-      top: -4,
-      right: -6,
+      top:
+        -4,
+
+      right:
+        -6,
 
       backgroundColor:
         COLORS.redBright,
@@ -1838,7 +1972,8 @@ const styles =
     },
 
     adminRole: {
-      marginTop: 2,
+      marginTop:
+        2,
 
       color:
         COLORS.muted,
@@ -1848,11 +1983,13 @@ const styles =
     },
 
     scroll: {
-      flex: 1,
+      flex:
+        1,
     },
 
     content: {
-      flexGrow: 1,
+      flexGrow:
+        1,
     },
 
     title: {
@@ -1896,7 +2033,8 @@ const styles =
       justifyContent:
         'center',
 
-      borderWidth: 1,
+      borderWidth:
+        1,
 
       borderColor:
         COLORS.border,
@@ -1963,7 +2101,8 @@ const styles =
       overflow:
         'hidden',
 
-      borderWidth: 1,
+      borderWidth:
+        1,
 
       borderColor:
         COLORS.border,
@@ -1979,7 +2118,8 @@ const styles =
       alignItems:
         'center',
 
-      borderBottomWidth: 1,
+      borderBottomWidth:
+        1,
 
       borderBottomColor:
         COLORS.border,
@@ -1997,31 +2137,38 @@ const styles =
     },
 
     headerApplicant: {
-      flex: 2.4,
+      flex:
+        2.4,
     },
 
     headerBlood: {
-      flex: 1,
+      flex:
+        1,
     },
 
     headerAvailability: {
-      flex: 1.1,
+      flex:
+        1.1,
     },
 
     headerRadius: {
-      flex: 0.8,
+      flex:
+        0.8,
     },
 
     headerSubmitted: {
-      flex: 1,
+      flex:
+        1,
     },
 
     headerStatus: {
-      flex: 1,
+      flex:
+        1,
     },
 
     headerAction: {
-      width: 40,
+      width:
+        40,
     },
 
     applicationRow: {
@@ -2031,7 +2178,8 @@ const styles =
       alignItems:
         'center',
 
-      borderBottomWidth: 1,
+      borderBottomWidth:
+        1,
 
       borderBottomColor:
         COLORS.rowBorder,
@@ -2046,9 +2194,11 @@ const styles =
     },
 
     applicantColumn: {
-      flex: 2.4,
+      flex:
+        2.4,
 
-      minWidth: 0,
+      minWidth:
+        0,
 
       flexDirection:
         'row',
@@ -2058,9 +2208,11 @@ const styles =
     },
 
     nameArea: {
-      flex: 1,
+      flex:
+        1,
 
-      minWidth: 0,
+      minWidth:
+        0,
     },
 
     applicantName: {
@@ -2080,7 +2232,8 @@ const styles =
     },
 
     bloodColumn: {
-      flex: 1,
+      flex:
+        1,
 
       alignItems:
         'flex-start',
@@ -2093,7 +2246,8 @@ const styles =
       justifyContent:
         'center',
 
-      borderWidth: 1,
+      borderWidth:
+        1,
 
       borderColor:
         '#C21319',
@@ -2111,7 +2265,8 @@ const styles =
     },
 
     availabilityColumn: {
-      flex: 1.1,
+      flex:
+        1.1,
     },
 
     inlineValue: {
@@ -2121,14 +2276,19 @@ const styles =
       alignItems:
         'center',
 
-      gap: 7,
+      gap:
+        7,
     },
 
     dot: {
-      width: 7,
-      height: 7,
+      width:
+        7,
 
-      borderRadius: 4,
+      height:
+        7,
+
+      borderRadius:
+        4,
     },
 
     greenDot: {
@@ -2142,22 +2302,26 @@ const styles =
     },
 
     radiusColumn: {
-      flex: 0.8,
+      flex:
+        0.8,
     },
 
     submittedColumn: {
-      flex: 1,
+      flex:
+        1,
     },
 
     statusColumn: {
-      flex: 1,
+      flex:
+        1,
 
       alignItems:
         'flex-start',
     },
 
     actionColumn: {
-      width: 40,
+      width:
+        40,
 
       alignItems:
         'center',
@@ -2193,7 +2357,8 @@ const styles =
       justifyContent:
         'center',
 
-      borderWidth: 1,
+      borderWidth:
+        1,
     },
 
     pendingPill: {
@@ -2270,7 +2435,8 @@ const styles =
     },
 
     emptyArea: {
-      paddingHorizontal: 30,
+      paddingHorizontal:
+        30,
 
       alignItems:
         'center',
