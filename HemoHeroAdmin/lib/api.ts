@@ -243,6 +243,188 @@ export type ActivityLogResponse = {
 };
 
 // ============================================================
+// ADMIN USER MANAGEMENT TYPES
+// ============================================================
+
+export type AdminUserSummary = {
+  total: number;
+
+  active: number;
+
+  inactive: number;
+};
+
+export type AdminManagedUserDonor = {
+  application_id?: string | null;
+
+  status?: string | null;
+
+  blood_type?: string | null;
+
+  availability_status?: string | null;
+};
+
+export type AdminManagedUser = {
+  id: string;
+
+  email?: string | null;
+
+  first_name?: string | null;
+
+  middle_name?: string | null;
+
+  last_name?: string | null;
+
+  suffix?: string | null;
+
+  full_name?: string | null;
+
+  phone?: string | null;
+
+  date_of_birth?: string | null;
+
+  gender?: string | null;
+
+  barangay?: string | null;
+
+  city?: string | null;
+
+  province?: string | null;
+
+  blood_type?: string | null;
+
+  profile_photo_url?: string | null;
+
+  onboarding_complete?: boolean;
+
+  role?: string | null;
+
+  is_active: boolean;
+
+  deactivated_at?: string | null;
+
+  created_at?: string | null;
+
+  updated_at?: string | null;
+
+  donor?: AdminManagedUserDonor | null;
+};
+
+export type AdminUserPagination = {
+  page: number;
+
+  limit: number;
+
+  total: number;
+
+  total_pages: number;
+};
+
+export type AdminUserStatusFilter =
+  | 'all'
+  | 'active'
+  | 'inactive';
+
+export type AdminUserFilters = {
+  page?: number;
+
+  limit?: number;
+
+  search?: string;
+
+  status?: AdminUserStatusFilter;
+};
+
+export type AdminUsersResponse = {
+  users: AdminManagedUser[];
+
+  pagination:
+    AdminUserPagination;
+};
+
+export type AdminUserDetailResponse = {
+  user: AdminManagedUser;
+};
+
+export type AdminUserActionResponse = {
+  message: string;
+
+  user: AdminManagedUser;
+};
+
+// ============================================================
+// CREATE USER INPUT
+// ============================================================
+
+export type AdminCreateUserInput = {
+  email: string;
+
+  password: string;
+
+  confirm_password: string;
+
+  first_name: string;
+
+  middle_name?: string | null;
+
+  last_name: string;
+
+  suffix?: string | null;
+
+  phone?: string | null;
+
+  date_of_birth?: string | null;
+
+  gender?: string | null;
+
+  barangay?: string | null;
+
+  city?: string | null;
+
+  province?: string | null;
+};
+
+// ============================================================
+// UPDATE USER INPUT
+// ============================================================
+
+export type AdminUpdateUserInput = {
+  email?: string;
+
+  first_name?: string;
+
+  middle_name?: string | null;
+
+  last_name?: string;
+
+  suffix?: string | null;
+
+  phone?: string | null;
+
+  date_of_birth?: string | null;
+
+  gender?: string | null;
+
+  barangay?: string | null;
+
+  city?: string | null;
+
+  province?: string | null;
+};
+
+// ============================================================
+// DELETE USER RESPONSE
+// ============================================================
+
+export type AdminDeleteUserResponse = {
+  message: string;
+
+  deleted: boolean;
+
+  user_id: string;
+};
+
+// ============================================================
 // RESPONSE HELPER
 // ============================================================
 
@@ -643,6 +825,377 @@ export async function getAdminActivityLogs(
         headers: {
           Authorization:
             `Bearer ${token}`,
+        },
+      }
+    );
+
+  return parseResponse(
+    response
+  );
+}
+
+// ============================================================
+// ADMIN USER SUMMARY
+//
+// GET /api/admin/users/summary
+// ============================================================
+
+export async function getAdminUserSummary(
+  token: string
+): Promise<{
+  summary: AdminUserSummary;
+}> {
+  const response =
+    await fetch(
+      `${API_URL}/api/admin/users/summary`,
+      {
+        headers: {
+          Authorization:
+            `Bearer ${token}`,
+        },
+      }
+    );
+
+  return parseResponse(
+    response
+  );
+}
+
+// ============================================================
+// GET ADMIN USERS
+//
+// GET /api/admin/users
+// ============================================================
+
+export async function getAdminUsers(
+  token: string,
+  filters: AdminUserFilters = {}
+): Promise<AdminUsersResponse> {
+  const params =
+    new URLSearchParams();
+
+  if (
+    filters.page !==
+    undefined
+  ) {
+    params.set(
+      'page',
+      String(
+        filters.page
+      )
+    );
+  }
+
+  if (
+    filters.limit !==
+    undefined
+  ) {
+    params.set(
+      'limit',
+      String(
+        filters.limit
+      )
+    );
+  }
+
+  if (
+    filters.search
+      ?.trim()
+  ) {
+    params.set(
+      'search',
+      filters.search.trim()
+    );
+  }
+
+  if (
+    filters.status &&
+    filters.status !==
+      'all'
+  ) {
+    params.set(
+      'status',
+      filters.status
+    );
+  }
+
+  const queryString =
+    params.toString();
+
+  const url =
+    queryString
+      ? `${API_URL}/api/admin/users?${queryString}`
+      : `${API_URL}/api/admin/users`;
+
+  const response =
+    await fetch(
+      url,
+      {
+        headers: {
+          Authorization:
+            `Bearer ${token}`,
+        },
+      }
+    );
+
+  return parseResponse(
+    response
+  );
+}
+
+// ============================================================
+// GET ADMIN USER DETAILS
+//
+// GET /api/admin/users/:id
+// ============================================================
+
+export async function getAdminUserById(
+  token: string,
+  userId: string
+): Promise<AdminUserDetailResponse> {
+  const response =
+    await fetch(
+      `${API_URL}/api/admin/users/${encodeURIComponent(
+        userId
+      )}`,
+      {
+        headers: {
+          Authorization:
+            `Bearer ${token}`,
+        },
+      }
+    );
+
+  return parseResponse(
+    response
+  );
+}
+
+// ============================================================
+// CREATE ADMIN USER
+//
+// POST /api/admin/users
+// ============================================================
+
+export async function createAdminUser(
+  token: string,
+  input: AdminCreateUserInput
+): Promise<AdminUserActionResponse> {
+  const response =
+    await fetch(
+      `${API_URL}/api/admin/users`,
+      {
+        method:
+          'POST',
+
+        headers: {
+          Authorization:
+            `Bearer ${token}`,
+
+          'Content-Type':
+            'application/json',
+        },
+
+        body:
+          JSON.stringify({
+            email:
+              input.email
+                .trim()
+                .toLowerCase(),
+
+            password:
+              input.password,
+
+            confirm_password:
+              input.confirm_password,
+
+            first_name:
+              input.first_name.trim(),
+
+            middle_name:
+              input.middle_name
+                ?.trim() ||
+              null,
+
+            last_name:
+              input.last_name.trim(),
+
+            suffix:
+              input.suffix
+                ?.trim() ||
+              null,
+
+            phone:
+              input.phone
+                ?.trim() ||
+              null,
+
+            date_of_birth:
+              input.date_of_birth
+                ?.trim() ||
+              null,
+
+            gender:
+              input.gender
+                ?.trim() ||
+              null,
+
+            barangay:
+              input.barangay
+                ?.trim() ||
+              null,
+
+            city:
+              input.city
+                ?.trim() ||
+              null,
+
+            province:
+              input.province
+                ?.trim() ||
+              null,
+          }),
+      }
+    );
+
+  return parseResponse(
+    response
+  );
+}
+
+// ============================================================
+// UPDATE ADMIN USER
+//
+// PATCH /api/admin/users/:id
+// ============================================================
+
+export async function updateAdminUser(
+  token: string,
+  userId: string,
+  input: AdminUpdateUserInput
+): Promise<AdminUserActionResponse> {
+  const response =
+    await fetch(
+      `${API_URL}/api/admin/users/${encodeURIComponent(
+        userId
+      )}`,
+      {
+        method:
+          'PATCH',
+
+        headers: {
+          Authorization:
+            `Bearer ${token}`,
+
+          'Content-Type':
+            'application/json',
+        },
+
+        body:
+          JSON.stringify(
+            input
+          ),
+      }
+    );
+
+  return parseResponse(
+    response
+  );
+}
+
+// ============================================================
+// DEACTIVATE USER
+//
+// PATCH /api/admin/users/:id/deactivate
+// ============================================================
+
+export async function deactivateAdminUser(
+  token: string,
+  userId: string
+): Promise<AdminUserActionResponse> {
+  const response =
+    await fetch(
+      `${API_URL}/api/admin/users/${encodeURIComponent(
+        userId
+      )}/deactivate`,
+      {
+        method:
+          'PATCH',
+
+        headers: {
+          Authorization:
+            `Bearer ${token}`,
+
+          'Content-Type':
+            'application/json',
+        },
+      }
+    );
+
+  return parseResponse(
+    response
+  );
+}
+
+// ============================================================
+// ACTIVATE USER
+//
+// PATCH /api/admin/users/:id/activate
+// ============================================================
+
+export async function activateAdminUser(
+  token: string,
+  userId: string
+): Promise<AdminUserActionResponse> {
+  const response =
+    await fetch(
+      `${API_URL}/api/admin/users/${encodeURIComponent(
+        userId
+      )}/activate`,
+      {
+        method:
+          'PATCH',
+
+        headers: {
+          Authorization:
+            `Bearer ${token}`,
+
+          'Content-Type':
+            'application/json',
+        },
+      }
+    );
+
+  return parseResponse(
+    response
+  );
+}
+
+// ============================================================
+// PERMANENTLY DELETE USER
+//
+// DELETE /api/admin/users/:id
+// ============================================================
+
+export async function deleteAdminUser(
+  token: string,
+  userId: string
+): Promise<AdminDeleteUserResponse> {
+  const response =
+    await fetch(
+      `${API_URL}/api/admin/users/${encodeURIComponent(
+        userId
+      )}`,
+      {
+        method:
+          'DELETE',
+
+        headers: {
+          Authorization:
+            `Bearer ${token}`,
+
+          'Content-Type':
+            'application/json',
         },
       }
     );

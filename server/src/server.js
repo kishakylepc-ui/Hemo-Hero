@@ -34,6 +34,9 @@ const adminDonorRoutes =
 const adminActivityLogRoutes =
   require('./routes/adminActivityLogRoutes');
 
+const adminUserRoutes =
+  require('./routes/adminUserRoutes');
+
 const notificationRoutes =
   require('./routes/notificationRoutes');
 
@@ -54,9 +57,11 @@ const PORT =
 
 app.use(
   cors({
-    origin: true,
+    origin:
+      true,
 
-    credentials: true,
+    credentials:
+      true,
   })
 );
 
@@ -174,6 +179,23 @@ app.use(
 );
 
 // ============================================================
+// ADMIN USER MANAGEMENT
+//
+// GET   /api/admin/users
+// GET   /api/admin/users/summary
+// GET   /api/admin/users/:id
+// PATCH /api/admin/users/:id/deactivate
+// PATCH /api/admin/users/:id/activate
+//
+// ADMIN ONLY
+// ============================================================
+
+app.use(
+  '/api/admin/users',
+  adminUserRoutes
+);
+
+// ============================================================
 // NOTIFICATIONS
 //
 // GET   /api/notifications
@@ -265,6 +287,14 @@ app.listen(
 
     console.log(
       `Admin Activity Summary: http://localhost:${PORT}/api/admin/activity-logs/summary`
+    );
+
+    console.log(
+      `Admin Users: http://localhost:${PORT}/api/admin/users`
+    );
+
+    console.log(
+      `Admin User Summary: http://localhost:${PORT}/api/admin/users/summary`
     );
 
     console.log(
