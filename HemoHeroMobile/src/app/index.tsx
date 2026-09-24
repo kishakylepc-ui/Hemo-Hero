@@ -1392,7 +1392,7 @@ const styles =
     // DESKTOP
     // ========================================================
 
-    desktopBackground: {
+ desktopBackground: {
   flex: 1,
 
   alignItems:
@@ -1402,7 +1402,10 @@ const styles =
     'center',
 
   backgroundColor:
-    COLORS.pinkBottom,
+    Platform.OS ===
+      'web'
+      ? '#1E1E1E'
+      : COLORS.pinkBottom,
 },
 
     // ========================================================

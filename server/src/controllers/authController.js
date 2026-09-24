@@ -2923,4 +2923,4 @@ module.exports = {
   resetPassword,
   getProfile,
   updateProfile,
-}
+};
