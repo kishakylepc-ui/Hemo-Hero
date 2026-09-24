@@ -29,7 +29,15 @@ export type DonorApplication = {
   user_id: string;
   blood_type: string;
   has_donated_before: boolean;
+
+  // Exact date (YYYY-MM-DD). Null when unknown or approximate.
   last_donation_date?: string | null;
+
+  // Approximate last donation, used only when the exact date
+  // was not remembered. Never set together with the exact date.
+  last_donation_month?: number | null;
+  last_donation_year?: number | null;
+
   last_donation_facility?: string | null;
   current_latitude?: number | null;
   current_longitude?: number | null;
@@ -48,7 +56,13 @@ export type DonorApplication = {
 export type SubmitDonorApplicationInput = {
   blood_type: string;
   has_donated_before: boolean;
+
+  // Send EITHER the exact date OR month + year, never both.
+  // First-time donors send neither.
   last_donation_date?: string | null;
+  last_donation_month?: number | null;
+  last_donation_year?: number | null;
+
   last_donation_facility?: string | null;
   current_latitude: number;
   current_longitude: number;

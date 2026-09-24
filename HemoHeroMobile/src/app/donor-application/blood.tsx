@@ -1,7 +1,4 @@
-import {
-  useCallback,
-  useState,
-} from 'react';
+import { useCallback, useState } from 'react';
 
 import {
   ActivityIndicator,
@@ -46,6 +43,7 @@ import {
   getMyDonorApplication,
 } from '../../lib/donorApplication';
 
+
 // ============================================================
 // COLORS
 // ============================================================
@@ -56,20 +54,26 @@ const COLORS = {
   redButton: '#B42323',
 
   white: '#FFFFFF',
-  black: '#181818',
+  black: '#171717',
 
-  pageTop: '#F0B2B4',
+  pageTop: '#F3B5B7',
   pageBottom: '#D90B12',
 
+  card: '#FAFAFA',
+
   muted: '#666666',
-  lightMuted: '#969696',
+  lightMuted: '#9A9A9A',
 
-  border: '#E4DEDE',
+  border: '#D5D5D5',
 
-  pink: '#FFF2F2',
+  pinkLight: '#FFF1F1',
+  pinkBorder: '#E7A6A6',
 
-  green: '#198754',
+  green: '#159447',
+  greenLight: '#EDF8F1',
+  greenBorder: '#B9DFC8',
 };
+
 
 // ============================================================
 // BLOOD TYPES
@@ -86,6 +90,19 @@ const BLOOD_TYPES = [
   'O-',
 ];
 
+
+// ============================================================
+// APPLICATION STEPS
+// ============================================================
+
+const STEPS = [
+  'Blood',
+  'History',
+  'Availability',
+  'Verify',
+];
+
+
 // ============================================================
 // SCREEN
 // ============================================================
@@ -99,9 +116,7 @@ export default function DonorBloodInformationScreen() {
   const [
     age,
     setAge,
-  ] = useState<number | null>(
-    null
-  );
+  ] = useState<number | null>(null);
 
   const [
     loading,
@@ -112,6 +127,7 @@ export default function DonorBloodInformationScreen() {
     errorMessage,
     setErrorMessage,
   ] = useState('');
+
 
   // ==========================================================
   // AGE
@@ -158,6 +174,7 @@ export default function DonorBloodInformationScreen() {
     return calculatedAge;
   }
 
+
   // ==========================================================
   // LOAD PROFILE
   // ==========================================================
@@ -184,10 +201,6 @@ export default function DonorBloodInformationScreen() {
 
             return;
           }
-
-          // --------------------------------------------------
-          // CHECK EXISTING APPLICATION
-          // --------------------------------------------------
 
           const donorData =
             await getMyDonorApplication(
@@ -230,10 +243,6 @@ export default function DonorBloodInformationScreen() {
 
             return;
           }
-
-          // --------------------------------------------------
-          // PROFILE
-          // --------------------------------------------------
 
           const profileData =
             await getCurrentUser(
@@ -292,7 +301,8 @@ export default function DonorBloodInformationScreen() {
           }
 
           if (
-            calculatedAge < 18
+            calculatedAge <
+            18
           ) {
             setErrorMessage(
               'You must be at least 18 years old to apply as a donor.'
@@ -307,7 +317,8 @@ export default function DonorBloodInformationScreen() {
           );
 
           setErrorMessage(
-            error instanceof Error
+            error instanceof
+              Error
               ? error.message
               : 'Unable to load donor registration.'
           );
@@ -320,23 +331,29 @@ export default function DonorBloodInformationScreen() {
       []
     );
 
+
+  // ==========================================================
+  // FOCUS
+  // ==========================================================
+
   useFocusEffect(
     useCallback(
       () => {
         loadProfile();
       },
-      [loadProfile]
+      [
+        loadProfile,
+      ]
     )
   );
+
 
   // ==========================================================
   // CONTINUE
   // ==========================================================
 
   function handleContinue() {
-    if (
-      !bloodType
-    ) {
+    if (!bloodType) {
       setErrorMessage(
         'Select your blood type to continue.'
       );
@@ -362,6 +379,7 @@ export default function DonorBloodInformationScreen() {
     });
   }
 
+
   // ==========================================================
   // UI
   // ==========================================================
@@ -383,16 +401,20 @@ export default function DonorBloodInformationScreen() {
           }
           edges={[
             'top',
-            'bottom',
           ]}
         >
           <StatusBar
             style="light"
           />
 
+
+          {/* ==================================================
+              HEADER
+          ================================================== */}
+
           <LinearGradient
             colors={[
-              COLORS.red,
+              '#D2151A',
               COLORS.redDark,
             ]}
             style={
@@ -401,7 +423,13 @@ export default function DonorBloodInformationScreen() {
           >
             <View
               style={
-                styles.headerDecoration
+                styles.headerCircleLeft
+              }
+            />
+
+            <View
+              style={
+                styles.headerCircleRight
               }
             />
 
@@ -411,23 +439,34 @@ export default function DonorBloodInformationScreen() {
               }
             >
               <TouchableOpacity
+                accessibilityRole="button"
+                accessibilityLabel="Back to dashboard"
                 style={
                   styles.backButton
                 }
+                activeOpacity={
+                  0.75
+                }
                 onPress={() =>
-                  router.back()
+                  router.replace(
+                    '/dashboard'
+                  )
                 }
               >
                 <MaterialIcons
                   name="arrow-back"
-                  size={23}
+                  size={26}
                   color={
                     COLORS.white
                   }
                 />
               </TouchableOpacity>
 
-              <View>
+              <View
+                style={
+                  styles.headerText
+                }
+              >
                 <Text
                   style={
                     styles.headerTitle
@@ -447,6 +486,11 @@ export default function DonorBloodInformationScreen() {
             </View>
           </LinearGradient>
 
+
+          {/* ==================================================
+              BODY
+          ================================================== */}
+
           <LinearGradient
             colors={[
               COLORS.pageTop,
@@ -458,55 +502,93 @@ export default function DonorBloodInformationScreen() {
           >
             <View
               style={
-                styles.card
+                styles.formCard
               }
             >
               <ScrollView
+                style={
+                  styles.formScroll
+                }
                 contentContainerStyle={
-                  styles.content
+                  styles.formScrollContent
                 }
                 showsVerticalScrollIndicator={
                   false
                 }
+                keyboardShouldPersistTaps="handled"
+                bounces={
+                  false
+                }
               >
+
+
+                {/* ==================================================
+                    PROGRESS
+                ================================================== */}
+
                 <View
                   style={
-                    styles.progress
+                    styles.progressRow
                   }
                 >
-                  <View
-                    style={[
-                      styles.progressBar,
-                      styles.progressActive,
-                    ]}
-                  />
+                  {STEPS.map(
+                    (
+                      step,
+                      index
+                    ) => {
+                      const active =
+                        index === 0;
 
-                  <View
-                    style={
-                      styles.progressBar
-                    }
-                  />
+                      return (
+                        <View
+                          key={
+                            step
+                          }
+                          style={
+                            styles.progressItem
+                          }
+                        >
+                          <View
+                            style={[
+                              styles.progressBar,
 
-                  <View
-                    style={
-                      styles.progressBar
-                    }
-                  />
+                              active &&
+                                styles.progressBarActive,
+                            ]}
+                          />
 
-                  <View
-                    style={
-                      styles.progressBar
+                          <Text
+                            numberOfLines={
+                              1
+                            }
+                            style={[
+                              styles.progressText,
+
+                              active &&
+                                styles.progressTextActive,
+                            ]}
+                          >
+                            {step}
+                          </Text>
+                        </View>
+                      );
                     }
-                  />
+                  )}
                 </View>
+
+
+                {/* ==================================================
+                    LOADING
+                ================================================== */}
 
                 {loading ? (
                   <View
                     style={
-                      styles.loadingArea
+                      styles.loadingContainer
                     }
                   >
                     <ActivityIndicator
+                      size="small"
                       color={
                         COLORS.redButton
                       }
@@ -522,6 +604,12 @@ export default function DonorBloodInformationScreen() {
                   </View>
                 ) : (
                   <>
+
+
+                    {/* ==================================================
+                        TITLE
+                    ================================================== */}
+
                     <Text
                       style={
                         styles.sectionTitle
@@ -535,62 +623,81 @@ export default function DonorBloodInformationScreen() {
                         styles.sectionDescription
                       }
                     >
-                      This helps Hemo-Hero identify blood requests that may be compatible with you.
+                      Select your confirmed blood type to continue.
                     </Text>
 
-                    {/* AGE */}
+
+                    {/* ==================================================
+                        AGE VERIFICATION
+                    ================================================== */}
 
                     <View
-                      style={
+                      style={[
+                        styles.verificationCard,
+
                         age !== null &&
                         age >= 18
-                          ? styles.ageSuccess
-                          : styles.ageWarning
-                      }
+                          ? styles.verificationSuccess
+                          : styles.verificationWarning,
+                      ]}
                     >
-                      <MaterialIcons
-                        name={
+                      <View
+                        style={[
+                          styles.verificationIcon,
+
                           age !== null &&
                           age >= 18
-                            ? 'verified'
-                            : 'info-outline'
-                        }
-                        size={20}
-                        color={
-                          age !== null &&
-                          age >= 18
-                            ? COLORS.green
-                            : COLORS.redButton
-                        }
-                      />
+                            ? styles.verificationIconSuccess
+                            : styles.verificationIconWarning,
+                        ]}
+                      >
+                        <MaterialIcons
+                          name={
+                            age !== null &&
+                            age >= 18
+                              ? 'check'
+                              : 'info-outline'
+                          }
+                          size={19}
+                          color={
+                            age !== null &&
+                            age >= 18
+                              ? COLORS.green
+                              : COLORS.redButton
+                          }
+                        />
+                      </View>
 
                       <View
                         style={
-                          styles.ageContent
+                          styles.verificationContent
                         }
                       >
                         <Text
                           style={
-                            styles.ageTitle
+                            styles.verificationTitle
                           }
                         >
-                          Age Requirement
+                          Age Verification
                         </Text>
 
                         <Text
                           style={
-                            styles.ageText
+                            styles.verificationDescription
                           }
                         >
                           {age !== null &&
                           age >= 18
-                            ? `You meet the minimum age requirement. Age: ${age}`
+                            ? `Age ${age} · Minimum age requirement met`
                             : 'You must be at least 18 years old to register as a donor.'}
                         </Text>
                       </View>
                     </View>
 
-                    {/* BLOOD TYPE */}
+
+                    {/* ==================================================
+                        BLOOD TYPE
+                    ================================================== */}
 
                     <Text
                       style={
@@ -598,6 +705,14 @@ export default function DonorBloodInformationScreen() {
                       }
                     >
                       Your Blood Type
+
+                      <Text
+                        style={
+                          styles.required
+                        }
+                      >
+                        {' '}*
+                      </Text>
                     </Text>
 
                     <View
@@ -616,6 +731,11 @@ export default function DonorBloodInformationScreen() {
                               key={
                                 type
                               }
+                              accessibilityRole="button"
+                              accessibilityState={{
+                                selected,
+                              }}
+                              accessibilityLabel={`Blood type ${type}`}
                               style={[
                                 styles.bloodButton,
 
@@ -637,10 +757,10 @@ export default function DonorBloodInformationScreen() {
                             >
                               <Text
                                 style={[
-                                  styles.bloodText,
+                                  styles.bloodButtonText,
 
                                   selected &&
-                                    styles.bloodTextSelected,
+                                    styles.bloodButtonTextSelected,
                                 ]}
                               >
                                 {type}
@@ -651,27 +771,10 @@ export default function DonorBloodInformationScreen() {
                       )}
                     </View>
 
-                    <View
-                      style={
-                        styles.infoBox
-                      }
-                    >
-                      <MaterialIcons
-                        name="info-outline"
-                        size={20}
-                        color={
-                          COLORS.redButton
-                        }
-                      />
 
-                      <Text
-                        style={
-                          styles.infoText
-                        }
-                      >
-                        Your blood type will still be verified by qualified medical personnel before an actual donation.
-                      </Text>
-                    </View>
+                    {/* ==================================================
+                        ERROR
+                    ================================================== */}
 
                     {errorMessage ? (
                       <View
@@ -681,7 +784,7 @@ export default function DonorBloodInformationScreen() {
                       >
                         <MaterialIcons
                           name="error-outline"
-                          size={18}
+                          size={17}
                           color={
                             COLORS.redButton
                           }
@@ -692,32 +795,33 @@ export default function DonorBloodInformationScreen() {
                             styles.errorText
                           }
                         >
-                          {
-                            errorMessage
-                          }
+                          {errorMessage}
                         </Text>
                       </View>
                     ) : null}
 
-                    <View
-                      style={
-                        styles.flexSpace
-                      }
-                    />
+
+                    {/* ==================================================
+                        CONTINUE
+                    ================================================== */}
 
                     <TouchableOpacity
+                      accessibilityRole="button"
                       style={[
-                        styles.primaryButton,
+                        styles.continueButton,
 
                         (
                           age === null ||
                           age < 18
                         ) &&
-                          styles.disabledButton,
+                          styles.continueDisabled,
                       ]}
                       disabled={
                         age === null ||
                         age < 18
+                      }
+                      activeOpacity={
+                        0.85
                       }
                       onPress={
                         handleContinue
@@ -725,7 +829,7 @@ export default function DonorBloodInformationScreen() {
                     >
                       <Text
                         style={
-                          styles.primaryButtonText
+                          styles.continueText
                         }
                       >
                         Continue
@@ -750,6 +854,7 @@ export default function DonorBloodInformationScreen() {
   );
 }
 
+
 // ============================================================
 // STYLES
 // ============================================================
@@ -767,9 +872,10 @@ const styles =
 
       backgroundColor:
         Platform.OS === 'web'
-          ? '#202020'
+          ? '#242424'
           : COLORS.pageBottom,
     },
+
 
     phone: {
       width:
@@ -778,13 +884,18 @@ const styles =
           : '100%',
 
       height:
-        Platform.OS === 'web'
-          ? '100%'
-          : '100%',
+        '100%',
+
+      maxWidth:
+        '100%',
 
       overflow:
         'hidden',
+
+      backgroundColor:
+        COLORS.pageBottom,
     },
+
 
     safeArea: {
       flex: 1,
@@ -793,33 +904,77 @@ const styles =
         COLORS.red,
     },
 
+
+    // ========================================================
+    // HEADER
+    // ========================================================
+
     header: {
-      height: 150,
+      height:
+        Platform.OS === 'web'
+          ? 118
+          : 108,
 
       paddingHorizontal:
-        22,
+        25,
 
-      paddingTop: 18,
+      paddingTop:
+        Platform.OS === 'web'
+          ? 18
+          : 6,
 
       overflow:
         'hidden',
     },
 
-    headerDecoration: {
+
+    headerCircleLeft: {
       position:
         'absolute',
 
-      width: 190,
-      height: 190,
+      width:
+        160,
 
-      borderRadius: 95,
+      height:
+        160,
 
-      right: -80,
-      top: -100,
+      borderRadius:
+        80,
+
+      left:
+        -98,
+
+      top:
+        -73,
 
       backgroundColor:
-        'rgba(255,255,255,0.07)',
+        'rgba(255,255,255,0.06)',
     },
+
+
+    headerCircleRight: {
+      position:
+        'absolute',
+
+      width:
+        170,
+
+      height:
+        170,
+
+      borderRadius:
+        85,
+
+      right:
+        -73,
+
+      top:
+        -78,
+
+      backgroundColor:
+        'rgba(255,255,255,0.08)',
+    },
+
 
     headerRow: {
       flexDirection:
@@ -827,15 +982,27 @@ const styles =
 
       alignItems:
         'center',
+
+      marginTop:
+        1,
     },
 
+
     backButton: {
-      width: 42,
-      height: 42,
+      width:
+        43,
 
-      borderRadius: 21,
+      height:
+        43,
 
-      marginRight: 13,
+      borderRadius:
+        22,
+
+      borderWidth:
+        3,
+
+      borderColor:
+        COLORS.white,
 
       alignItems:
         'center',
@@ -843,9 +1010,16 @@ const styles =
       justifyContent:
         'center',
 
-      backgroundColor:
-        'rgba(255,255,255,0.16)',
+      marginRight:
+        17,
     },
+
+
+    headerText: {
+      flex:
+        1,
+    },
+
 
     headerTitle: {
       color:
@@ -854,90 +1028,190 @@ const styles =
       fontFamily:
         'Poppins_700Bold',
 
-      fontSize: 19,
+      fontSize:
+        20,
+
+      lineHeight:
+        27,
     },
 
+
     headerSubtitle: {
-      marginTop: 1,
+      marginTop:
+        1,
 
       color:
-        'rgba(255,255,255,0.75)',
+        'rgba(255,255,255,0.82)',
 
       fontFamily:
         'Inter_400Regular',
 
-      fontSize: 9.5,
+      fontSize:
+        11,
     },
+
+
+    // ========================================================
+    // BODY
+    // ========================================================
 
     body: {
       flex: 1,
 
-      paddingHorizontal: 17,
+      paddingHorizontal:
+        18,
 
-      paddingBottom: 15,
+      paddingBottom:
+        16,
     },
 
-    card: {
+
+    formCard: {
       flex: 1,
 
-      marginTop: -35,
+      marginTop:
+        -14,
 
-      borderRadius: 27,
+      borderRadius:
+        27,
+
+      backgroundColor:
+        COLORS.card,
 
       overflow:
         'hidden',
 
-      backgroundColor:
-        '#FAFAFA',
+      shadowColor:
+        '#000000',
+
+      shadowOffset: {
+        width: 0,
+        height: 3,
+      },
+
+      shadowOpacity:
+        0.16,
+
+      shadowRadius:
+        7,
+
+      elevation:
+        6,
     },
 
-    content: {
-      flexGrow: 1,
 
-      paddingHorizontal: 20,
-
-      paddingTop: 16,
-
-      paddingBottom: 24,
+    formScroll: {
+      flex: 1,
     },
 
-    progress: {
+
+    formScrollContent: {
+      flexGrow:
+        1,
+
+      paddingHorizontal:
+        21,
+
+      paddingTop:
+        22,
+
+      paddingBottom:
+        30,
+    },
+
+
+    // ========================================================
+    // PROGRESS
+    // ========================================================
+
+    progressRow: {
       flexDirection:
         'row',
 
-      gap: 7,
+      gap:
+        7,
 
-      marginBottom: 22,
+      marginBottom:
+        24,
     },
+
+
+    progressItem: {
+      flex:
+        1,
+
+      minWidth:
+        0,
+    },
+
 
     progressBar: {
-      flex: 1,
+      height:
+        4,
 
-      height: 4,
-
-      borderRadius: 3,
+      borderRadius:
+        4,
 
       backgroundColor:
-        '#D9D9D9',
+        '#E1E1E1',
     },
 
-    progressActive: {
+
+    progressBarActive: {
       backgroundColor:
         COLORS.redButton,
     },
 
-    loadingArea: {
-      minHeight: 480,
 
-      justifyContent:
-        'center',
+    progressText: {
+      marginTop:
+        5,
+
+      color:
+        COLORS.lightMuted,
+
+      fontFamily:
+        'Inter_500Medium',
+
+      fontSize:
+        9,
+
+      textAlign:
+        'left',
+    },
+
+
+    progressTextActive: {
+      color:
+        COLORS.redButton,
+
+      fontFamily:
+        'Inter_600SemiBold',
+    },
+
+
+    // ========================================================
+    // LOADING
+    // ========================================================
+
+    loadingContainer: {
+      flex:
+        1,
+
+      minHeight:
+        420,
 
       alignItems:
         'center',
+
+      justifyContent:
+        'center',
     },
 
+
     loadingText: {
-      marginTop: 10,
+      marginTop:
+        10,
 
       color:
         COLORS.muted,
@@ -945,8 +1219,14 @@ const styles =
       fontFamily:
         'Inter_400Regular',
 
-      fontSize: 10,
+      fontSize:
+        11,
     },
+
+
+    // ========================================================
+    // TITLE
+    // ========================================================
 
     sectionTitle: {
       color:
@@ -955,13 +1235,20 @@ const styles =
       fontFamily:
         'Poppins_600SemiBold',
 
-      fontSize: 16,
+      fontSize:
+        17,
+
+      lineHeight:
+        24,
     },
+
 
     sectionDescription: {
-      marginTop: 4,
+      marginTop:
+        3,
 
-      marginBottom: 18,
+      marginBottom:
+        18,
 
       color:
         COLORS.muted,
@@ -969,77 +1256,117 @@ const styles =
       fontFamily:
         'Inter_400Regular',
 
-      fontSize: 10,
+      fontSize:
+        11.5,
 
-      lineHeight: 15,
+      lineHeight:
+        17,
     },
 
-    ageSuccess: {
-      minHeight: 66,
 
-      padding: 12,
+    // ========================================================
+    // AGE VERIFICATION
+    // ========================================================
 
-      marginBottom: 20,
+    verificationCard: {
+      minHeight:
+        70,
+
+      paddingHorizontal:
+        13,
+
+      paddingVertical:
+        11,
+
+      marginBottom:
+        21,
+
+      borderWidth:
+        1,
+
+      borderRadius:
+        11,
 
       flexDirection:
         'row',
 
       alignItems:
         'center',
-
-      borderRadius: 12,
-
-      borderWidth: 1,
-
-      borderColor:
-        '#C8E4D1',
-
-      backgroundColor:
-        '#F1F9F4',
     },
 
-    ageWarning: {
-      minHeight: 66,
 
-      padding: 12,
+    verificationSuccess: {
+      borderColor:
+        COLORS.greenBorder,
 
-      marginBottom: 20,
+      backgroundColor:
+        COLORS.greenLight,
+    },
 
-      flexDirection:
-        'row',
+
+    verificationWarning: {
+      borderColor:
+        COLORS.pinkBorder,
+
+      backgroundColor:
+        COLORS.pinkLight,
+    },
+
+
+    verificationIcon: {
+      width:
+        36,
+
+      height:
+        36,
+
+      marginRight:
+        10,
+
+      borderRadius:
+        18,
 
       alignItems:
         'center',
 
-      borderRadius: 12,
+      justifyContent:
+        'center',
+    },
 
-      borderWidth: 1,
 
-      borderColor:
-        '#EDC4C4',
-
+    verificationIconSuccess: {
       backgroundColor:
-        COLORS.pink,
+        COLORS.white,
     },
 
-    ageContent: {
-      flex: 1,
 
-      marginLeft: 9,
+    verificationIconWarning: {
+      backgroundColor:
+        COLORS.white,
     },
 
-    ageTitle: {
+
+    verificationContent: {
+      flex:
+        1,
+    },
+
+
+    verificationTitle: {
       color:
         COLORS.black,
 
       fontFamily:
         'Inter_600SemiBold',
 
-      fontSize: 10,
+      fontSize:
+        11.5,
     },
 
-    ageText: {
-      marginTop: 3,
+
+    verificationDescription: {
+      marginTop:
+        3,
 
       color:
         COLORS.muted,
@@ -1047,22 +1374,42 @@ const styles =
       fontFamily:
         'Inter_400Regular',
 
-      fontSize: 8.8,
+      fontSize:
+        9.5,
 
-      lineHeight: 13,
+      lineHeight:
+        14,
     },
+
+
+    // ========================================================
+    // LABEL
+    // ========================================================
 
     label: {
-      marginBottom: 9,
-
       color:
         COLORS.black,
 
       fontFamily:
-        'Inter_600SemiBold',
+        'Inter_500Medium',
 
-      fontSize: 10.5,
+      fontSize:
+        11.5,
+
+      marginBottom:
+        8,
     },
+
+
+    required: {
+      color:
+        COLORS.red,
+    },
+
+
+    // ========================================================
+    // BLOOD TYPES
+    // ========================================================
 
     bloodGrid: {
       flexDirection:
@@ -1074,32 +1421,40 @@ const styles =
       justifyContent:
         'space-between',
 
-      rowGap: 10,
+      rowGap:
+        9,
 
-      marginBottom: 18,
+      marginBottom:
+        22,
     },
 
-    bloodButton: {
-      width: '22.5%',
 
-      height: 48,
+    bloodButton: {
+      width:
+        '22.5%',
+
+      height:
+        48,
+
+      borderWidth:
+        1,
+
+      borderColor:
+        '#999999',
+
+      borderRadius:
+        12,
+
+      backgroundColor:
+        COLORS.white,
 
       alignItems:
         'center',
 
       justifyContent:
         'center',
-
-      borderWidth: 1,
-
-      borderColor:
-        '#CFCFCF',
-
-      borderRadius: 13,
-
-      backgroundColor:
-        COLORS.white,
     },
+
 
     bloodButtonSelected: {
       borderColor:
@@ -1109,100 +1464,84 @@ const styles =
         COLORS.redButton,
     },
 
-    bloodText: {
+
+    bloodButtonText: {
       color:
-        COLORS.black,
+        '#333333',
 
       fontFamily:
         'Poppins_600SemiBold',
 
-      fontSize: 11,
+      fontSize:
+        12,
     },
 
-    bloodTextSelected: {
+
+    bloodButtonTextSelected: {
       color:
         COLORS.white,
     },
 
-    infoBox: {
-      minHeight: 78,
 
-      padding: 13,
-
-      flexDirection:
-        'row',
-
-      alignItems:
-        'flex-start',
-
-      borderWidth: 1,
-
-      borderColor:
-        '#ECC1C1',
-
-      borderRadius: 12,
-
-      backgroundColor:
-        COLORS.pink,
-    },
-
-    infoText: {
-      flex: 1,
-
-      marginLeft: 9,
-
-      color:
-        COLORS.muted,
-
-      fontFamily:
-        'Inter_400Regular',
-
-      fontSize: 9,
-
-      lineHeight: 14,
-    },
+    // ========================================================
+    // ERROR
+    // ========================================================
 
     errorBox: {
-      padding: 11,
+      paddingHorizontal:
+        10,
 
-      marginTop: 12,
+      paddingVertical:
+        9,
+
+      marginBottom:
+        13,
 
       flexDirection:
         'row',
 
       alignItems:
-        'flex-start',
+        'center',
 
-      borderRadius: 10,
+      gap:
+        6,
+
+      borderRadius:
+        8,
 
       backgroundColor:
-        '#FFF0F0',
+        COLORS.pinkLight,
     },
 
-    errorText: {
-      flex: 1,
 
-      marginLeft: 7,
+    errorText: {
+      flex:
+        1,
 
       color:
         COLORS.redButton,
 
       fontFamily:
-        'Inter_500Medium',
+        'Inter_400Regular',
 
-      fontSize: 9,
+      fontSize:
+        9.5,
 
-      lineHeight: 13,
+      lineHeight:
+        14,
     },
 
-    flexSpace: {
-      flex: 1,
 
-      minHeight: 40,
-    },
+    // ========================================================
+    // CONTINUE
+    // ========================================================
 
-    primaryButton: {
-      height: 49,
+    continueButton: {
+      height:
+        49,
+
+      marginTop:
+        2,
 
       flexDirection:
         'row',
@@ -1213,25 +1552,31 @@ const styles =
       justifyContent:
         'center',
 
-      gap: 6,
+      gap:
+        6,
 
-      borderRadius: 10,
+      borderRadius:
+        9,
 
       backgroundColor:
         COLORS.redButton,
     },
 
-    primaryButtonText: {
+
+    continueDisabled: {
+      opacity:
+        0.45,
+    },
+
+
+    continueText: {
       color:
         COLORS.white,
 
       fontFamily:
         'Poppins_600SemiBold',
 
-      fontSize: 11,
-    },
-
-    disabledButton: {
-      opacity: 0.45,
+      fontSize:
+        11.5,
     },
   });

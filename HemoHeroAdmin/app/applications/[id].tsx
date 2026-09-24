@@ -1,6 +1,5 @@
 import {
   useCallback,
-  useEffect,
   useMemo,
   useState,
 } from 'react';
@@ -73,31 +72,44 @@ const COLORS = {
   navy: '#050B19',
 
   card: '#091126',
-
   cardLight: '#101A35',
 
   border: '#243554',
 
   red: '#DB0A0A',
-
   redBright: '#EF3340',
-
   redDark: '#8E1118',
 
   white: '#FFFFFF',
 
   muted: '#7F889F',
-
   soft: '#B7C1D8',
 
   green: '#35C982',
-
   orange: '#F3A34A',
-
   blue: '#4A8CFF',
 
   error: '#FF6D76',
 };
+
+// ============================================================
+// MONTHS
+// ============================================================
+
+const MONTH_NAMES = [
+  'January',
+  'February',
+  'March',
+  'April',
+  'May',
+  'June',
+  'July',
+  'August',
+  'September',
+  'October',
+  'November',
+  'December',
+];
 
 // ============================================================
 // SCREEN
@@ -240,17 +252,87 @@ export default function ApplicationReviewScreen() {
     useState('');
 
   // ==========================================================
-  // LOAD
+  // LOAD APPLICATION
   // ==========================================================
 
-  useEffect(
-    () => {
-      loadApplication();
-    },
-    [
-      id,
-    ]
-  );
+  const loadApplication =
+    useCallback(
+      async () => {
+        if (!id) {
+          return;
+        }
+
+        try {
+          setLoading(
+            true
+          );
+
+          setError(
+            ''
+          );
+
+          const token =
+            await getAdminAccessToken();
+
+          const storedProfile =
+            await getAdminProfile();
+
+          if (
+            !token ||
+            storedProfile?.role !==
+              'admin'
+          ) {
+            await clearAdminSession();
+
+            router.replace(
+              '/'
+            );
+
+            return;
+          }
+
+          setProfile(
+            storedProfile
+          );
+
+          const result =
+            await getAdminDonorApplicationById(
+              token,
+              id
+            );
+
+          setApplication(
+            result.application
+          );
+
+          setAdminNote(
+            result.application
+              ?.admin_note ||
+              ''
+          );
+        } catch (
+          loadError
+        ) {
+          console.log(
+            'ADMIN APPLICATION DETAIL ERROR:',
+            loadError
+          );
+
+          setError(
+            loadError instanceof Error
+              ? loadError.message
+              : 'Unable to load donor application.'
+          );
+        } finally {
+          setLoading(
+            false
+          );
+        }
+      },
+      [
+        id,
+      ]
+    );
 
   useFocusEffect(
     useCallback(
@@ -258,81 +340,10 @@ export default function ApplicationReviewScreen() {
         loadApplication();
       },
       [
-        id,
+        loadApplication,
       ]
     )
   );
-
-  async function loadApplication() {
-    if (!id) {
-      return;
-    }
-
-    try {
-      setLoading(
-        true
-      );
-
-      setError('');
-
-      const token =
-        await getAdminAccessToken();
-
-      const storedProfile =
-        await getAdminProfile();
-
-      if (
-        !token ||
-        storedProfile?.role !==
-          'admin'
-      ) {
-        await clearAdminSession();
-
-        router.replace(
-          '/'
-        );
-
-        return;
-      }
-
-      setProfile(
-        storedProfile
-      );
-
-      const result =
-        await getAdminDonorApplicationById(
-          token,
-          id
-        );
-
-      setApplication(
-        result.application
-      );
-
-      setAdminNote(
-        result.application
-          ?.admin_note ||
-          ''
-      );
-    } catch (
-      loadError
-    ) {
-      console.log(
-        'ADMIN APPLICATION DETAIL ERROR:',
-        loadError
-      );
-
-      setError(
-        loadError instanceof Error
-          ? loadError.message
-          : 'Unable to load donor application.'
-      );
-    } finally {
-      setLoading(
-        false
-      );
-    }
-  }
 
   // ==========================================================
   // ADMIN NAME
@@ -390,7 +401,7 @@ export default function ApplicationReviewScreen() {
     'A';
 
   // ==========================================================
-  // CONFIRMATION HELPER
+  // CONFIRMATION
   // ==========================================================
 
   function confirmAction(
@@ -409,7 +420,9 @@ export default function ApplicationReviewScreen() {
           `${title}\n\n${message}`
         );
 
-      if (confirmed) {
+      if (
+        confirmed
+      ) {
         onConfirm();
       }
 
@@ -443,10 +456,10 @@ export default function ApplicationReviewScreen() {
   }
 
   // ==========================================================
-  // SUCCESS MESSAGE
+  // MESSAGE
   // ==========================================================
 
-  function showSuccess(
+  function showMessage(
     title: string,
     message: string
   ) {
@@ -470,7 +483,7 @@ export default function ApplicationReviewScreen() {
   }
 
   // ==========================================================
-  // OPEN ID
+  // VIEW GOVERNMENT ID
   // ==========================================================
 
   async function handleViewId() {
@@ -479,8 +492,10 @@ export default function ApplicationReviewScreen() {
         ?.verification
         ?.url;
 
-    if (!url) {
-      showSuccess(
+    if (
+      !url
+    ) {
+      showMessage(
         'Government ID',
         'A verification document is not currently available.'
       );
@@ -494,7 +509,9 @@ export default function ApplicationReviewScreen() {
           url
         );
 
-      if (!supported) {
+      if (
+        !supported
+      ) {
         throw new Error(
           'Unable to open the verification document.'
         );
@@ -511,7 +528,7 @@ export default function ApplicationReviewScreen() {
         viewError
       );
 
-      showSuccess(
+      showMessage(
         'Unable to Open ID',
         viewError instanceof Error
           ? viewError.message
@@ -554,7 +571,9 @@ export default function ApplicationReviewScreen() {
       const token =
         await getAdminAccessToken();
 
-      if (!token) {
+      if (
+        !token
+      ) {
         await clearAdminSession();
 
         router.replace(
@@ -570,7 +589,7 @@ export default function ApplicationReviewScreen() {
         adminNote
       );
 
-      showSuccess(
+      showMessage(
         'Application Approved',
         `${applicantName} is now a verified donor.`
       );
@@ -584,7 +603,7 @@ export default function ApplicationReviewScreen() {
         approveError
       );
 
-      showSuccess(
+      showMessage(
         'Unable to Approve',
         approveError instanceof Error
           ? approveError.message
@@ -612,7 +631,7 @@ export default function ApplicationReviewScreen() {
     if (
       !adminNote.trim()
     ) {
-      showSuccess(
+      showMessage(
         'Reason Required',
         'Enter an admin note explaining why this application is being rejected.'
       );
@@ -642,7 +661,9 @@ export default function ApplicationReviewScreen() {
       const token =
         await getAdminAccessToken();
 
-      if (!token) {
+      if (
+        !token
+      ) {
         await clearAdminSession();
 
         router.replace(
@@ -658,7 +679,7 @@ export default function ApplicationReviewScreen() {
         adminNote
       );
 
-      showSuccess(
+      showMessage(
         'Application Rejected',
         `${applicantName}'s donor application has been rejected.`
       );
@@ -672,7 +693,7 @@ export default function ApplicationReviewScreen() {
         rejectError
       );
 
-      showSuccess(
+      showMessage(
         'Unable to Reject',
         rejectError instanceof Error
           ? rejectError.message
@@ -731,9 +752,9 @@ export default function ApplicationReviewScreen() {
               styles.safeArea
             }
           >
-            {/* ============================================== */}
+            {/* ================================================= */}
             {/* HEADER */}
-            {/* ============================================== */}
+            {/* ================================================= */}
 
             <View
               style={[
@@ -894,9 +915,9 @@ export default function ApplicationReviewScreen() {
               </View>
             </View>
 
-            {/* ============================================== */}
+            {/* ================================================= */}
             {/* CONTENT */}
-            {/* ============================================== */}
+            {/* ================================================= */}
 
             {loading ? (
               <View
@@ -1034,9 +1055,7 @@ export default function ApplicationReviewScreen() {
                   false
                 }
               >
-                {/* ========================================== */}
                 {/* BACK */}
-                {/* ========================================== */}
 
                 <Pressable
                   style={[
@@ -1078,9 +1097,9 @@ export default function ApplicationReviewScreen() {
                   </Text>
                 </Pressable>
 
-                {/* ========================================== */}
+                {/* ================================================= */}
                 {/* APPLICANT SUMMARY */}
-                {/* ========================================== */}
+                {/* ================================================= */}
 
                 <View
                   style={[
@@ -1132,9 +1151,7 @@ export default function ApplicationReviewScreen() {
                           },
                         ]}
                       >
-                        {
-                          applicantInitials
-                        }
+                        {applicantInitials}
                       </Text>
                     </View>
 
@@ -1220,9 +1237,9 @@ export default function ApplicationReviewScreen() {
                   </View>
                 </View>
 
-                {/* ========================================== */}
+                {/* ================================================= */}
                 {/* MAIN GRID */}
-                {/* ========================================== */}
+                {/* ================================================= */}
 
                 <View
                   style={[
@@ -1322,7 +1339,9 @@ export default function ApplicationReviewScreen() {
                       </InfoGrid>
                     </SectionCard>
 
+                    {/* ================================================= */}
                     {/* BLOOD INFORMATION */}
+                    {/* ================================================= */}
 
                     <SectionCard
                       scale={
@@ -1351,7 +1370,7 @@ export default function ApplicationReviewScreen() {
                           value={
                             application.has_donated_before
                               ? 'Yes'
-                              : 'No'
+                              : 'No — First-time donor'
                           }
                         />
 
@@ -1359,13 +1378,11 @@ export default function ApplicationReviewScreen() {
                           scale={
                             s
                           }
-                          label="Last Donation Date"
+                          label="Last Donation"
                           value={
-                            application.has_donated_before
-                              ? formatDate(
-                                  application.last_donation_date
-                                )
-                              : 'Not applicable'
+                            formatDonationHistory(
+                              application
+                            )
                           }
                         />
 
@@ -1377,7 +1394,7 @@ export default function ApplicationReviewScreen() {
                           value={
                             application.has_donated_before
                               ? application.last_donation_facility ||
-                                '—'
+                                'Not provided'
                               : 'Not applicable'
                           }
                         />
@@ -1477,7 +1494,9 @@ export default function ApplicationReviewScreen() {
                       styles.rightColumn
                     }
                   >
+                    {/* ================================================= */}
                     {/* VERIFICATION */}
+                    {/* ================================================= */}
 
                     <SectionCard
                       scale={
@@ -1649,7 +1668,9 @@ export default function ApplicationReviewScreen() {
                       </View>
                     </SectionCard>
 
+                    {/* ================================================= */}
                     {/* ADMIN REVIEW */}
+                    {/* ================================================= */}
 
                     <SectionCard
                       scale={
@@ -1915,7 +1936,8 @@ export default function ApplicationReviewScreen() {
                                 },
                               ]}
                             >
-                              Application {formatValue(
+                              Application{' '}
+                              {formatValue(
                                 application.status
                               )}
                             </Text>
@@ -2203,7 +2225,9 @@ function StatusBadge({
   scale: number;
 }) {
   const normalized =
-    String(status)
+    String(
+      status
+    )
       .toLowerCase();
 
   return (
@@ -2283,7 +2307,9 @@ function StatusBadge({
 function formatValue(
   value?: string | null
 ) {
-  if (!value) {
+  if (
+    !value
+  ) {
     return '—';
   }
 
@@ -2299,17 +2325,114 @@ function formatValue(
     );
 }
 
+// ============================================================
+// DONATION HISTORY
+// ============================================================
+
+function formatDonationHistory(
+  application: DonorApplication
+) {
+  // ----------------------------------------------------------
+  // FIRST-TIME DONOR
+  // ----------------------------------------------------------
+
+  if (
+    !application.has_donated_before
+  ) {
+    return 'First-time donor';
+  }
+
+  // ----------------------------------------------------------
+  // EXACT DATE
+  // ----------------------------------------------------------
+
+  if (
+    application.last_donation_date
+  ) {
+    return formatDate(
+      application.last_donation_date
+    );
+  }
+
+  // ----------------------------------------------------------
+  // APPROXIMATE MONTH + YEAR
+  // ----------------------------------------------------------
+
+  const month =
+    application.last_donation_month;
+
+  const year =
+    application.last_donation_year;
+
+  if (
+    typeof month ===
+      'number' &&
+    month >= 1 &&
+    month <= 12 &&
+    typeof year ===
+      'number' &&
+    Number.isInteger(
+      year
+    )
+  ) {
+    return `Approximately ${MONTH_NAMES[month - 1]} ${year}`;
+  }
+
+  // ----------------------------------------------------------
+  // LEGACY APPLICATION
+  // ----------------------------------------------------------
+
+  return 'Date not provided';
+}
+
+// ============================================================
+// DATE
+// ============================================================
+
 function formatDate(
   value?: string | null
 ) {
-  if (!value) {
+  if (
+    !value
+  ) {
     return '—';
   }
 
-  const date =
-    new Date(
-      value
+  // Date-only values such as 2026-06-14 should be interpreted
+  // as a local calendar date rather than UTC. This prevents
+  // timezone shifts from displaying the previous day.
+
+  const dateOnlyMatch =
+    value.match(
+      /^(\d{4})-(\d{2})-(\d{2})$/
     );
+
+  let date:
+    Date;
+
+  if (
+    dateOnlyMatch
+  ) {
+    date =
+      new Date(
+        Number(
+          dateOnlyMatch[1]
+        ),
+
+        Number(
+          dateOnlyMatch[2]
+        ) - 1,
+
+        Number(
+          dateOnlyMatch[3]
+        )
+      );
+  } else {
+    date =
+      new Date(
+        value
+      );
+  }
 
   if (
     Number.isNaN(
@@ -2324,7 +2447,7 @@ function formatDate(
       undefined,
       {
         month:
-          'short',
+          'long',
 
         day:
           'numeric',
@@ -2335,10 +2458,16 @@ function formatDate(
     );
 }
 
+// ============================================================
+// DATE + TIME
+// ============================================================
+
 function formatDateTime(
   value?: string | null
 ) {
-  if (!value) {
+  if (
+    !value
+  ) {
     return '—';
   }
 
@@ -2377,6 +2506,10 @@ function formatDateTime(
     );
 }
 
+// ============================================================
+// LOCATION
+// ============================================================
+
 function formatLocation(
   city?: string | null,
   province?: string | null
@@ -2390,7 +2523,7 @@ function formatLocation(
 
   if (
     parts.length ===
-    0
+      0
   ) {
     return '—';
   }
@@ -2399,6 +2532,10 @@ function formatLocation(
     ', '
   );
 }
+
+// ============================================================
+// COORDINATE
+// ============================================================
 
 function formatCoordinate(
   value?: number | null
@@ -2445,7 +2582,7 @@ const styles =
 
       borderRadius:
         Platform.OS ===
-        'web'
+          'web'
           ? 24
           : 0,
     },
@@ -2466,6 +2603,10 @@ const styles =
       flex: 1,
     },
 
+    // ========================================================
+    // HEADER
+    // ========================================================
+
     header: {
       flexDirection:
         'row',
@@ -2476,7 +2617,8 @@ const styles =
       justifyContent:
         'space-between',
 
-      borderBottomWidth: 1,
+      borderBottomWidth:
+        1,
 
       borderBottomColor:
         COLORS.border,
@@ -2580,6 +2722,10 @@ const styles =
 
       marginTop: 2,
     },
+
+    // ========================================================
+    // CONTENT
+    // ========================================================
 
     scroll: {
       flex: 1,
@@ -2857,7 +3003,7 @@ const styles =
     },
 
     // ========================================================
-    // GRID
+    // MAIN GRID
     // ========================================================
 
     mainGrid: {

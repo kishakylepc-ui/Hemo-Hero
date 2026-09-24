@@ -233,6 +233,340 @@ function toNumberOrNull(
     : null;
 }
 
+// ============================================================
+// DONATION HISTORY VALIDATION
+//
+// Supports three situations:
+//
+// 1. First-time donor
+//    -> no previous donation date of any kind
+//
+// 2. Exact date known
+//    -> last_donation_date only (YYYY-MM-DD)
+//
+// 3. Exact date NOT remembered
+//    -> last_donation_month + last_donation_year only
+//
+// An approximate month/year is NEVER converted into a fake
+// exact date. Contradictory combinations are rejected.
+//
+// Older app versions that say "donated before" without any
+// date are still accepted (all date fields stored as NULL).
+// ============================================================
+
+// Must match the database CHECK constraint
+// donor_application_last_donation_year_check.
+const MIN_DONATION_YEAR = 1950;
+
+// UTC+14 is the furthest-ahead time zone. A date is only
+// treated as "in the future" if it is still in the future
+// everywhere on Earth, so users are never wrongly rejected
+// because the server clock is in a different time zone.
+function getLatestPossibleToday() {
+  const shifted =
+    new Date(
+      Date.now() +
+      14 * 60 * 60 * 1000
+    );
+
+  return {
+    year:
+      shifted.getUTCFullYear(),
+
+    month:
+      shifted.getUTCMonth() + 1,
+
+    day:
+      shifted.getUTCDate()
+  };
+}
+
+function isBlankValue(
+  value
+) {
+  return (
+    value === undefined ||
+    value === null ||
+    (
+      typeof value === 'string' &&
+      value.trim() === ''
+    )
+  );
+}
+
+function toStrictInteger(
+  value
+) {
+  if (
+    typeof value !== 'number' &&
+    typeof value !== 'string'
+  ) {
+    return NaN;
+  }
+
+  const text =
+    String(value).trim();
+
+  if (
+    !/^-?\d+$/.test(text)
+  ) {
+    return NaN;
+  }
+
+  return Number(text);
+}
+
+function validateDonationHistory(
+  body,
+  hasDonatedBefore
+) {
+  const emptyHistory = {
+    last_donation_date:
+      null,
+
+    last_donation_month:
+      null,
+
+    last_donation_year:
+      null
+  };
+
+  const exactDateText =
+    cleanText(
+      body.last_donation_date
+    );
+
+  const hasMonth =
+    !isBlankValue(
+      body.last_donation_month
+    );
+
+  const hasYear =
+    !isBlankValue(
+      body.last_donation_year
+    );
+
+  // --------------------------------------------------------
+  // FIRST-TIME DONOR
+  // --------------------------------------------------------
+
+  if (!hasDonatedBefore) {
+    if (
+      exactDateText ||
+      hasMonth ||
+      hasYear
+    ) {
+      return {
+        error:
+          'First-time donors cannot provide a previous donation date.'
+      };
+    }
+
+    return {
+      value:
+        emptyHistory
+    };
+  }
+
+  // --------------------------------------------------------
+  // NO CONTRADICTIONS
+  // --------------------------------------------------------
+
+  if (
+    exactDateText &&
+    (
+      hasMonth ||
+      hasYear
+    )
+  ) {
+    return {
+      error:
+        'Provide either an exact last donation date or an approximate month and year, not both.'
+    };
+  }
+
+  const latestToday =
+    getLatestPossibleToday();
+
+  // --------------------------------------------------------
+  // EXACT DATE
+  // --------------------------------------------------------
+
+  if (exactDateText) {
+    const match =
+      /^(\d{4})-(\d{2})-(\d{2})$/
+        .exec(
+          exactDateText
+        );
+
+    if (!match) {
+      return {
+        error:
+          'Invalid last donation date.'
+      };
+    }
+
+    const year =
+      Number(match[1]);
+
+    const month =
+      Number(match[2]);
+
+    const day =
+      Number(match[3]);
+
+    const check =
+      new Date(
+        Date.UTC(
+          year,
+          month - 1,
+          day
+        )
+      );
+
+    if (
+      check.getUTCFullYear() !==
+        year ||
+      check.getUTCMonth() !==
+        month - 1 ||
+      check.getUTCDate() !==
+        day ||
+      year < MIN_DONATION_YEAR
+    ) {
+      return {
+        error:
+          'Invalid last donation date.'
+      };
+    }
+
+    const isFuture =
+      year > latestToday.year ||
+      (
+        year === latestToday.year &&
+        month > latestToday.month
+      ) ||
+      (
+        year === latestToday.year &&
+        month === latestToday.month &&
+        day > latestToday.day
+      );
+
+    if (isFuture) {
+      return {
+        error:
+          'Last donation date cannot be in the future.'
+      };
+    }
+
+    return {
+      value: {
+        last_donation_date:
+          exactDateText,
+
+        last_donation_month:
+          null,
+
+        last_donation_year:
+          null
+      }
+    };
+  }
+
+  // --------------------------------------------------------
+  // APPROXIMATE MONTH + YEAR
+  // --------------------------------------------------------
+
+  if (
+    hasMonth ||
+    hasYear
+  ) {
+    if (
+      !hasMonth ||
+      !hasYear
+    ) {
+      return {
+        error:
+          'An approximate last donation needs both a month and a year.'
+      };
+    }
+
+    const month =
+      toStrictInteger(
+        body.last_donation_month
+      );
+
+    const year =
+      toStrictInteger(
+        body.last_donation_year
+      );
+
+    if (
+      !Number.isInteger(month) ||
+      month < 1 ||
+      month > 12
+    ) {
+      return {
+        error:
+          'Approximate donation month must be between 1 and 12.'
+      };
+    }
+
+    if (
+      !Number.isInteger(year) ||
+      year < MIN_DONATION_YEAR
+    ) {
+      return {
+        error:
+          'Approximate donation year is invalid.'
+      };
+    }
+
+    if (
+      year > latestToday.year
+    ) {
+      return {
+        error:
+          'Approximate donation year cannot be in the future.'
+      };
+    }
+
+    if (
+      year === latestToday.year &&
+      month > latestToday.month
+    ) {
+      return {
+        error:
+          'Approximate donation month cannot be in the future.'
+      };
+    }
+
+    return {
+      value: {
+        last_donation_date:
+          null,
+
+        last_donation_month:
+          month,
+
+        last_donation_year:
+          year
+      }
+    };
+  }
+
+  // --------------------------------------------------------
+  // DONATED BEFORE, NO DATE GIVEN
+  //
+  // Accepted for older app versions. The application is
+  // stored with all date fields NULL.
+  // --------------------------------------------------------
+
+  return {
+    value:
+      emptyHistory
+  };
+}
+
 function isValidLatitude(
   value
 ) {
@@ -414,6 +748,8 @@ async function getMyDonorApplication(
           blood_type,
           has_donated_before,
           last_donation_date,
+          last_donation_month,
+          last_donation_year,
           last_donation_facility,
           current_latitude,
           current_longitude,
@@ -1384,12 +1720,6 @@ async function submitDonorApplication(
           .has_donated_before
       );
 
-    const lastDonationDate =
-      cleanText(
-        req.body
-          .last_donation_date
-      );
-
     const lastDonationFacility =
       cleanText(
         req.body
@@ -1460,41 +1790,21 @@ async function submitDonorApplication(
     // DONATION HISTORY
     // --------------------------------------------------------
 
+    const donationHistory =
+      validateDonationHistory(
+        req.body,
+        hasDonatedBefore
+      );
+
     if (
-      hasDonatedBefore &&
-      lastDonationDate
+      donationHistory.error
     ) {
-      const donationDate =
-        new Date(
-          `${lastDonationDate}T00:00:00`
-        );
-
-      if (
-        Number.isNaN(
-          donationDate
-            .getTime()
-        )
-      ) {
-        return res
-          .status(400)
-          .json({
-            error:
-              'Invalid last donation date.'
-          });
-      }
-
-      if (
-        donationDate
-          .getTime() >
-        Date.now()
-      ) {
-        return res
-          .status(400)
-          .json({
-            error:
-              'Last donation date cannot be in the future.'
-          });
-      }
+      return res
+        .status(400)
+        .json({
+          error:
+            donationHistory.error
+        });
     }
 
     // --------------------------------------------------------
@@ -1684,10 +1994,19 @@ async function submitDonorApplication(
       has_donated_before:
         hasDonatedBefore,
 
+      // Always written together so a reapplication can never
+      // keep stale values from an earlier submission.
       last_donation_date:
-        hasDonatedBefore
-          ? lastDonationDate
-          : null,
+        donationHistory.value
+          .last_donation_date,
+
+      last_donation_month:
+        donationHistory.value
+          .last_donation_month,
+
+      last_donation_year:
+        donationHistory.value
+          .last_donation_year,
 
       last_donation_facility:
         hasDonatedBefore

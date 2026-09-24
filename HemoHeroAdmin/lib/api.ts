@@ -103,6 +103,10 @@ export type DonorApplication = {
 
   last_donation_date?: string | null;
 
+  last_donation_month?: number | null;
+
+  last_donation_year?: number | null;
+
   last_donation_facility?: string | null;
 
   current_latitude?: number | null;

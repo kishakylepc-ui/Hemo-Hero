@@ -250,6 +250,8 @@ async function getPublicDonorProfile(
           blood_type,
           has_donated_before,
           last_donation_date,
+          last_donation_month,
+          last_donation_year,
           last_donation_facility,
           current_latitude,
           current_longitude,
@@ -539,9 +541,24 @@ async function getPublicDonorProfile(
                 .has_donated_before
             ),
 
+          // Exact date, when the donor knew it.
           last_donation_date:
             donorApplication
               .last_donation_date ||
+            null,
+
+          // Approximate month (1-12) and year, used only when the
+          // donor did not remember the exact date. The two are
+          // never both set; clients must not present the
+          // approximate values as an exact day.
+          last_donation_month:
+            donorApplication
+              .last_donation_month ||
+            null,
+
+          last_donation_year:
+            donorApplication
+              .last_donation_year ||
             null,
 
           reviewed_at:
