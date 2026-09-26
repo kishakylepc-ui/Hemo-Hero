@@ -1,7 +1,6 @@
 import { useMemo, useState } from 'react';
 
 import {
-  Alert,
   Image,
   KeyboardAvoidingView,
   Modal,
@@ -68,31 +67,75 @@ const DAY_NAMES = [
   'Sat',
 ];
 
+type ActionPopupVariant =
+  | 'info'
+  | 'warning'
+  | 'error';
+
+type ActionPopupState = {
+  visible: boolean;
+  title: string;
+  message: string;
+  variant: ActionPopupVariant;
+};
+
 export default function PersonalInformationScreen() {
   // ==========================================================
   // PERSONAL INFORMATION
   // ==========================================================
 
-  const [firstName, setFirstName] =
+  const [
+    firstName,
+    setFirstName,
+  ] =
     useState('');
 
-  const [lastName, setLastName] =
+  const [
+    lastName,
+    setLastName,
+  ] =
     useState('');
 
-  const [middleName, setMiddleName] =
+  const [
+    middleName,
+    setMiddleName,
+  ] =
     useState('');
 
-  const [dateOfBirth, setDateOfBirth] =
+  const [
+    dateOfBirth,
+    setDateOfBirth,
+  ] =
     useState('');
 
-  const [gender, setGender] =
+  const [
+    gender,
+    setGender,
+  ] =
     useState('');
 
-  const [genderOpen, setGenderOpen] =
+  const [
+    genderOpen,
+    setGenderOpen,
+  ] =
     useState(false);
 
-  const [errorMessage, setErrorMessage] =
+  const [
+    errorMessage,
+    setErrorMessage,
+  ] =
     useState('');
+
+  const [
+    actionPopup,
+    setActionPopup,
+  ] =
+    useState<ActionPopupState>({
+      visible: false,
+      title: '',
+      message: '',
+      variant: 'info',
+    });
 
   // ==========================================================
   // PROFILE PHOTO
@@ -101,35 +144,48 @@ export default function PersonalInformationScreen() {
   const [
     profilePhoto,
     setProfilePhoto,
-  ] = useState<string | null>(null);
+  ] =
+    useState<string | null>(
+      null
+    );
 
   // ==========================================================
   // CALENDAR
   // ==========================================================
 
-  const today = new Date();
+  const today =
+    new Date();
 
   const [
     calendarVisible,
     setCalendarVisible,
-  ] = useState(false);
+  ] =
+    useState(false);
 
   const [
     calendarMonth,
     setCalendarMonth,
-  ] = useState(today.getMonth());
+  ] =
+    useState(
+      today.getMonth()
+    );
 
   const [
     calendarYear,
     setCalendarYear,
-  ] = useState(
-    today.getFullYear() - 18
-  );
+  ] =
+    useState(
+      today.getFullYear() -
+        18
+    );
 
   const [
     selectedDate,
     setSelectedDate,
-  ] = useState<Date | null>(null);
+  ] =
+    useState<Date | null>(
+      null
+    );
 
   const genderOptions = [
     'Male',
@@ -141,30 +197,68 @@ export default function PersonalInformationScreen() {
   // MESSAGE
   // ==========================================================
 
+  function closeActionPopup() {
+    setActionPopup(
+      current => ({
+        ...current,
+        visible: false,
+      })
+    );
+  }
+
+  function getMessageVariant(
+    title: string
+  ): ActionPopupVariant {
+    const value =
+      title.toLowerCase();
+
+    if (
+      value.includes(
+        'unable'
+      ) ||
+      value.includes(
+        'error'
+      )
+    ) {
+      return 'error';
+    }
+
+    if (
+      value.includes(
+        'required'
+      ) ||
+      value.includes(
+        'missing'
+      )
+    ) {
+      return 'warning';
+    }
+
+    return 'info';
+  }
+
   function showMessage(
     title: string,
     message: string
   ) {
-    if (
-      Platform.OS === 'web' &&
-      typeof window !== 'undefined'
-    ) {
-      window.alert(
-        `${title}\n\n${message}`
-      );
-
-      return;
-    }
-
-    Alert.alert(
+    setActionPopup({
+      visible: true,
       title,
-      message
-    );
+      message,
+      variant:
+        getMessageVariant(
+          title
+        ),
+    });
   }
 
   function clearError() {
-    if (errorMessage) {
-      setErrorMessage('');
+    if (
+      errorMessage
+    ) {
+      setErrorMessage(
+        ''
+      );
     }
   }
 
@@ -178,7 +272,9 @@ export default function PersonalInformationScreen() {
         await ImagePicker
           .requestMediaLibraryPermissionsAsync();
 
-      if (!permission.granted) {
+      if (
+        !permission.granted
+      ) {
         showMessage(
           'Permission Required',
           'Hemo-Hero needs permission to access your photos so you can choose a profile picture.'
@@ -190,22 +286,35 @@ export default function PersonalInformationScreen() {
       const result =
         await ImagePicker
           .launchImageLibraryAsync({
-            mediaTypes: ['images'],
-            allowsEditing: true,
-            aspect: [1, 1],
-            quality: 0.8,
+            mediaTypes: [
+              'images',
+            ],
+
+            allowsEditing:
+              true,
+
+            aspect: [
+              1,
+              1,
+            ],
+
+            quality:
+              0.8,
           });
 
       if (
         !result.canceled &&
         result.assets &&
-        result.assets.length > 0
+        result.assets.length >
+          0
       ) {
         setProfilePhoto(
           result.assets[0].uri
         );
       }
-    } catch (error) {
+    } catch (
+      error
+    ) {
       console.log(
         'IMAGE PICKER ERROR:',
         error
@@ -219,7 +328,9 @@ export default function PersonalInformationScreen() {
   }
 
   function handleRemovePhoto() {
-    setProfilePhoto(null);
+    setProfilePhoto(
+      null
+    );
   }
 
   // ==========================================================
@@ -232,19 +343,24 @@ export default function PersonalInformationScreen() {
     const year =
       date.getFullYear();
 
-    const month = String(
-      date.getMonth() + 1
-    ).padStart(
-      2,
-      '0'
-    );
+    const month =
+      String(
+        date.getMonth() +
+          1
+      )
+        .padStart(
+          2,
+          '0'
+        );
 
-    const day = String(
-      date.getDate()
-    ).padStart(
-      2,
-      '0'
-    );
+    const day =
+      String(
+        date.getDate()
+      )
+        .padStart(
+          2,
+          '0'
+        );
 
     return `${year}-${month}-${day}`;
   }
@@ -252,39 +368,59 @@ export default function PersonalInformationScreen() {
   function formatDisplayDate(
     date: Date
   ) {
-    return date.toLocaleDateString(
-      'en-US',
-      {
-        month: 'long',
-        day: 'numeric',
-        year: 'numeric',
-      }
-    );
+    return date
+      .toLocaleDateString(
+        'en-US',
+        {
+          month:
+            'long',
+
+          day:
+            'numeric',
+
+          year:
+            'numeric',
+        }
+      );
   }
 
   function openCalendar() {
-    setGenderOpen(false);
+    setGenderOpen(
+      false
+    );
 
-    if (selectedDate) {
+    if (
+      selectedDate
+    ) {
       setCalendarMonth(
-        selectedDate.getMonth()
+        selectedDate
+          .getMonth()
       );
 
       setCalendarYear(
-        selectedDate.getFullYear()
+        selectedDate
+          .getFullYear()
       );
     }
 
-    setCalendarVisible(true);
+    setCalendarVisible(
+      true
+    );
   }
 
   function previousMonth() {
-    if (calendarMonth === 0) {
-      setCalendarMonth(11);
+    if (
+      calendarMonth ===
+      0
+    ) {
+      setCalendarMonth(
+        11
+      );
 
       setCalendarYear(
         current =>
-          current - 1
+          current -
+          1
       );
 
       return;
@@ -292,7 +428,8 @@ export default function PersonalInformationScreen() {
 
     setCalendarMonth(
       current =>
-        current - 1
+        current -
+        1
     );
   }
 
@@ -300,7 +437,8 @@ export default function PersonalInformationScreen() {
     const proposed =
       new Date(
         calendarYear,
-        calendarMonth + 1,
+        calendarMonth +
+          1,
         1
       );
 
@@ -318,12 +456,18 @@ export default function PersonalInformationScreen() {
       return;
     }
 
-    if (calendarMonth === 11) {
-      setCalendarMonth(0);
+    if (
+      calendarMonth ===
+      11
+    ) {
+      setCalendarMonth(
+        0
+      );
 
       setCalendarYear(
         current =>
-          current + 1
+          current +
+          1
       );
 
       return;
@@ -331,14 +475,16 @@ export default function PersonalInformationScreen() {
 
     setCalendarMonth(
       current =>
-        current + 1
+        current +
+        1
     );
   }
 
   function previousYear() {
     setCalendarYear(
       current =>
-        current - 1
+        current -
+        1
     );
   }
 
@@ -349,7 +495,8 @@ export default function PersonalInformationScreen() {
     ) {
       setCalendarYear(
         current =>
-          current + 1
+          current +
+          1
       );
     }
   }
@@ -364,7 +511,10 @@ export default function PersonalInformationScreen() {
         day
       );
 
-    if (date > today) {
+    if (
+      date >
+      today
+    ) {
       return;
     }
 
@@ -390,59 +540,80 @@ export default function PersonalInformationScreen() {
   // ==========================================================
 
   const calendarDays =
-    useMemo(() => {
-      const firstDay =
-        new Date(
-          calendarYear,
-          calendarMonth,
-          1
-        ).getDay();
+    useMemo(
+      () => {
+        const firstDay =
+          new Date(
+            calendarYear,
+            calendarMonth,
+            1
+          )
+            .getDay();
 
-      const daysInMonth =
-        new Date(
-          calendarYear,
-          calendarMonth + 1,
+        const daysInMonth =
+          new Date(
+            calendarYear,
+            calendarMonth +
+              1,
+            0
+          )
+            .getDate();
+
+        const days:
+          Array<
+            number | null
+          > = [];
+
+        for (
+          let i =
+            0;
+          i <
+          firstDay;
+          i++
+        ) {
+          days.push(
+            null
+          );
+        }
+
+        for (
+          let day =
+            1;
+          day <=
+          daysInMonth;
+          day++
+        ) {
+          days.push(
+            day
+          );
+        }
+
+        while (
+          days.length %
+            7 !==
           0
-        ).getDate();
+        ) {
+          days.push(
+            null
+          );
+        }
 
-      const days: Array<
-        number | null
-      > = [];
-
-      for (
-        let i = 0;
-        i < firstDay;
-        i++
-      ) {
-        days.push(null);
-      }
-
-      for (
-        let day = 1;
-        day <= daysInMonth;
-        day++
-      ) {
-        days.push(day);
-      }
-
-      while (
-        days.length % 7 !== 0
-      ) {
-        days.push(null);
-      }
-
-      return days;
-    }, [
-      calendarMonth,
-      calendarYear,
-    ]);
+        return days;
+      },
+      [
+        calendarMonth,
+        calendarYear,
+      ]
+    );
 
   // ==========================================================
   // NEXT
   // ==========================================================
 
   function handleNext() {
-    setErrorMessage('');
+    setErrorMessage(
+      ''
+    );
 
     const cleanFirstName =
       firstName.trim();
@@ -491,7 +662,8 @@ export default function PersonalInformationScreen() {
         gender,
 
         profile_photo_uri:
-          profilePhoto || '',
+          profilePhoto ||
+          '',
       },
     });
   }
@@ -529,7 +701,8 @@ export default function PersonalInformationScreen() {
               styles.flex
             }
             behavior={
-              Platform.OS === 'ios'
+              Platform.OS ===
+              'ios'
                 ? 'padding'
                 : undefined
             }
@@ -542,7 +715,9 @@ export default function PersonalInformationScreen() {
               showsVerticalScrollIndicator={
                 false
               }
-              bounces={false}
+              bounces={
+                false
+              }
             >
               {/* ==================================================
                   HEADER
@@ -581,7 +756,9 @@ export default function PersonalInformationScreen() {
                   >
                     <MaterialIcons
                       name="arrow-back"
-                      size={21}
+                      size={
+                        21
+                      }
                       color={
                         COLORS.white
                       }
@@ -696,15 +873,13 @@ export default function PersonalInformationScreen() {
                         ) : (
                           <MaterialIcons
                             name="photo-camera"
-                            size={30}
+                            size={
+                              30
+                            }
                             color="#444444"
                           />
                         )}
                       </View>
-
-                      {/* ==========================================
-                          ADD / EDIT BADGE
-                      ========================================== */}
 
                       <View
                         style={
@@ -717,7 +892,9 @@ export default function PersonalInformationScreen() {
                               ? 'edit'
                               : 'add'
                           }
-                          size={12}
+                          size={
+                            12
+                          }
                           color={
                             COLORS.white
                           }
@@ -746,10 +923,6 @@ export default function PersonalInformationScreen() {
                     </Text>
                   </TouchableOpacity>
 
-                  {/* ==============================================
-                      REMOVE PHOTO
-                  ============================================== */}
-
                   {profilePhoto ? (
                     <TouchableOpacity
                       style={
@@ -764,7 +937,9 @@ export default function PersonalInformationScreen() {
                     >
                       <MaterialIcons
                         name="delete-outline"
-                        size={13}
+                        size={
+                          13
+                        }
                         color={
                           COLORS.redButton
                         }
@@ -795,7 +970,9 @@ export default function PersonalInformationScreen() {
                           styles.errorText
                         }
                       >
-                        {errorMessage}
+                        {
+                          errorMessage
+                        }
                       </Text>
                     </View>
                   ) : null}
@@ -824,7 +1001,9 @@ export default function PersonalInformationScreen() {
                       firstName
                     }
                     autoCapitalize="words"
-                    autoCorrect={false}
+                    autoCorrect={
+                      false
+                    }
                     onChangeText={
                       value => {
                         setFirstName(
@@ -860,7 +1039,9 @@ export default function PersonalInformationScreen() {
                       lastName
                     }
                     autoCapitalize="words"
-                    autoCorrect={false}
+                    autoCorrect={
+                      false
+                    }
                     onChangeText={
                       value => {
                         setLastName(
@@ -896,7 +1077,9 @@ export default function PersonalInformationScreen() {
                       middleName
                     }
                     autoCapitalize="words"
-                    autoCorrect={false}
+                    autoCorrect={
+                      false
+                    }
                     onChangeText={
                       setMiddleName
                     }
@@ -932,7 +1115,9 @@ export default function PersonalInformationScreen() {
                     >
                       <MaterialIcons
                         name="calendar-today"
-                        size={15}
+                        size={
+                          15
+                        }
                         color={
                           COLORS.muted
                         }
@@ -956,7 +1141,9 @@ export default function PersonalInformationScreen() {
 
                     <MaterialIcons
                       name="keyboard-arrow-down"
-                      size={19}
+                      size={
+                        19
+                      }
                       color={
                         COLORS.muted
                       }
@@ -1007,7 +1194,9 @@ export default function PersonalInformationScreen() {
                           ? 'keyboard-arrow-up'
                           : 'keyboard-arrow-down'
                       }
-                      size={20}
+                      size={
+                        20
+                      }
                       color="#555555"
                     />
                   </TouchableOpacity>
@@ -1016,7 +1205,7 @@ export default function PersonalInformationScreen() {
                       GENDER DROPDOWN
                   ============================================== */}
 
-                  {genderOpen && (
+                  {genderOpen ? (
                     <View
                       style={
                         styles.genderDropdown
@@ -1059,13 +1248,15 @@ export default function PersonalInformationScreen() {
                                 styles.genderOptionText
                               }
                             >
-                              {option}
+                              {
+                                option
+                              }
                             </Text>
                           </TouchableOpacity>
                         )
                       )}
                     </View>
-                  )}
+                  ) : null}
 
                   {/* ==============================================
                       NEXT BUTTON
@@ -1166,7 +1357,9 @@ export default function PersonalInformationScreen() {
               >
                 <MaterialIcons
                   name="close"
-                  size={20}
+                  size={
+                    20
+                  }
                   color={
                     COLORS.black
                   }
@@ -1193,7 +1386,9 @@ export default function PersonalInformationScreen() {
               >
                 <MaterialIcons
                   name="keyboard-double-arrow-left"
-                  size={20}
+                  size={
+                    20
+                  }
                   color={
                     COLORS.redButton
                   }
@@ -1205,7 +1400,9 @@ export default function PersonalInformationScreen() {
                   styles.yearText
                 }
               >
-                {calendarYear}
+                {
+                  calendarYear
+                }
               </Text>
 
               <TouchableOpacity
@@ -1218,7 +1415,9 @@ export default function PersonalInformationScreen() {
               >
                 <MaterialIcons
                   name="keyboard-double-arrow-right"
-                  size={20}
+                  size={
+                    20
+                  }
                   color={
                     COLORS.redButton
                   }
@@ -1245,7 +1444,9 @@ export default function PersonalInformationScreen() {
               >
                 <MaterialIcons
                   name="chevron-left"
-                  size={24}
+                  size={
+                    24
+                  }
                   color={
                     COLORS.black
                   }
@@ -1274,7 +1475,9 @@ export default function PersonalInformationScreen() {
               >
                 <MaterialIcons
                   name="chevron-right"
-                  size={24}
+                  size={
+                    24
+                  }
                   color={
                     COLORS.black
                   }
@@ -1294,7 +1497,9 @@ export default function PersonalInformationScreen() {
               {DAY_NAMES.map(
                 day => (
                   <View
-                    key={day}
+                    key={
+                      day
+                    }
                     style={
                       styles.dayCell
                     }
@@ -1304,7 +1509,9 @@ export default function PersonalInformationScreen() {
                         styles.dayName
                       }
                     >
-                      {day}
+                      {
+                        day
+                      }
                     </Text>
                   </View>
                 )
@@ -1325,7 +1532,9 @@ export default function PersonalInformationScreen() {
                   day,
                   index
                 ) => {
-                  if (!day) {
+                  if (
+                    !day
+                  ) {
                     return (
                       <View
                         key={`empty-${index}`}
@@ -1350,16 +1559,21 @@ export default function PersonalInformationScreen() {
                   const isSelected =
                     selectedDate !==
                       null &&
-                    selectedDate.getFullYear() ===
+                    selectedDate
+                      .getFullYear() ===
                       calendarYear &&
-                    selectedDate.getMonth() ===
+                    selectedDate
+                      .getMonth() ===
                       calendarMonth &&
-                    selectedDate.getDate() ===
+                    selectedDate
+                      .getDate() ===
                       day;
 
                   return (
                     <View
-                      key={day}
+                      key={
+                        day
+                      }
                       style={
                         styles.dayCell
                       }
@@ -1394,7 +1608,9 @@ export default function PersonalInformationScreen() {
                               styles.dayTextDisabled,
                           ]}
                         >
-                          {day}
+                          {
+                            day
+                          }
                         </Text>
                       </TouchableOpacity>
                     </View>
@@ -1428,6 +1644,108 @@ export default function PersonalInformationScreen() {
           </View>
         </View>
       </Modal>
+
+      {/* ========================================================
+          HEMO-HERO ACTION POPUP
+      ======================================================== */}
+
+      <Modal
+        visible={
+          actionPopup.visible
+        }
+        transparent
+        animationType="fade"
+        onRequestClose={
+          closeActionPopup
+        }
+      >
+        <View
+          style={
+            styles.actionPopupOverlay
+          }
+        >
+          <View
+            style={
+              styles.actionPopupCard
+            }
+          >
+            <View
+              style={[
+                styles.actionPopupIcon,
+
+                actionPopup.variant ===
+                  'warning' &&
+                  styles.actionPopupIconWarning,
+
+                actionPopup.variant ===
+                  'error' &&
+                  styles.actionPopupIconError,
+              ]}
+            >
+              <MaterialIcons
+                name={
+                  actionPopup.variant ===
+                    'warning'
+                    ? 'warning-amber'
+                    : actionPopup.variant ===
+                        'error'
+                      ? 'error-outline'
+                      : 'info-outline'
+                }
+                size={
+                  31
+                }
+                color={
+                  actionPopup.variant ===
+                    'warning'
+                    ? '#C96A18'
+                    : COLORS.redButton
+                }
+              />
+            </View>
+
+            <Text
+              style={
+                styles.actionPopupTitle
+              }
+            >
+              {
+                actionPopup.title
+              }
+            </Text>
+
+            <Text
+              style={
+                styles.actionPopupMessage
+              }
+            >
+              {
+                actionPopup.message
+              }
+            </Text>
+
+            <TouchableOpacity
+              style={
+                styles.actionPopupButton
+              }
+              activeOpacity={
+                0.85
+              }
+              onPress={
+                closeActionPopup
+              }
+            >
+              <Text
+                style={
+                  styles.actionPopupButtonText
+                }
+              >
+                Okay
+              </Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -1436,862 +1754,1259 @@ export default function PersonalInformationScreen() {
 // STYLES
 // ============================================================
 
-const styles = StyleSheet.create({
-  flex: {
-    flex: 1,
-  },
-
-  // ==========================================================
-  // DESKTOP
-  // ==========================================================
-
-  desktopBackground: {
-    flex: 1,
-
-    alignItems: 'center',
-    justifyContent: 'center',
-
-    backgroundColor:
-      Platform.OS === 'web'
-        ? '#1E1E1E'
-        : COLORS.backgroundBottom,
-  },
-
-  // ==========================================================
-  // PHONE
-  // ==========================================================
-
-  phone: {
-    width:
-      Platform.OS === 'web'
-        ? 440
-        : '100%',
-
-    height:
-      Platform.OS === 'web'
-        ? '100%'
-        : '100%',
-
-    maxWidth: '100%',
-
-    overflow: 'hidden',
-
-    backgroundColor:
-      COLORS.backgroundBottom,
-  },
-
-  safeArea: {
-    flex: 1,
-
-    backgroundColor:
-      COLORS.red,
-  },
-
-  scroll: {
-    flexGrow: 1,
-
-    backgroundColor:
-      COLORS.backgroundBottom,
-  },
-
-  // ==========================================================
-  // HEADER
-  // ==========================================================
-
-  header: {
-    height: 205,
-
-    paddingHorizontal: 27,
-    paddingTop: 52,
-
-    overflow: 'hidden',
-  },
-
-  headerDecoration: {
-    position: 'absolute',
-
-    width: 180,
-    height: 180,
-
-    borderRadius: 90,
-
-    right: -82,
-    top: -70,
-
-    backgroundColor:
-      'rgba(255,255,255,0.07)',
-  },
-
-  headerRow: {
-    flexDirection: 'row',
-
-    alignItems: 'center',
-  },
-
-  backCircle: {
-    width: 37,
-    height: 37,
-
-    borderRadius: 19,
-
-    borderWidth: 2,
-
-    borderColor:
-      COLORS.white,
-
-    alignItems: 'center',
-    justifyContent: 'center',
-
-    marginRight: 12,
-  },
-
-  headerTitle: {
-    color:
-      COLORS.white,
-
-    fontFamily:
-      'Poppins_700Bold',
-
-    fontSize: 17,
-  },
-
-  // ==========================================================
-  // BODY
-  // ==========================================================
-
-  bodyBackground: {
-    flex: 1,
-
-    minHeight: 669,
-
-    paddingHorizontal: 28,
-    paddingBottom: 30,
-  },
-
-  // ==========================================================
-  // CARD
-  // ==========================================================
-
-  card: {
-    marginTop: -72,
-
-    minHeight: 640,
-
-    paddingHorizontal: 24,
-    paddingTop: 13,
-    paddingBottom: 22,
-
-    backgroundColor:
-      '#FAFAFA',
-
-    borderRadius: 27,
-
-    shadowColor:
-      '#000000',
-
-    shadowOffset: {
-      width: 0,
-      height: 3,
+const styles =
+  StyleSheet.create({
+    flex: {
+      flex:
+        1,
     },
 
-    shadowOpacity: 0.15,
-
-    shadowRadius: 5,
-
-    elevation: 5,
-  },
-
-  // ==========================================================
-  // PROGRESS
-  // ==========================================================
-
-  progressRow: {
-    width: 155,
-
-    flexDirection: 'row',
-
-    alignSelf: 'center',
-
-    gap: 8,
-
-    marginBottom: 16,
-  },
-
-  progressLine: {
-    flex: 1,
-
-    height: 4,
-
-    borderRadius: 3,
-
-    backgroundColor:
-      COLORS.progressInactive,
-  },
-
-  progressActive: {
-    backgroundColor:
-      COLORS.redButton,
-  },
-
-  sectionTitle: {
-    color:
-      COLORS.black,
-
-    fontFamily:
-      'Inter_600SemiBold',
-
-    fontSize: 12,
-
-    marginBottom: 12,
-  },
-
-  // ==========================================================
-  // PROFILE PHOTO
-  // ==========================================================
-
-  photoArea: {
-    alignItems: 'center',
-
-    marginBottom: 8,
-  },
-
-  /*
-    This outer wrapper does NOT clip
-    the red add/edit badge.
-  */
-  photoWrapper: {
-    width: 88,
-    height: 88,
-
-    position: 'relative',
-
-    alignItems: 'center',
-    justifyContent: 'center',
-
-    marginBottom: 8,
-
-    overflow: 'visible',
-  },
-
-  /*
-    Only the inner circle clips the
-    selected image into a circle.
-  */
-  photoCircle: {
-    width: 80,
-    height: 80,
-
-    borderRadius: 40,
-
-    backgroundColor:
-      COLORS.photoBackground,
-
-    alignItems: 'center',
-    justifyContent: 'center',
-
-    overflow: 'hidden',
-
-    borderWidth: 2,
-
-    borderColor:
-      COLORS.white,
-  },
-
-  profileImage: {
-    width: '100%',
-
-    height: '100%',
-  },
-
-  /*
-    Badge is outside the clipped
-    inner photo circle.
-  */
-  addPhotoBadge: {
-    position: 'absolute',
-
-    right: 0,
-    bottom: 3,
-
-    width: 22,
-    height: 22,
-
-    borderRadius: 11,
-
-    backgroundColor:
-      COLORS.redButton,
-
-    alignItems: 'center',
-    justifyContent: 'center',
-
-    borderWidth: 2.5,
-
-    borderColor:
-      '#FAFAFA',
-
-    zIndex: 10,
-
-    elevation: 5,
-  },
-
-  photoTitle: {
-    color:
-      COLORS.black,
-
-    fontFamily:
-      'Inter_500Medium',
-
-    fontSize: 10,
-  },
-
-  photoSubtitle: {
-    color:
-      COLORS.muted,
-
-    fontFamily:
-      'Inter_400Regular',
-
-    fontSize: 8,
-
-    marginTop: 2,
-  },
-
-  removePhotoButton: {
-    flexDirection: 'row',
-
-    alignItems: 'center',
-    justifyContent: 'center',
-
-    alignSelf: 'center',
-
-    gap: 3,
-
-    marginTop: 2,
-    marginBottom: 8,
-  },
-
-  removePhotoText: {
-    color:
-      COLORS.redButton,
-
-    fontFamily:
-      'Inter_500Medium',
-
-    fontSize: 8,
-  },
-
-  // ==========================================================
-  // ERROR
-  // ==========================================================
-
-  errorBox: {
-    marginBottom: 11,
-
-    paddingHorizontal: 10,
-    paddingVertical: 8,
-
-    borderRadius: 7,
-
-    borderWidth: 1,
-
-    borderColor:
-      '#E9AAAA',
-
-    backgroundColor:
-      '#FDECEC',
-  },
-
-  errorText: {
-    color:
-      COLORS.redButton,
-
-    fontFamily:
-      'Inter_500Medium',
-
-    fontSize: 9,
-
-    textAlign: 'center',
-  },
-
-  // ==========================================================
-  // FORM
-  // ==========================================================
-
-  label: {
-    color:
-      COLORS.black,
-
-    fontFamily:
-      'Inter_500Medium',
-
-    fontSize: 10,
-
-    marginBottom: 6,
-  },
-
-  input: {
-    height: 38,
-
-    marginBottom: 12,
-
-    paddingHorizontal: 14,
-
-    borderWidth: 1,
-
-    borderColor:
-      COLORS.inputBorder,
-
-    borderRadius: 8,
-
-    color:
-      COLORS.black,
-
-    backgroundColor:
-      COLORS.white,
-
-    fontFamily:
-      'Inter_400Regular',
-
-    fontSize: 10,
-
-    outlineStyle:
-      Platform.OS === 'web'
-        ? 'none'
-        : undefined,
-  } as any,
-
-  // ==========================================================
-  // DATE FIELD
-  // ==========================================================
-
-  dateSelector: {
-    height: 38,
-
-    marginBottom: 12,
-
-    paddingHorizontal: 13,
-
-    flexDirection: 'row',
-
-    alignItems: 'center',
-
-    justifyContent:
-      'space-between',
-
-    borderWidth: 1,
-
-    borderColor:
-      COLORS.inputBorder,
-
-    borderRadius: 8,
-
-    backgroundColor:
-      COLORS.white,
-  },
-
-  dateLeft: {
-    flex: 1,
-
-    flexDirection: 'row',
-
-    alignItems: 'center',
-  },
-
-  dateText: {
-    marginLeft: 8,
-
-    color:
-      COLORS.black,
-
-    fontFamily:
-      'Inter_400Regular',
-
-    fontSize: 10,
-  },
-
-  placeholderText: {
-    color:
-      COLORS.placeholder,
-  },
-
-  // ==========================================================
-  // GENDER
-  // ==========================================================
-
-  genderSelector: {
-    height: 38,
-
-    paddingHorizontal: 14,
-
-    flexDirection: 'row',
-
-    alignItems: 'center',
-
-    justifyContent:
-      'space-between',
-
-    borderWidth: 1,
-
-    borderColor:
-      COLORS.inputBorder,
-
-    borderRadius: 8,
-
-    backgroundColor:
-      COLORS.white,
-  },
-
-  genderText: {
-    color:
-      COLORS.black,
-
-    fontFamily:
-      'Inter_400Regular',
-
-    fontSize: 10,
-  },
-
-  genderDropdown: {
-    marginTop: 5,
-
-    borderWidth: 1,
-
-    borderColor:
-      COLORS.inputBorder,
-
-    borderRadius: 8,
-
-    backgroundColor:
-      COLORS.white,
-
-    overflow: 'hidden',
-  },
-
-  genderOption: {
-    height: 36,
-
-    paddingHorizontal: 14,
-
-    justifyContent:
-      'center',
-  },
-
-  genderOptionBorder: {
-    borderBottomWidth: 1,
-
-    borderBottomColor:
-      '#EEEEEE',
-  },
-
-  genderOptionText: {
-    color:
-      COLORS.black,
-
-    fontFamily:
-      'Inter_400Regular',
-
-    fontSize: 10,
-  },
-
-  // ==========================================================
-  // NEXT BUTTON
-  // ==========================================================
-
-  nextButton: {
-    height: 49,
-
-    marginTop: 24,
-
-    borderRadius: 8,
-
-    backgroundColor:
-      COLORS.redButton,
-
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-
-  nextButtonText: {
-    color:
-      COLORS.white,
-
-    fontFamily:
-      'Poppins_600SemiBold',
-
-    fontSize: 12,
-  },
-
-  // ==========================================================
-  // CALENDAR MODAL
-  // ==========================================================
-
-  modalOverlay: {
-    flex: 1,
-
-    backgroundColor:
-      'rgba(0,0,0,0.45)',
-
-    alignItems: 'center',
-    justifyContent: 'center',
-
-    paddingHorizontal: 24,
-  },
-
-  calendarModal: {
-    width: '100%',
-
-    maxWidth: 350,
-
-    paddingHorizontal: 19,
-    paddingTop: 20,
-    paddingBottom: 18,
-
-    borderRadius: 20,
-
-    backgroundColor:
-      COLORS.white,
-
-    shadowColor:
-      '#000000',
-
-    shadowOffset: {
-      width: 0,
-      height: 5,
+    // ==========================================================
+    // DESKTOP
+    // ==========================================================
+
+    desktopBackground: {
+      flex:
+        1,
+
+      alignItems:
+        'center',
+
+      justifyContent:
+        'center',
+
+      backgroundColor:
+        Platform.OS ===
+        'web'
+          ? '#1E1E1E'
+          : COLORS.backgroundBottom,
     },
 
-    shadowOpacity: 0.2,
+    // ==========================================================
+    // PHONE
+    // ==========================================================
 
-    shadowRadius: 10,
+    phone: {
+      width:
+        Platform.OS ===
+        'web'
+          ? 440
+          : '100%',
 
-    elevation: 10,
-  },
+      height:
+        '100%',
 
-  calendarTitleRow: {
-    flexDirection: 'row',
+      maxWidth:
+        '100%',
 
-    justifyContent:
-      'space-between',
+      overflow:
+        'hidden',
 
-    alignItems:
-      'flex-start',
+      backgroundColor:
+        COLORS.backgroundBottom,
+    },
 
-    marginBottom: 15,
-  },
+    safeArea: {
+      flex:
+        1,
 
-  calendarSmallTitle: {
-    color:
-      COLORS.muted,
+      backgroundColor:
+        COLORS.red,
+    },
 
-    fontFamily:
-      'Inter_500Medium',
+    scroll: {
+      flexGrow:
+        1,
 
-    fontSize: 10,
-  },
+      backgroundColor:
+        COLORS.backgroundBottom,
+    },
 
-  calendarSelectedText: {
-    marginTop: 3,
+    // ==========================================================
+    // HEADER
+    // ==========================================================
 
-    color:
-      COLORS.black,
+    header: {
+      height:
+        205,
 
-    fontFamily:
-      'Poppins_600SemiBold',
+      paddingHorizontal:
+        27,
 
-    fontSize: 15,
-  },
+      paddingTop:
+        52,
 
-  closeCalendarButton: {
-    width: 32,
-    height: 32,
+      overflow:
+        'hidden',
+    },
 
-    borderRadius: 16,
+    headerDecoration: {
+      position:
+        'absolute',
 
-    backgroundColor:
-      '#F2F2F2',
+      width:
+        180,
 
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
+      height:
+        180,
 
-  // ==========================================================
-  // YEAR
-  // ==========================================================
+      borderRadius:
+        90,
 
-  yearSelector: {
-    flexDirection: 'row',
+      right:
+        -82,
 
-    alignItems: 'center',
-    justifyContent: 'center',
+      top:
+        -70,
 
-    marginBottom: 7,
-  },
+      backgroundColor:
+        'rgba(255,255,255,0.07)',
+    },
 
-  yearArrow: {
-    width: 40,
-    height: 32,
+    headerRow: {
+      flexDirection:
+        'row',
 
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
+      alignItems:
+        'center',
+    },
 
-  yearText: {
-    width: 80,
+    backCircle: {
+      width:
+        37,
 
-    textAlign: 'center',
+      height:
+        37,
 
-    color:
-      COLORS.redButton,
+      borderRadius:
+        19,
 
-    fontFamily:
-      'Inter_600SemiBold',
+      borderWidth:
+        2,
 
-    fontSize: 13,
-  },
+      borderColor:
+        COLORS.white,
 
-  // ==========================================================
-  // MONTH
-  // ==========================================================
+      alignItems:
+        'center',
 
-  monthHeader: {
-    height: 42,
+      justifyContent:
+        'center',
 
-    flexDirection: 'row',
+      marginRight:
+        12,
+    },
 
-    alignItems: 'center',
+    headerTitle: {
+      color:
+        COLORS.white,
 
-    justifyContent:
-      'space-between',
-  },
+      fontFamily:
+        'Poppins_700Bold',
 
-  monthArrow: {
-    width: 38,
-    height: 38,
+      fontSize:
+        17,
+    },
 
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
+    // ==========================================================
+    // BODY
+    // ==========================================================
 
-  monthTitle: {
-    color:
-      COLORS.black,
+    bodyBackground: {
+      flex:
+        1,
 
-    fontFamily:
-      'Poppins_600SemiBold',
+      minHeight:
+        669,
 
-    fontSize: 14,
-  },
+      paddingHorizontal:
+        28,
 
-  // ==========================================================
-  // DAY LABELS
-  // ==========================================================
+      paddingBottom:
+        30,
+    },
 
-  daysHeader: {
-    flexDirection: 'row',
+    // ==========================================================
+    // CARD
+    // ==========================================================
 
-    marginTop: 4,
-    marginBottom: 4,
-  },
+    card: {
+      marginTop:
+        -72,
 
-  dayCell: {
-    width: `${100 / 7}%`,
+      minHeight:
+        640,
 
-    alignItems: 'center',
+      paddingHorizontal:
+        24,
 
-    justifyContent:
-      'center',
-  },
+      paddingTop:
+        13,
 
-  dayName: {
-    color:
-      COLORS.muted,
+      paddingBottom:
+        22,
 
-    fontFamily:
-      'Inter_500Medium',
+      backgroundColor:
+        '#FAFAFA',
 
-    fontSize: 8,
-  },
+      borderRadius:
+        27,
 
-  // ==========================================================
-  // CALENDAR DAYS
-  // ==========================================================
+      shadowColor:
+        '#000000',
 
-  calendarGrid: {
-    flexDirection: 'row',
+      shadowOffset: {
+        width:
+          0,
 
-    flexWrap: 'wrap',
+        height:
+          3,
+      },
 
-    marginTop: 3,
-  },
+      shadowOpacity:
+        0.15,
 
-  dayButton: {
-    width: 34,
-    height: 34,
+      shadowRadius:
+        5,
 
-    borderRadius: 17,
+      elevation:
+        5,
+    },
 
-    alignItems: 'center',
+    // ==========================================================
+    // PROGRESS
+    // ==========================================================
 
-    justifyContent:
-      'center',
+    progressRow: {
+      width:
+        155,
 
-    marginVertical: 2,
-  },
+      flexDirection:
+        'row',
 
-  dayButtonSelected: {
-    backgroundColor:
-      COLORS.selectedDate,
-  },
+      alignSelf:
+        'center',
 
-  dayText: {
-    color:
-      COLORS.black,
+      gap:
+        8,
 
-    fontFamily:
-      'Inter_400Regular',
+      marginBottom:
+        16,
+    },
 
-    fontSize: 10,
-  },
+    progressLine: {
+      flex:
+        1,
 
-  dayTextSelected: {
-    color:
-      COLORS.white,
+      height:
+        4,
 
-    fontFamily:
-      'Inter_600SemiBold',
-  },
+      borderRadius:
+        3,
 
-  dayTextDisabled: {
-    color:
-      '#D1D1D1',
-  },
+      backgroundColor:
+        COLORS.progressInactive,
+    },
 
-  // ==========================================================
-  // CALENDAR CANCEL
-  // ==========================================================
+    progressActive: {
+      backgroundColor:
+        COLORS.redButton,
+    },
 
-  cancelCalendarButton: {
-    height: 42,
+    sectionTitle: {
+      color:
+        COLORS.black,
 
-    marginTop: 13,
+      fontFamily:
+        'Inter_600SemiBold',
 
-    borderRadius: 8,
+      fontSize:
+        12,
 
-    alignItems: 'center',
+      marginBottom:
+        12,
+    },
 
-    justifyContent:
-      'center',
+    // ==========================================================
+    // PROFILE PHOTO
+    // ==========================================================
 
-    backgroundColor:
-      '#F0F0F0',
-  },
+    photoArea: {
+      alignItems:
+        'center',
 
-  cancelCalendarText: {
-    color:
-      COLORS.black,
+      marginBottom:
+        8,
+    },
 
-    fontFamily:
-      'Inter_600SemiBold',
+    photoWrapper: {
+      width:
+        88,
 
-    fontSize: 10,
-  },
-});
+      height:
+        88,
+
+      position:
+        'relative',
+
+      alignItems:
+        'center',
+
+      justifyContent:
+        'center',
+
+      marginBottom:
+        8,
+
+      overflow:
+        'visible',
+    },
+
+    photoCircle: {
+      width:
+        80,
+
+      height:
+        80,
+
+      borderRadius:
+        40,
+
+      backgroundColor:
+        COLORS.photoBackground,
+
+      alignItems:
+        'center',
+
+      justifyContent:
+        'center',
+
+      overflow:
+        'hidden',
+
+      borderWidth:
+        2,
+
+      borderColor:
+        COLORS.white,
+    },
+
+    profileImage: {
+      width:
+        '100%',
+
+      height:
+        '100%',
+    },
+
+    addPhotoBadge: {
+      position:
+        'absolute',
+
+      right:
+        0,
+
+      bottom:
+        3,
+
+      width:
+        22,
+
+      height:
+        22,
+
+      borderRadius:
+        11,
+
+      backgroundColor:
+        COLORS.redButton,
+
+      alignItems:
+        'center',
+
+      justifyContent:
+        'center',
+
+      borderWidth:
+        2.5,
+
+      borderColor:
+        '#FAFAFA',
+
+      zIndex:
+        10,
+
+      elevation:
+        5,
+    },
+
+    photoTitle: {
+      color:
+        COLORS.black,
+
+      fontFamily:
+        'Inter_500Medium',
+
+      fontSize:
+        10,
+    },
+
+    photoSubtitle: {
+      color:
+        COLORS.muted,
+
+      fontFamily:
+        'Inter_400Regular',
+
+      fontSize:
+        8,
+
+      marginTop:
+        2,
+    },
+
+    removePhotoButton: {
+      flexDirection:
+        'row',
+
+      alignItems:
+        'center',
+
+      justifyContent:
+        'center',
+
+      alignSelf:
+        'center',
+
+      gap:
+        3,
+
+      marginTop:
+        2,
+
+      marginBottom:
+        8,
+    },
+
+    removePhotoText: {
+      color:
+        COLORS.redButton,
+
+      fontFamily:
+        'Inter_500Medium',
+
+      fontSize:
+        8,
+    },
+
+    // ==========================================================
+    // ERROR
+    // ==========================================================
+
+    errorBox: {
+      marginBottom:
+        11,
+
+      paddingHorizontal:
+        10,
+
+      paddingVertical:
+        8,
+
+      borderRadius:
+        7,
+
+      borderWidth:
+        1,
+
+      borderColor:
+        '#E9AAAA',
+
+      backgroundColor:
+        '#FDECEC',
+    },
+
+    errorText: {
+      color:
+        COLORS.redButton,
+
+      fontFamily:
+        'Inter_500Medium',
+
+      fontSize:
+        9,
+
+      textAlign:
+        'center',
+    },
+
+    // ==========================================================
+    // FORM
+    // ==========================================================
+
+    label: {
+      color:
+        COLORS.black,
+
+      fontFamily:
+        'Inter_500Medium',
+
+      fontSize:
+        10,
+
+      marginBottom:
+        6,
+    },
+
+    input: {
+      height:
+        38,
+
+      marginBottom:
+        12,
+
+      paddingHorizontal:
+        14,
+
+      borderWidth:
+        1,
+
+      borderColor:
+        COLORS.inputBorder,
+
+      borderRadius:
+        8,
+
+      color:
+        COLORS.black,
+
+      backgroundColor:
+        COLORS.white,
+
+      fontFamily:
+        'Inter_400Regular',
+
+      fontSize:
+        10,
+
+      outlineStyle:
+        Platform.OS ===
+        'web'
+          ? 'none'
+          : undefined,
+    } as any,
+
+    // ==========================================================
+    // DATE FIELD
+    // ==========================================================
+
+    dateSelector: {
+      height:
+        38,
+
+      marginBottom:
+        12,
+
+      paddingHorizontal:
+        13,
+
+      flexDirection:
+        'row',
+
+      alignItems:
+        'center',
+
+      justifyContent:
+        'space-between',
+
+      borderWidth:
+        1,
+
+      borderColor:
+        COLORS.inputBorder,
+
+      borderRadius:
+        8,
+
+      backgroundColor:
+        COLORS.white,
+    },
+
+    dateLeft: {
+      flex:
+        1,
+
+      flexDirection:
+        'row',
+
+      alignItems:
+        'center',
+    },
+
+    dateText: {
+      marginLeft:
+        8,
+
+      color:
+        COLORS.black,
+
+      fontFamily:
+        'Inter_400Regular',
+
+      fontSize:
+        10,
+    },
+
+    placeholderText: {
+      color:
+        COLORS.placeholder,
+    },
+
+    // ==========================================================
+    // GENDER
+    // ==========================================================
+
+    genderSelector: {
+      height:
+        38,
+
+      paddingHorizontal:
+        14,
+
+      flexDirection:
+        'row',
+
+      alignItems:
+        'center',
+
+      justifyContent:
+        'space-between',
+
+      borderWidth:
+        1,
+
+      borderColor:
+        COLORS.inputBorder,
+
+      borderRadius:
+        8,
+
+      backgroundColor:
+        COLORS.white,
+    },
+
+    genderText: {
+      color:
+        COLORS.black,
+
+      fontFamily:
+        'Inter_400Regular',
+
+      fontSize:
+        10,
+    },
+
+    genderDropdown: {
+      marginTop:
+        5,
+
+      borderWidth:
+        1,
+
+      borderColor:
+        COLORS.inputBorder,
+
+      borderRadius:
+        8,
+
+      backgroundColor:
+        COLORS.white,
+
+      overflow:
+        'hidden',
+    },
+
+    genderOption: {
+      height:
+        36,
+
+      paddingHorizontal:
+        14,
+
+      justifyContent:
+        'center',
+    },
+
+    genderOptionBorder: {
+      borderBottomWidth:
+        1,
+
+      borderBottomColor:
+        '#EEEEEE',
+    },
+
+    genderOptionText: {
+      color:
+        COLORS.black,
+
+      fontFamily:
+        'Inter_400Regular',
+
+      fontSize:
+        10,
+    },
+
+    // ==========================================================
+    // NEXT BUTTON
+    // ==========================================================
+
+    nextButton: {
+      height:
+        49,
+
+      marginTop:
+        24,
+
+      borderRadius:
+        8,
+
+      backgroundColor:
+        COLORS.redButton,
+
+      alignItems:
+        'center',
+
+      justifyContent:
+        'center',
+    },
+
+    nextButtonText: {
+      color:
+        COLORS.white,
+
+      fontFamily:
+        'Poppins_600SemiBold',
+
+      fontSize:
+        12,
+    },
+
+    // ==========================================================
+    // CALENDAR MODAL
+    // ==========================================================
+
+    modalOverlay: {
+      flex:
+        1,
+
+      backgroundColor:
+        'rgba(0,0,0,0.45)',
+
+      alignItems:
+        'center',
+
+      justifyContent:
+        'center',
+
+      paddingHorizontal:
+        24,
+    },
+
+    calendarModal: {
+      width:
+        '100%',
+
+      maxWidth:
+        350,
+
+      paddingHorizontal:
+        19,
+
+      paddingTop:
+        20,
+
+      paddingBottom:
+        18,
+
+      borderRadius:
+        20,
+
+      backgroundColor:
+        COLORS.white,
+
+      shadowColor:
+        '#000000',
+
+      shadowOffset: {
+        width:
+          0,
+
+        height:
+          5,
+      },
+
+      shadowOpacity:
+        0.2,
+
+      shadowRadius:
+        10,
+
+      elevation:
+        10,
+    },
+
+    calendarTitleRow: {
+      flexDirection:
+        'row',
+
+      justifyContent:
+        'space-between',
+
+      alignItems:
+        'flex-start',
+
+      marginBottom:
+        15,
+    },
+
+    calendarSmallTitle: {
+      color:
+        COLORS.muted,
+
+      fontFamily:
+        'Inter_500Medium',
+
+      fontSize:
+        10,
+    },
+
+    calendarSelectedText: {
+      marginTop:
+        3,
+
+      color:
+        COLORS.black,
+
+      fontFamily:
+        'Poppins_600SemiBold',
+
+      fontSize:
+        15,
+    },
+
+    closeCalendarButton: {
+      width:
+        32,
+
+      height:
+        32,
+
+      borderRadius:
+        16,
+
+      backgroundColor:
+        '#F2F2F2',
+
+      alignItems:
+        'center',
+
+      justifyContent:
+        'center',
+    },
+
+    // ==========================================================
+    // YEAR
+    // ==========================================================
+
+    yearSelector: {
+      flexDirection:
+        'row',
+
+      alignItems:
+        'center',
+
+      justifyContent:
+        'center',
+
+      marginBottom:
+        7,
+    },
+
+    yearArrow: {
+      width:
+        40,
+
+      height:
+        32,
+
+      alignItems:
+        'center',
+
+      justifyContent:
+        'center',
+    },
+
+    yearText: {
+      width:
+        80,
+
+      textAlign:
+        'center',
+
+      color:
+        COLORS.redButton,
+
+      fontFamily:
+        'Inter_600SemiBold',
+
+      fontSize:
+        13,
+    },
+
+    // ==========================================================
+    // MONTH
+    // ==========================================================
+
+    monthHeader: {
+      height:
+        42,
+
+      flexDirection:
+        'row',
+
+      alignItems:
+        'center',
+
+      justifyContent:
+        'space-between',
+    },
+
+    monthArrow: {
+      width:
+        38,
+
+      height:
+        38,
+
+      alignItems:
+        'center',
+
+      justifyContent:
+        'center',
+    },
+
+    monthTitle: {
+      color:
+        COLORS.black,
+
+      fontFamily:
+        'Poppins_600SemiBold',
+
+      fontSize:
+        14,
+    },
+
+    // ==========================================================
+    // DAY LABELS
+    // ==========================================================
+
+    daysHeader: {
+      flexDirection:
+        'row',
+
+      marginTop:
+        4,
+
+      marginBottom:
+        4,
+    },
+
+    dayCell: {
+      width:
+        `${100 / 7}%`,
+
+      alignItems:
+        'center',
+
+      justifyContent:
+        'center',
+    },
+
+    dayName: {
+      color:
+        COLORS.muted,
+
+      fontFamily:
+        'Inter_500Medium',
+
+      fontSize:
+        8,
+    },
+
+    // ==========================================================
+    // CALENDAR DAYS
+    // ==========================================================
+
+    calendarGrid: {
+      flexDirection:
+        'row',
+
+      flexWrap:
+        'wrap',
+
+      marginTop:
+        3,
+    },
+
+    dayButton: {
+      width:
+        34,
+
+      height:
+        34,
+
+      borderRadius:
+        17,
+
+      alignItems:
+        'center',
+
+      justifyContent:
+        'center',
+
+      marginVertical:
+        2,
+    },
+
+    dayButtonSelected: {
+      backgroundColor:
+        COLORS.selectedDate,
+    },
+
+    dayText: {
+      color:
+        COLORS.black,
+
+      fontFamily:
+        'Inter_400Regular',
+
+      fontSize:
+        10,
+    },
+
+    dayTextSelected: {
+      color:
+        COLORS.white,
+
+      fontFamily:
+        'Inter_600SemiBold',
+    },
+
+    dayTextDisabled: {
+      color:
+        '#D1D1D1',
+    },
+
+    // ==========================================================
+    // CALENDAR CANCEL
+    // ==========================================================
+
+    cancelCalendarButton: {
+      height:
+        42,
+
+      marginTop:
+        13,
+
+      borderRadius:
+        8,
+
+      alignItems:
+        'center',
+
+      justifyContent:
+        'center',
+
+      backgroundColor:
+        '#F0F0F0',
+    },
+
+    cancelCalendarText: {
+      color:
+        COLORS.black,
+
+      fontFamily:
+        'Inter_600SemiBold',
+
+      fontSize:
+        10,
+    },
+
+    // ==========================================================
+    // ACTION POPUP
+    // ==========================================================
+
+    actionPopupOverlay: {
+      flex:
+        1,
+
+      paddingHorizontal:
+        24,
+
+      alignItems:
+        'center',
+
+      justifyContent:
+        'center',
+
+      backgroundColor:
+        'rgba(0,0,0,0.48)',
+    },
+
+    actionPopupCard: {
+      width:
+        '100%',
+
+      maxWidth:
+        360,
+
+      paddingHorizontal:
+        20,
+
+      paddingTop:
+        22,
+
+      paddingBottom:
+        18,
+
+      borderRadius:
+        22,
+
+      backgroundColor:
+        COLORS.white,
+
+      shadowColor:
+        '#000000',
+
+      shadowOffset: {
+        width:
+          0,
+
+        height:
+          8,
+      },
+
+      shadowOpacity:
+        0.2,
+
+      shadowRadius:
+        18,
+
+      elevation:
+        10,
+    },
+
+    actionPopupIcon: {
+      width:
+        56,
+
+      height:
+        56,
+
+      alignSelf:
+        'center',
+
+      marginBottom:
+        13,
+
+      borderRadius:
+        28,
+
+      alignItems:
+        'center',
+
+      justifyContent:
+        'center',
+
+      backgroundColor:
+        '#FFF1F1',
+    },
+
+    actionPopupIconWarning: {
+      backgroundColor:
+        '#FFF5E8',
+    },
+
+    actionPopupIconError: {
+      backgroundColor:
+        '#FFF1F1',
+    },
+
+    actionPopupTitle: {
+      color:
+        COLORS.black,
+
+      fontFamily:
+        'Poppins_600SemiBold',
+
+      fontSize:
+        16,
+
+      lineHeight:
+        22,
+
+      textAlign:
+        'center',
+    },
+
+    actionPopupMessage: {
+      marginTop:
+        8,
+
+      color:
+        COLORS.muted,
+
+      fontFamily:
+        'Inter_400Regular',
+
+      fontSize:
+        11,
+
+      lineHeight:
+        17,
+
+      textAlign:
+        'center',
+    },
+
+    actionPopupButton: {
+      height:
+        45,
+
+      marginTop:
+        19,
+
+      borderRadius:
+        10,
+
+      alignItems:
+        'center',
+
+      justifyContent:
+        'center',
+
+      backgroundColor:
+        COLORS.redButton,
+    },
+
+    actionPopupButtonText: {
+      color:
+        COLORS.white,
+
+      fontFamily:
+        'Poppins_600SemiBold',
+
+      fontSize:
+        10,
+    },
+  });

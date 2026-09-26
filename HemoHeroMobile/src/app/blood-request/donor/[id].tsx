@@ -1,11 +1,5 @@
-import {
-  useCallback,
-  useState,
-} from 'react';
-
-import {
-  useFonts,
-} from 'expo-font';
+import { useCallback, useState } from 'react';
+import { useFonts } from 'expo-font';
 
 import {
   Poppins_600SemiBold,
@@ -20,7 +14,7 @@ import {
 } from '@expo-google-fonts/inter';
 
 import {
-  Alert,
+  Modal,
   Platform,
   ScrollView,
   StyleSheet,
@@ -30,13 +24,8 @@ import {
   View,
 } from 'react-native';
 
-import {
-  MaterialIcons,
-} from '@expo/vector-icons';
-
-import {
-  LinearGradient,
-} from 'expo-linear-gradient';
+import { MaterialIcons } from '@expo/vector-icons';
+import { LinearGradient } from 'expo-linear-gradient';
 
 import {
   router,
@@ -44,9 +33,7 @@ import {
   useLocalSearchParams,
 } from 'expo-router';
 
-import {
-  StatusBar,
-} from 'expo-status-bar';
+import { StatusBar } from 'expo-status-bar';
 
 import {
   SafeAreaView,
@@ -128,88 +115,37 @@ type InvitationStatus =
 
 type DonorInvitationRecord = {
   id: string;
-
   request_id: string;
-
   requester_id: string;
-
   donor_id: string;
+  status: InvitationStatus;
 
-  status:
-    InvitationStatus;
-
-  message?:
-    | string
-    | null;
-
-  responded_at?:
-    | string
-    | null;
-
-  created_at?:
-    | string
-    | null;
-
-  updated_at?:
-    | string
-    | null;
+  message?: string | null;
+  responded_at?: string | null;
+  created_at?: string | null;
+  updated_at?: string | null;
 
   requester?: {
     id?: string;
-
-    first_name?:
-      | string
-      | null;
-
-    last_name?:
-      | string
-      | null;
-
-    full_name?:
-      | string
-      | null;
-
-    city?:
-      | string
-      | null;
-
-    province?:
-      | string
-      | null;
+    first_name?: string | null;
+    last_name?: string | null;
+    full_name?: string | null;
+    city?: string | null;
+    province?: string | null;
   } | null;
 
   request?: {
     id: string;
-
     status: string;
-
     blood_type: string;
-
     units_needed: number;
-
     facility_name: string;
-
-    facility_type?:
-      | string
-      | null;
-
-    facility_address?:
-      | string
-      | null;
-
+    facility_type?: string | null;
+    facility_address?: string | null;
     urgency: string;
-
-    needed_date?:
-      | string
-      | null;
-
-    needed_time?:
-      | string
-      | null;
-
-    message?:
-      | string
-      | null;
+    needed_date?: string | null;
+    needed_time?: string | null;
+    message?: string | null;
   } | null;
 };
 
@@ -218,25 +154,16 @@ type DonorInvitationRecord = {
 // ============================================================
 
 function normalizeBloodType(
-  value?:
-    | string
-    | null
+  value?: string | null
 ) {
-  return String(
-    value ||
-    ''
-  )
+  return String(value || '')
     .trim()
     .toUpperCase();
 }
 
 function bloodTypesMatchExactly(
-  requestBloodType?:
-    | string
-    | null,
-  donorBloodType?:
-    | string
-    | null
+  requestBloodType?: string | null,
+  donorBloodType?: string | null
 ) {
   const requestType =
     normalizeBloodType(
@@ -262,6 +189,28 @@ function bloodTypesMatchExactly(
 }
 
 // ============================================================
+// IN-APP ACTION POPUP
+// ============================================================
+
+type ActionPopupVariant =
+  | 'info'
+  | 'success'
+  | 'warning'
+  | 'danger'
+  | 'error';
+
+type ActionPopupState = {
+  visible: boolean;
+  title: string;
+  message: string;
+  variant: ActionPopupVariant;
+  confirmText: string;
+  cancelText: string;
+  showCancel: boolean;
+  onConfirm?: () => void;
+};
+
+// ============================================================
 // SCREEN
 // ============================================================
 
@@ -269,15 +218,14 @@ export default function DonorBloodRequestScreen() {
   const [
     fontsLoaded,
     fontError,
-  ] =
-    useFonts({
-      Poppins_600SemiBold,
-      Poppins_700Bold,
-      Inter_400Regular,
-      Inter_500Medium,
-      Inter_600SemiBold,
-      Inter_700Bold,
-    });
+  ] = useFonts({
+    Poppins_600SemiBold,
+    Poppins_700Bold,
+    Inter_400Regular,
+    Inter_500Medium,
+    Inter_600SemiBold,
+    Inter_700Bold,
+  });
 
   // ==========================================================
   // ROUTE
@@ -285,13 +233,8 @@ export default function DonorBloodRequestScreen() {
 
   const params =
     useLocalSearchParams<{
-      id?:
-        | string
-        | string[];
-
-      invitationId?:
-        | string
-        | string[];
+      id?: string | string[];
+      invitationId?: string | string[];
     }>();
 
   const requestId =
@@ -353,57 +296,58 @@ export default function DonorBloodRequestScreen() {
     loading,
     setLoading,
   ] =
-    useState(
-      true
-    );
+    useState(true);
 
   const [
     errorMessage,
     setErrorMessage,
   ] =
-    useState(
-      ''
-    );
+    useState('');
 
   const [
     message,
     setMessage,
   ] =
-    useState(
-      ''
-    );
+    useState('');
 
   const [
     submitting,
     setSubmitting,
   ] =
-    useState(
-      false
-    );
+    useState(false);
 
   const [
     withdrawing,
     setWithdrawing,
   ] =
-    useState(
-      false
-    );
+    useState(false);
 
   const [
     acceptingInvitation,
     setAcceptingInvitation,
   ] =
-    useState(
-      false
-    );
+    useState(false);
 
   const [
     decliningInvitation,
     setDecliningInvitation,
   ] =
-    useState(
-      false
-    );
+    useState(false);
+
+  const [
+    actionPopup,
+    setActionPopup,
+  ] =
+    useState<ActionPopupState>({
+      visible: false,
+      title: '',
+      message: '',
+      variant: 'info',
+      confirmText: 'Okay',
+      cancelText: 'Cancel',
+      showCancel: false,
+      onConfirm: undefined,
+    });
 
   // ==========================================================
   // LOAD
@@ -412,36 +356,26 @@ export default function DonorBloodRequestScreen() {
   const loadData =
     useCallback(
       async () => {
-        if (
-          !requestId
-        ) {
+        if (!requestId) {
           setErrorMessage(
             'Blood request ID is missing.'
           );
 
-          setLoading(
-            false
-          );
+          setLoading(false);
 
           return;
         }
 
         try {
-          setLoading(
-            true
-          );
+          setLoading(true);
 
-          setErrorMessage(
-            ''
-          );
+          setErrorMessage('');
 
           const token =
             await getAccessToken();
 
           if (!token) {
-            router.replace(
-              '/'
-            );
+            router.replace('/');
 
             return;
           }
@@ -480,8 +414,7 @@ export default function DonorBloodRequestScreen() {
             ]);
 
           if (
-            !requestData
-              ?.request
+            !requestData?.request
           ) {
             throw new Error(
               'Blood request could not be found.'
@@ -489,12 +422,10 @@ export default function DonorBloodRequestScreen() {
           }
 
           const currentRequest =
-            requestData
-              .request;
+            requestData.request;
 
           const currentResponse =
-            responseData
-              ?.response ||
+            responseData?.response ||
             null;
 
           const currentApplication =
@@ -515,22 +446,18 @@ export default function DonorBloodRequestScreen() {
           );
 
           if (
-            currentResponse
-              ?.message
+            currentResponse?.message
           ) {
             setMessage(
-              currentResponse
-                .message
+              currentResponse.message
             );
           } else {
-            setMessage(
-              ''
-            );
+            setMessage('');
           }
 
-          // ==================================================
+          // ================================================
           // DIRECT INVITATION
-          // ==================================================
+          // ================================================
 
           if (
             invitationId
@@ -551,9 +478,8 @@ export default function DonorBloodRequestScreen() {
                     DonorInvitationRecord
                 ) =>
                   item.id ===
-                    invitationId
-              ) ||
-              null;
+                  invitationId
+              ) || null;
 
             if (
               !matchedInvitation
@@ -577,28 +503,21 @@ export default function DonorBloodRequestScreen() {
               matchedInvitation
             );
           } else {
-            setInvitation(
-              null
-            );
+            setInvitation(null);
           }
-        } catch (
-          error
-        ) {
+        } catch (error) {
           console.log(
             'DONOR REQUEST LOAD ERROR:',
             error
           );
 
           setErrorMessage(
-            error instanceof
-              Error
+            error instanceof Error
               ? error.message
               : 'Unable to load this blood request.'
           );
         } finally {
-          setLoading(
-            false
-          );
+          setLoading(false);
         }
       },
       [
@@ -665,9 +584,7 @@ export default function DonorBloodRequestScreen() {
         bloodRequest
       );
 
-    switch (
-      type
-    ) {
+    switch (type) {
       case 'red_cross':
         return 'add-box';
 
@@ -734,9 +651,7 @@ export default function DonorBloodRequestScreen() {
     ] =
       bloodRequest
         .needed_time
-        .split(
-          ':'
-        );
+        .split(':');
 
     const time =
       new Date();
@@ -745,9 +660,11 @@ export default function DonorBloodRequestScreen() {
       Number(
         hourText
       ),
+
       Number(
         minuteText
       ),
+
       0,
       0
     );
@@ -767,27 +684,110 @@ export default function DonorBloodRequestScreen() {
     return `${dateText} • ${timeText}`;
   }
 
+  // ==========================================================
+  // CUSTOM MODAL HELPERS
+  // ==========================================================
+
+  function closeActionPopup() {
+    setActionPopup(
+      current => ({
+        ...current,
+        visible: false,
+        onConfirm: undefined,
+      })
+    );
+  }
+
+  function getMessageVariant(
+    title: string
+  ): ActionPopupVariant {
+    const value =
+      title.toLowerCase();
+
+    if (
+      value.includes(
+        'sent'
+      ) ||
+      value.includes(
+        'withdrawn'
+      ) ||
+      value.includes(
+        'accepted'
+      )
+    ) {
+      return 'success';
+    }
+
+    if (
+      value.includes(
+        'unable'
+      ) ||
+      value.includes(
+        'does not match'
+      ) ||
+      value.includes(
+        'required'
+      )
+    ) {
+      return 'error';
+    }
+
+    return 'info';
+  }
+
   function showMessage(
     title: string,
     description: string
   ) {
-    if (
-      Platform.OS ===
-        'web' &&
-      typeof window !==
-        'undefined'
-    ) {
-      window.alert(
-        `${title}\n\n${description}`
-      );
-
-      return;
-    }
-
-    Alert.alert(
+    setActionPopup({
+      visible: true,
       title,
-      description
-    );
+      message:
+        description,
+      variant:
+        getMessageVariant(
+          title
+        ),
+      confirmText:
+        'Okay',
+      cancelText:
+        'Cancel',
+      showCancel:
+        false,
+      onConfirm:
+        undefined,
+    });
+  }
+
+  function showConfirmation(
+    options: {
+      title: string;
+      message: string;
+      confirmText: string;
+      cancelText: string;
+      variant:
+        ActionPopupVariant;
+      onConfirm:
+        () => void;
+    }
+  ) {
+    setActionPopup({
+      visible: true,
+      title:
+        options.title,
+      message:
+        options.message,
+      variant:
+        options.variant,
+      confirmText:
+        options.confirmText,
+      cancelText:
+        options.cancelText,
+      showCancel:
+        true,
+      onConfirm:
+        options.onConfirm,
+    });
   }
 
   // ==========================================================
@@ -1173,8 +1173,7 @@ export default function DonorBloodRequestScreen() {
     if (
       !request ||
       !donorResponse ||
-      donorResponse
-        .status !==
+      donorResponse.status !==
         'accepted'
     ) {
       return;
@@ -1245,10 +1244,6 @@ export default function DonorBloodRequestScreen() {
       return;
     }
 
-    // --------------------------------------------------------
-    // EXACT BLOOD TYPE VALIDATION
-    // --------------------------------------------------------
-
     if (
       !hasExactBloodTypeMatch()
     ) {
@@ -1264,46 +1259,28 @@ export default function DonorBloodRequestScreen() {
       return;
     }
 
-    if (
-      Platform.OS ===
-        'web' &&
-      typeof window !==
-        'undefined'
-    ) {
-      const confirmed =
-        window.confirm(
-          'Offer to Donate\n\nYour offer will be sent to the requester. Medical personnel must still verify your eligibility before donation.'
-        );
+    showConfirmation({
+      title:
+        'Offer to Donate',
 
-      if (
-        confirmed
-      ) {
+      message:
+        'Your offer will be sent to the requester. Medical personnel must still verify your eligibility before donation.',
+
+      confirmText:
+        'Send Offer',
+
+      cancelText:
+        'Not Now',
+
+      variant:
+        'success',
+
+      onConfirm: () => {
+        closeActionPopup();
+
         submitResponse();
-      }
-
-      return;
-    }
-
-    Alert.alert(
-      'Offer to Donate',
-      'Your offer will be sent to the requester. Medical personnel must still verify your eligibility before donation.',
-      [
-        {
-          text:
-            'Not Now',
-
-          style:
-            'cancel',
-        },
-        {
-          text:
-            'Send Offer',
-
-          onPress:
-            submitResponse,
-        },
-      ]
-    );
+      },
+    });
   }
 
   async function submitResponse() {
@@ -1328,17 +1305,13 @@ export default function DonorBloodRequestScreen() {
     }
 
     try {
-      setSubmitting(
-        true
-      );
+      setSubmitting(true);
 
       const token =
         await getAccessToken();
 
       if (!token) {
-        router.replace(
-          '/'
-        );
+        router.replace('/');
 
         return;
       }
@@ -1358,9 +1331,7 @@ export default function DonorBloodRequestScreen() {
         'Offer Sent',
         'Your offer to donate has been sent successfully.'
       );
-    } catch (
-      error
-    ) {
+    } catch (error) {
       console.log(
         'DONOR RESPONSE ERROR:',
         error
@@ -1368,15 +1339,12 @@ export default function DonorBloodRequestScreen() {
 
       showMessage(
         'Unable to Send Offer',
-        error instanceof
-          Error
+        error instanceof Error
           ? error.message
           : 'Unable to send your donor offer.'
       );
     } finally {
-      setSubmitting(
-        false
-      );
+      setSubmitting(false);
     }
   }
 
@@ -1387,54 +1355,35 @@ export default function DonorBloodRequestScreen() {
   function handleWithdrawPress() {
     if (
       !donorResponse ||
-      donorResponse
-        .status !==
+      donorResponse.status !==
         'pending' ||
       withdrawing
     ) {
       return;
     }
 
-    if (
-      Platform.OS ===
-        'web' &&
-      typeof window !==
-        'undefined'
-    ) {
-      if (
-        window.confirm(
-          'Withdraw Donor Response\n\nYour offer will no longer be considered for this request.'
-        )
-      ) {
+    showConfirmation({
+      title:
+        'Withdraw Donor Response',
+
+      message:
+        'Your offer will no longer be considered for this request.',
+
+      confirmText:
+        'Withdraw',
+
+      cancelText:
+        'Keep Response',
+
+      variant:
+        'danger',
+
+      onConfirm: () => {
+        closeActionPopup();
+
         withdrawResponse();
-      }
-
-      return;
-    }
-
-    Alert.alert(
-      'Withdraw Donor Response',
-      'Your offer will no longer be considered for this request.',
-      [
-        {
-          text:
-            'Keep Response',
-
-          style:
-            'cancel',
-        },
-        {
-          text:
-            'Withdraw',
-
-          style:
-            'destructive',
-
-          onPress:
-            withdrawResponse,
-        },
-      ]
-    );
+      },
+    });
   }
 
   async function withdrawResponse() {
@@ -1446,17 +1395,13 @@ export default function DonorBloodRequestScreen() {
     }
 
     try {
-      setWithdrawing(
-        true
-      );
+      setWithdrawing(true);
 
       const token =
         await getAccessToken();
 
       if (!token) {
-        router.replace(
-          '/'
-        );
+        router.replace('/');
 
         return;
       }
@@ -1475,9 +1420,7 @@ export default function DonorBloodRequestScreen() {
         'Response Withdrawn',
         'Your donor response has been withdrawn.'
       );
-    } catch (
-      error
-    ) {
+    } catch (error) {
       console.log(
         'WITHDRAW RESPONSE ERROR:',
         error
@@ -1485,15 +1428,12 @@ export default function DonorBloodRequestScreen() {
 
       showMessage(
         'Unable to Withdraw Response',
-        error instanceof
-          Error
+        error instanceof Error
           ? error.message
           : 'Unable to withdraw your donor response.'
       );
     } finally {
-      setWithdrawing(
-        false
-      );
+      setWithdrawing(false);
     }
   }
 
@@ -1542,46 +1482,28 @@ export default function DonorBloodRequestScreen() {
     const description =
       `Accept the request for ${request.blood_type} blood at ${request.facility_name}? You will be connected with the requester for donation coordination.`;
 
-    if (
-      Platform.OS ===
-        'web' &&
-      typeof window !==
-        'undefined'
-    ) {
-      const confirmed =
-        window.confirm(
-          `Accept Request\n\n${description}`
-        );
+    showConfirmation({
+      title:
+        'Accept Request',
 
-      if (
-        confirmed
-      ) {
+      message:
+        description,
+
+      confirmText:
+        'Accept Request',
+
+      cancelText:
+        'Not Now',
+
+      variant:
+        'success',
+
+      onConfirm: () => {
+        closeActionPopup();
+
         acceptInvitation();
-      }
-
-      return;
-    }
-
-    Alert.alert(
-      'Accept Request',
-      description,
-      [
-        {
-          text:
-            'Not Now',
-
-          style:
-            'cancel',
-        },
-        {
-          text:
-            'Accept Request',
-
-          onPress:
-            acceptInvitation,
-        },
-      ]
-    );
+      },
+    });
   }
 
   async function acceptInvitation() {
@@ -1615,9 +1537,7 @@ export default function DonorBloodRequestScreen() {
         await getAccessToken();
 
       if (!token) {
-        router.replace(
-          '/'
-        );
+        router.replace('/');
 
         return;
       }
@@ -1632,6 +1552,7 @@ export default function DonorBloodRequestScreen() {
         result?.invitation ||
         {
           ...invitation,
+
           status:
             'accepted',
         };
@@ -1640,14 +1561,13 @@ export default function DonorBloodRequestScreen() {
         result?.response ||
         null;
 
-      setInvitation(
-        {
-          ...invitation,
-          ...updatedInvitation,
-          status:
-            'accepted',
-        }
-      );
+      setInvitation({
+        ...invitation,
+        ...updatedInvitation,
+
+        status:
+          'accepted',
+      });
 
       if (
         acceptedResponse
@@ -1658,8 +1578,7 @@ export default function DonorBloodRequestScreen() {
       }
 
       if (
-        acceptedResponse
-          ?.id
+        acceptedResponse?.id
       ) {
         router.replace(
           `/blood-request/${requestId}/coordination/${acceptedResponse.id}` as any
@@ -1669,9 +1588,7 @@ export default function DonorBloodRequestScreen() {
       }
 
       await loadData();
-    } catch (
-      error
-    ) {
+    } catch (error) {
       console.log(
         'ACCEPT DONOR INVITATION ERROR:',
         error
@@ -1679,8 +1596,7 @@ export default function DonorBloodRequestScreen() {
 
       showMessage(
         'Unable to Accept Request',
-        error instanceof
-          Error
+        error instanceof Error
           ? error.message
           : 'Unable to accept this donor invitation.'
       );
@@ -1709,49 +1625,28 @@ export default function DonorBloodRequestScreen() {
     const description =
       'Decline this request for help? The requester will be notified that you are unable to accept.';
 
-    if (
-      Platform.OS ===
-        'web' &&
-      typeof window !==
-        'undefined'
-    ) {
-      const confirmed =
-        window.confirm(
-          `Decline Request\n\n${description}`
-        );
+    showConfirmation({
+      title:
+        'Decline Request',
 
-      if (
-        confirmed
-      ) {
+      message:
+        description,
+
+      confirmText:
+        'Decline',
+
+      cancelText:
+        'Keep Request',
+
+      variant:
+        'danger',
+
+      onConfirm: () => {
+        closeActionPopup();
+
         declineInvitation();
-      }
-
-      return;
-    }
-
-    Alert.alert(
-      'Decline Request',
-      description,
-      [
-        {
-          text:
-            'Keep Request',
-
-          style:
-            'cancel',
-        },
-        {
-          text:
-            'Decline',
-
-          style:
-            'destructive',
-
-          onPress:
-            declineInvitation,
-        },
-      ]
-    );
+      },
+    });
   }
 
   async function declineInvitation() {
@@ -1773,9 +1668,7 @@ export default function DonorBloodRequestScreen() {
         await getAccessToken();
 
       if (!token) {
-        router.replace(
-          '/'
-        );
+        router.replace('/');
 
         return;
       }
@@ -1786,22 +1679,20 @@ export default function DonorBloodRequestScreen() {
           invitation.id
         );
 
-      setInvitation(
-        {
-          ...invitation,
-          ...(result?.invitation ||
-            {}),
-          status:
-            'declined',
-        }
-      );
+      setInvitation({
+        ...invitation,
+
+        ...(result?.invitation ||
+          {}),
+
+        status:
+          'declined',
+      });
 
       router.replace(
         '/requests' as any
       );
-    } catch (
-      error
-    ) {
+    } catch (error) {
       console.log(
         'DECLINE DONOR INVITATION ERROR:',
         error
@@ -1809,8 +1700,7 @@ export default function DonorBloodRequestScreen() {
 
       showMessage(
         'Unable to Decline Request',
-        error instanceof
-          Error
+        error instanceof Error
           ? error.message
           : 'Unable to decline this donor invitation.'
       );
@@ -1977,10 +1867,6 @@ export default function DonorBloodRequestScreen() {
                   false
                 }
               >
-                {/* ============================================
-                    LOADING
-                ============================================ */}
-
                 {loading ? (
                   <View
                     style={
@@ -2050,9 +1936,7 @@ export default function DonorBloodRequestScreen() {
                         styles.centerDescription
                       }
                     >
-                      {
-                        errorMessage
-                      }
+                      {errorMessage}
                     </Text>
 
                     <TouchableOpacity
@@ -2181,9 +2065,7 @@ export default function DonorBloodRequestScreen() {
                                 },
                               ]}
                             >
-                              {
-                                getInvitationStatusLabel()
-                              }
+                              {getInvitationStatusLabel()}
                             </Text>
                           </View>
                         </View>
@@ -2209,9 +2091,7 @@ export default function DonorBloodRequestScreen() {
                                 styles.invitationMessageText
                               }
                             >
-                              {
-                                invitation.message
-                              }
+                              {invitation.message}
                             </Text>
                           </View>
                         ) : null}
@@ -2282,9 +2162,7 @@ export default function DonorBloodRequestScreen() {
                               styles.bloodTypeBadgeText
                             }
                           >
-                            {
-                              request.blood_type
-                            }
+                            {request.blood_type}
                           </Text>
                         </View>
                       </View>
@@ -2305,9 +2183,7 @@ export default function DonorBloodRequestScreen() {
                           2
                         }
                       >
-                        {
-                          request.facility_name
-                        }
+                        {request.facility_name}
                       </Text>
 
                       <Text
@@ -2315,9 +2191,7 @@ export default function DonorBloodRequestScreen() {
                           styles.requestUnits
                         }
                       >
-                        {
-                          request.units_needed
-                        }{' '}
+                        {request.units_needed}{' '}
                         {request
                           .units_needed ===
                         1
@@ -2414,9 +2288,7 @@ export default function DonorBloodRequestScreen() {
                               styles.detailValueStrong
                             }
                           >
-                            {
-                              request.blood_type
-                            }
+                            {request.blood_type}
                           </Text>
                         </View>
 
@@ -2452,9 +2324,7 @@ export default function DonorBloodRequestScreen() {
                               styles.detailValueStrong
                             }
                           >
-                            {
-                              request.units_needed
-                            }{' '}
+                            {request.units_needed}{' '}
                             {request
                               .units_needed ===
                             1
@@ -2504,9 +2374,7 @@ export default function DonorBloodRequestScreen() {
                                 styles.detailValueStrongRight
                               }
                             >
-                              {
-                                request.facility_name
-                              }
+                              {request.facility_name}
                             </Text>
 
                             {request
@@ -2516,9 +2384,7 @@ export default function DonorBloodRequestScreen() {
                                   styles.detailValueSub
                                 }
                               >
-                                {
-                                  request.facility_address
-                                }
+                                {request.facility_address}
                               </Text>
                             ) : null}
                           </View>
@@ -2649,9 +2515,7 @@ export default function DonorBloodRequestScreen() {
                               styles.messageBoxText
                             }
                           >
-                            {
-                              request.message
-                            }
+                            {request.message}
                           </Text>
                         </View>
                       ) : null}
@@ -2706,10 +2570,8 @@ export default function DonorBloodRequestScreen() {
                                   styles.matchStrong
                                 }
                               >
-                                {
-                                  donorApplication
-                                    ?.blood_type
-                                }
+                                {donorApplication
+                                  ?.blood_type}
                               </Text>
                               , which exactly matches this request.
                             </Text>
@@ -2759,9 +2621,7 @@ export default function DonorBloodRequestScreen() {
                                   styles.matchStrong
                                 }
                               >
-                                {
-                                  request.blood_type
-                                }
+                                {request.blood_type}
                               </Text>
                               , but your verified donor blood type is{' '}
                               <Text
@@ -2787,8 +2647,7 @@ export default function DonorBloodRequestScreen() {
                     {isInvitationMode &&
                     invitation ? (
                       <>
-                        {invitation
-                          .status ===
+                        {invitation.status ===
                         'pending' ? (
                           <>
                             <View
@@ -2905,9 +2764,8 @@ export default function DonorBloodRequestScreen() {
                           </>
                         ) : null}
 
-                        {invitation
-                          .status ===
-                          'accepted' ? (
+                        {invitation.status ===
+                        'accepted' ? (
                           <View
                             style={
                               styles.acceptedInvitationCard
@@ -2997,9 +2855,8 @@ export default function DonorBloodRequestScreen() {
                           </View>
                         ) : null}
 
-                        {invitation
-                          .status ===
-                          'declined' ? (
+                        {invitation.status ===
+                        'declined' ? (
                           <View
                             style={
                               styles.closedInvitationCard
@@ -3037,9 +2894,8 @@ export default function DonorBloodRequestScreen() {
                           </View>
                         ) : null}
 
-                        {invitation
-                          .status ===
-                          'cancelled' ? (
+                        {invitation.status ===
+                        'cancelled' ? (
                           <View
                             style={
                               styles.closedInvitationCard
@@ -3078,14 +2934,13 @@ export default function DonorBloodRequestScreen() {
                         ) : null}
                       </>
                     ) : (
-                      /* ======================================
-                         NORMAL SEARCH / OFFER FLOW
-                      ====================================== */
-
                       <>
+                        {/* ====================================
+                            NORMAL OFFER FLOW
+                        ==================================== */}
+
                         {donorResponse &&
-                        donorResponse
-                          .status !==
+                        donorResponse.status !==
                           'withdrawn' ? (
                           <View
                             style={[
@@ -3169,9 +3024,7 @@ export default function DonorBloodRequestScreen() {
                                       },
                                     ]}
                                   >
-                                    {
-                                      getResponseStatusLabel()
-                                    }
+                                    {getResponseStatusLabel()}
                                   </Text>
                                 </View>
 
@@ -3196,9 +3049,7 @@ export default function DonorBloodRequestScreen() {
                                     styles.responsePanelDescription
                                   }
                                 >
-                                  {
-                                    getResponseSummary()
-                                  }
+                                  {getResponseSummary()}
                                 </Text>
                               </View>
                             </View>
@@ -3224,16 +3075,14 @@ export default function DonorBloodRequestScreen() {
                                     styles.sentMessageText
                                   }
                                 >
-                                  {
-                                    donorResponse.message
-                                  }
+                                  {donorResponse.message}
                                 </Text>
                               </View>
                             ) : null}
 
                             {donorResponse
                               .status ===
-                              'accepted' ? (
+                            'accepted' ? (
                               <TouchableOpacity
                                 style={
                                   styles.openChatButton
@@ -3273,7 +3122,7 @@ export default function DonorBloodRequestScreen() {
 
                             {donorResponse
                               .status ===
-                              'pending' ? (
+                            'pending' ? (
                               <TouchableOpacity
                                 style={
                                   styles.withdrawButton
@@ -3403,10 +3252,7 @@ export default function DonorBloodRequestScreen() {
                                     styles.characterCount
                                   }
                                 >
-                                  {
-                                    message.length
-                                  }
-                                  /250
+                                  {message.length}/250
                                 </Text>
 
                                 <TouchableOpacity
@@ -3485,9 +3331,7 @@ export default function DonorBloodRequestScreen() {
                                     styles.donorGateTitle
                                   }
                                 >
-                                  {
-                                    getDonorApplicationTitle()
-                                  }
+                                  {getDonorApplicationTitle()}
                                 </Text>
 
                                 <Text
@@ -3495,9 +3339,7 @@ export default function DonorBloodRequestScreen() {
                                     styles.donorGateDescription
                                   }
                                 >
-                                  {
-                                    getDonorApplicationDescription()
-                                  }
+                                  {getDonorApplicationDescription()}
                                 </Text>
 
                                 {donorApplication ? (
@@ -3534,15 +3376,11 @@ export default function DonorBloodRequestScreen() {
                                     >
                                       {donorApplication
                                         .status
-                                        .charAt(
-                                          0
-                                        )
+                                        .charAt(0)
                                         .toUpperCase() +
                                         donorApplication
                                           .status
-                                          .slice(
-                                            1
-                                          )}
+                                          .slice(1)}
                                     </Text>
                                   </View>
                                 ) : null}
@@ -3598,9 +3436,7 @@ export default function DonorBloodRequestScreen() {
                                     styles.donorActionButtonTextDisabled,
                                 ]}
                               >
-                                {
-                                  getDonorActionLabel()
-                                }
+                                {getDonorActionLabel()}
                               </Text>
                             </TouchableOpacity>
                           </>
@@ -3639,6 +3475,164 @@ export default function DonorBloodRequestScreen() {
             </View>
           </LinearGradient>
         </SafeAreaView>
+
+        {/* ====================================================
+            IN-APP ACTION POPUP
+        ==================================================== */}
+
+        <Modal
+          transparent
+          visible={
+            actionPopup.visible
+          }
+          animationType="fade"
+          onRequestClose={
+            closeActionPopup
+          }
+        >
+          <View
+            style={
+              styles.actionPopupOverlay
+            }
+          >
+            <View
+              style={
+                styles.actionPopupCard
+              }
+            >
+              <View
+                style={[
+                  styles.actionPopupIcon,
+
+                  actionPopup.variant ===
+                    'success' &&
+                    styles.actionPopupIconSuccess,
+
+                  actionPopup.variant ===
+                    'warning' &&
+                    styles.actionPopupIconWarning,
+
+                  (
+                    actionPopup.variant ===
+                      'danger' ||
+                    actionPopup.variant ===
+                      'error'
+                  ) &&
+                    styles.actionPopupIconDanger,
+                ]}
+              >
+                <MaterialIcons
+                  name={
+                    actionPopup.variant ===
+                    'success'
+                      ? 'check-circle-outline'
+                      : actionPopup.variant ===
+                          'warning'
+                        ? 'warning-amber'
+                        : actionPopup.variant ===
+                              'danger' ||
+                            actionPopup.variant ===
+                              'error'
+                          ? 'error-outline'
+                          : 'info-outline'
+                  }
+                  size={31}
+                  color={
+                    actionPopup.variant ===
+                    'success'
+                      ? COLORS.green
+                      : actionPopup.variant ===
+                          'warning'
+                        ? COLORS.orange
+                        : COLORS.redButton
+                  }
+                />
+              </View>
+
+              <Text
+                style={
+                  styles.actionPopupTitle
+                }
+              >
+                {actionPopup.title}
+              </Text>
+
+              <Text
+                style={
+                  styles.actionPopupMessage
+                }
+              >
+                {actionPopup.message}
+              </Text>
+
+              <View
+                style={[
+                  styles.actionPopupActions,
+
+                  !actionPopup.showCancel &&
+                    styles.actionPopupActionsSingle,
+                ]}
+              >
+                {actionPopup.showCancel ? (
+                  <TouchableOpacity
+                    style={
+                      styles.actionPopupSecondaryButton
+                    }
+                    activeOpacity={
+                      0.82
+                    }
+                    onPress={
+                      closeActionPopup
+                    }
+                  >
+                    <Text
+                      style={
+                        styles.actionPopupSecondaryText
+                      }
+                    >
+                      {actionPopup.cancelText}
+                    </Text>
+                  </TouchableOpacity>
+                ) : null}
+
+                <TouchableOpacity
+                  style={[
+                    styles.actionPopupPrimaryButton,
+
+                    actionPopup.variant ===
+                      'success' &&
+                      styles.actionPopupPrimarySuccess,
+
+                    actionPopup.variant ===
+                      'danger' &&
+                      styles.actionPopupPrimaryDanger,
+                  ]}
+                  activeOpacity={
+                    0.85
+                  }
+                  onPress={() => {
+                    const action =
+                      actionPopup.onConfirm;
+
+                    closeActionPopup();
+
+                    if (action) {
+                      action();
+                    }
+                  }}
+                >
+                  <Text
+                    style={
+                      styles.actionPopupPrimaryText
+                    }
+                  >
+                    {actionPopup.confirmText}
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </View>
+        </Modal>
       </View>
     </View>
   );
@@ -3651,8 +3645,7 @@ export default function DonorBloodRequestScreen() {
 const styles =
   StyleSheet.create({
     desktopBackground: {
-      flex:
-        1,
+      flex: 1,
 
       alignItems:
         'center',
@@ -3675,10 +3668,7 @@ const styles =
           : '100%',
 
       height:
-        Platform.OS ===
-        'web'
-          ? '100%'
-          : '100%',
+        '100%',
 
       maxWidth:
         '100%',
@@ -3691,8 +3681,7 @@ const styles =
     },
 
     safeArea: {
-      flex:
-        1,
+      flex: 1,
 
       backgroundColor:
         COLORS.redDark,
@@ -3703,8 +3692,7 @@ const styles =
     // ========================================================
 
     header: {
-      height:
-        118,
+      height: 118,
 
       paddingHorizontal:
         21,
@@ -3801,8 +3789,7 @@ const styles =
     },
 
     headerCopy: {
-      flex:
-        1,
+      flex: 1,
 
       paddingTop:
         2,
@@ -3841,8 +3828,7 @@ const styles =
     // ========================================================
 
     body: {
-      flex:
-        1,
+      flex: 1,
 
       paddingHorizontal:
         14,
@@ -3852,8 +3838,7 @@ const styles =
     },
 
     contentShell: {
-      flex:
-        1,
+      flex: 1,
 
       marginTop:
         -12,
@@ -3869,8 +3854,7 @@ const styles =
     },
 
     scroll: {
-      flex:
-        1,
+      flex: 1,
     },
 
     scrollContent: {
@@ -4049,8 +4033,7 @@ const styles =
     },
 
     directInvitationCopy: {
-      flex:
-        1,
+      flex: 1,
     },
 
     directInvitationEyebrow: {
@@ -4161,8 +4144,7 @@ const styles =
     },
 
     invitationMessageText: {
-      flex:
-        1,
+      flex: 1,
 
       color:
         COLORS.muted,
@@ -4707,8 +4689,7 @@ const styles =
     },
 
     matchCopy: {
-      flex:
-        1,
+      flex: 1,
     },
 
     matchTitle: {
@@ -4965,8 +4946,7 @@ const styles =
     },
 
     acceptedInvitationCopy: {
-      flex:
-        1,
+      flex: 1,
     },
 
     acceptedInvitationTitle: {
@@ -5027,8 +5007,7 @@ const styles =
     },
 
     closedInvitationCopy: {
-      flex:
-        1,
+      flex: 1,
     },
 
     closedInvitationTitle: {
@@ -5139,8 +5118,7 @@ const styles =
     },
 
     responsePanelCopy: {
-      flex:
-        1,
+      flex: 1,
     },
 
     statusPill: {
@@ -5401,8 +5379,7 @@ const styles =
     },
 
     eligibilityCopy: {
-      flex:
-        1,
+      flex: 1,
     },
 
     eligibilityTitle: {
@@ -5617,8 +5594,7 @@ const styles =
     },
 
     donorGateCopy: {
-      flex:
-        1,
+      flex: 1,
     },
 
     donorGateTitle: {
@@ -5789,5 +5765,244 @@ const styles =
 
       lineHeight:
         15,
+    },
+
+    // ========================================================
+    // IN-APP ACTION POPUP
+    // ========================================================
+
+    actionPopupOverlay: {
+      flex:
+        1,
+
+      alignItems:
+        'center',
+
+      justifyContent:
+        'center',
+
+      paddingHorizontal:
+        24,
+
+      backgroundColor:
+        'rgba(0,0,0,0.48)',
+    },
+
+    actionPopupCard: {
+      width:
+        '100%',
+
+      maxWidth:
+        360,
+
+      paddingHorizontal:
+        20,
+
+      paddingTop:
+        22,
+
+      paddingBottom:
+        18,
+
+      borderRadius:
+        22,
+
+      backgroundColor:
+        COLORS.white,
+
+      shadowColor:
+        '#000000',
+
+      shadowOffset: {
+        width:
+          0,
+
+        height:
+          8,
+      },
+
+      shadowOpacity:
+        0.2,
+
+      shadowRadius:
+        18,
+
+      elevation:
+        10,
+    },
+
+    actionPopupIcon: {
+      width:
+        56,
+
+      height:
+        56,
+
+      alignSelf:
+        'center',
+
+      marginBottom:
+        13,
+
+      borderRadius:
+        28,
+
+      alignItems:
+        'center',
+
+      justifyContent:
+        'center',
+
+      backgroundColor:
+        COLORS.pink,
+    },
+
+    actionPopupIconSuccess: {
+      backgroundColor:
+        COLORS.greenLight,
+    },
+
+    actionPopupIconWarning: {
+      backgroundColor:
+        COLORS.orangeLight,
+    },
+
+    actionPopupIconDanger: {
+      backgroundColor:
+        COLORS.pinkStrong,
+    },
+
+    actionPopupTitle: {
+      color:
+        COLORS.black,
+
+      fontFamily:
+        'Poppins_600SemiBold',
+
+      fontSize:
+        16,
+
+      lineHeight:
+        21,
+
+      textAlign:
+        'center',
+    },
+
+    actionPopupMessage: {
+      marginTop:
+        8,
+
+      color:
+        COLORS.muted,
+
+      fontFamily:
+        'Inter_400Regular',
+
+      fontSize:
+        10.8,
+
+      lineHeight:
+        17,
+
+      textAlign:
+        'center',
+    },
+
+    actionPopupActions: {
+      flexDirection:
+        'row',
+
+      gap:
+        9,
+
+      marginTop:
+        19,
+    },
+
+    actionPopupActionsSingle: {
+      justifyContent:
+        'center',
+    },
+
+    actionPopupSecondaryButton: {
+      flex:
+        1,
+
+      height:
+        45,
+
+      borderWidth:
+        1,
+
+      borderColor:
+        '#E2CACA',
+
+      borderRadius:
+        10,
+
+      alignItems:
+        'center',
+
+      justifyContent:
+        'center',
+
+      backgroundColor:
+        COLORS.white,
+    },
+
+    actionPopupSecondaryText: {
+      color:
+        COLORS.redButton,
+
+      fontFamily:
+        'Poppins_600SemiBold',
+
+      fontSize:
+        10,
+    },
+
+    actionPopupPrimaryButton: {
+      flex:
+        1,
+
+      minWidth:
+        128,
+
+      height:
+        45,
+
+      borderRadius:
+        10,
+
+      alignItems:
+        'center',
+
+      justifyContent:
+        'center',
+
+      backgroundColor:
+        COLORS.redButton,
+    },
+
+    actionPopupPrimarySuccess: {
+      backgroundColor:
+        COLORS.green,
+    },
+
+    actionPopupPrimaryDanger: {
+      backgroundColor:
+        COLORS.redButton,
+    },
+
+    actionPopupPrimaryText: {
+      color:
+        COLORS.white,
+
+      fontFamily:
+        'Poppins_600SemiBold',
+
+      fontSize:
+        10,
     },
   });

@@ -1,7 +1,7 @@
 import { useState } from 'react';
 
 import {
-  Alert,
+  Modal,
   Platform,
   ScrollView,
   StyleSheet,
@@ -59,11 +59,21 @@ const BLOOD_TYPES = [
   'O-',
 ];
 
-export default function MedicalInformationScreen() {
-  // ==========================================================
-  // DATA FROM PREVIOUS SCREENS
-  // ==========================================================
+type ActionPopupVariant =
+  | 'info'
+  | 'success'
+  | 'warning'
+  | 'error';
 
+type ActionPopupState = {
+  visible: boolean;
+  title: string;
+  message: string;
+  variant: ActionPopupVariant;
+  onConfirm?: () => void;
+};
+
+export default function MedicalInformationScreen() {
   const params =
     useLocalSearchParams<{
       first_name?: string;
@@ -83,10 +93,6 @@ export default function MedicalInformationScreen() {
       longitude?: string;
     }>();
 
-  // ==========================================================
-  // MEDICAL INFORMATION
-  // ==========================================================
-
   const [
     bloodType,
     setBloodType,
@@ -102,29 +108,85 @@ export default function MedicalInformationScreen() {
     setErrorMessage,
   ] = useState('');
 
+  const [
+    actionPopup,
+    setActionPopup,
+  ] = useState<ActionPopupState>({
+    visible: false,
+    title: '',
+    message: '',
+    variant: 'info',
+    onConfirm: undefined,
+  });
+
   // ==========================================================
   // MESSAGE HELPER
   // ==========================================================
 
-  function showMessage(
-    title: string,
-    message: string
-  ) {
-    if (
-      Platform.OS === 'web' &&
-      typeof window !== 'undefined'
-    ) {
-      window.alert(
-        `${title}\n\n${message}`
-      );
+  function closeActionPopup() {
+    const action =
+      actionPopup.onConfirm;
 
-      return;
+    setActionPopup(
+      current => ({
+        ...current,
+        visible: false,
+        onConfirm: undefined,
+      })
+    );
+
+    if (action) {
+      action();
+    }
+  }
+
+  function getMessageVariant(
+    title: string
+  ): ActionPopupVariant {
+    const value =
+      title.toLowerCase();
+
+    if (
+      value.includes('unable') ||
+      value.includes('error') ||
+      value.includes('expired')
+    ) {
+      return 'error';
     }
 
-    Alert.alert(
+    if (
+      value.includes('complete') ||
+      value.includes('saved') ||
+      value.includes('success')
+    ) {
+      return 'success';
+    }
+
+    if (
+      value.includes('required') ||
+      value.includes('missing')
+    ) {
+      return 'warning';
+    }
+
+    return 'info';
+  }
+
+  function showMessage(
+    title: string,
+    message: string,
+    onConfirm?: () => void
+  ) {
+    setActionPopup({
+      visible: true,
       title,
-      message
-    );
+      message,
+      variant:
+        getMessageVariant(
+          title
+        ),
+      onConfirm,
+    });
   }
 
   // ==========================================================
@@ -137,13 +199,6 @@ export default function MedicalInformationScreen() {
     if (loading) {
       return;
     }
-
-    /*
-      Selecting the same blood type
-      again clears the selection.
-
-      Blood type is OPTIONAL.
-    */
 
     setBloodType(
       current =>
@@ -171,27 +226,20 @@ export default function MedicalInformationScreen() {
     try {
       setLoading(true);
 
-      // ------------------------------------------------------
-      // GET SAVED LOGIN TOKEN
-      // ------------------------------------------------------
-
       const accessToken =
         await getAccessToken();
 
       if (!accessToken) {
         showMessage(
           'Session Expired',
-          'Please sign in again before completing your profile.'
+          'Please sign in again before completing your profile.',
+          () => {
+            router.replace('/');
+          }
         );
-
-        router.replace('/');
 
         return;
       }
-
-      // ------------------------------------------------------
-      // CONVERT GPS VALUES
-      // ------------------------------------------------------
 
       const latitude =
         params.latitude
@@ -217,15 +265,10 @@ export default function MedicalInformationScreen() {
           longitude
         );
 
-      // ------------------------------------------------------
-      // BUILD PROFILE DATA
-      // ------------------------------------------------------
-
       const profileData = {
-        // PERSONAL
-
         first_name:
-          params.first_name || '',
+          params.first_name ||
+          '',
 
         middle_name:
           params.middle_name
@@ -233,26 +276,28 @@ export default function MedicalInformationScreen() {
             : null,
 
         last_name:
-          params.last_name || '',
+          params.last_name ||
+          '',
 
         date_of_birth:
-          params.date_of_birth || '',
+          params.date_of_birth ||
+          '',
 
         gender:
-          params.gender || '',
-
-        // LOCATION
+          params.gender ||
+          '',
 
         barangay:
-          params.barangay || '',
+          params.barangay ||
+          '',
 
         city:
-          params.city || '',
+          params.city ||
+          '',
 
         province:
-          params.province || '',
-
-        // GPS
+          params.province ||
+          '',
 
         latitude:
           hasValidCoordinates
@@ -264,14 +309,9 @@ export default function MedicalInformationScreen() {
             ? longitude
             : null,
 
-        // MEDICAL
-        // OPTIONAL
-
         blood_type:
           bloodType ||
           null,
-
-        // COMPLETE ONBOARDING
 
         complete_onboarding:
           true,
@@ -281,10 +321,6 @@ export default function MedicalInformationScreen() {
         'SAVING COMPLETE PROFILE:',
         profileData
       );
-
-      // ------------------------------------------------------
-      // SAVE TO EXPRESS / SUPABASE
-      // ------------------------------------------------------
 
       const result =
         await updateProfile(
@@ -296,10 +332,6 @@ export default function MedicalInformationScreen() {
         'PROFILE SAVE RESPONSE:',
         result
       );
-
-      // ------------------------------------------------------
-      // VERIFY SAVE
-      // ------------------------------------------------------
 
       if (
         !result?.user
@@ -319,32 +351,11 @@ export default function MedicalInformationScreen() {
         );
       }
 
-      // ------------------------------------------------------
-      // SUCCESS
-      // ------------------------------------------------------
-
-      /*
-        IMPORTANT:
-
-        profile_photo_uri is NOT being
-        saved to the database yet.
-
-        It is only a temporary local
-        image URI.
-
-        Later we will upload it to
-        Supabase Storage and save:
-
-        profile_photo_url
-      */
-
       router.replace({
         pathname:
           '/complete-profile/success',
 
         params: {
-          // PERSONAL
-
           first_name:
             result.user
               .first_name || '',
@@ -368,8 +379,6 @@ export default function MedicalInformationScreen() {
           profile_photo_uri:
             params.profile_photo_uri ||
             '',
-
-          // LOCATION
 
           barangay:
             result.user
@@ -408,8 +417,6 @@ export default function MedicalInformationScreen() {
                     .longitude
                 )
               : '',
-
-          // MEDICAL
 
           blood_type:
             result.user
@@ -824,10 +831,6 @@ export default function MedicalInformationScreen() {
                   </Text>
                 </View>
 
-                {/* ==============================================
-                    SPACER
-                ============================================== */}
-
                 <View
                   style={
                     styles.flexSpacer
@@ -924,6 +927,116 @@ export default function MedicalInformationScreen() {
           </ScrollView>
         </SafeAreaView>
       </View>
+
+      {/* ========================================================
+          HEMO-HERO ACTION POPUP
+      ======================================================== */}
+
+      <Modal
+        visible={
+          actionPopup.visible
+        }
+        transparent
+        animationType="fade"
+        onRequestClose={
+          closeActionPopup
+        }
+      >
+        <View
+          style={
+            styles.actionPopupOverlay
+          }
+        >
+          <View
+            style={
+              styles.actionPopupCard
+            }
+          >
+            <View
+              style={[
+                styles.actionPopupIcon,
+
+                actionPopup.variant ===
+                  'success' &&
+                  styles.actionPopupIconSuccess,
+
+                actionPopup.variant ===
+                  'warning' &&
+                  styles.actionPopupIconWarning,
+
+                actionPopup.variant ===
+                  'error' &&
+                  styles.actionPopupIconError,
+              ]}
+            >
+              <MaterialIcons
+                name={
+                  actionPopup.variant ===
+                  'success'
+                    ? 'check-circle-outline'
+                    : actionPopup.variant ===
+                        'warning'
+                      ? 'warning-amber'
+                      : actionPopup.variant ===
+                          'error'
+                        ? 'error-outline'
+                        : 'info-outline'
+                }
+                size={31}
+                color={
+                  actionPopup.variant ===
+                  'success'
+                    ? '#2E7D32'
+                    : actionPopup.variant ===
+                        'warning'
+                      ? '#C96A18'
+                      : COLORS.redButton
+                }
+              />
+            </View>
+
+            <Text
+              style={
+                styles.actionPopupTitle
+              }
+            >
+              {
+                actionPopup.title
+              }
+            </Text>
+
+            <Text
+              style={
+                styles.actionPopupMessage
+              }
+            >
+              {
+                actionPopup.message
+              }
+            </Text>
+
+            <TouchableOpacity
+              style={
+                styles.actionPopupButton
+              }
+              activeOpacity={
+                0.85
+              }
+              onPress={
+                closeActionPopup
+              }
+            >
+              <Text
+                style={
+                  styles.actionPopupButtonText
+                }
+              >
+                Okay
+              </Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -1532,5 +1645,133 @@ const styles =
 
     disabledButton: {
       opacity: 0.6,
+    },
+
+    // ========================================================
+    // ACTION POPUP
+    // ========================================================
+
+    actionPopupOverlay: {
+      flex: 1,
+
+      paddingHorizontal: 24,
+
+      alignItems: 'center',
+      justifyContent: 'center',
+
+      backgroundColor:
+        'rgba(0,0,0,0.48)',
+    },
+
+    actionPopupCard: {
+      width: '100%',
+
+      maxWidth: 360,
+
+      paddingHorizontal: 20,
+      paddingTop: 22,
+      paddingBottom: 18,
+
+      borderRadius: 22,
+
+      backgroundColor:
+        COLORS.white,
+
+      shadowColor:
+        '#000000',
+
+      shadowOffset: {
+        width: 0,
+        height: 8,
+      },
+
+      shadowOpacity: 0.2,
+      shadowRadius: 18,
+
+      elevation: 10,
+    },
+
+    actionPopupIcon: {
+      width: 56,
+      height: 56,
+
+      alignSelf: 'center',
+
+      marginBottom: 13,
+
+      borderRadius: 28,
+
+      alignItems: 'center',
+      justifyContent: 'center',
+
+      backgroundColor:
+        COLORS.infoBackground,
+    },
+
+    actionPopupIconSuccess: {
+      backgroundColor:
+        '#EAF5EB',
+    },
+
+    actionPopupIconWarning: {
+      backgroundColor:
+        '#FFF5E8',
+    },
+
+    actionPopupIconError: {
+      backgroundColor:
+        COLORS.infoBackground,
+    },
+
+    actionPopupTitle: {
+      color:
+        COLORS.black,
+
+      fontFamily:
+        'Poppins_600SemiBold',
+
+      fontSize: 16,
+      lineHeight: 22,
+
+      textAlign: 'center',
+    },
+
+    actionPopupMessage: {
+      marginTop: 8,
+
+      color:
+        COLORS.muted,
+
+      fontFamily:
+        'Inter_400Regular',
+
+      fontSize: 11,
+      lineHeight: 17,
+
+      textAlign: 'center',
+    },
+
+    actionPopupButton: {
+      height: 45,
+
+      marginTop: 19,
+
+      borderRadius: 10,
+
+      alignItems: 'center',
+      justifyContent: 'center',
+
+      backgroundColor:
+        COLORS.redButton,
+    },
+
+    actionPopupButtonText: {
+      color:
+        COLORS.white,
+
+      fontFamily:
+        'Poppins_600SemiBold',
+
+      fontSize: 10,
     },
   });

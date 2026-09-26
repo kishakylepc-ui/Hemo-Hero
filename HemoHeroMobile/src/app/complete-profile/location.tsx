@@ -1,8 +1,8 @@
 import { useState } from 'react';
 
 import {
-  Alert,
   KeyboardAvoidingView,
+  Modal,
   Platform,
   ScrollView,
   StyleSheet,
@@ -51,76 +51,175 @@ const COLORS = {
   greenLight: '#EAF5EB',
 };
 
+type ActionPopupVariant =
+  | 'info'
+  | 'success'
+  | 'warning'
+  | 'error';
+
+type ActionPopupState = {
+  visible: boolean;
+  title: string;
+  message: string;
+  variant: ActionPopupVariant;
+};
+
 export default function LocationScreen() {
-  // ==========================================================
-  // DATA FROM PERSONAL INFORMATION
-  // ==========================================================
+  const params =
+    useLocalSearchParams<{
+      first_name?: string;
+      last_name?: string;
+      middle_name?: string;
+      date_of_birth?: string;
+      gender?: string;
+      profile_photo_uri?: string;
+    }>();
 
-  const params = useLocalSearchParams<{
-    first_name?: string;
-    last_name?: string;
-    middle_name?: string;
-    date_of_birth?: string;
-    gender?: string;
-    profile_photo_uri?: string;
-  }>();
-
-  // ==========================================================
-  // LOCATION FORM
-  // ==========================================================
-
-  const [barangay, setBarangay] =
+  const [
+    barangay,
+    setBarangay,
+  ] =
     useState('');
 
-  const [city, setCity] =
+  const [
+    city,
+    setCity,
+  ] =
     useState('');
 
-  const [province, setProvince] =
+  const [
+    province,
+    setProvince,
+  ] =
     useState('');
 
-  const [latitude, setLatitude] =
-    useState<number | null>(null);
+  const [
+    latitude,
+    setLatitude,
+  ] =
+    useState<
+      number | null
+    >(null);
 
-  const [longitude, setLongitude] =
-    useState<number | null>(null);
+  const [
+    longitude,
+    setLongitude,
+  ] =
+    useState<
+      number | null
+    >(null);
 
-  const [locationLoading, setLocationLoading] =
+  const [
+    locationLoading,
+    setLocationLoading,
+  ] =
     useState(false);
 
-  const [locationDetected, setLocationDetected] =
+  const [
+    locationDetected,
+    setLocationDetected,
+  ] =
     useState(false);
 
-  const [errorMessage, setErrorMessage] =
+  const [
+    errorMessage,
+    setErrorMessage,
+  ] =
     useState('');
 
+  const [
+    actionPopup,
+    setActionPopup,
+  ] =
+    useState<ActionPopupState>({
+      visible: false,
+      title: '',
+      message: '',
+      variant: 'info',
+    });
+
   // ==========================================================
-  // MESSAGE
+  // CUSTOM MESSAGE POPUP
   // ==========================================================
+
+  function closeActionPopup() {
+    setActionPopup(
+      current => ({
+        ...current,
+
+        visible:
+          false,
+      })
+    );
+  }
+
+  function getMessageVariant(
+    title: string
+  ): ActionPopupVariant {
+    const value =
+      title.toLowerCase();
+
+    if (
+      value.includes(
+        'detected'
+      ) ||
+      value.includes(
+        'success'
+      )
+    ) {
+      return 'success';
+    }
+
+    if (
+      value.includes(
+        'unable'
+      ) ||
+      value.includes(
+        'error'
+      )
+    ) {
+      return 'error';
+    }
+
+    if (
+      value.includes(
+        'required'
+      ) ||
+      value.includes(
+        'missing'
+      )
+    ) {
+      return 'warning';
+    }
+
+    return 'info';
+  }
 
   function showMessage(
     title: string,
     message: string
   ) {
-    if (
-      Platform.OS === 'web' &&
-      typeof window !== 'undefined'
-    ) {
-      window.alert(
-        `${title}\n\n${message}`
-      );
+    setActionPopup({
+      visible: true,
 
-      return;
-    }
-
-    Alert.alert(
       title,
-      message
-    );
+
+      message,
+
+      variant:
+        getMessageVariant(
+          title
+        ),
+    });
   }
 
   function clearError() {
-    if (errorMessage) {
-      setErrorMessage('');
+    if (
+      errorMessage
+    ) {
+      setErrorMessage(
+        ''
+      );
     }
   }
 
@@ -129,23 +228,28 @@ export default function LocationScreen() {
   // ==========================================================
 
   async function handleCurrentLocation() {
-    if (locationLoading) {
+    if (
+      locationLoading
+    ) {
       return;
     }
 
     try {
-      setLocationLoading(true);
-      setErrorMessage('');
+      setLocationLoading(
+        true
+      );
 
-      // ------------------------------------------------------
-      // REQUEST LOCATION PERMISSION
-      // ------------------------------------------------------
+      setErrorMessage(
+        ''
+      );
 
       const permission =
-        await Location.requestForegroundPermissionsAsync();
+        await Location
+          .requestForegroundPermissionsAsync();
 
       if (
-        permission.status !== 'granted'
+        permission.status !==
+        'granted'
       ) {
         showMessage(
           'Location Permission Required',
@@ -155,20 +259,22 @@ export default function LocationScreen() {
         return;
       }
 
-      // ------------------------------------------------------
-      // GET CURRENT GPS COORDINATES
-      // ------------------------------------------------------
-
       const currentLocation =
-        await Location.getCurrentPositionAsync({
-          accuracy:
-            Location.Accuracy.Balanced,
-        });
+        await Location
+          .getCurrentPositionAsync({
+            accuracy:
+              Location.Accuracy
+                .Balanced,
+          });
 
       const {
-        latitude: currentLatitude,
-        longitude: currentLongitude,
-      } = currentLocation.coords;
+        latitude:
+          currentLatitude,
+
+        longitude:
+          currentLongitude,
+      } =
+        currentLocation.coords;
 
       setLatitude(
         currentLatitude
@@ -182,38 +288,31 @@ export default function LocationScreen() {
         true
       );
 
-      // ------------------------------------------------------
-      // NATIVE:
-      // TRY TO CONVERT COORDINATES TO ADDRESS
-      //
-      // Expo reverseGeocodeAsync is available
-      // on Android/iOS, but not Expo Web.
-      // ------------------------------------------------------
+      // ========================================================
+      // NATIVE REVERSE GEOCODING
+      // ========================================================
 
       if (
-        Platform.OS !== 'web'
+        Platform.OS !==
+        'web'
       ) {
         try {
           const addresses =
-            await Location.reverseGeocodeAsync({
-              latitude:
-                currentLatitude,
+            await Location
+              .reverseGeocodeAsync({
+                latitude:
+                  currentLatitude,
 
-              longitude:
-                currentLongitude,
-            });
+                longitude:
+                  currentLongitude,
+              });
 
           if (
-            addresses.length > 0
+            addresses.length >
+            0
           ) {
             const address =
               addresses[0];
-
-            /*
-              Different phones / regions can
-              return slightly different address
-              components, so we use fallbacks.
-            */
 
             const detectedBarangay =
               address.district ||
@@ -262,28 +361,21 @@ export default function LocationScreen() {
             'REVERSE GEOCODE ERROR:',
             geocodeError
           );
-
-          /*
-            Coordinates are still valid.
-            The user can enter the address
-            manually if reverse geocoding fails.
-          */
         }
       }
 
-      // ------------------------------------------------------
-      // SUCCESS MESSAGE
-      // ------------------------------------------------------
-
       if (
-        Platform.OS === 'web'
+        Platform.OS ===
+        'web'
       ) {
         showMessage(
           'Location Detected',
           'Your GPS coordinates were detected successfully. Please confirm your Barangay or Street, City, and Province below.'
         );
       }
-    } catch (error) {
+    } catch (
+      error
+    ) {
       console.log(
         'LOCATION ERROR:',
         error
@@ -316,7 +408,9 @@ export default function LocationScreen() {
   // ==========================================================
 
   function handleNext() {
-    setErrorMessage('');
+    setErrorMessage(
+      ''
+    );
 
     const cleanBarangay =
       barangay.trim();
@@ -347,32 +441,34 @@ export default function LocationScreen() {
       return;
     }
 
-    // --------------------------------------------------------
-    // CARRY EVERYTHING TO MEDICAL INFORMATION
-    // --------------------------------------------------------
-
     router.push({
       pathname:
         '/complete-profile/medical',
 
       params: {
         first_name:
-          params.first_name || '',
+          params.first_name ||
+          '',
 
         last_name:
-          params.last_name || '',
+          params.last_name ||
+          '',
 
         middle_name:
-          params.middle_name || '',
+          params.middle_name ||
+          '',
 
         date_of_birth:
-          params.date_of_birth || '',
+          params.date_of_birth ||
+          '',
 
         gender:
-          params.gender || '',
+          params.gender ||
+          '',
 
         profile_photo_uri:
-          params.profile_photo_uri || '',
+          params.profile_photo_uri ||
+          '',
 
         barangay:
           cleanBarangay,
@@ -385,12 +481,16 @@ export default function LocationScreen() {
 
         latitude:
           latitude !== null
-            ? String(latitude)
+            ? String(
+                latitude
+              )
             : '',
 
         longitude:
           longitude !== null
-            ? String(longitude)
+            ? String(
+                longitude
+              )
             : '',
       },
     });
@@ -429,7 +529,8 @@ export default function LocationScreen() {
               styles.flex
             }
             behavior={
-              Platform.OS === 'ios'
+              Platform.OS ===
+              'ios'
                 ? 'padding'
                 : undefined
             }
@@ -442,7 +543,9 @@ export default function LocationScreen() {
               showsVerticalScrollIndicator={
                 false
               }
-              bounces={false}
+              bounces={
+                false
+              }
             >
               {/* ==================================================
                   HEADER
@@ -605,17 +708,15 @@ export default function LocationScreen() {
                     >
                       <MaterialIcons
                         name="location-on"
-                        size={32}
+                        size={
+                          32
+                        }
                         color={
                           COLORS.redButton
                         }
                       />
                     </View>
                   </View>
-
-                  {/* ==============================================
-                      DESCRIPTION
-                  ============================================== */}
 
                   <Text
                     style={
@@ -627,7 +728,7 @@ export default function LocationScreen() {
                   </Text>
 
                   {/* ==============================================
-                      CURRENT LOCATION BUTTON
+                      CURRENT LOCATION
                   ============================================== */}
 
                   <TouchableOpacity
@@ -653,7 +754,9 @@ export default function LocationScreen() {
                           ? 'check-circle'
                           : 'my-location'
                       }
-                      size={17}
+                      size={
+                        17
+                      }
                       color={
                         COLORS.white
                       }
@@ -672,13 +775,11 @@ export default function LocationScreen() {
                     </Text>
                   </TouchableOpacity>
 
-                  {/* ==============================================
-                      LOCATION DETECTED STATUS
-                  ============================================== */}
-
                   {locationDetected &&
-                  latitude !== null &&
-                  longitude !== null ? (
+                  latitude !==
+                    null &&
+                  longitude !==
+                    null ? (
                     <View
                       style={
                         styles.detectedBox
@@ -691,7 +792,9 @@ export default function LocationScreen() {
                       >
                         <MaterialIcons
                           name="check"
-                          size={12}
+                          size={
+                            12
+                          }
                           color={
                             COLORS.white
                           }
@@ -716,7 +819,14 @@ export default function LocationScreen() {
                             styles.detectedCoordinates
                           }
                         >
-                          GPS: {latitude.toFixed(5)}, {longitude.toFixed(5)}
+                          GPS:{' '}
+                          {latitude.toFixed(
+                            5
+                          )}
+                          ,{' '}
+                          {longitude.toFixed(
+                            5
+                          )}
                         </Text>
                       </View>
                     </View>
@@ -769,7 +879,9 @@ export default function LocationScreen() {
                   >
                     <MaterialIcons
                       name="map"
-                      size={17}
+                      size={
+                        17
+                      }
                       color={
                         COLORS.black
                       }
@@ -804,10 +916,6 @@ export default function LocationScreen() {
                     Please review your location details before continuing.
                   </Text>
 
-                  {/* ==============================================
-                      ERROR
-                  ============================================== */}
-
                   {errorMessage ? (
                     <View
                       style={
@@ -819,7 +927,9 @@ export default function LocationScreen() {
                           styles.errorText
                         }
                       >
-                        {errorMessage}
+                        {
+                          errorMessage
+                        }
                       </Text>
                     </View>
                   ) : null}
@@ -938,10 +1048,6 @@ export default function LocationScreen() {
                     }
                   />
 
-                  {/* ==============================================
-                      BOTTOM BUTTONS
-                  ============================================== */}
-
                   <View
                     style={
                       styles.bottomButtons
@@ -993,6 +1099,118 @@ export default function LocationScreen() {
           </KeyboardAvoidingView>
         </SafeAreaView>
       </View>
+
+      {/* ========================================================
+          HEMO-HERO ACTION POPUP
+      ======================================================== */}
+
+      <Modal
+        visible={
+          actionPopup.visible
+        }
+        transparent
+        animationType="fade"
+        onRequestClose={
+          closeActionPopup
+        }
+      >
+        <View
+          style={
+            styles.actionPopupOverlay
+          }
+        >
+          <View
+            style={
+              styles.actionPopupCard
+            }
+          >
+            <View
+              style={[
+                styles.actionPopupIcon,
+
+                actionPopup.variant ===
+                  'success' &&
+                  styles.actionPopupIconSuccess,
+
+                actionPopup.variant ===
+                  'warning' &&
+                  styles.actionPopupIconWarning,
+
+                actionPopup.variant ===
+                  'error' &&
+                  styles.actionPopupIconError,
+              ]}
+            >
+              <MaterialIcons
+                name={
+                  actionPopup.variant ===
+                  'success'
+                    ? 'check-circle-outline'
+                    : actionPopup.variant ===
+                        'warning'
+                      ? 'warning-amber'
+                      : actionPopup.variant ===
+                          'error'
+                        ? 'error-outline'
+                        : 'info-outline'
+                }
+                size={
+                  31
+                }
+                color={
+                  actionPopup.variant ===
+                  'success'
+                    ? COLORS.green
+                    : actionPopup.variant ===
+                        'warning'
+                      ? '#C96A18'
+                      : COLORS.redButton
+                }
+              />
+            </View>
+
+            <Text
+              style={
+                styles.actionPopupTitle
+              }
+            >
+              {
+                actionPopup.title
+              }
+            </Text>
+
+            <Text
+              style={
+                styles.actionPopupMessage
+              }
+            >
+              {
+                actionPopup.message
+              }
+            </Text>
+
+            <TouchableOpacity
+              style={
+                styles.actionPopupButton
+              }
+              activeOpacity={
+                0.85
+              }
+              onPress={
+                closeActionPopup
+              }
+            >
+              <Text
+                style={
+                  styles.actionPopupButtonText
+                }
+              >
+                Okay
+              </Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -1001,695 +1219,1076 @@ export default function LocationScreen() {
 // STYLES
 // ============================================================
 
-const styles = StyleSheet.create({
-  flex: {
-    flex: 1,
-  },
-
-  desktopBackground: {
-    flex: 1,
-
-    alignItems: 'center',
-    justifyContent: 'center',
-
-    backgroundColor:
-      Platform.OS === 'web'
-        ? '#1E1E1E'
-        : COLORS.backgroundBottom,
-  },
-
-  phone: {
-    width:
-      Platform.OS === 'web'
-        ? 440
-        : '100%',
-
-    height:
-      Platform.OS === 'web'
-        ? '100%'
-        : '100%',
-
-    maxWidth: '100%',
-
-    overflow: 'hidden',
-
-    backgroundColor:
-      COLORS.backgroundBottom,
-  },
-
-  safeArea: {
-    flex: 1,
-
-    backgroundColor:
-      COLORS.red,
-  },
-
-  scroll: {
-    flexGrow: 1,
-
-    backgroundColor:
-      COLORS.backgroundBottom,
-  },
-
-  // ==========================================================
-  // HEADER
-  // ==========================================================
-
-  header: {
-    height: 205,
-
-    paddingHorizontal: 27,
-    paddingTop: 52,
-
-    overflow: 'hidden',
-  },
-
-  headerDecoration: {
-    position: 'absolute',
-
-    width: 180,
-    height: 180,
-
-    borderRadius: 90,
-
-    right: -82,
-    top: -70,
-
-    backgroundColor:
-      'rgba(255,255,255,0.07)',
-  },
-
-  headerRow: {
-    flexDirection: 'row',
-
-    alignItems: 'center',
-  },
-
-  backCircle: {
-    width: 37,
-    height: 37,
-
-    borderRadius: 19,
-
-    borderWidth: 2,
-
-    borderColor:
-      COLORS.white,
-
-    alignItems: 'center',
-    justifyContent: 'center',
-
-    marginRight: 12,
-  },
-
-  headerTitle: {
-    color:
-      COLORS.white,
-
-    fontFamily:
-      'Poppins_700Bold',
-
-    fontSize: 17,
-  },
-
-  // ==========================================================
-  // BODY
-  // ==========================================================
-
-  bodyBackground: {
-    flex: 1,
-
-    minHeight: 669,
-
-    paddingHorizontal: 28,
-    paddingBottom: 30,
-  },
-
-  // ==========================================================
-  // CARD
-  // ==========================================================
-
-  card: {
-    marginTop: -72,
-
-    minHeight: 640,
-
-    paddingHorizontal: 24,
-    paddingTop: 13,
-    paddingBottom: 22,
-
-    backgroundColor:
-      '#FAFAFA',
-
-    borderRadius: 27,
-
-    shadowColor:
-      '#000000',
-
-    shadowOffset: {
-      width: 0,
-      height: 3,
+const styles =
+  StyleSheet.create({
+    flex: {
+      flex: 1,
     },
 
-    shadowOpacity: 0.15,
+    desktopBackground: {
+      flex: 1,
 
-    shadowRadius: 5,
+      alignItems:
+        'center',
 
-    elevation: 5,
-  },
+      justifyContent:
+        'center',
 
-  // ==========================================================
-  // PROGRESS
-  // ==========================================================
+      backgroundColor:
+        Platform.OS ===
+        'web'
+          ? '#1E1E1E'
+          : COLORS.backgroundBottom,
+    },
 
-  progressRow: {
-    width: 155,
+    phone: {
+      width:
+        Platform.OS ===
+        'web'
+          ? 440
+          : '100%',
 
-    flexDirection: 'row',
+      height:
+        '100%',
 
-    alignSelf: 'center',
+      maxWidth:
+        '100%',
 
-    gap: 8,
+      overflow:
+        'hidden',
 
-    marginBottom: 16,
-  },
+      backgroundColor:
+        COLORS.backgroundBottom,
+    },
 
-  progressLine: {
-    flex: 1,
+    safeArea: {
+      flex: 1,
 
-    height: 4,
+      backgroundColor:
+        COLORS.red,
+    },
 
-    borderRadius: 3,
+    scroll: {
+      flexGrow: 1,
 
-    backgroundColor:
-      COLORS.progressInactive,
-  },
+      backgroundColor:
+        COLORS.backgroundBottom,
+    },
 
-  progressActive: {
-    backgroundColor:
-      COLORS.redButton,
-  },
+    // ========================================================
+    // HEADER
+    // ========================================================
 
-  sectionTitle: {
-    color:
-      COLORS.black,
+    header: {
+      height: 205,
 
-    fontFamily:
-      'Inter_600SemiBold',
+      paddingHorizontal:
+        27,
 
-    fontSize: 12,
+      paddingTop:
+        52,
 
-    marginBottom: 12,
-  },
+      overflow:
+        'hidden',
+    },
 
-  // ==========================================================
-  // MAP
-  // ==========================================================
+    headerDecoration: {
+      position:
+        'absolute',
 
-  mapContainer: {
-    width: 180,
-    height: 100,
+      width:
+        180,
 
-    alignSelf: 'center',
+      height:
+        180,
 
-    position: 'relative',
+      borderRadius:
+        90,
 
-    overflow: 'hidden',
+      right:
+        -82,
 
-    borderRadius: 8,
+      top:
+        -70,
 
-    backgroundColor:
-      COLORS.mapBackground,
+      backgroundColor:
+        'rgba(255,255,255,0.07)',
+    },
 
-    marginBottom: 10,
-  },
+    headerRow: {
+      flexDirection:
+        'row',
 
-  mapGreenOne: {
-    position: 'absolute',
+      alignItems:
+        'center',
+    },
 
-    width: 62,
-    height: 42,
+    backCircle: {
+      width:
+        37,
 
-    left: 5,
-    top: 4,
+      height:
+        37,
 
-    borderRadius: 20,
+      borderRadius:
+        19,
 
-    backgroundColor:
-      COLORS.mapGreen,
-  },
+      borderWidth:
+        2,
 
-  mapGreenTwo: {
-    position: 'absolute',
+      borderColor:
+        COLORS.white,
 
-    width: 55,
-    height: 35,
+      alignItems:
+        'center',
 
-    right: 7,
-    bottom: 5,
+      justifyContent:
+        'center',
 
-    borderRadius: 18,
+      marginRight:
+        12,
+    },
 
-    backgroundColor:
-      COLORS.mapGreen,
-  },
+    headerTitle: {
+      color:
+        COLORS.white,
 
-  roadHorizontal: {
-    position: 'absolute',
+      fontFamily:
+        'Poppins_700Bold',
 
-    width: 220,
-    height: 12,
+      fontSize:
+        17,
+    },
 
-    left: -20,
-    top: 43,
+    // ========================================================
+    // BODY
+    // ========================================================
 
-    backgroundColor:
-      COLORS.mapRoad,
+    bodyBackground: {
+      flex:
+        1,
 
-    transform: [
-      {
-        rotate: '-7deg',
+      minHeight:
+        669,
+
+      paddingHorizontal:
+        28,
+
+      paddingBottom:
+        30,
+    },
+
+    // ========================================================
+    // CARD
+    // ========================================================
+
+    card: {
+      marginTop:
+        -72,
+
+      minHeight:
+        640,
+
+      paddingHorizontal:
+        24,
+
+      paddingTop:
+        13,
+
+      paddingBottom:
+        22,
+
+      backgroundColor:
+        '#FAFAFA',
+
+      borderRadius:
+        27,
+
+      shadowColor:
+        '#000000',
+
+      shadowOffset: {
+        width:
+          0,
+
+        height:
+          3,
       },
-    ],
-  },
 
-  roadHorizontalTwo: {
-    position: 'absolute',
+      shadowOpacity:
+        0.15,
 
-    width: 200,
-    height: 5,
+      shadowRadius:
+        5,
 
-    left: -10,
-    top: 70,
+      elevation:
+        5,
+    },
 
-    backgroundColor:
-      COLORS.mapRoadSecondary,
+    // ========================================================
+    // PROGRESS
+    // ========================================================
 
-    transform: [
-      {
-        rotate: '9deg',
+    progressRow: {
+      width:
+        155,
+
+      flexDirection:
+        'row',
+
+      alignSelf:
+        'center',
+
+      gap:
+        8,
+
+      marginBottom:
+        16,
+    },
+
+    progressLine: {
+      flex:
+        1,
+
+      height:
+        4,
+
+      borderRadius:
+        3,
+
+      backgroundColor:
+        COLORS.progressInactive,
+    },
+
+    progressActive: {
+      backgroundColor:
+        COLORS.redButton,
+    },
+
+    sectionTitle: {
+      color:
+        COLORS.black,
+
+      fontFamily:
+        'Inter_600SemiBold',
+
+      fontSize:
+        12,
+
+      marginBottom:
+        12,
+    },
+
+    // ========================================================
+    // MAP
+    // ========================================================
+
+    mapContainer: {
+      width:
+        180,
+
+      height:
+        100,
+
+      alignSelf:
+        'center',
+
+      position:
+        'relative',
+
+      overflow:
+        'hidden',
+
+      borderRadius:
+        8,
+
+      backgroundColor:
+        COLORS.mapBackground,
+
+      marginBottom:
+        10,
+    },
+
+    mapGreenOne: {
+      position:
+        'absolute',
+
+      width:
+        62,
+
+      height:
+        42,
+
+      left:
+        5,
+
+      top:
+        4,
+
+      borderRadius:
+        20,
+
+      backgroundColor:
+        COLORS.mapGreen,
+    },
+
+    mapGreenTwo: {
+      position:
+        'absolute',
+
+      width:
+        55,
+
+      height:
+        35,
+
+      right:
+        7,
+
+      bottom:
+        5,
+
+      borderRadius:
+        18,
+
+      backgroundColor:
+        COLORS.mapGreen,
+    },
+
+    roadHorizontal: {
+      position:
+        'absolute',
+
+      width:
+        220,
+
+      height:
+        12,
+
+      left:
+        -20,
+
+      top:
+        43,
+
+      backgroundColor:
+        COLORS.mapRoad,
+
+      transform: [
+        {
+          rotate:
+            '-7deg',
+        },
+      ],
+    },
+
+    roadHorizontalTwo: {
+      position:
+        'absolute',
+
+      width:
+        200,
+
+      height:
+        5,
+
+      left:
+        -10,
+
+      top:
+        70,
+
+      backgroundColor:
+        COLORS.mapRoadSecondary,
+
+      transform: [
+        {
+          rotate:
+            '9deg',
+        },
+      ],
+    },
+
+    roadVertical: {
+      position:
+        'absolute',
+
+      width:
+        10,
+
+      height:
+        130,
+
+      left:
+        72,
+
+      top:
+        -15,
+
+      backgroundColor:
+        COLORS.mapRoad,
+
+      transform: [
+        {
+          rotate:
+            '14deg',
+        },
+      ],
+    },
+
+    roadDiagonal: {
+      position:
+        'absolute',
+
+      width:
+        7,
+
+      height:
+        150,
+
+      right:
+        47,
+
+      top:
+        -25,
+
+      backgroundColor:
+        COLORS.mapRoadSecondary,
+
+      transform: [
+        {
+          rotate:
+            '-32deg',
+        },
+      ],
+    },
+
+    locationPin: {
+      position:
+        'absolute',
+
+      left:
+        74,
+
+      top:
+        32,
+    },
+
+    locationDescription: {
+      paddingHorizontal:
+        18,
+
+      color:
+        COLORS.muted,
+
+      fontFamily:
+        'Inter_400Regular',
+
+      fontSize:
+        8,
+
+      lineHeight:
+        12,
+
+      textAlign:
+        'center',
+
+      marginBottom:
+        13,
+    },
+
+    // ========================================================
+    // CURRENT LOCATION
+    // ========================================================
+
+    currentLocationButton: {
+      height:
+        42,
+
+      flexDirection:
+        'row',
+
+      alignItems:
+        'center',
+
+      justifyContent:
+        'center',
+
+      gap:
+        8,
+
+      borderRadius:
+        8,
+
+      backgroundColor:
+        COLORS.redButton,
+    },
+
+    currentLocationText: {
+      color:
+        COLORS.white,
+
+      fontFamily:
+        'Inter_600SemiBold',
+
+      fontSize:
+        10,
+    },
+
+    disabledButton: {
+      opacity:
+        0.65,
+    },
+
+    // ========================================================
+    // LOCATION DETECTED
+    // ========================================================
+
+    detectedBox: {
+      marginTop:
+        10,
+
+      minHeight:
+        48,
+
+      flexDirection:
+        'row',
+
+      alignItems:
+        'center',
+
+      paddingHorizontal:
+        12,
+
+      borderRadius:
+        8,
+
+      backgroundColor:
+        COLORS.greenLight,
+
+      borderWidth:
+        1,
+
+      borderColor:
+        '#B9D9BC',
+    },
+
+    detectedIcon: {
+      width:
+        23,
+
+      height:
+        23,
+
+      borderRadius:
+        12,
+
+      backgroundColor:
+        COLORS.green,
+
+      alignItems:
+        'center',
+
+      justifyContent:
+        'center',
+
+      marginRight:
+        9,
+    },
+
+    detectedContent: {
+      flex:
+        1,
+    },
+
+    detectedTitle: {
+      color:
+        COLORS.green,
+
+      fontFamily:
+        'Inter_600SemiBold',
+
+      fontSize:
+        9,
+    },
+
+    detectedCoordinates: {
+      marginTop:
+        2,
+
+      color:
+        COLORS.muted,
+
+      fontFamily:
+        'Inter_400Regular',
+
+      fontSize:
+        7,
+    },
+
+    // ========================================================
+    // OR
+    // ========================================================
+
+    orRow: {
+      flexDirection:
+        'row',
+
+      alignItems:
+        'center',
+
+      marginVertical:
+        10,
+    },
+
+    orLine: {
+      flex:
+        1,
+
+      height:
+        1,
+
+      backgroundColor:
+        '#E1E1E1',
+    },
+
+    orText: {
+      marginHorizontal:
+        9,
+
+      color:
+        COLORS.muted,
+
+      fontFamily:
+        'Inter_400Regular',
+
+      fontSize:
+        9,
+    },
+
+    // ========================================================
+    // SELECT MAP
+    // ========================================================
+
+    mapButton: {
+      height:
+        40,
+
+      flexDirection:
+        'row',
+
+      alignItems:
+        'center',
+
+      justifyContent:
+        'center',
+
+      gap:
+        8,
+
+      borderWidth:
+        1,
+
+      borderColor:
+        '#BFBFBF',
+
+      borderRadius:
+        7,
+
+      backgroundColor:
+        COLORS.white,
+
+      marginBottom:
+        15,
+    },
+
+    mapButtonText: {
+      color:
+        COLORS.black,
+
+      fontFamily:
+        'Inter_500Medium',
+
+      fontSize:
+        9,
+    },
+
+    // ========================================================
+    // LOCATION DETAILS
+    // ========================================================
+
+    locationDetailsTitle: {
+      color:
+        COLORS.black,
+
+      fontFamily:
+        'Inter_600SemiBold',
+
+      fontSize:
+        11,
+    },
+
+    locationHint: {
+      marginTop:
+        3,
+
+      marginBottom:
+        10,
+
+      color:
+        COLORS.muted,
+
+      fontFamily:
+        'Inter_400Regular',
+
+      fontSize:
+        8,
+    },
+
+    // ========================================================
+    // ERROR
+    // ========================================================
+
+    errorBox: {
+      marginBottom:
+        10,
+
+      paddingHorizontal:
+        10,
+
+      paddingVertical:
+        8,
+
+      borderWidth:
+        1,
+
+      borderColor:
+        '#E9AAAA',
+
+      borderRadius:
+        7,
+
+      backgroundColor:
+        '#FDECEC',
+    },
+
+    errorText: {
+      color:
+        COLORS.redButton,
+
+      fontFamily:
+        'Inter_500Medium',
+
+      fontSize:
+        9,
+
+      textAlign:
+        'center',
+    },
+
+    // ========================================================
+    // FORM
+    // ========================================================
+
+    label: {
+      color:
+        COLORS.black,
+
+      fontFamily:
+        'Inter_500Medium',
+
+      fontSize:
+        9,
+
+      marginBottom:
+        5,
+    },
+
+    input: {
+      height:
+        37,
+
+      marginBottom:
+        10,
+
+      paddingHorizontal:
+        13,
+
+      borderWidth:
+        1,
+
+      borderColor:
+        COLORS.inputBorder,
+
+      borderRadius:
+        8,
+
+      color:
+        COLORS.black,
+
+      backgroundColor:
+        COLORS.white,
+
+      fontFamily:
+        'Inter_400Regular',
+
+      fontSize:
+        9,
+
+      outlineStyle:
+        Platform.OS ===
+        'web'
+          ? 'none'
+          : undefined,
+    } as any,
+
+    // ========================================================
+    // BOTTOM BUTTONS
+    // ========================================================
+
+    bottomButtons: {
+      flexDirection:
+        'row',
+
+      gap:
+        12,
+
+      marginTop:
+        9,
+    },
+
+    secondaryButton: {
+      flex:
+        1,
+
+      height:
+        48,
+
+      borderRadius:
+        8,
+
+      backgroundColor:
+        '#E3E3E3',
+
+      alignItems:
+        'center',
+
+      justifyContent:
+        'center',
+    },
+
+    secondaryButtonText: {
+      color:
+        '#444444',
+
+      fontFamily:
+        'Poppins_600SemiBold',
+
+      fontSize:
+        11,
+    },
+
+    nextButton: {
+      flex:
+        1,
+
+      height:
+        48,
+
+      borderRadius:
+        8,
+
+      backgroundColor:
+        COLORS.redButton,
+
+      alignItems:
+        'center',
+
+      justifyContent:
+        'center',
+    },
+
+    nextButtonText: {
+      color:
+        COLORS.white,
+
+      fontFamily:
+        'Poppins_600SemiBold',
+
+      fontSize:
+        11,
+    },
+
+    // ========================================================
+    // ACTION POPUP
+    // ========================================================
+
+    actionPopupOverlay: {
+      flex:
+        1,
+
+      paddingHorizontal:
+        24,
+
+      alignItems:
+        'center',
+
+      justifyContent:
+        'center',
+
+      backgroundColor:
+        'rgba(0,0,0,0.48)',
+    },
+
+    actionPopupCard: {
+      width:
+        '100%',
+
+      maxWidth:
+        360,
+
+      paddingHorizontal:
+        20,
+
+      paddingTop:
+        22,
+
+      paddingBottom:
+        18,
+
+      borderRadius:
+        22,
+
+      backgroundColor:
+        COLORS.white,
+
+      shadowColor:
+        '#000000',
+
+      shadowOffset: {
+        width:
+          0,
+
+        height:
+          8,
       },
-    ],
-  },
 
-  roadVertical: {
-    position: 'absolute',
+      shadowOpacity:
+        0.2,
 
-    width: 10,
-    height: 130,
+      shadowRadius:
+        18,
 
-    left: 72,
-    top: -15,
+      elevation:
+        10,
+    },
 
-    backgroundColor:
-      COLORS.mapRoad,
+    actionPopupIcon: {
+      width:
+        56,
 
-    transform: [
-      {
-        rotate: '14deg',
-      },
-    ],
-  },
+      height:
+        56,
 
-  roadDiagonal: {
-    position: 'absolute',
+      alignSelf:
+        'center',
 
-    width: 7,
-    height: 150,
+      marginBottom:
+        13,
 
-    right: 47,
-    top: -25,
+      borderRadius:
+        28,
 
-    backgroundColor:
-      COLORS.mapRoadSecondary,
+      alignItems:
+        'center',
 
-    transform: [
-      {
-        rotate: '-32deg',
-      },
-    ],
-  },
+      justifyContent:
+        'center',
 
-  locationPin: {
-    position: 'absolute',
+      backgroundColor:
+        '#FFF1F1',
+    },
 
-    left: 74,
-    top: 32,
-  },
+    actionPopupIconSuccess: {
+      backgroundColor:
+        COLORS.greenLight,
+    },
 
-  locationDescription: {
-    paddingHorizontal: 18,
+    actionPopupIconWarning: {
+      backgroundColor:
+        '#FFF5E8',
+    },
 
-    color:
-      COLORS.muted,
+    actionPopupIconError: {
+      backgroundColor:
+        '#FFF1F1',
+    },
 
-    fontFamily:
-      'Inter_400Regular',
+    actionPopupTitle: {
+      color:
+        COLORS.black,
 
-    fontSize: 8,
+      fontFamily:
+        'Poppins_600SemiBold',
 
-    lineHeight: 12,
+      fontSize:
+        16,
 
-    textAlign: 'center',
+      lineHeight:
+        22,
 
-    marginBottom: 13,
-  },
+      textAlign:
+        'center',
+    },
 
-  // ==========================================================
-  // CURRENT LOCATION
-  // ==========================================================
+    actionPopupMessage: {
+      marginTop:
+        8,
 
-  currentLocationButton: {
-    height: 42,
+      color:
+        COLORS.muted,
 
-    flexDirection: 'row',
+      fontFamily:
+        'Inter_400Regular',
 
-    alignItems: 'center',
-    justifyContent: 'center',
+      fontSize:
+        11,
 
-    gap: 8,
+      lineHeight:
+        17,
 
-    borderRadius: 8,
+      textAlign:
+        'center',
+    },
 
-    backgroundColor:
-      COLORS.redButton,
-  },
+    actionPopupButton: {
+      height:
+        45,
 
-  currentLocationText: {
-    color:
-      COLORS.white,
+      marginTop:
+        19,
 
-    fontFamily:
-      'Inter_600SemiBold',
+      borderRadius:
+        10,
 
-    fontSize: 10,
-  },
+      alignItems:
+        'center',
 
-  disabledButton: {
-    opacity: 0.65,
-  },
+      justifyContent:
+        'center',
 
-  // ==========================================================
-  // LOCATION DETECTED
-  // ==========================================================
+      backgroundColor:
+        COLORS.redButton,
+    },
 
-  detectedBox: {
-    marginTop: 10,
+    actionPopupButtonText: {
+      color:
+        COLORS.white,
 
-    minHeight: 48,
+      fontFamily:
+        'Poppins_600SemiBold',
 
-    flexDirection: 'row',
-
-    alignItems: 'center',
-
-    paddingHorizontal: 12,
-
-    borderRadius: 8,
-
-    backgroundColor:
-      COLORS.greenLight,
-
-    borderWidth: 1,
-
-    borderColor:
-      '#B9D9BC',
-  },
-
-  detectedIcon: {
-    width: 23,
-    height: 23,
-
-    borderRadius: 12,
-
-    backgroundColor:
-      COLORS.green,
-
-    alignItems: 'center',
-    justifyContent: 'center',
-
-    marginRight: 9,
-  },
-
-  detectedContent: {
-    flex: 1,
-  },
-
-  detectedTitle: {
-    color:
-      COLORS.green,
-
-    fontFamily:
-      'Inter_600SemiBold',
-
-    fontSize: 9,
-  },
-
-  detectedCoordinates: {
-    marginTop: 2,
-
-    color:
-      COLORS.muted,
-
-    fontFamily:
-      'Inter_400Regular',
-
-    fontSize: 7,
-  },
-
-  // ==========================================================
-  // OR
-  // ==========================================================
-
-  orRow: {
-    flexDirection: 'row',
-
-    alignItems: 'center',
-
-    marginVertical: 10,
-  },
-
-  orLine: {
-    flex: 1,
-
-    height: 1,
-
-    backgroundColor:
-      '#E1E1E1',
-  },
-
-  orText: {
-    marginHorizontal: 9,
-
-    color:
-      COLORS.muted,
-
-    fontFamily:
-      'Inter_400Regular',
-
-    fontSize: 9,
-  },
-
-  // ==========================================================
-  // SELECT MAP
-  // ==========================================================
-
-  mapButton: {
-    height: 40,
-
-    flexDirection: 'row',
-
-    alignItems: 'center',
-    justifyContent: 'center',
-
-    gap: 8,
-
-    borderWidth: 1,
-
-    borderColor:
-      '#BFBFBF',
-
-    borderRadius: 7,
-
-    backgroundColor:
-      COLORS.white,
-
-    marginBottom: 15,
-  },
-
-  mapButtonText: {
-    color:
-      COLORS.black,
-
-    fontFamily:
-      'Inter_500Medium',
-
-    fontSize: 9,
-  },
-
-  // ==========================================================
-  // LOCATION DETAILS
-  // ==========================================================
-
-  locationDetailsTitle: {
-    color:
-      COLORS.black,
-
-    fontFamily:
-      'Inter_600SemiBold',
-
-    fontSize: 11,
-  },
-
-  locationHint: {
-    marginTop: 3,
-    marginBottom: 10,
-
-    color:
-      COLORS.muted,
-
-    fontFamily:
-      'Inter_400Regular',
-
-    fontSize: 8,
-  },
-
-  // ==========================================================
-  // ERROR
-  // ==========================================================
-
-  errorBox: {
-    marginBottom: 10,
-
-    paddingHorizontal: 10,
-    paddingVertical: 8,
-
-    borderWidth: 1,
-
-    borderColor:
-      '#E9AAAA',
-
-    borderRadius: 7,
-
-    backgroundColor:
-      '#FDECEC',
-  },
-
-  errorText: {
-    color:
-      COLORS.redButton,
-
-    fontFamily:
-      'Inter_500Medium',
-
-    fontSize: 9,
-
-    textAlign: 'center',
-  },
-
-  // ==========================================================
-  // FORM
-  // ==========================================================
-
-  label: {
-    color:
-      COLORS.black,
-
-    fontFamily:
-      'Inter_500Medium',
-
-    fontSize: 9,
-
-    marginBottom: 5,
-  },
-
-  input: {
-    height: 37,
-
-    marginBottom: 10,
-
-    paddingHorizontal: 13,
-
-    borderWidth: 1,
-
-    borderColor:
-      COLORS.inputBorder,
-
-    borderRadius: 8,
-
-    color:
-      COLORS.black,
-
-    backgroundColor:
-      COLORS.white,
-
-    fontFamily:
-      'Inter_400Regular',
-
-    fontSize: 9,
-
-    outlineStyle:
-      Platform.OS === 'web'
-        ? 'none'
-        : undefined,
-  } as any,
-
-  // ==========================================================
-  // BOTTOM BUTTONS
-  // ==========================================================
-
-  bottomButtons: {
-    flexDirection: 'row',
-
-    gap: 12,
-
-    marginTop: 9,
-  },
-
-  secondaryButton: {
-    flex: 1,
-
-    height: 48,
-
-    borderRadius: 8,
-
-    backgroundColor:
-      '#E3E3E3',
-
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-
-  secondaryButtonText: {
-    color:
-      '#444444',
-
-    fontFamily:
-      'Poppins_600SemiBold',
-
-    fontSize: 11,
-  },
-
-  nextButton: {
-    flex: 1,
-
-    height: 48,
-
-    borderRadius: 8,
-
-    backgroundColor:
-      COLORS.redButton,
-
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-
-  nextButtonText: {
-    color:
-      COLORS.white,
-
-    fontFamily:
-      'Poppins_600SemiBold',
-
-    fontSize: 11,
-  },
-});
+      fontSize:
+        10,
+    },
+  });

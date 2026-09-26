@@ -1,12 +1,7 @@
-import {
-  useCallback,
-  useMemo,
-  useState,
-} from 'react';
+import { useCallback, useMemo, useState } from 'react';
 
 import {
   ActivityIndicator,
-  Alert,
   Image,
   Modal,
   Platform,
@@ -17,13 +12,8 @@ import {
   View,
 } from 'react-native';
 
-import {
-  MaterialIcons,
-} from '@expo/vector-icons';
-
-import {
-  LinearGradient,
-} from 'expo-linear-gradient';
+import { MaterialIcons } from '@expo/vector-icons';
+import { LinearGradient } from 'expo-linear-gradient';
 
 import {
   router,
@@ -31,13 +21,8 @@ import {
   useLocalSearchParams,
 } from 'expo-router';
 
-import {
-  StatusBar,
-} from 'expo-status-bar';
-
-import {
-  SafeAreaView,
-} from 'react-native-safe-area-context';
+import { StatusBar } from 'expo-status-bar';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 import * as Location from 'expo-location';
 
@@ -96,13 +81,28 @@ const COLORS = {
 };
 
 // ============================================================
+// ACTION POPUP
+// ============================================================
+
+type ActionPopupVariant =
+  | 'info'
+  | 'success'
+  | 'warning'
+  | 'error';
+
+type ActionPopupState = {
+  visible: boolean;
+  title: string;
+  message: string;
+  variant: ActionPopupVariant;
+};
+
+// ============================================================
 // BLOOD TYPE HELPERS
 // ============================================================
 
 function normalizeBloodType(
-  value?:
-    | string
-    | null
+  value?: string | null
 ) {
   if (!value) {
     return '';
@@ -114,12 +114,8 @@ function normalizeBloodType(
 }
 
 function bloodTypesMatchExactly(
-  requestBloodType?:
-    | string
-    | null,
-  donorBloodType?:
-    | string
-    | null
+  requestBloodType?: string | null,
+  donorBloodType?: string | null
 ) {
   const required =
     normalizeBloodType(
@@ -138,10 +134,7 @@ function bloodTypesMatchExactly(
     return false;
   }
 
-  return (
-    required ===
-    donor
-  );
+  return required === donor;
 }
 
 // ============================================================
@@ -159,9 +152,7 @@ export default function DonorDetailsScreen() {
     }>();
 
   const donorId =
-    Array.isArray(
-      params.id
-    )
+    Array.isArray(params.id)
       ? params.id[0]
       : params.id;
 
@@ -237,6 +228,17 @@ export default function DonorDetailsScreen() {
   ] =
     useState(false);
 
+  const [
+    actionPopup,
+    setActionPopup,
+  ] =
+    useState<ActionPopupState>({
+      visible: false,
+      title: '',
+      message: '',
+      variant: 'info',
+    });
+
   // ==========================================================
   // MATCHING REQUESTS
   // ==========================================================
@@ -266,26 +268,58 @@ export default function DonorDetailsScreen() {
   // MESSAGE
   // ==========================================================
 
+  function closeActionPopup() {
+    setActionPopup(
+      current => ({
+        ...current,
+        visible: false,
+      })
+    );
+  }
+
+  function getMessageVariant(
+    title: string
+  ): ActionPopupVariant {
+    const value =
+      title.toLowerCase();
+
+    if (
+      value.includes('sent') ||
+      value.includes('success')
+    ) {
+      return 'success';
+    }
+
+    if (
+      value.includes('blood type') ||
+      value.includes('not found')
+    ) {
+      return 'warning';
+    }
+
+    if (
+      value.includes('unable') ||
+      value.includes('error')
+    ) {
+      return 'error';
+    }
+
+    return 'info';
+  }
+
   function showMessage(
     title: string,
     message: string
   ) {
-    if (
-      Platform.OS === 'web' &&
-      typeof window !==
-        'undefined'
-    ) {
-      window.alert(
-        `${title}\n\n${message}`
-      );
-
-      return;
-    }
-
-    Alert.alert(
+    setActionPopup({
+      visible: true,
       title,
-      message
-    );
+      message,
+      variant:
+        getMessageVariant(
+          title
+        ),
+    });
   }
 
   // ==========================================================
@@ -296,13 +330,8 @@ export default function DonorDetailsScreen() {
     useCallback(
       async () => {
         try {
-          setLoading(
-            true
-          );
-
-          setErrorMessage(
-            ''
-          );
+          setLoading(true);
+          setErrorMessage('');
 
           if (!donorId) {
             throw new Error(
@@ -314,9 +343,7 @@ export default function DonorDetailsScreen() {
             await getAccessToken();
 
           if (!token) {
-            router.replace(
-              '/'
-            );
+            router.replace('/');
 
             return;
           }
@@ -351,8 +378,7 @@ export default function DonorDetailsScreen() {
                 await Location
                   .getCurrentPositionAsync({
                     accuracy:
-                      Location
-                        .Accuracy
+                      Location.Accuracy
                         .Balanced,
                   });
 
@@ -366,9 +392,7 @@ export default function DonorDetailsScreen() {
                   .coords
                   .longitude;
             }
-          } catch (
-            error
-          ) {
+          } catch (error) {
             console.log(
               'DONOR DETAILS LOCATION ERROR:',
               error
@@ -388,28 +412,21 @@ export default function DonorDetailsScreen() {
           setDonor(
             result.donor
           );
-        } catch (
-          error
-        ) {
+        } catch (error) {
           console.log(
             'DONOR DETAILS ERROR:',
             error
           );
 
-          setDonor(
-            null
-          );
+          setDonor(null);
 
           setErrorMessage(
-            error instanceof
-              Error
+            error instanceof Error
               ? error.message
               : 'Unable to load donor profile.'
           );
         } finally {
-          setLoading(
-            false
-          );
+          setLoading(false);
         }
       },
       [
@@ -500,9 +517,7 @@ export default function DonorDetailsScreen() {
           false
         );
 
-        router.replace(
-          '/'
-        );
+        router.replace('/');
 
         return;
       }
@@ -537,9 +552,7 @@ export default function DonorDetailsScreen() {
       // AUTO-SELECT ONLY AN EXACT BLOOD-TYPE MATCH
       // ------------------------------------------------------
 
-      if (
-        donor
-      ) {
+      if (donor) {
         const matching =
           active.filter(
             request =>
@@ -558,25 +571,20 @@ export default function DonorDetailsScreen() {
           );
         }
       }
-    } catch (
-      error
-    ) {
+    } catch (error) {
       console.log(
         'LOAD ACTIVE REQUESTS ERROR:',
         error
       );
 
-      setActiveRequests(
-        []
-      );
+      setActiveRequests([]);
 
       setSelectedRequestId(
         null
       );
 
       setRequestLoadError(
-        error instanceof
-          Error
+        error instanceof Error
           ? error.message
           : 'Unable to load your active blood request.'
       );
@@ -667,9 +675,7 @@ export default function DonorDetailsScreen() {
           false
         );
 
-        router.replace(
-          '/'
-        );
+        router.replace('/');
 
         return;
       }
@@ -695,9 +701,7 @@ export default function DonorDetailsScreen() {
           donor.full_name
         }. You will be notified when the donor responds.`
       );
-    } catch (
-      error
-    ) {
+    } catch (error) {
       console.log(
         'SEND DONOR INVITATION ERROR:',
         error
@@ -705,8 +709,7 @@ export default function DonorDetailsScreen() {
 
       showMessage(
         'Unable to Send Request',
-        error instanceof
-          Error
+        error instanceof Error
           ? error.message
           : 'Unable to send your request to this donor.'
       );
@@ -736,9 +739,7 @@ export default function DonorDetailsScreen() {
   // ==========================================================
 
   function formatDate(
-    value?:
-      | string
-      | null
+    value?: string | null
   ) {
     if (!value) {
       return 'Not provided';
@@ -757,19 +758,15 @@ export default function DonorDetailsScreen() {
       return value;
     }
 
-    return date.toLocaleDateString(
-      'en-US',
-      {
-        month:
-          'short',
-
-        day:
-          'numeric',
-
-        year:
-          'numeric',
-      }
-    );
+    return date
+      .toLocaleDateString(
+        'en-US',
+        {
+          month: 'short',
+          day: 'numeric',
+          year: 'numeric',
+        }
+      );
   }
 
   // ==========================================================
@@ -815,12 +812,8 @@ export default function DonorDetailsScreen() {
       new Date();
 
     time.setHours(
-      Number(
-        hours
-      ),
-      Number(
-        minutes
-      ),
+      Number(hours),
+      Number(minutes),
       0,
       0
     );
@@ -829,11 +822,8 @@ export default function DonorDetailsScreen() {
       time.toLocaleTimeString(
         'en-US',
         {
-          hour:
-            'numeric',
-
-          minute:
-            '2-digit',
+          hour: 'numeric',
+          minute: '2-digit',
         }
       );
 
@@ -850,12 +840,8 @@ export default function DonorDetailsScreen() {
       donor?.city,
       donor?.province,
     ]
-      .filter(
-        Boolean
-      )
-      .join(
-        ', '
-      ) ||
+      .filter(Boolean)
+      .join(', ') ||
     'Location unavailable';
 
   // ==========================================================
@@ -1396,7 +1382,8 @@ export default function DonorDetailsScreen() {
                         styles.privacyDescription
                       }
                     >
-                      Exact address, coordinates, phone number, and email are hidden. Communication happens securely through Hemo-Hero.
+                      Exact address, coordinates, phone number, and email are
+                      hidden. Communication happens securely through Hemo-Hero.
                     </Text>
                   </View>
                 </View>
@@ -1458,7 +1445,8 @@ export default function DonorDetailsScreen() {
                       styles.helperText
                     }
                   >
-                    Only an active request with the same blood type as this donor can be sent.
+                    Only an active request with the same blood type as this donor
+                    can be sent.
                   </Text>
                 </View>
 
@@ -1813,7 +1801,8 @@ export default function DonorDetailsScreen() {
                           styles.matchRuleText
                         }
                       >
-                        Hemo-Hero only allows direct invitations when the request and donor blood types are exactly the same.
+                        Hemo-Hero only allows direct invitations when the request
+                        and donor blood types are exactly the same.
                       </Text>
                     </View>
 
@@ -2069,7 +2058,8 @@ export default function DonorDetailsScreen() {
                             styles.invitationNoticeText
                           }
                         >
-                          The blood types match. The donor can review this request and choose whether to accept or decline.
+                          The blood types match. The donor can review this request
+                          and choose whether to accept or decline.
                         </Text>
                       </View>
                     ) : null}
@@ -2078,8 +2068,10 @@ export default function DonorDetailsScreen() {
                       style={[
                         styles.sendInvitationButton,
 
-                        (!selectedRequestId ||
-                          sendingInvitation) &&
+                        (
+                          !selectedRequestId ||
+                          sendingInvitation
+                        ) &&
                           styles.sendInvitationButtonDisabled,
                       ]}
                       activeOpacity={
@@ -2122,6 +2114,117 @@ export default function DonorDetailsScreen() {
                     </TouchableOpacity>
                   </>
                 ) : null}
+              </View>
+            </View>
+          </Modal>
+
+          {/* ==================================================
+              HEMO-HERO ACTION POPUP
+          ================================================== */}
+
+          <Modal
+            visible={
+              actionPopup.visible
+            }
+            transparent
+            animationType="fade"
+            statusBarTranslucent
+            onRequestClose={
+              closeActionPopup
+            }
+          >
+            <View
+              style={
+                styles.actionPopupOverlay
+              }
+            >
+              <View
+                style={
+                  styles.actionPopupCard
+                }
+              >
+                <View
+                  style={[
+                    styles.actionPopupIcon,
+
+                    actionPopup.variant ===
+                      'success' &&
+                      styles.actionPopupIconSuccess,
+
+                    actionPopup.variant ===
+                      'warning' &&
+                      styles.actionPopupIconWarning,
+
+                    actionPopup.variant ===
+                      'error' &&
+                      styles.actionPopupIconError,
+                  ]}
+                >
+                  <MaterialIcons
+                    name={
+                      actionPopup.variant ===
+                      'success'
+                        ? 'check-circle-outline'
+                        : actionPopup.variant ===
+                            'warning'
+                          ? 'warning-amber'
+                          : actionPopup.variant ===
+                              'error'
+                            ? 'error-outline'
+                            : 'info-outline'
+                    }
+                    size={31}
+                    color={
+                      actionPopup.variant ===
+                      'success'
+                        ? COLORS.green
+                        : actionPopup.variant ===
+                            'warning'
+                          ? COLORS.orange
+                          : COLORS.redButton
+                    }
+                  />
+                </View>
+
+                <Text
+                  style={
+                    styles.actionPopupTitle
+                  }
+                >
+                  {
+                    actionPopup.title
+                  }
+                </Text>
+
+                <Text
+                  style={
+                    styles.actionPopupMessage
+                  }
+                >
+                  {
+                    actionPopup.message
+                  }
+                </Text>
+
+                <TouchableOpacity
+                  style={
+                    styles.actionPopupButton
+                  }
+                  activeOpacity={
+                    0.85
+                  }
+                  onPress={
+                    closeActionPopup
+                  }
+                >
+                  <Text
+                    style={
+                      styles.actionPopupButtonText
+                    }
+                  >
+                    Okay
+                  </Text>
+                </TouchableOpacity>
               </View>
             </View>
           </Modal>
@@ -2225,9 +2328,12 @@ function InfoRow({
   icon,
   label,
   value,
-  iconColor = COLORS.redButton,
-  iconBackground = COLORS.pinkSoft,
-  valueColor = COLORS.black,
+  iconColor =
+    COLORS.redButton,
+  iconBackground =
+    COLORS.pinkSoft,
+  valueColor =
+    COLORS.black,
 }: {
   icon:
     keyof typeof MaterialIcons.glyphMap;
@@ -2325,8 +2431,7 @@ function Divider() {
 const styles =
   StyleSheet.create({
     desktopBackground: {
-      flex:
-        1,
+      flex: 1,
 
       alignItems:
         'center',
@@ -2349,10 +2454,7 @@ const styles =
           : '100%',
 
       height:
-        Platform.OS ===
-        'web'
-          ? '100%'
-          : '100%',
+        '100%',
 
       maxWidth:
         '100%',
@@ -2365,8 +2467,7 @@ const styles =
     },
 
     safeArea: {
-      flex:
-        1,
+      flex: 1,
 
       backgroundColor:
         COLORS.redDark,
@@ -2641,11 +2742,8 @@ const styles =
         '#000000',
 
       shadowOffset: {
-        width:
-          0,
-
-        height:
-          2,
+        width: 0,
+        height: 2,
       },
 
       shadowOpacity:
@@ -3211,11 +3309,8 @@ const styles =
         '#000000',
 
       shadowOffset: {
-        width:
-          0,
-
-        height:
-          7,
+        width: 0,
+        height: 7,
       },
 
       shadowOpacity:
@@ -3834,5 +3929,175 @@ const styles =
 
       fontSize:
         10.5,
+    },
+
+    // ========================================================
+    // ACTION POPUP
+    // ========================================================
+
+    actionPopupOverlay: {
+      flex:
+        1,
+
+      paddingHorizontal:
+        24,
+
+      alignItems:
+        'center',
+
+      justifyContent:
+        'center',
+
+      backgroundColor:
+        'rgba(0,0,0,0.48)',
+    },
+
+    actionPopupCard: {
+      width:
+        '100%',
+
+      maxWidth:
+        360,
+
+      paddingHorizontal:
+        20,
+
+      paddingTop:
+        22,
+
+      paddingBottom:
+        18,
+
+      borderRadius:
+        22,
+
+      backgroundColor:
+        COLORS.white,
+
+      shadowColor:
+        '#000000',
+
+      shadowOffset: {
+        width: 0,
+        height: 8,
+      },
+
+      shadowOpacity:
+        0.2,
+
+      shadowRadius:
+        18,
+
+      elevation:
+        10,
+    },
+
+    actionPopupIcon: {
+      width:
+        56,
+
+      height:
+        56,
+
+      alignSelf:
+        'center',
+
+      marginBottom:
+        13,
+
+      borderRadius:
+        28,
+
+      alignItems:
+        'center',
+
+      justifyContent:
+        'center',
+
+      backgroundColor:
+        COLORS.pinkSoft,
+    },
+
+    actionPopupIconSuccess: {
+      backgroundColor:
+        COLORS.greenSoft,
+    },
+
+    actionPopupIconWarning: {
+      backgroundColor:
+        COLORS.orangeSoft,
+    },
+
+    actionPopupIconError: {
+      backgroundColor:
+        COLORS.pinkSoft,
+    },
+
+    actionPopupTitle: {
+      color:
+        COLORS.black,
+
+      fontFamily:
+        'Poppins_600SemiBold',
+
+      fontSize:
+        16,
+
+      lineHeight:
+        22,
+
+      textAlign:
+        'center',
+    },
+
+    actionPopupMessage: {
+      marginTop:
+        8,
+
+      color:
+        COLORS.muted,
+
+      fontFamily:
+        'Inter_400Regular',
+
+      fontSize:
+        11,
+
+      lineHeight:
+        17,
+
+      textAlign:
+        'center',
+    },
+
+    actionPopupButton: {
+      height:
+        45,
+
+      marginTop:
+        19,
+
+      borderRadius:
+        10,
+
+      alignItems:
+        'center',
+
+      justifyContent:
+        'center',
+
+      backgroundColor:
+        COLORS.redButton,
+    },
+
+    actionPopupButtonText: {
+      color:
+        COLORS.white,
+
+      fontFamily:
+        'Poppins_600SemiBold',
+
+      fontSize:
+        10,
     },
   });

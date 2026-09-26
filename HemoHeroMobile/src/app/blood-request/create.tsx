@@ -5,7 +5,6 @@ import {
 } from 'react';
 
 import {
-  Alert,
   Image,
   KeyboardAvoidingView,
   Modal,
@@ -103,6 +102,30 @@ const BLOOD_TYPES = [
   'O+',
   'O-',
 ];
+
+
+// ============================================================
+// IN-APP ACTION POPUP
+// ============================================================
+
+type ActionPopupVariant =
+  | 'info'
+  | 'success'
+  | 'warning'
+  | 'error';
+
+type ActionPopupState = {
+  visible: boolean;
+  title: string;
+  message: string;
+  variant: ActionPopupVariant;
+  confirmText: string;
+  cancelText: string;
+  showCancel: boolean;
+  dismissOnBackdrop: boolean;
+  onConfirm?: () => void;
+};
+
 
 // ============================================================
 // CALENDAR
@@ -434,6 +457,22 @@ export default function CreateBloodRequestScreen() {
     setSubmitting,
   ] = useState(false);
 
+
+  const [
+    actionPopup,
+    setActionPopup,
+  ] = useState<ActionPopupState>({
+    visible: false,
+    title: '',
+    message: '',
+    variant: 'info',
+    confirmText: 'Okay',
+    cancelText: 'Cancel',
+    showCancel: false,
+    dismissOnBackdrop: true,
+    onConfirm: undefined,
+  });
+
   // ==========================================================
   // CALENDAR DAYS
   // ==========================================================
@@ -675,26 +714,33 @@ export default function CreateBloodRequestScreen() {
   // MESSAGE HELPER
   // ==========================================================
 
+  function closeActionPopup() {
+    setActionPopup(
+      current => ({
+        ...current,
+        visible: false,
+        onConfirm: undefined,
+      })
+    );
+  }
+
   function showMessage(
     title: string,
-    messageText: string
+    messageText: string,
+    variant: ActionPopupVariant =
+      'error'
   ) {
-    if (
-      Platform.OS === 'web' &&
-      typeof window !==
-        'undefined'
-    ) {
-      window.alert(
-        `${title}\n\n${messageText}`
-      );
-
-      return;
-    }
-
-    Alert.alert(
+    setActionPopup({
+      visible: true,
       title,
-      messageText
-    );
+      message: messageText,
+      variant,
+      confirmText: 'Okay',
+      cancelText: 'Cancel',
+      showCancel: false,
+      dismissOnBackdrop: true,
+      onConfirm: undefined,
+    });
   }
 
   // ==========================================================
@@ -1387,41 +1433,23 @@ export default function CreateBloodRequestScreen() {
       }\n` +
       `Needed By: ${neededBy}`;
 
-    if (
-      Platform.OS === 'web' &&
-      typeof window !==
-        'undefined'
-    ) {
-      const confirmed =
-        window.confirm(
-          `Submit Blood Request?\n\n${summary}\n\nPlease confirm that these details are correct.`
-        );
-
-      if (confirmed) {
+    setActionPopup({
+      visible: true,
+      title: 'Submit Blood Request?',
+      message:
+        `${summary}\n\nPlease confirm that these details are correct.`,
+      variant: 'warning',
+      confirmText: 'Submit Request',
+      cancelText: 'Go Back',
+      showCancel: true,
+      dismissOnBackdrop: true,
+      onConfirm: () => {
+        closeActionPopup();
         handleConfirmedSubmit();
-      }
-
-      return;
-    }
-
-    Alert.alert(
-      'Submit Blood Request?',
-      `${summary}\n\nPlease confirm that these details are correct.`,
-      [
-        {
-          text: 'Go Back',
-          style: 'cancel',
-        },
-        {
-          text:
-            'Submit Request',
-
-          onPress:
-            handleConfirmedSubmit,
-        },
-      ]
-    );
+      },
+    });
   }
+
 
   // ==========================================================
   // REAL API SUBMISSION
@@ -1464,51 +1492,24 @@ export default function CreateBloodRequestScreen() {
         result
       );
 
-      // ------------------------------------------------------
-      // WEB
-      // ------------------------------------------------------
+      setActionPopup({
+        visible: true,
+        title: 'Request Submitted',
+        message:
+          'Your blood request has been created successfully and can now be shown to nearby compatible donors.',
+        variant: 'success',
+        confirmText: 'Go to Dashboard',
+        cancelText: 'Cancel',
+        showCancel: false,
+        dismissOnBackdrop: false,
+        onConfirm: () => {
+          closeActionPopup();
+          router.replace(
+            '/dashboard'
+          );
+        },
+      });
 
-      if (
-        Platform.OS ===
-          'web' &&
-        typeof window !==
-          'undefined'
-      ) {
-        window.alert(
-          'Blood Request Submitted\n\nYour request has been created successfully.'
-        );
-
-        router.replace(
-          '/dashboard'
-        );
-
-        return;
-      }
-
-      // ------------------------------------------------------
-      // IPHONE / ANDROID
-      // ------------------------------------------------------
-
-      Alert.alert(
-        'Request Submitted',
-        'Your blood request has been created successfully.',
-        [
-          {
-            text:
-              'Go to Dashboard',
-
-            onPress: () => {
-              router.replace(
-                '/dashboard'
-              );
-            },
-          },
-        ],
-        {
-          cancelable:
-            false,
-        }
-      );
     } catch (error) {
       console.log(
         'CREATE BLOOD REQUEST ERROR:',
@@ -3601,6 +3602,153 @@ export default function CreateBloodRequestScreen() {
             </View>
           </View>
         </Modal>
+
+        {/* ====================================================
+            IN-APP ACTION POPUP
+        ==================================================== */}
+
+        <Modal
+          transparent
+          visible={
+            actionPopup.visible
+          }
+          animationType="fade"
+          onRequestClose={() => {
+            if (
+              actionPopup.dismissOnBackdrop
+            ) {
+              closeActionPopup();
+            }
+          }}
+        >
+          <TouchableOpacity
+            activeOpacity={1}
+            style={
+              styles.actionPopupOverlay
+            }
+            onPress={() => {
+              if (
+                actionPopup.dismissOnBackdrop
+              ) {
+                closeActionPopup();
+              }
+            }}
+          >
+            <TouchableOpacity
+              activeOpacity={1}
+              style={
+                styles.actionPopupCard
+              }
+              onPress={() => {}}
+            >
+              <View
+                style={[
+                  styles.actionPopupIcon,
+                  actionPopup.variant ===
+                    'success' &&
+                    styles.actionPopupIconSuccess,
+                  actionPopup.variant ===
+                    'warning' &&
+                    styles.actionPopupIconWarning,
+                  actionPopup.variant ===
+                    'error' &&
+                    styles.actionPopupIconError,
+                ]}
+              >
+                <MaterialIcons
+                  name={
+                    actionPopup.variant ===
+                    'success'
+                      ? 'check-circle-outline'
+                      : actionPopup.variant ===
+                          'warning'
+                        ? 'warning-amber'
+                        : actionPopup.variant ===
+                            'error'
+                          ? 'error-outline'
+                          : 'info-outline'
+                  }
+                  size={30}
+                  color={
+                    actionPopup.variant ===
+                    'success'
+                      ? COLORS.green
+                      : COLORS.redButton
+                  }
+                />
+              </View>
+
+              <Text
+                style={
+                  styles.actionPopupTitle
+                }
+              >
+                {actionPopup.title}
+              </Text>
+
+              <Text
+                style={
+                  styles.actionPopupMessage
+                }
+              >
+                {actionPopup.message}
+              </Text>
+
+              <View
+                style={[
+                  styles.actionPopupActions,
+                  !actionPopup.showCancel &&
+                    styles.actionPopupActionsSingle,
+                ]}
+              >
+                {actionPopup.showCancel ? (
+                  <TouchableOpacity
+                    style={
+                      styles.actionPopupSecondaryButton
+                    }
+                    activeOpacity={0.8}
+                    onPress={
+                      closeActionPopup
+                    }
+                  >
+                    <Text
+                      style={
+                        styles.actionPopupSecondaryText
+                      }
+                    >
+                      {actionPopup.cancelText}
+                    </Text>
+                  </TouchableOpacity>
+                ) : null}
+
+                <TouchableOpacity
+                  style={
+                    styles.actionPopupPrimaryButton
+                  }
+                  activeOpacity={0.85}
+                  onPress={() => {
+                    if (
+                      actionPopup.onConfirm
+                    ) {
+                      actionPopup.onConfirm();
+                      return;
+                    }
+
+                    closeActionPopup();
+                  }}
+                >
+                  <Text
+                    style={
+                      styles.actionPopupPrimaryText
+                    }
+                  >
+                    {actionPopup.confirmText}
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            </TouchableOpacity>
+          </TouchableOpacity>
+        </Modal>
       </View>
     </View>
   );
@@ -5350,5 +5498,177 @@ const styles =
     periodSelectedText: {
       color:
         COLORS.white,
+    },
+
+    // ========================================================
+    // IN-APP ACTION POPUP
+    // ========================================================
+
+    actionPopupOverlay: {
+      flex: 1,
+
+      alignItems: 'center',
+      justifyContent: 'center',
+
+      paddingHorizontal: 24,
+
+      backgroundColor:
+        'rgba(0,0,0,0.48)',
+    },
+
+    actionPopupCard: {
+      width: '100%',
+
+      maxWidth: 360,
+
+      paddingHorizontal: 20,
+      paddingTop: 22,
+      paddingBottom: 18,
+
+      borderRadius: 22,
+
+      backgroundColor:
+        COLORS.white,
+
+      shadowColor:
+        '#000000',
+
+      shadowOffset: {
+        width: 0,
+        height: 8,
+      },
+
+      shadowOpacity: 0.2,
+
+      shadowRadius: 18,
+
+      elevation: 10,
+    },
+
+    actionPopupIcon: {
+      width: 56,
+      height: 56,
+
+      borderRadius: 28,
+
+      alignSelf: 'center',
+
+      alignItems: 'center',
+      justifyContent: 'center',
+
+      marginBottom: 13,
+
+      backgroundColor:
+        COLORS.pinkLight,
+    },
+
+    actionPopupIconSuccess: {
+      backgroundColor:
+        '#EAF8EF',
+    },
+
+    actionPopupIconWarning: {
+      backgroundColor:
+        '#FFF6E7',
+    },
+
+    actionPopupIconError: {
+      backgroundColor:
+        COLORS.pinkLight,
+    },
+
+    actionPopupTitle: {
+      color:
+        COLORS.black,
+
+      fontFamily:
+        'Poppins_600SemiBold',
+
+      fontSize: 16,
+
+      textAlign: 'center',
+    },
+
+    actionPopupMessage: {
+      marginTop: 8,
+
+      color:
+        COLORS.muted,
+
+      fontFamily:
+        'Inter_400Regular',
+
+      fontSize: 10.5,
+
+      lineHeight: 17,
+
+      textAlign: 'center',
+    },
+
+    actionPopupActions: {
+      flexDirection: 'row',
+
+      gap: 9,
+
+      marginTop: 19,
+    },
+
+    actionPopupActionsSingle: {
+      justifyContent: 'center',
+    },
+
+    actionPopupSecondaryButton: {
+      flex: 1,
+
+      height: 45,
+
+      alignItems: 'center',
+      justifyContent: 'center',
+
+      borderWidth: 1,
+
+      borderColor:
+        COLORS.pinkBorder,
+
+      borderRadius: 10,
+
+      backgroundColor:
+        COLORS.white,
+    },
+
+    actionPopupSecondaryText: {
+      color:
+        COLORS.redButton,
+
+      fontFamily:
+        'Poppins_600SemiBold',
+
+      fontSize: 10,
+    },
+
+    actionPopupPrimaryButton: {
+      flex: 1,
+
+      minWidth: 130,
+
+      height: 45,
+
+      alignItems: 'center',
+      justifyContent: 'center',
+
+      borderRadius: 10,
+
+      backgroundColor:
+        COLORS.redButton,
+    },
+
+    actionPopupPrimaryText: {
+      color:
+        COLORS.white,
+
+      fontFamily:
+        'Poppins_600SemiBold',
+
+      fontSize: 10,
     },
   });

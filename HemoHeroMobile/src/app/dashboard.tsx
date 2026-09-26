@@ -4,8 +4,8 @@ import {
 } from 'react';
 
 import {
-  Alert,
   Image,
+  Modal,
   Platform,
   ScrollView,
   StyleSheet,
@@ -60,10 +60,12 @@ import type {
 
 import {
   getMyDonorResponse,
+  getResponsesForMyBloodRequest,
 } from '../lib/donorRequests';
 
 import type {
   DonorResponse,
+  DonorResponseCounts,
 } from '../lib/donorRequests';
 
 import {
@@ -126,6 +128,19 @@ type RespondedRequestItem = {
   response: DonorResponse;
 };
 
+type ActionPopupVariant =
+  | 'info'
+  | 'success'
+  | 'warning'
+  | 'error';
+
+type ActionPopupState = {
+  visible: boolean;
+  title: string;
+  message: string;
+  variant: ActionPopupVariant;
+};
+
 // ============================================================
 // DASHBOARD
 // ============================================================
@@ -182,6 +197,17 @@ export default function DashboardScreen() {
     activeRequestError,
     setActiveRequestError,
   ] = useState('');
+
+  const [
+    activeRequestResponseCounts,
+    setActiveRequestResponseCounts,
+  ] = useState<DonorResponseCounts>({
+    total: 0,
+    pending: 0,
+    accepted: 0,
+    rejected: 0,
+    withdrawn: 0,
+  });
 
   // ==========================================================
   // NEARBY REQUESTS
@@ -241,6 +267,15 @@ export default function DashboardScreen() {
     setSelectedBloodType,
   ] = useState('');
 
+  const [
+  actionPopup,
+  setActionPopup,
+] = useState<ActionPopupState>({
+  visible: false,
+  title: '',
+  message: '',
+  variant: 'info',
+});
   // ==========================================================
   // LOAD DASHBOARD
   // ==========================================================
@@ -335,10 +370,71 @@ export default function DashboardScreen() {
             token
           );
 
-        setActiveRequest(
+        const currentRequest =
           data?.request ||
-            null
+          null;
+
+        setActiveRequest(
+          currentRequest
         );
+
+        if (currentRequest) {
+          try {
+            const responseData =
+              await getResponsesForMyBloodRequest(
+                token,
+                currentRequest.id
+              );
+
+            setActiveRequestResponseCounts({
+              total:
+                Number(
+                  responseData?.counts?.total
+                ) || 0,
+
+              pending:
+                Number(
+                  responseData?.counts?.pending
+                ) || 0,
+
+              accepted:
+                Number(
+                  responseData?.counts?.accepted
+                ) || 0,
+
+              rejected:
+                Number(
+                  responseData?.counts?.rejected
+                ) || 0,
+
+              withdrawn:
+                Number(
+                  responseData?.counts?.withdrawn
+                ) || 0,
+            });
+          } catch (responseError) {
+            console.log(
+              'DASHBOARD ACTIVE REQUEST RESPONSES ERROR:',
+              responseError
+            );
+
+            setActiveRequestResponseCounts({
+              total: 0,
+              pending: 0,
+              accepted: 0,
+              rejected: 0,
+              withdrawn: 0,
+            });
+          }
+        } else {
+          setActiveRequestResponseCounts({
+            total: 0,
+            pending: 0,
+            accepted: 0,
+            rejected: 0,
+            withdrawn: 0,
+          });
+        }
       } catch (error) {
         console.log(
           'DASHBOARD ACTIVE REQUEST ERROR:',
@@ -348,6 +444,14 @@ export default function DashboardScreen() {
         setActiveRequest(
           null
         );
+
+        setActiveRequestResponseCounts({
+          total: 0,
+          pending: 0,
+          accepted: 0,
+          rejected: 0,
+          withdrawn: 0,
+        });
 
         setActiveRequestError(
           error instanceof Error
@@ -636,27 +740,65 @@ export default function DashboardScreen() {
   // MESSAGE
   // ==========================================================
 
-  function showMessage(
-    title: string,
-    message: string
+  // ==========================================================
+// MESSAGE
+// ==========================================================
+
+function closeActionPopup() {
+  setActionPopup(
+    current => ({
+      ...current,
+      visible: false,
+    })
+  );
+}
+
+function getMessageVariant(
+  title: string
+): ActionPopupVariant {
+  const value =
+    title.toLowerCase();
+
+  if (
+    value.includes('success') ||
+    value.includes('verified')
   ) {
-    if (
-      Platform.OS === 'web' &&
-      typeof window !==
-        'undefined'
-    ) {
-      window.alert(
-        `${title}\n\n${message}`
-      );
-
-      return;
-    }
-
-    Alert.alert(
-      title,
-      message
-    );
+    return 'success';
   }
+
+  if (
+    value.includes('unable') ||
+    value.includes('failed') ||
+    value.includes('error')
+  ) {
+    return 'error';
+  }
+
+  if (
+    value.includes('select') ||
+    value.includes('required') ||
+    value.includes('warning')
+  ) {
+    return 'warning';
+  }
+
+  return 'info';
+}
+
+function showMessage(
+  title: string,
+  message: string
+) {
+  setActionPopup({
+    visible: true,
+    title,
+    message,
+    variant:
+      getMessageVariant(
+        title
+      ),
+  });
+}
 
   // ==========================================================
   // REQUEST NUMBER
@@ -1127,6 +1269,43 @@ export default function DashboardScreen() {
     await clearSession();
 
     router.replace('/');
+  }
+
+  const activeRequestFulfilled =
+    activeRequest?.status ===
+    'fulfilled';
+
+  const activeRequestHasDonor =
+    activeRequestResponseCounts.accepted >
+      0 ||
+    activeRequestFulfilled;
+
+  function getActiveRequestProgressMessage() {
+    if (activeRequestFulfilled) {
+      return 'This blood request has been fulfilled.';
+    }
+
+    if (
+      activeRequestResponseCounts.accepted >
+      0
+    ) {
+      return activeRequestResponseCounts.accepted ===
+        1
+        ? 'Donor accepted — coordination is available.'
+        : `${activeRequestResponseCounts.accepted} donors accepted — coordination is available.`;
+    }
+
+    if (
+      activeRequestResponseCounts.pending >
+      0
+    ) {
+      return activeRequestResponseCounts.pending ===
+        1
+        ? '1 donor offer is waiting for your review.'
+        : `${activeRequestResponseCounts.pending} donor offers are waiting for your review.`;
+    }
+
+    return 'Waiting for a compatible donor to respond.';
   }
 
   // ==========================================================
@@ -1739,9 +1918,12 @@ export default function DashboardScreen() {
                   </View>
 
                   <View
-                    style={
-                      styles.progressLine
-                    }
+                    style={[
+                      styles.progressLine,
+
+                      activeRequestHasDonor &&
+                        styles.progressLineActive,
+                    ]}
                   />
 
                   <View
@@ -1751,13 +1933,17 @@ export default function DashboardScreen() {
                   >
                     <View
                       style={
-                        styles.progressDotInactive
+                        activeRequestHasDonor
+                          ? styles.progressDotActive
+                          : styles.progressDotInactive
                       }
                     />
 
                     <Text
                       style={
-                        styles.progressTextInactive
+                        activeRequestHasDonor
+                          ? styles.progressTextActive
+                          : styles.progressTextInactive
                       }
                     >
                       Donor Found
@@ -1765,9 +1951,12 @@ export default function DashboardScreen() {
                   </View>
 
                   <View
-                    style={
-                      styles.progressLine
-                    }
+                    style={[
+                      styles.progressLine,
+
+                      activeRequestFulfilled &&
+                        styles.progressLineActive,
+                    ]}
                   />
 
                   <View
@@ -1777,18 +1966,62 @@ export default function DashboardScreen() {
                   >
                     <View
                       style={
-                        styles.progressDotInactive
+                        activeRequestFulfilled
+                          ? styles.progressDotActive
+                          : styles.progressDotInactive
                       }
                     />
 
                     <Text
                       style={
-                        styles.progressTextInactive
+                        activeRequestFulfilled
+                          ? styles.progressTextActive
+                          : styles.progressTextInactive
                       }
                     >
                       Fulfilled
                     </Text>
                   </View>
+                </View>
+
+                <View
+                  style={[
+                    styles.progressStatusNote,
+
+                    activeRequestHasDonor &&
+                      styles.progressStatusNoteSuccess,
+                  ]}
+                >
+                  <MaterialIcons
+                    name={
+                      activeRequestHasDonor
+                        ? 'check-circle-outline'
+                        : activeRequestResponseCounts.pending >
+                            0
+                          ? 'schedule'
+                          : 'search'
+                    }
+                    size={15}
+                    color={
+                      activeRequestHasDonor
+                        ? COLORS.green
+                        : activeRequestResponseCounts.pending >
+                            0
+                          ? COLORS.orange
+                          : COLORS.muted
+                    }
+                  />
+
+                  <Text
+                    style={[
+                      styles.progressStatusText,
+
+                      activeRequestHasDonor &&
+                        styles.progressStatusTextSuccess,
+                    ]}
+                  >
+                    {getActiveRequestProgressMessage()}
+                  </Text>
                 </View>
 
                 <View
@@ -3024,8 +3257,121 @@ export default function DashboardScreen() {
           ================================================== */}
 
           <MainBottomNav
-            activeTab="home"
-          />
+  activeTab="home"
+/>
+
+{/* ==================================================
+    HEMO-HERO ACTION POPUP
+================================================== */}
+
+<Modal
+  visible={
+    actionPopup.visible
+  }
+  transparent
+  animationType="fade"
+  statusBarTranslucent
+  onRequestClose={
+    closeActionPopup
+  }
+>
+  <View
+    style={
+      styles.actionPopupOverlay
+    }
+  >
+    <View
+      style={
+        styles.actionPopupCard
+      }
+    >
+      <View
+        style={[
+          styles.actionPopupIcon,
+
+          actionPopup.variant ===
+            'success' &&
+            styles.actionPopupIconSuccess,
+
+          actionPopup.variant ===
+            'warning' &&
+            styles.actionPopupIconWarning,
+
+          actionPopup.variant ===
+            'error' &&
+            styles.actionPopupIconError,
+        ]}
+      >
+        <MaterialIcons
+          name={
+            actionPopup.variant ===
+            'success'
+              ? 'check-circle-outline'
+              : actionPopup.variant ===
+                  'warning'
+                ? 'warning-amber'
+                : actionPopup.variant ===
+                    'error'
+                  ? 'error-outline'
+                  : 'info-outline'
+          }
+          size={31}
+          color={
+            actionPopup.variant ===
+            'success'
+              ? COLORS.green
+              : actionPopup.variant ===
+                  'warning'
+                ? COLORS.orange
+                : COLORS.redButton
+          }
+        />
+      </View>
+
+      <Text
+        style={
+          styles.actionPopupTitle
+        }
+      >
+        {
+          actionPopup.title
+        }
+      </Text>
+
+      <Text
+        style={
+          styles.actionPopupMessage
+        }
+      >
+        {
+          actionPopup.message
+        }
+      </Text>
+
+      <TouchableOpacity
+        style={
+          styles.actionPopupButton
+        }
+        activeOpacity={
+          0.85
+        }
+        onPress={
+          closeActionPopup
+        }
+      >
+        <Text
+          style={
+            styles.actionPopupButtonText
+          }
+        >
+          Okay
+        </Text>
+      </TouchableOpacity>
+    </View>
+  </View>
+</Modal>
+
+          
         </SafeAreaView>
       </View>
     </View>
@@ -3721,6 +4067,11 @@ const styles =
         '#D8D8D8',
     },
 
+    progressLineActive: {
+      backgroundColor:
+        COLORS.green,
+    },
+
     progressTextActive: {
       color:
         COLORS.green,
@@ -3739,6 +4090,49 @@ const styles =
         'Inter_400Regular',
 
       fontSize: 9.5,
+    },
+
+    progressStatusNote: {
+      minHeight: 39,
+
+      marginTop: -2,
+      marginBottom: 13,
+
+      paddingHorizontal: 10,
+      paddingVertical: 8,
+
+      flexDirection: 'row',
+      alignItems: 'center',
+
+      gap: 7,
+
+      borderRadius: 9,
+
+      backgroundColor:
+        '#F5F5F5',
+    },
+
+    progressStatusNoteSuccess: {
+      backgroundColor:
+        '#EDF8F1',
+    },
+
+    progressStatusText: {
+      flex: 1,
+
+      color:
+        COLORS.muted,
+
+      fontFamily:
+        'Inter_500Medium',
+
+      fontSize: 9.5,
+      lineHeight: 14,
+    },
+
+    progressStatusTextSuccess: {
+      color:
+        COLORS.green,
     },
 
     viewRequestButton: {
@@ -4834,4 +5228,177 @@ const styles =
       color:
         COLORS.green,
     },
+  
+  // ========================================================
+// HEMO-HERO ACTION POPUP
+// ========================================================
+
+actionPopupOverlay: {
+  flex: 1,
+
+  paddingHorizontal: 24,
+
+  alignItems:
+    'center',
+
+  justifyContent:
+    'center',
+
+  backgroundColor:
+    'rgba(0,0,0,0.48)',
+},
+
+actionPopupCard: {
+  width:
+    '100%',
+
+  maxWidth:
+    360,
+
+  paddingHorizontal:
+    20,
+
+  paddingTop:
+    22,
+
+  paddingBottom:
+    18,
+
+  borderRadius:
+    22,
+
+  backgroundColor:
+    COLORS.white,
+
+  shadowColor:
+    '#000000',
+
+  shadowOffset: {
+    width:
+      0,
+
+    height:
+      8,
+  },
+
+  shadowOpacity:
+    0.2,
+
+  shadowRadius:
+    18,
+
+  elevation:
+    10,
+},
+
+actionPopupIcon: {
+  width:
+    56,
+
+  height:
+    56,
+
+  alignSelf:
+    'center',
+
+  marginBottom:
+    13,
+
+  borderRadius:
+    28,
+
+  alignItems:
+    'center',
+
+  justifyContent:
+    'center',
+
+  backgroundColor:
+    COLORS.pinkLight,
+},
+
+actionPopupIconSuccess: {
+  backgroundColor:
+    '#EAF7EF',
+},
+
+actionPopupIconWarning: {
+  backgroundColor:
+    '#FFF3E7',
+},
+
+actionPopupIconError: {
+  backgroundColor:
+    COLORS.pinkLight,
+},
+
+actionPopupTitle: {
+  color:
+    COLORS.black,
+
+  fontFamily:
+    'Poppins_600SemiBold',
+
+  fontSize:
+    16,
+
+  lineHeight:
+    22,
+
+  textAlign:
+    'center',
+},
+
+actionPopupMessage: {
+  marginTop:
+    8,
+
+  color:
+    COLORS.muted,
+
+  fontFamily:
+    'Inter_400Regular',
+
+  fontSize:
+    11,
+
+  lineHeight:
+    17,
+
+  textAlign:
+    'center',
+},
+
+actionPopupButton: {
+  height:
+    45,
+
+  marginTop:
+    19,
+
+  borderRadius:
+    10,
+
+  alignItems:
+    'center',
+
+  justifyContent:
+    'center',
+
+  backgroundColor:
+    COLORS.redButton,
+},
+
+actionPopupButtonText: {
+  color:
+    COLORS.white,
+
+  fontFamily:
+    'Poppins_600SemiBold',
+
+  fontSize:
+    10,
+},
+  
+  
   });

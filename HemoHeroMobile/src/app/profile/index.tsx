@@ -1,3168 +1,3372 @@
-import {
-  useCallback,
-  useState,
-} from 'react';
-
-import {
-  Alert,
-  Image,
-  Modal,
-  Platform,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TouchableOpacity,
-  View,
-} from 'react-native';
-
-import {
-  MaterialIcons,
-} from '@expo/vector-icons';
-
-import {
-  LinearGradient,
-} from 'expo-linear-gradient';
-
-import {
-  router,
-  useFocusEffect,
-} from 'expo-router';
-
-import {
-  StatusBar,
-} from 'expo-status-bar';
-
-import {
-  SafeAreaView,
-} from 'react-native-safe-area-context';
-
+import { useCallback, useState, } from 'react';
+import { Image, Modal, Platform, ScrollView, StyleSheet, Text, TouchableOpacity, View, } from 'react-native';
+import { MaterialIcons, } from '@expo/vector-icons';
+import { LinearGradient, } from 'expo-linear-gradient';
+import { router, useFocusEffect, } from 'expo-router';
+import { StatusBar, } from 'expo-status-bar';
+import { SafeAreaView, } from 'react-native-safe-area-context';
 import MainBottomNav from '../../components/MainBottomNav';
-
-import {
-  getCurrentUser,
-  logoutUser,
-} from '../../lib/api';
-
-import {
-  getMyDonorApplication,
-} from '../../lib/donorApplication';
-
-import type {
-  DonorApplication,
-} from '../../lib/donorApplication';
-
-import {
-  clearSession,
-  getAccessToken,
-} from '../../lib/session';
-
-// ============================================================
-// COLORS
-// ============================================================
+import { getCurrentUser, logoutUser, } from '../../lib/api';
+import { getMyDonorApplication, } from '../../lib/donorApplication';
+import type { DonorApplication, } from '../../lib/donorApplication';
+import { clearSession, getAccessToken, } from '../../lib/session';
 
 const COLORS = {
-  red: '#D31217',
-  redDark: '#8F1014',
-  redButton: '#B42323',
+    red: '#D31217',
+    redDark: '#8F1014',
+    redButton: '#B42323',
 
-  white: '#FFFFFF',
-  black: '#1D1D1F',
+    white: '#FFFFFF',
+    black: '#1D1D1F',
 
-  page: '#F7F7F8',
-  card: '#FFFFFF',
+    page: '#F7F7F8',
+    card: '#FFFFFF',
 
-  muted: '#6E6E73',
-  lightMuted: '#A0A0A5',
+    muted: '#6E6E73',
+    lightMuted: '#A0A0A5',
 
-  border: '#ECECEF',
+    border: '#ECECEF',
 
-  pinkSoft: '#FFF1F2',
+    pinkSoft: '#FFF1F2',
 
-  green: '#178B49',
-  greenSoft: '#EAF7EF',
+    green: '#178B49',
+    greenSoft: '#EAF7EF',
 
-  orange: '#DD7A20',
-  orangeSoft: '#FFF3E7',
+    orange: '#DD7A20',
+    orangeSoft: '#FFF3E7',
 
-  graySoft: '#F2F2F4',
+    graySoft: '#F2F2F4',
 };
 
-// ============================================================
-// PROFILE SCREEN
-// ============================================================
+type ActionPopupVariant =
+    | 'info'
+    | 'success'
+    | 'warning'
+    | 'error';
+
+type ActionPopupState = {
+    visible: boolean;
+    title: string;
+    message: string;
+    variant: ActionPopupVariant;
+};
 
 export default function ProfileScreen() {
-  // ==========================================================
-  // PROFILE
-  // ==========================================================
-
-  const [
-    profile,
-    setProfile,
-  ] =
-    useState<any>(
-      null
+    const [
+        profile,
+        setProfile,
+    ] = useState<any>(
+        null
     );
 
-  const [
-    loading,
-    setLoading,
-  ] =
-    useState(
-      true
+    const [
+        loading,
+        setLoading,
+    ] = useState(
+        true
     );
 
-  const [
-    errorMessage,
-    setErrorMessage,
-  ] =
-    useState(
-      ''
+    const [
+        errorMessage,
+        setErrorMessage,
+    ] = useState(
+        ''
     );
 
-  // ==========================================================
-  // DONOR
-  // ==========================================================
-
-  const [
-    donorApplication,
-    setDonorApplication,
-  ] =
-    useState<DonorApplication | null>(
-      null
+    const [
+        donorApplication,
+        setDonorApplication,
+    ] = useState<DonorApplication | null>(
+        null
     );
 
-  const [
-    loadingDonorStatus,
-    setLoadingDonorStatus,
-  ] =
-    useState(
-      true
+    const [
+        loadingDonorStatus,
+        setLoadingDonorStatus,
+    ] = useState(
+        true
     );
 
-  // ==========================================================
-  // LOGOUT
-  // ==========================================================
-
-  const [
-    signingOut,
-    setSigningOut,
-  ] =
-    useState(
-      false
+    const [
+        signingOut,
+        setSigningOut,
+    ] = useState(
+        false
     );
 
-  const [
-    logoutModalVisible,
-    setLogoutModalVisible,
-  ] =
-    useState(
-      false
+    const [
+        logoutModalVisible,
+        setLogoutModalVisible,
+    ] = useState(
+        false
     );
 
-  // ==========================================================
-  // LOAD PROFILE
-  // ==========================================================
+    const [
+        actionPopup,
+        setActionPopup,
+    ] = useState<ActionPopupState>({
+        visible: false,
+        title: '',
+        message: '',
+        variant: 'info',
+    });
 
-  const loadProfile =
-    useCallback(
-      async () => {
-        const token =
-          await getAccessToken();
+    const loadProfile =
+        useCallback(
+            async () => {
+                const token =
+                    await getAccessToken();
 
-        if (!token) {
-          router.replace(
-            '/'
-          );
+                if (!token) {
+                    router.replace(
+                        '/'
+                    );
 
-          return;
-        }
+                    return;
+                }
 
-        try {
-          setLoading(
-            true
-          );
+                try {
+                    setLoading(
+                        true
+                    );
 
-          setErrorMessage(
-            ''
-          );
+                    setErrorMessage(
+                        ''
+                    );
 
-          const data =
-            await getCurrentUser(
-              token
-            );
+                    const data =
+                        await getCurrentUser(
+                            token
+                        );
 
-          if (
-            !data?.user
-          ) {
-            throw new Error(
-              'Unable to load your profile.'
-            );
-          }
+                    if (
+                        !data?.user
+                    ) {
+                        throw new Error(
+                            'Unable to load your profile.'
+                        );
+                    }
 
-          setProfile(
-            data.user
-          );
-        } catch (error) {
-          console.log(
-            'PROFILE LOAD ERROR:',
-            error
-          );
+                    setProfile(
+                        data.user
+                    );
+                } catch (error) {
+                    console.log(
+                        'PROFILE LOAD ERROR:',
+                        error
+                    );
 
-          setErrorMessage(
-            error instanceof
-              Error
-              ? error.message
-              : 'Unable to load your profile.'
-          );
-        } finally {
-          setLoading(
-            false
-          );
-        }
+                    setErrorMessage(
+                        error instanceof Error
+                            ? error.message
+                            : 'Unable to load your profile.'
+                    );
+                } finally {
+                    setLoading(
+                        false
+                    );
+                }
 
-        try {
-          setLoadingDonorStatus(
-            true
-          );
+                try {
+                    setLoadingDonorStatus(
+                        true
+                    );
 
-          const data =
-            await getMyDonorApplication(
-              token
-            );
+                    const data =
+                        await getMyDonorApplication(
+                            token
+                        );
 
-          setDonorApplication(
-            data?.application ||
-              null
-          );
-        } catch (error) {
-          console.log(
-            'PROFILE DONOR STATUS ERROR:',
-            error
-          );
+                    setDonorApplication(
+                        data?.application ||
+                        null
+                    );
+                } catch (error) {
+                    console.log(
+                        'PROFILE DONOR STATUS ERROR:',
+                        error
+                    );
 
-          setDonorApplication(
-            null
-          );
-        } finally {
-          setLoadingDonorStatus(
-            false
-          );
-        }
-      },
-      []
+                    setDonorApplication(
+                        null
+                    );
+                } finally {
+                    setLoadingDonorStatus(
+                        false
+                    );
+                }
+            },
+            []
+        );
+
+    useFocusEffect(
+        useCallback(
+            () => {
+                loadProfile();
+            },
+            [
+                loadProfile,
+            ]
+        )
     );
 
-  // ==========================================================
-  // REFRESH WHEN SCREEN OPENS
-  // ==========================================================
-
-  useFocusEffect(
-    useCallback(
-      () => {
-        loadProfile();
-      },
-      [
-        loadProfile,
-      ]
-    )
-  );
-
-  // ==========================================================
-  // MESSAGE
-  // ==========================================================
-
-  function showMessage(
-    title: string,
-    message: string
-  ) {
-    if (
-      Platform.OS ===
-        'web' &&
-      typeof window !==
-        'undefined'
-    ) {
-      window.alert(
-        `${title}\n\n${message}`
-      );
-
-      return;
+    function closeActionPopup() {
+        setActionPopup(
+            current => ({
+                ...current,
+                visible: false,
+            })
+        );
     }
 
-    Alert.alert(
-      title,
-      message
-    );
-  }
+    function getMessageVariant(
+        title: string
+    ): ActionPopupVariant {
+        const value =
+            title.toLowerCase();
 
-  // ==========================================================
-  // DISPLAY DATA
-  // ==========================================================
+        if (
+            value.includes(
+                'success'
+            ) ||
+            value.includes(
+                'updated'
+            ) ||
+            value.includes(
+                'saved'
+            )
+        ) {
+            return 'success';
+        }
 
-  const fullName =
-    [
-      profile?.first_name,
-      profile?.middle_name,
-      profile?.last_name,
-      profile?.suffix,
-    ]
-      .filter(
-        Boolean
-      )
-      .join(
-        ' '
-      ) ||
-    'Hemo-Hero User';
+        if (
+            value.includes(
+                'failed'
+            ) ||
+            value.includes(
+                'unable'
+            ) ||
+            value.includes(
+                'error'
+            )
+        ) {
+            return 'error';
+        }
 
-  const email =
-    profile?.email ||
-    'Email unavailable';
+        if (
+            value.includes(
+                'required'
+            ) ||
+            value.includes(
+                'warning'
+            )
+        ) {
+            return 'warning';
+        }
 
-  const phone =
-    profile?.phone ||
-    'Not provided';
+        return 'info';
+    }
 
-  // ==========================================================
-  // BLOOD TYPE
-  // ==========================================================
+    function showMessage(
+        title: string,
+        message: string
+    ) {
+        setActionPopup({
+            visible: true,
+            title,
+            message,
+            variant:
+                getMessageVariant(
+                    title
+                ),
+        });
+    }
 
-  const bloodType =
-    donorApplication?.status ===
-      'approved' &&
-    donorApplication?.blood_type
-      ? donorApplication
-          .blood_type
-      : profile?.blood_type ||
-        donorApplication
-          ?.blood_type ||
+    const fullName =
+        [
+            profile?.first_name,
+            profile?.middle_name,
+            profile?.last_name,
+            profile?.suffix,
+        ]
+            .filter(
+                Boolean
+            )
+            .join(
+                ' '
+            ) ||
+        'Hemo-Hero User';
+
+    const email =
+        profile?.email ||
+        'Email unavailable';
+
+    const phone =
+        profile?.phone ||
         'Not provided';
 
-  const gender =
-    profile?.gender ||
-    'Not provided';
+    const bloodType =
+        donorApplication?.status ===
+            'approved' &&
+        donorApplication?.blood_type
+            ? donorApplication
+                .blood_type
+            : profile?.blood_type ||
+              donorApplication
+                  ?.blood_type ||
+              'Not provided';
 
-  const completeLocation =
-    [
-      profile?.barangay,
-      profile?.city,
-      profile?.province,
-    ]
-      .filter(
-        Boolean
-      )
-      .join(
-        ', '
-      ) ||
-    'Location not provided';
+    const gender =
+        profile?.gender ||
+        'Not provided';
 
-  const shortLocation =
-    [
-      profile?.city,
-      profile?.province,
-    ]
-      .filter(
-        Boolean
-      )
-      .join(
-        ', '
-      ) ||
-    'Location not added';
+    const completeLocation =
+        [
+            profile?.barangay,
+            profile?.city,
+            profile?.province,
+        ]
+            .filter(
+                Boolean
+            )
+            .join(
+                ', '
+            ) ||
+        'Location not provided';
 
-  const profilePhotoUrl =
-    profile
-      ?.profile_photo_url ||
-    '';
+    const shortLocation =
+        [
+            profile?.city,
+            profile?.province,
+        ]
+            .filter(
+                Boolean
+            )
+            .join(
+                ', '
+            ) ||
+        'Location not added';
 
-  // ==========================================================
-  // DATE OF BIRTH
-  // ==========================================================
+    const profilePhotoUrl =
+        profile
+            ?.profile_photo_url ||
+        '';
 
-  function formatDateOfBirth(
-    value?:
-      | string
-      | null
-  ) {
-    if (!value) {
-      return 'Not provided';
-    }
-
-    const date =
-      new Date(
-        `${value}T00:00:00`
-      );
-
-    if (
-      Number.isNaN(
-        date.getTime()
-      )
+    function formatDateOfBirth(
+        value?:
+            | string
+            | null
     ) {
-      return value;
+        if (!value) {
+            return 'Not provided';
+        }
+
+        const date =
+            new Date(
+                `${value}T00:00:00`
+            );
+
+        if (
+            Number.isNaN(
+                date.getTime()
+            )
+        ) {
+            return value;
+        }
+
+        return date
+            .toLocaleDateString(
+                'en-US',
+                {
+                    month:
+                        'long',
+
+                    day:
+                        'numeric',
+
+                    year:
+                        'numeric',
+                }
+            );
     }
 
-    return date.toLocaleDateString(
-      'en-US',
-      {
-        month:
-          'long',
+    function getDonorStatusLabel() {
+        if (
+            !donorApplication
+        ) {
+            return '';
+        }
 
-        day:
-          'numeric',
+        switch (
+            donorApplication.status
+        ) {
+            case 'approved':
+                return 'Verified Donor';
 
-        year:
-          'numeric',
-      }
-    );
-  }
+            case 'pending':
+                return 'Application Pending';
 
-  // ==========================================================
-  // DONOR STATUS
-  // ==========================================================
+            case 'rejected':
+                return 'Application Rejected';
 
-  function getDonorStatusLabel() {
-    if (
-      !donorApplication
-    ) {
-      return '';
+            case 'withdrawn':
+                return 'Application Withdrawn';
+
+            default:
+                return 'Donor';
+        }
     }
 
-    switch (
-      donorApplication.status
-    ) {
-      case 'approved':
-        return 'Verified Donor';
+    function getDonorStatusColor() {
+        switch (
+            donorApplication?.status
+        ) {
+            case 'approved':
+                return COLORS.green;
 
-      case 'pending':
-        return 'Application Pending';
+            case 'pending':
+                return COLORS.orange;
 
-      case 'rejected':
-        return 'Application Rejected';
-
-      case 'withdrawn':
-        return 'Application Withdrawn';
-
-      default:
-        return 'Donor';
-    }
-  }
-
-  function getDonorStatusColor() {
-    switch (
-      donorApplication?.status
-    ) {
-      case 'approved':
-        return COLORS.green;
-
-      case 'pending':
-        return COLORS.orange;
-
-      default:
-        return COLORS.muted;
-    }
-  }
-
-  function getDonorStatusBackground() {
-    switch (
-      donorApplication?.status
-    ) {
-      case 'approved':
-        return COLORS.greenSoft;
-
-      case 'pending':
-        return COLORS.orangeSoft;
-
-      default:
-        return COLORS.graySoft;
-    }
-  }
-
-  // ==========================================================
-  // EDIT PROFILE
-  // ==========================================================
-
-  function handleEditProfile() {
-    router.push(
-      '/profile/edit'
-    );
-  }
-
-  // ==========================================================
-  // BLOOD REQUESTS
-  // ==========================================================
-
-  function handleBloodRequests() {
-    router.replace(
-      '/requests' as any
-    );
-  }
-
-  // ==========================================================
-  // DONOR ACTIVITY
-  // ==========================================================
-
-  function handleDonorActivity() {
-    if (
-      !donorApplication
-    ) {
-      return;
+            default:
+                return COLORS.muted;
+        }
     }
 
-    if (
-      donorApplication.status ===
-      'pending'
-    ) {
-      router.push({
-        pathname:
-          '/donor-application/success',
+    function getDonorStatusBackground() {
+        switch (
+            donorApplication?.status
+        ) {
+            case 'approved':
+                return COLORS.greenSoft;
 
-        params: {
-          status:
-            'pending',
-        },
-      } as any);
+            case 'pending':
+                return COLORS.orangeSoft;
 
-      return;
+            default:
+                return COLORS.graySoft;
+        }
     }
 
-    if (
-      donorApplication.status ===
-      'approved'
-    ) {
-      showMessage(
-        'Donor Activity',
-        'Your donation history and donor activity will be connected next.'
-      );
-
-      return;
+    function handleEditProfile() {
+        router.push(
+            '/profile/edit'
+        );
     }
 
-    router.push(
-      '/donor-application/blood' as any
-    );
-  }
-
-  // ==========================================================
-  // ACCOUNT SECURITY
-  // ==========================================================
-
-  function handleAccountSecurity() {
-    router.push(
-      '/profile/account-security'
-    );
-  }
-
-  // ==========================================================
-  // NOTIFICATION PREFERENCES
-  // ==========================================================
-
-  function handleNotifications() {
-    showMessage(
-      'Notifications',
-      'Notification preferences will be connected later.'
-    );
-  }
-
-  // ==========================================================
-  // SUPPORT
-  // ==========================================================
-
-  function handleHelpCenter() {
-    showMessage(
-      'Help Center',
-      'The Hemo-Hero Help Center will be connected later.'
-    );
-  }
-
-  function handleAbout() {
-    showMessage(
-      'About Hemo-Hero',
-      'Hemo-Hero helps connect people requesting blood with compatible nearby donors.'
-    );
-  }
-
-  // ==========================================================
-  // LOGOUT
-  // ==========================================================
-
-  async function performLogout() {
-    if (
-      signingOut
-    ) {
-      return;
+    function handleBloodRequests() {
+        router.replace(
+            '/requests' as any
+        );
     }
 
-    try {
-      setSigningOut(
-        true
-      );
+    function handleDonorActivity() {
+        if (
+            !donorApplication
+        ) {
+            return;
+        }
 
-      const token =
-        await getAccessToken();
+        if (
+            donorApplication.status ===
+            'pending'
+        ) {
+            router.push({
+                pathname:
+                    '/donor-application/success',
 
-      if (
-        token
-      ) {
+                params: {
+                    status:
+                        'pending',
+                },
+            } as any);
+
+            return;
+        }
+
+        if (
+            donorApplication.status ===
+            'approved'
+        ) {
+            showMessage(
+                'Donor Activity',
+                'Your donation history and donor activity will be connected next.'
+            );
+
+            return;
+        }
+
+        router.push(
+            '/donor-application/blood' as any
+        );
+    }
+
+    function handleAccountSecurity() {
+        router.push(
+            '/profile/account-security'
+        );
+    }
+
+    function handleNotifications() {
+        showMessage(
+            'Notifications',
+            'Notification preferences will be connected later.'
+        );
+    }
+
+    function handleHelpCenter() {
+        showMessage(
+            'Help Center',
+            'The Hemo-Hero Help Center will be connected later.'
+        );
+    }
+
+    function handleAbout() {
+        showMessage(
+            'About Hemo-Hero',
+            'Hemo-Hero helps connect people requesting blood with compatible nearby donors.'
+        );
+    }
+
+    async function performLogout() {
+        if (
+            signingOut
+        ) {
+            return;
+        }
+
         try {
-          await logoutUser(
-            token
-          );
+            setSigningOut(
+                true
+            );
+
+            const token =
+                await getAccessToken();
+
+            if (
+                token
+            ) {
+                try {
+                    await logoutUser(
+                        token
+                    );
+                } catch (error) {
+                    console.log(
+                        'SERVER LOGOUT ERROR:',
+                        error
+                    );
+                }
+            }
+
+            await clearSession();
+
+            setLogoutModalVisible(
+                false
+            );
+
+            router.replace(
+                '/'
+            );
         } catch (error) {
-          console.log(
-            'SERVER LOGOUT ERROR:',
-            error
-          );
+            console.log(
+                'PROFILE LOGOUT ERROR:',
+                error
+            );
+
+            setLogoutModalVisible(
+                false
+            );
+
+            showMessage(
+                'Sign Out Failed',
+                'Unable to sign out. Please try again.'
+            );
+        } finally {
+            setSigningOut(
+                false
+            );
         }
-      }
-
-      await clearSession();
-
-      setLogoutModalVisible(
-        false
-      );
-
-      router.replace(
-        '/'
-      );
-    } catch (error) {
-      console.log(
-        'PROFILE LOGOUT ERROR:',
-        error
-      );
-
-      setLogoutModalVisible(
-        false
-      );
-
-      showMessage(
-        'Sign Out Failed',
-        'Unable to sign out. Please try again.'
-      );
-    } finally {
-      setSigningOut(
-        false
-      );
-    }
-  }
-
-  function handleLogout() {
-    if (
-      signingOut
-    ) {
-      return;
     }
 
-    setLogoutModalVisible(
-      true
-    );
-  }
-
-  function handleCancelLogout() {
-    if (
-      signingOut
-    ) {
-      return;
-    }
-
-    setLogoutModalVisible(
-      false
-    );
-  }
-
-  // ==========================================================
-  // UI
-  // ==========================================================
-
-  return (
-    <View
-      style={
-        styles.desktopBackground
-      }
-    >
-      <View
-        style={
-          styles.phone
+    function handleLogout() {
+        if (
+            signingOut
+        ) {
+            return;
         }
-      >
-        <SafeAreaView
-          style={
-            styles.safeArea
-          }
-          edges={[
-            'top',
-            'bottom',
-          ]}
+
+        setLogoutModalVisible(
+            true
+        );
+    }
+
+    function handleCancelLogout() {
+        if (
+            signingOut
+        ) {
+            return;
+        }
+
+        setLogoutModalVisible(
+            false
+        );
+    }
+
+    return (
+        <View
+            style={
+                styles.desktopBackground
+            }
         >
-          <StatusBar
-            style="light"
-          />
-
-          {/* ==================================================
-              HEADER AREA
-          ================================================== */}
-
-          <View
-            style={
-              styles.headerArea
-            }
-          >
-            <LinearGradient
-              colors={[
-                '#D9191E',
-                COLORS.redDark,
-              ]}
-              style={
-                styles.hero
-              }
-            >
-              <View
-                style={
-                  styles.heroCircleLeft
-                }
-              />
-
-              <View
-                style={
-                  styles.heroCircleRight
-                }
-              />
-
-              <View
-                style={
-                  styles.topBar
-                }
-              >
-                <TouchableOpacity
-                  style={
-                    styles.topButton
-                  }
-                  activeOpacity={
-                    0.7
-                  }
-                  onPress={() =>
-                    router.replace(
-                      '/dashboard'
-                    )
-                  }
-                >
-                  <MaterialIcons
-                    name="arrow-back"
-                    size={24}
-                    color={
-                      COLORS.white
-                    }
-                  />
-                </TouchableOpacity>
-
-                <Text
-                  style={
-                    styles.topTitle
-                  }
-                >
-                  My Profile
-                </Text>
-
-                <TouchableOpacity
-                  style={
-                    styles.topButton
-                  }
-                  activeOpacity={
-                    0.7
-                  }
-                  onPress={
-                    handleEditProfile
-                  }
-                >
-                  <MaterialIcons
-                    name="edit"
-                    size={21}
-                    color={
-                      COLORS.white
-                    }
-                  />
-                </TouchableOpacity>
-              </View>
-
-              <View
-                style={
-                  styles.identityRow
-                }
-              >
-                <View
-                  style={
-                    styles.avatarContainer
-                  }
-                >
-                  <View
-                    style={
-                      styles.avatar
-                    }
-                  >
-                    {profilePhotoUrl ? (
-                      <Image
-                        source={{
-                          uri:
-                            profilePhotoUrl,
-                        }}
-                        style={
-                          styles.avatarImage
-                        }
-                        resizeMode="cover"
-                      />
-                    ) : (
-                      <MaterialIcons
-                        name="person"
-                        size={44}
-                        color={
-                          COLORS.redDark
-                        }
-                      />
-                    )}
-                  </View>
-
-                  <TouchableOpacity
-                    style={
-                      styles.cameraButton
-                    }
-                    activeOpacity={
-                      0.8
-                    }
-                    onPress={
-                      handleEditProfile
-                    }
-                  >
-                    <MaterialIcons
-                      name="photo-camera"
-                      size={13}
-                      color={
-                        COLORS.redButton
-                      }
-                    />
-                  </TouchableOpacity>
-                </View>
-
-                <View
-                  style={
-                    styles.identityContent
-                  }
-                >
-                  <Text
-                    numberOfLines={
-                      1
-                    }
-                    style={
-                      styles.profileName
-                    }
-                  >
-                    {loading
-                      ? 'Loading...'
-                      : fullName}
-                  </Text>
-
-                  <Text
-                    numberOfLines={
-                      1
-                    }
-                    style={
-                      styles.profileEmail
-                    }
-                  >
-                    {loading
-                      ? 'Loading account...'
-                      : email}
-                  </Text>
-
-                  {!loadingDonorStatus &&
-                  donorApplication ? (
-                    <View
-                      style={[
-                        styles.donorBadge,
-
-                        {
-                          backgroundColor:
-                            getDonorStatusBackground(),
-                        },
-                      ]}
-                    >
-                      {donorApplication.status ===
-                      'approved' ? (
-                        <MaterialIcons
-                          name="verified"
-                          size={13}
-                          color={
-                            getDonorStatusColor()
-                          }
-                        />
-                      ) : (
-                        <View
-                          style={[
-                            styles.statusDot,
-
-                            {
-                              backgroundColor:
-                                getDonorStatusColor(),
-                            },
-                          ]}
-                        />
-                      )}
-
-                      <Text
-                        style={[
-                          styles.donorBadgeText,
-
-                          {
-                            color:
-                              getDonorStatusColor(),
-                          },
-                        ]}
-                      >
-                        {getDonorStatusLabel()}
-                      </Text>
-                    </View>
-                  ) : null}
-                </View>
-              </View>
-            </LinearGradient>
-
             <View
-              style={
-                styles.quickCard
-              }
-            >
-              <View
                 style={
-                  styles.quickItem
+                    styles.phone
                 }
-              >
-                <View
-                  style={
-                    styles.quickIcon
-                  }
-                >
-                  <MaterialIcons
-                    name="bloodtype"
-                    size={20}
-                    color={
-                      COLORS.redButton
-                    }
-                  />
-                </View>
-
-                <View
-                  style={
-                    styles.quickContent
-                  }
-                >
-                  <Text
-                    numberOfLines={
-                      1
-                    }
-                    style={
-                      styles.quickValue
-                    }
-                  >
-                    {loading ||
-                    loadingDonorStatus
-                      ? '...'
-                      : bloodType}
-                  </Text>
-
-                  <Text
-                    style={
-                      styles.quickLabel
-                    }
-                  >
-                    Blood Type
-                  </Text>
-                </View>
-              </View>
-
-              <View
-                style={
-                  styles.quickDivider
-                }
-              />
-
-              <View
-                style={
-                  styles.quickItem
-                }
-              >
-                <View
-                  style={
-                    styles.quickIcon
-                  }
-                >
-                  <MaterialIcons
-                    name="location-on"
-                    size={20}
-                    color={
-                      COLORS.redButton
-                    }
-                  />
-                </View>
-
-                <View
-                  style={
-                    styles.quickContent
-                  }
-                >
-                  <Text
-                    numberOfLines={
-                      1
-                    }
-                    style={
-                      styles.quickValue
-                    }
-                  >
-                    {loading
-                      ? '...'
-                      : shortLocation}
-                  </Text>
-
-                  <Text
-                    style={
-                      styles.quickLabel
-                    }
-                  >
-                    Location
-                  </Text>
-                </View>
-              </View>
-            </View>
-          </View>
-
-          <ScrollView
-            style={
-              styles.content
-            }
-            contentContainerStyle={
-              styles.contentContainer
-            }
-            showsVerticalScrollIndicator={
-              false
-            }
-            bounces={
-              false
-            }
-          >
-            {errorMessage ? (
-              <TouchableOpacity
-                style={
-                  styles.errorCard
-                }
-                activeOpacity={
-                  0.8
-                }
-                onPress={
-                  loadProfile
-                }
-              >
-                <MaterialIcons
-                  name="error-outline"
-                  size={20}
-                  color={
-                    COLORS.redButton
-                  }
-                />
-
-                <View
-                  style={
-                    styles.errorContent
-                  }
-                >
-                  <Text
-                    style={
-                      styles.errorTitle
-                    }
-                  >
-                    Unable to load profile
-                  </Text>
-
-                  <Text
-                    style={
-                      styles.errorText
-                    }
-                  >
-                    Tap to try again.
-                  </Text>
-                </View>
-              </TouchableOpacity>
-            ) : null}
-
-            <SectionTitle
-              title="My Activity"
-            />
-
-            <View
-              style={
-                styles.card
-              }
             >
-              <MenuRow
-                icon="assignment"
-                title="My Blood Requests"
-                subtitle="Manage your blood requests"
-                onPress={
-                  handleBloodRequests
-                }
-              />
-
-              {donorApplication ? (
-                <>
-                  <Divider />
-
-                  <MenuRow
-                    icon="volunteer-activism"
-                    iconColor={
-                      COLORS.orange
-                    }
-                    title="Donor Activity"
-                    subtitle={
-                      donorApplication.status ===
-                      'approved'
-                        ? 'View your donor activity'
-                        : donorApplication.status ===
-                            'pending'
-                          ? 'Application under review'
-                          : 'View donor application'
-                    }
-                    onPress={
-                      handleDonorActivity
-                    }
-                  />
-                </>
-              ) : null}
-            </View>
-
-            <SectionTitle
-              title="Personal Information"
-            />
-
-            <View
-              style={
-                styles.card
-              }
-            >
-              <InfoRow
-                icon="person-outline"
-                label="Full Name"
-                value={
-                  loading
-                    ? 'Loading...'
-                    : fullName
-                }
-              />
-
-              <Divider />
-
-              <InfoRow
-                icon="phone"
-                label="Phone"
-                value={
-                  loading
-                    ? 'Loading...'
-                    : phone
-                }
-              />
-
-              <Divider />
-
-              <InfoRow
-                icon="cake"
-                label="Birthday"
-                value={
-                  loading
-                    ? 'Loading...'
-                    : formatDateOfBirth(
-                        profile
-                          ?.date_of_birth
-                      )
-                }
-              />
-
-              <Divider />
-
-              <InfoRow
-                icon="wc"
-                label="Gender"
-                value={
-                  loading
-                    ? 'Loading...'
-                    : gender
-                }
-              />
-
-              <Divider />
-
-              <InfoRow
-                icon="email"
-                label="Email"
-                value={
-                  loading
-                    ? 'Loading...'
-                    : email
-                }
-              />
-
-              <Divider />
-
-              <InfoRow
-                icon="location-on"
-                label="Location"
-                value={
-                  loading
-                    ? 'Loading...'
-                    : completeLocation
-                }
-                multiline
-              />
-            </View>
-
-            <SectionTitle
-              title="Medical Information"
-            />
-
-            <View
-              style={
-                styles.card
-              }
-            >
-              <View
-                style={
-                  styles.medicalRow
-                }
-              >
-                <View
-                  style={
-                    styles.medicalLeft
-                  }
-                >
-                  <View
+                <SafeAreaView
                     style={
-                      styles.medicalIcon
+                        styles.safeArea
                     }
-                  >
-                    <MaterialIcons
-                      name="bloodtype"
-                      size={20}
-                      color={
-                        COLORS.redButton
-                      }
-                    />
-                  </View>
-
-                  <View>
-                    <Text
-                      style={
-                        styles.medicalLabel
-                      }
-                    >
-                      Blood Type
-                    </Text>
-
-                    <Text
-                      style={
-                        styles.medicalHelper
-                      }
-                    >
-                      Your registered blood group
-                    </Text>
-                  </View>
-                </View>
-
-                <View
-                  style={
-                    styles.bloodBadge
-                  }
-                >
-                  <Text
-                    style={
-                      styles.bloodBadgeText
-                    }
-                  >
-                    {loading ||
-                    loadingDonorStatus
-                      ? '...'
-                      : bloodType}
-                  </Text>
-                </View>
-              </View>
-            </View>
-
-            <SectionTitle
-              title="Account Status"
-            />
-
-            <View
-              style={
-                styles.card
-              }
-            >
-              <StatusRow
-                icon="check-circle"
-                label="Profile Completed"
-                value={
-                  profile
-                    ?.onboarding_complete
-                    ? 'Complete'
-                    : 'Incomplete'
-                }
-                active={
-                  Boolean(
-                    profile
-                      ?.onboarding_complete
-                  )
-                }
-              />
-
-              {donorApplication ? (
-                <>
-                  <Divider />
-
-                  <StatusRow
-                    icon={
-                      donorApplication.status ===
-                      'approved'
-                        ? 'verified'
-                        : 'hourglass-top'
-                    }
-                    label="Donor Account"
-                    value={
-                      getDonorStatusLabel()
-                    }
-                    active={
-                      donorApplication.status ===
-                      'approved'
-                    }
-                  />
-                </>
-              ) : null}
-            </View>
-
-            <SectionTitle
-              title="Settings"
-            />
-
-            <View
-              style={
-                styles.card
-              }
-            >
-              <MenuRow
-                icon="security"
-                title="Account & Security"
-                subtitle="Password and security settings"
-                onPress={
-                  handleAccountSecurity
-                }
-              />
-
-              <Divider />
-
-              <MenuRow
-                icon="privacy-tip"
-                title="Privacy Policy"
-                subtitle="How Hemo-Hero handles your data"
-                onPress={() =>
-                  router.push(
-                    '/privacy-policy'
-                  )
-                }
-              />
-
-              <Divider />
-
-              <MenuRow
-                icon="description"
-                title="Terms of Service"
-                subtitle="Review Hemo-Hero terms"
-                onPress={() =>
-                  router.push(
-                    '/terms-of-service'
-                  )
-                }
-              />
-
-              <Divider />
-
-              <MenuRow
-                icon="notifications-none"
-                title="Notifications"
-                subtitle="Manage alerts and notifications"
-                onPress={
-                  handleNotifications
-                }
-              />
-            </View>
-
-            <SectionTitle
-              title="Support"
-            />
-
-            <View
-              style={
-                styles.card
-              }
-            >
-              <MenuRow
-                icon="help-outline"
-                title="Help Center"
-                subtitle="Get help using Hemo-Hero"
-                onPress={
-                  handleHelpCenter
-                }
-              />
-
-              <Divider />
-
-              <MenuRow
-                icon="info-outline"
-                title="About Hemo-Hero"
-                subtitle="Learn about the Hemo-Hero project"
-                onPress={
-                  handleAbout
-                }
-              />
-            </View>
-
-            <TouchableOpacity
-              style={
-                styles.logoutButton
-              }
-              activeOpacity={
-                0.85
-              }
-              disabled={
-                signingOut
-              }
-              onPress={
-                handleLogout
-              }
-            >
-              <Text
-                style={
-                  styles.logoutText
-                }
-              >
-                {signingOut
-                  ? 'Signing Out...'
-                  : 'Sign Out'}
-              </Text>
-            </TouchableOpacity>
-
-            <Text
-              style={
-                styles.footerText
-              }
-            >
-              Hemo-Hero
-            </Text>
-          </ScrollView>
-
-          <MainBottomNav
-            activeTab="profile"
-          />
-
-          <Modal
-            visible={
-              logoutModalVisible
-            }
-            transparent
-            animationType="fade"
-            statusBarTranslucent
-            onRequestClose={
-              handleCancelLogout
-            }
-          >
-            <View
-              style={
-                styles.logoutModalBackdrop
-              }
-            >
-              <View
-                style={
-                  styles.logoutModalCard
-                }
-              >
-                <View
-                  style={
-                    styles.logoutModalIcon
-                  }
-                >
-                  <MaterialIcons
-                    name="logout"
-                    size={28}
-                    color={
-                      COLORS.redButton
-                    }
-                  />
-                </View>
-
-                <Text
-                  style={
-                    styles.logoutModalTitle
-                  }
-                >
-                  Sign Out?
-                </Text>
-
-                <Text
-                  style={
-                    styles.logoutModalMessage
-                  }
-                >
-                  Are you sure you want to sign out of Hemo-Hero?
-                </Text>
-
-                <View
-                  style={
-                    styles.logoutModalActions
-                  }
-                >
-                  <TouchableOpacity
-                    style={
-                      styles.logoutCancelButton
-                    }
-                    activeOpacity={
-                      0.8
-                    }
-                    disabled={
-                      signingOut
-                    }
-                    onPress={
-                      handleCancelLogout
-                    }
-                  >
-                    <Text
-                      style={
-                        styles.logoutCancelText
-                      }
-                    >
-                      Cancel
-                    </Text>
-                  </TouchableOpacity>
-
-                  <TouchableOpacity
-                    style={[
-                      styles.logoutConfirmButton,
-
-                      signingOut &&
-                        styles.logoutConfirmDisabled,
+                    edges={[
+                        'top',
+                        'bottom',
                     ]}
-                    activeOpacity={
-                      0.85
-                    }
-                    disabled={
-                      signingOut
-                    }
-                    onPress={
-                      performLogout
-                    }
-                  >
-                    <Text
-                      style={
-                        styles.logoutConfirmText
-                      }
-                    >
-                      {signingOut
-                        ? 'Signing Out...'
-                        : 'Sign Out'}
-                    </Text>
-                  </TouchableOpacity>
-                </View>
-              </View>
-            </View>
-          </Modal>
-        </SafeAreaView>
-      </View>
-    </View>
-  );
-}
+                >
+                    <StatusBar
+                        style="light"
+                    />
 
-// ============================================================
-// SECTION TITLE
-// ============================================================
+                    <View
+                        style={
+                            styles.headerArea
+                        }
+                    >
+                        <LinearGradient
+                            colors={[
+                                '#D9191E',
+                                COLORS.redDark,
+                            ]}
+                            style={
+                                styles.hero
+                            }
+                        >
+                            <View
+                                style={
+                                    styles.heroCircleLeft
+                                }
+                            />
+
+                            <View
+                                style={
+                                    styles.heroCircleRight
+                                }
+                            />
+
+                            <View
+                                style={
+                                    styles.topBar
+                                }
+                            >
+                                <TouchableOpacity
+                                    style={
+                                        styles.topButton
+                                    }
+                                    activeOpacity={
+                                        0.7
+                                    }
+                                    onPress={() =>
+                                        router.replace(
+                                            '/dashboard'
+                                        )
+                                    }
+                                >
+                                    <MaterialIcons
+                                        name="arrow-back"
+                                        size={24}
+                                        color={
+                                            COLORS.white
+                                        }
+                                    />
+                                </TouchableOpacity>
+
+                                <Text
+                                    style={
+                                        styles.topTitle
+                                    }
+                                >
+                                    My Profile
+                                </Text>
+
+                                <TouchableOpacity
+                                    style={
+                                        styles.topButton
+                                    }
+                                    activeOpacity={
+                                        0.7
+                                    }
+                                    onPress={
+                                        handleEditProfile
+                                    }
+                                >
+                                    <MaterialIcons
+                                        name="edit"
+                                        size={21}
+                                        color={
+                                            COLORS.white
+                                        }
+                                    />
+                                </TouchableOpacity>
+                            </View>
+
+                            <View
+                                style={
+                                    styles.identityRow
+                                }
+                            >
+                                <View
+                                    style={
+                                        styles.avatarContainer
+                                    }
+                                >
+                                    <View
+                                        style={
+                                            styles.avatar
+                                        }
+                                    >
+                                        {profilePhotoUrl ? (
+                                            <Image
+                                                source={{
+                                                    uri:
+                                                        profilePhotoUrl,
+                                                }}
+                                                style={
+                                                    styles.avatarImage
+                                                }
+                                                resizeMode="cover"
+                                            />
+                                        ) : (
+                                            <MaterialIcons
+                                                name="person"
+                                                size={44}
+                                                color={
+                                                    COLORS.redDark
+                                                }
+                                            />
+                                        )}
+                                    </View>
+
+                                    <TouchableOpacity
+                                        style={
+                                            styles.cameraButton
+                                        }
+                                        activeOpacity={
+                                            0.8
+                                        }
+                                        onPress={
+                                            handleEditProfile
+                                        }
+                                    >
+                                        <MaterialIcons
+                                            name="photo-camera"
+                                            size={13}
+                                            color={
+                                                COLORS.redButton
+                                            }
+                                        />
+                                    </TouchableOpacity>
+                                </View>
+
+                                <View
+                                    style={
+                                        styles.identityContent
+                                    }
+                                >
+                                    <Text
+                                        numberOfLines={
+                                            1
+                                        }
+                                        style={
+                                            styles.profileName
+                                        }
+                                    >
+                                        {loading
+                                            ? 'Loading...'
+                                            : fullName}
+                                    </Text>
+
+                                    <Text
+                                        numberOfLines={
+                                            1
+                                        }
+                                        style={
+                                            styles.profileEmail
+                                        }
+                                    >
+                                        {loading
+                                            ? 'Loading account...'
+                                            : email}
+                                    </Text>
+
+                                    {!loadingDonorStatus &&
+                                    donorApplication ? (
+                                        <View
+                                            style={[
+                                                styles.donorBadge,
+
+                                                {
+                                                    backgroundColor:
+                                                        getDonorStatusBackground(),
+                                                },
+                                            ]}
+                                        >
+                                            {donorApplication.status ===
+                                            'approved' ? (
+                                                <MaterialIcons
+                                                    name="verified"
+                                                    size={13}
+                                                    color={
+                                                        getDonorStatusColor()
+                                                    }
+                                                />
+                                            ) : (
+                                                <View
+                                                    style={[
+                                                        styles.statusDot,
+
+                                                        {
+                                                            backgroundColor:
+                                                                getDonorStatusColor(),
+                                                        },
+                                                    ]}
+                                                />
+                                            )}
+
+                                            <Text
+                                                style={[
+                                                    styles.donorBadgeText,
+
+                                                    {
+                                                        color:
+                                                            getDonorStatusColor(),
+                                                    },
+                                                ]}
+                                            >
+                                                {getDonorStatusLabel()}
+                                            </Text>
+                                        </View>
+                                    ) : null}
+                                </View>
+                            </View>
+                        </LinearGradient>
+
+                        <View
+                            style={
+                                styles.quickCard
+                            }
+                        >
+                            <View
+                                style={
+                                    styles.quickItem
+                                }
+                            >
+                                <View
+                                    style={
+                                        styles.quickIcon
+                                    }
+                                >
+                                    <MaterialIcons
+                                        name="bloodtype"
+                                        size={20}
+                                        color={
+                                            COLORS.redButton
+                                        }
+                                    />
+                                </View>
+
+                                <View
+                                    style={
+                                        styles.quickContent
+                                    }
+                                >
+                                    <Text
+                                        numberOfLines={
+                                            1
+                                        }
+                                        style={
+                                            styles.quickValue
+                                        }
+                                    >
+                                        {loading ||
+                                        loadingDonorStatus
+                                            ? '...'
+                                            : bloodType}
+                                    </Text>
+
+                                    <Text
+                                        style={
+                                            styles.quickLabel
+                                        }
+                                    >
+                                        Blood Type
+                                    </Text>
+                                </View>
+                            </View>
+
+                            <View
+                                style={
+                                    styles.quickDivider
+                                }
+                            />
+
+                            <View
+                                style={
+                                    styles.quickItem
+                                }
+                            >
+                                <View
+                                    style={
+                                        styles.quickIcon
+                                    }
+                                >
+                                    <MaterialIcons
+                                        name="location-on"
+                                        size={20}
+                                        color={
+                                            COLORS.redButton
+                                        }
+                                    />
+                                </View>
+
+                                <View
+                                    style={
+                                        styles.quickContent
+                                    }
+                                >
+                                    <Text
+                                        numberOfLines={
+                                            1
+                                        }
+                                        style={
+                                            styles.quickValue
+                                        }
+                                    >
+                                        {loading
+                                            ? '...'
+                                            : shortLocation}
+                                    </Text>
+
+                                    <Text
+                                        style={
+                                            styles.quickLabel
+                                        }
+                                    >
+                                        Location
+                                    </Text>
+                                </View>
+                            </View>
+                        </View>
+                    </View>
+
+                    <ScrollView
+                        style={
+                            styles.content
+                        }
+                        contentContainerStyle={
+                            styles.contentContainer
+                        }
+                        showsVerticalScrollIndicator={
+                            false
+                        }
+                        bounces={
+                            false
+                        }
+                    >
+                        {errorMessage ? (
+                            <TouchableOpacity
+                                style={
+                                    styles.errorCard
+                                }
+                                activeOpacity={
+                                    0.8
+                                }
+                                onPress={
+                                    loadProfile
+                                }
+                            >
+                                <MaterialIcons
+                                    name="error-outline"
+                                    size={20}
+                                    color={
+                                        COLORS.redButton
+                                    }
+                                />
+
+                                <View
+                                    style={
+                                        styles.errorContent
+                                    }
+                                >
+                                    <Text
+                                        style={
+                                            styles.errorTitle
+                                        }
+                                    >
+                                        Unable to load profile
+                                    </Text>
+
+                                    <Text
+                                        style={
+                                            styles.errorText
+                                        }
+                                    >
+                                        Tap to try again.
+                                    </Text>
+                                </View>
+                            </TouchableOpacity>
+                        ) : null}
+
+                        <SectionTitle
+                            title="My Activity"
+                        />
+
+                        <View
+                            style={
+                                styles.card
+                            }
+                        >
+                            <MenuRow
+                                icon="assignment"
+                                title="My Blood Requests"
+                                subtitle="Manage your blood requests"
+                                onPress={
+                                    handleBloodRequests
+                                }
+                            />
+
+                            {donorApplication ? (
+                                <>
+                                    <Divider />
+
+                                    <MenuRow
+                                        icon="volunteer-activism"
+                                        iconColor={
+                                            COLORS.orange
+                                        }
+                                        title="Donor Activity"
+                                        subtitle={
+                                            donorApplication.status ===
+                                            'approved'
+                                                ? 'View your donor activity'
+                                                : donorApplication.status ===
+                                                  'pending'
+                                                    ? 'Application under review'
+                                                    : 'View donor application'
+                                        }
+                                        onPress={
+                                            handleDonorActivity
+                                        }
+                                    />
+                                </>
+                            ) : null}
+                        </View>
+
+                        <SectionTitle
+                            title="Personal Information"
+                        />
+
+                        <View
+                            style={
+                                styles.card
+                            }
+                        >
+                            <InfoRow
+                                icon="person-outline"
+                                label="Full Name"
+                                value={
+                                    loading
+                                        ? 'Loading...'
+                                        : fullName
+                                }
+                            />
+
+                            <Divider />
+
+                            <InfoRow
+                                icon="phone"
+                                label="Phone"
+                                value={
+                                    loading
+                                        ? 'Loading...'
+                                        : phone
+                                }
+                            />
+
+                            <Divider />
+
+                            <InfoRow
+                                icon="cake"
+                                label="Birthday"
+                                value={
+                                    loading
+                                        ? 'Loading...'
+                                        : formatDateOfBirth(
+                                              profile
+                                                  ?.date_of_birth
+                                          )
+                                }
+                            />
+
+                            <Divider />
+
+                            <InfoRow
+                                icon="wc"
+                                label="Gender"
+                                value={
+                                    loading
+                                        ? 'Loading...'
+                                        : gender
+                                }
+                            />
+
+                            <Divider />
+
+                            <InfoRow
+                                icon="email"
+                                label="Email"
+                                value={
+                                    loading
+                                        ? 'Loading...'
+                                        : email
+                                }
+                            />
+
+                            <Divider />
+
+                            <InfoRow
+                                icon="location-on"
+                                label="Location"
+                                value={
+                                    loading
+                                        ? 'Loading...'
+                                        : completeLocation
+                                }
+                                multiline
+                            />
+                        </View>
+
+                        <SectionTitle
+                            title="Medical Information"
+                        />
+
+                        <View
+                            style={
+                                styles.card
+                            }
+                        >
+                            <View
+                                style={
+                                    styles.medicalRow
+                                }
+                            >
+                                <View
+                                    style={
+                                        styles.medicalLeft
+                                    }
+                                >
+                                    <View
+                                        style={
+                                            styles.medicalIcon
+                                        }
+                                    >
+                                        <MaterialIcons
+                                            name="bloodtype"
+                                            size={20}
+                                            color={
+                                                COLORS.redButton
+                                            }
+                                        />
+                                    </View>
+
+                                    <View>
+                                        <Text
+                                            style={
+                                                styles.medicalLabel
+                                            }
+                                        >
+                                            Blood Type
+                                        </Text>
+
+                                        <Text
+                                            style={
+                                                styles.medicalHelper
+                                            }
+                                        >
+                                            Your registered blood group
+                                        </Text>
+                                    </View>
+                                </View>
+
+                                <View
+                                    style={
+                                        styles.bloodBadge
+                                    }
+                                >
+                                    <Text
+                                        style={
+                                            styles.bloodBadgeText
+                                        }
+                                    >
+                                        {loading ||
+                                        loadingDonorStatus
+                                            ? '...'
+                                            : bloodType}
+                                    </Text>
+                                </View>
+                            </View>
+                        </View>
+
+                        <SectionTitle
+                            title="Account Status"
+                        />
+
+                        <View
+                            style={
+                                styles.card
+                            }
+                        >
+                            <StatusRow
+                                icon="check-circle"
+                                label="Profile Completed"
+                                value={
+                                    profile
+                                        ?.onboarding_complete
+                                        ? 'Complete'
+                                        : 'Incomplete'
+                                }
+                                active={
+                                    Boolean(
+                                        profile
+                                            ?.onboarding_complete
+                                    )
+                                }
+                            />
+
+                            {donorApplication ? (
+                                <>
+                                    <Divider />
+
+                                    <StatusRow
+                                        icon={
+                                            donorApplication.status ===
+                                            'approved'
+                                                ? 'verified'
+                                                : 'hourglass-top'
+                                        }
+                                        label="Donor Account"
+                                        value={
+                                            getDonorStatusLabel()
+                                        }
+                                        active={
+                                            donorApplication.status ===
+                                            'approved'
+                                        }
+                                    />
+                                </>
+                            ) : null}
+                        </View>
+
+                        <SectionTitle
+                            title="Settings"
+                        />
+
+                        <View
+                            style={
+                                styles.card
+                            }
+                        >
+                            <MenuRow
+                                icon="security"
+                                title="Account & Security"
+                                subtitle="Password and security settings"
+                                onPress={
+                                    handleAccountSecurity
+                                }
+                            />
+
+                            <Divider />
+
+                            <MenuRow
+                                icon="privacy-tip"
+                                title="Privacy Policy"
+                                subtitle="How Hemo-Hero handles your data"
+                                onPress={() =>
+                                    router.push(
+                                        '/privacy-policy'
+                                    )
+                                }
+                            />
+
+                            <Divider />
+
+                            <MenuRow
+                                icon="description"
+                                title="Terms of Service"
+                                subtitle="Review Hemo-Hero terms"
+                                onPress={() =>
+                                    router.push(
+                                        '/terms-of-service'
+                                    )
+                                }
+                            />
+
+                            <Divider />
+
+                            <MenuRow
+                                icon="notifications-none"
+                                title="Notifications"
+                                subtitle="Manage alerts and notifications"
+                                onPress={
+                                    handleNotifications
+                                }
+                            />
+                        </View>
+
+                        <SectionTitle
+                            title="Support"
+                        />
+
+                        <View
+                            style={
+                                styles.card
+                            }
+                        >
+                            <MenuRow
+                                icon="help-outline"
+                                title="Help Center"
+                                subtitle="Get help using Hemo-Hero"
+                                onPress={
+                                    handleHelpCenter
+                                }
+                            />
+
+                            <Divider />
+
+                            <MenuRow
+                                icon="info-outline"
+                                title="About Hemo-Hero"
+                                subtitle="Learn about the Hemo-Hero project"
+                                onPress={
+                                    handleAbout
+                                }
+                            />
+                        </View>
+
+                        <TouchableOpacity
+                            style={
+                                styles.logoutButton
+                            }
+                            activeOpacity={
+                                0.85
+                            }
+                            disabled={
+                                signingOut
+                            }
+                            onPress={
+                                handleLogout
+                            }
+                        >
+                            <Text
+                                style={
+                                    styles.logoutText
+                                }
+                            >
+                                {signingOut
+                                    ? 'Signing Out...'
+                                    : 'Sign Out'}
+                            </Text>
+                        </TouchableOpacity>
+
+                        <Text
+                            style={
+                                styles.footerText
+                            }
+                        >
+                            Hemo-Hero
+                        </Text>
+                    </ScrollView>
+
+                    <MainBottomNav
+                        activeTab="profile"
+                    />
+
+                    <Modal
+                        visible={
+                            logoutModalVisible
+                        }
+                        transparent
+                        animationType="fade"
+                        statusBarTranslucent
+                        onRequestClose={
+                            handleCancelLogout
+                        }
+                    >
+                        <View
+                            style={
+                                styles.logoutModalBackdrop
+                            }
+                        >
+                            <View
+                                style={
+                                    styles.logoutModalCard
+                                }
+                            >
+                                <View
+                                    style={
+                                        styles.logoutModalIcon
+                                    }
+                                >
+                                    <MaterialIcons
+                                        name="logout"
+                                        size={28}
+                                        color={
+                                            COLORS.redButton
+                                        }
+                                    />
+                                </View>
+
+                                <Text
+                                    style={
+                                        styles.logoutModalTitle
+                                    }
+                                >
+                                    Sign Out?
+                                </Text>
+
+                                <Text
+                                    style={
+                                        styles.logoutModalMessage
+                                    }
+                                >
+                                    Are you sure you want to sign out of Hemo-Hero?
+                                </Text>
+
+                                <View
+                                    style={
+                                        styles.logoutModalActions
+                                    }
+                                >
+                                    <TouchableOpacity
+                                        style={
+                                            styles.logoutCancelButton
+                                        }
+                                        activeOpacity={
+                                            0.8
+                                        }
+                                        disabled={
+                                            signingOut
+                                        }
+                                        onPress={
+                                            handleCancelLogout
+                                        }
+                                    >
+                                        <Text
+                                            style={
+                                                styles.logoutCancelText
+                                            }
+                                        >
+                                            Cancel
+                                        </Text>
+                                    </TouchableOpacity>
+
+                                    <TouchableOpacity
+                                        style={[
+                                            styles.logoutConfirmButton,
+
+                                            signingOut &&
+                                                styles.logoutConfirmDisabled,
+                                        ]}
+                                        activeOpacity={
+                                            0.85
+                                        }
+                                        disabled={
+                                            signingOut
+                                        }
+                                        onPress={
+                                            performLogout
+                                        }
+                                    >
+                                        <Text
+                                            style={
+                                                styles.logoutConfirmText
+                                            }
+                                        >
+                                            {signingOut
+                                                ? 'Signing Out...'
+                                                : 'Sign Out'}
+                                        </Text>
+                                    </TouchableOpacity>
+                                </View>
+                            </View>
+                        </View>
+                    </Modal>
+
+                    <Modal
+                        visible={
+                            actionPopup.visible
+                        }
+                        transparent
+                        animationType="fade"
+                        statusBarTranslucent
+                        onRequestClose={
+                            closeActionPopup
+                        }
+                    >
+                        <View
+                            style={
+                                styles.actionPopupBackdrop
+                            }
+                        >
+                            <View
+                                style={
+                                    styles.actionPopupCard
+                                }
+                            >
+                                <View
+                                    style={[
+                                        styles.actionPopupIcon,
+
+                                        actionPopup.variant ===
+                                            'success' &&
+                                            styles.actionPopupIconSuccess,
+
+                                        actionPopup.variant ===
+                                            'warning' &&
+                                            styles.actionPopupIconWarning,
+
+                                        actionPopup.variant ===
+                                            'error' &&
+                                            styles.actionPopupIconError,
+                                    ]}
+                                >
+                                    <MaterialIcons
+                                        name={
+                                            actionPopup.variant ===
+                                            'success'
+                                                ? 'check-circle-outline'
+                                                : actionPopup.variant ===
+                                                  'warning'
+                                                    ? 'warning-amber'
+                                                    : actionPopup.variant ===
+                                                      'error'
+                                                        ? 'error-outline'
+                                                        : 'info-outline'
+                                        }
+                                        size={31}
+                                        color={
+                                            actionPopup.variant ===
+                                            'success'
+                                                ? COLORS.green
+                                                : actionPopup.variant ===
+                                                  'warning'
+                                                    ? COLORS.orange
+                                                    : COLORS.redButton
+                                        }
+                                    />
+                                </View>
+
+                                <Text
+                                    style={
+                                        styles.actionPopupTitle
+                                    }
+                                >
+                                    {
+                                        actionPopup.title
+                                    }
+                                </Text>
+
+                                <Text
+                                    style={
+                                        styles.actionPopupMessage
+                                    }
+                                >
+                                    {
+                                        actionPopup.message
+                                    }
+                                </Text>
+
+                                <TouchableOpacity
+                                    style={
+                                        styles.actionPopupButton
+                                    }
+                                    activeOpacity={
+                                        0.85
+                                    }
+                                    onPress={
+                                        closeActionPopup
+                                    }
+                                >
+                                    <Text
+                                        style={
+                                            styles.actionPopupButtonText
+                                        }
+                                    >
+                                        Okay
+                                    </Text>
+                                </TouchableOpacity>
+                            </View>
+                        </View>
+                    </Modal>
+                </SafeAreaView>
+            </View>
+        </View>
+    );
+}
 
 function SectionTitle({
-  title,
+    title,
 }: {
-  title:
-    string;
+    title:
+        string;
 }) {
-  return (
-    <Text
-      style={
-        styles.sectionTitle
-      }
-    >
-      {title}
-    </Text>
-  );
+    return (
+        <Text
+            style={
+                styles.sectionTitle
+            }
+        >
+            {
+                title
+            }
+        </Text>
+    );
 }
 
-// ============================================================
-// MENU ROW
-// ============================================================
-
 type MenuRowProps = {
-  icon:
-    keyof typeof MaterialIcons.glyphMap;
+    icon:
+        keyof typeof MaterialIcons.glyphMap;
 
-  iconColor?:
-    string;
+    iconColor?:
+        string;
 
-  title:
-    string;
+    title:
+        string;
 
-  subtitle:
-    string;
+    subtitle:
+        string;
 
-  onPress:
-    () => void;
+    onPress:
+        () => void;
 };
 
 function MenuRow({
-  icon,
-  iconColor =
-    COLORS.redButton,
-  title,
-  subtitle,
-  onPress,
+    icon,
+    iconColor = COLORS.redButton,
+    title,
+    subtitle,
+    onPress,
 }: MenuRowProps) {
-  return (
-    <TouchableOpacity
-      style={
-        styles.menuRow
-      }
-      activeOpacity={
-        0.65
-      }
-      onPress={
-        onPress
-      }
-    >
-      <View
-        style={
-          styles.menuIcon
-        }
-      >
-        <MaterialIcons
-          name={
-            icon
-          }
-          size={20}
-          color={
-            iconColor
-          }
-        />
-      </View>
-
-      <View
-        style={
-          styles.menuContent
-        }
-      >
-        <Text
-          style={
-            styles.menuTitle
-          }
+    return (
+        <TouchableOpacity
+            style={
+                styles.menuRow
+            }
+            activeOpacity={
+                0.65
+            }
+            onPress={
+                onPress
+            }
         >
-          {title}
-        </Text>
+            <View
+                style={
+                    styles.menuIcon
+                }
+            >
+                <MaterialIcons
+                    name={
+                        icon
+                    }
+                    size={20}
+                    color={
+                        iconColor
+                    }
+                />
+            </View>
 
-        <Text
-          numberOfLines={
-            1
-          }
-          style={
-            styles.menuSubtitle
-          }
-        >
-          {subtitle}
-        </Text>
-      </View>
+            <View
+                style={
+                    styles.menuContent
+                }
+            >
+                <Text
+                    style={
+                        styles.menuTitle
+                    }
+                >
+                    {
+                        title
+                    }
+                </Text>
 
-      <MaterialIcons
-        name="chevron-right"
-        size={21}
-        color="#B5B5BA"
-      />
-    </TouchableOpacity>
-  );
+                <Text
+                    numberOfLines={
+                        1
+                    }
+                    style={
+                        styles.menuSubtitle
+                    }
+                >
+                    {
+                        subtitle
+                    }
+                </Text>
+            </View>
+
+            <MaterialIcons
+                name="chevron-right"
+                size={21}
+                color="#B5B5BA"
+            />
+        </TouchableOpacity>
+    );
 }
 
-// ============================================================
-// INFO ROW
-// ============================================================
-
 type InfoRowProps = {
-  icon:
-    keyof typeof MaterialIcons.glyphMap;
+    icon:
+        keyof typeof MaterialIcons.glyphMap;
 
-  label:
-    string;
+    label:
+        string;
 
-  value:
-    string;
+    value:
+        string;
 
-  multiline?:
-    boolean;
+    multiline?:
+        boolean;
 };
 
 function InfoRow({
-  icon,
-  label,
-  value,
-  multiline = false,
+    icon,
+    label,
+    value,
+    multiline = false,
 }: InfoRowProps) {
-  return (
-    <View
-      style={
-        styles.infoRow
-      }
-    >
-      <View
-        style={
-          styles.infoIcon
-        }
-      >
-        <MaterialIcons
-          name={
-            icon
-          }
-          size={18}
-          color={
-            COLORS.redButton
-          }
-        />
-      </View>
-
-      <View
-        style={
-          styles.infoContent
-        }
-      >
-        <Text
-          style={
-            styles.infoLabel
-          }
+    return (
+        <View
+            style={
+                styles.infoRow
+            }
         >
-          {label}
-        </Text>
+            <View
+                style={
+                    styles.infoIcon
+                }
+            >
+                <MaterialIcons
+                    name={
+                        icon
+                    }
+                    size={18}
+                    color={
+                        COLORS.redButton
+                    }
+                />
+            </View>
 
-        <Text
-          numberOfLines={
-            multiline
-              ? 3
-              : 1
-          }
-          style={
-            styles.infoValue
-          }
-        >
-          {value}
-        </Text>
-      </View>
-    </View>
-  );
+            <View
+                style={
+                    styles.infoContent
+                }
+            >
+                <Text
+                    style={
+                        styles.infoLabel
+                    }
+                >
+                    {
+                        label
+                    }
+                </Text>
+
+                <Text
+                    numberOfLines={
+                        multiline
+                            ? 3
+                            : 1
+                    }
+                    style={
+                        styles.infoValue
+                    }
+                >
+                    {
+                        value
+                    }
+                </Text>
+            </View>
+        </View>
+    );
 }
-
-// ============================================================
-// STATUS ROW
-// ============================================================
 
 function StatusRow({
-  icon,
-  label,
-  value,
-  active,
+    icon,
+    label,
+    value,
+    active,
 }: {
-  icon:
-    keyof typeof MaterialIcons.glyphMap;
+    icon:
+        keyof typeof MaterialIcons.glyphMap;
 
-  label:
-    string;
+    label:
+        string;
 
-  value:
-    string;
+    value:
+        string;
 
-  active:
-    boolean;
+    active:
+        boolean;
 }) {
-  return (
-    <View
-      style={
-        styles.statusRow
-      }
-    >
-      <View
-        style={
-          styles.statusLeft
-        }
-      >
+    return (
         <View
-          style={
-            styles.statusIcon
-          }
+            style={
+                styles.statusRow
+            }
         >
-          <MaterialIcons
-            name={
-              icon
-            }
-            size={18}
-            color={
-              active
-                ? COLORS.green
-                : COLORS.muted
-            }
-          />
+            <View
+                style={
+                    styles.statusLeft
+                }
+            >
+                <View
+                    style={
+                        styles.statusIcon
+                    }
+                >
+                    <MaterialIcons
+                        name={
+                            icon
+                        }
+                        size={18}
+                        color={
+                            active
+                                ? COLORS.green
+                                : COLORS.muted
+                        }
+                    />
+                </View>
+
+                <Text
+                    style={
+                        styles.statusLabel
+                    }
+                >
+                    {
+                        label
+                    }
+                </Text>
+            </View>
+
+            <View
+                style={[
+                    styles.statusBadge,
+
+                    active
+                        ? styles.statusBadgeActive
+                        : styles.statusBadgeNeutral,
+                ]}
+            >
+                <Text
+                    style={[
+                        styles.statusBadgeText,
+
+                        active
+                            ? styles.statusBadgeTextActive
+                            : styles.statusBadgeTextNeutral,
+                    ]}
+                >
+                    {
+                        value
+                    }
+                </Text>
+            </View>
         </View>
-
-        <Text
-          style={
-            styles.statusLabel
-          }
-        >
-          {label}
-        </Text>
-      </View>
-
-      <View
-        style={[
-          styles.statusBadge,
-
-          active
-            ? styles.statusBadgeActive
-            : styles.statusBadgeNeutral,
-        ]}
-      >
-        <Text
-          style={[
-            styles.statusBadgeText,
-
-            active
-              ? styles.statusBadgeTextActive
-              : styles.statusBadgeTextNeutral,
-          ]}
-        >
-          {value}
-        </Text>
-      </View>
-    </View>
-  );
+    );
 }
-
-// ============================================================
-// DIVIDER
-// ============================================================
 
 function Divider() {
-  return (
-    <View
-      style={
-        styles.divider
-      }
-    />
-  );
+    return (
+        <View
+            style={
+                styles.divider
+            }
+        />
+    );
 }
 
-// ============================================================
-// STYLES
-// ============================================================
-
 const styles =
-  StyleSheet.create({
-    desktopBackground: {
-      flex: 1,
+    StyleSheet.create({
+        desktopBackground: {
+            flex: 1,
 
-      alignItems:
-        'center',
+            alignItems:
+                'center',
 
-      justifyContent:
-        'center',
+            justifyContent:
+                'center',
 
-      backgroundColor:
-        Platform.OS ===
-        'web'
-          ? '#242424'
-          : COLORS.page,
-    },
+            backgroundColor:
+                Platform.OS ===
+                'web'
+                    ? '#242424'
+                    : COLORS.page,
+        },
 
-    phone: {
-      width:
-        Platform.OS ===
-        'web'
-          ? 440
-          : '100%',
+        phone: {
+            width:
+                Platform.OS ===
+                'web'
+                    ? 440
+                    : '100%',
 
-      height:
-        Platform.OS ===
-        'web'
-          ? '100%'
-          : '100%',
+            height:
+                '100%',
 
-      maxWidth:
-        '100%',
+            maxWidth:
+                '100%',
 
-      overflow:
-        'hidden',
+            overflow:
+                'hidden',
 
-      backgroundColor:
-        COLORS.page,
-    },
+            backgroundColor:
+                COLORS.page,
+        },
 
-    safeArea: {
-      flex: 1,
+        safeArea: {
+            flex: 1,
 
-      backgroundColor:
-        COLORS.redDark,
-    },
+            backgroundColor:
+                COLORS.redDark,
+        },
 
-    headerArea: {
-      position:
-        'relative',
+        headerArea: {
+            position:
+                'relative',
 
-      height:
-        248,
+            height:
+                248,
 
-      zIndex:
-        10,
+            zIndex:
+                10,
 
-      overflow:
-        'visible',
+            overflow:
+                'visible',
 
-      backgroundColor:
-        COLORS.page,
-    },
+            backgroundColor:
+                COLORS.page,
+        },
 
-    hero: {
-      height:
-        210,
+        hero: {
+            height:
+                210,
 
-      paddingHorizontal:
-        18,
+            paddingHorizontal:
+                18,
 
-      overflow:
-        'hidden',
-    },
+            overflow:
+                'hidden',
+        },
 
-    heroCircleLeft: {
-      position:
-        'absolute',
+        heroCircleLeft: {
+            position:
+                'absolute',
 
-      width:
-        180,
+            width:
+                180,
 
-      height:
-        180,
+            height:
+                180,
 
-      borderRadius:
-        90,
+            borderRadius:
+                90,
 
-      top:
-        -100,
+            top:
+                -100,
 
-      left:
-        -90,
+            left:
+                -90,
 
-      backgroundColor:
-        'rgba(255,255,255,0.07)',
-    },
+            backgroundColor:
+                'rgba(255,255,255,0.07)',
+        },
 
-    heroCircleRight: {
-      position:
-        'absolute',
+        heroCircleRight: {
+            position:
+                'absolute',
 
-      width:
-        190,
+            width:
+                190,
 
-      height:
-        190,
+            height:
+                190,
 
-      borderRadius:
-        95,
+            borderRadius:
+                95,
 
-      top:
-        -105,
+            top:
+                -105,
 
-      right:
-        -95,
+            right:
+                -95,
 
-      backgroundColor:
-        'rgba(255,255,255,0.07)',
-    },
+            backgroundColor:
+                'rgba(255,255,255,0.07)',
+        },
 
-    topBar: {
-      height:
-        58,
+        topBar: {
+            height:
+                58,
 
-      flexDirection:
-        'row',
+            flexDirection:
+                'row',
 
-      alignItems:
-        'center',
+            alignItems:
+                'center',
 
-      justifyContent:
-        'space-between',
-    },
+            justifyContent:
+                'space-between',
+        },
 
-    topButton: {
-      width:
-        42,
+        topButton: {
+            width:
+                42,
 
-      height:
-        42,
+            height:
+                42,
 
-      alignItems:
-        'center',
+            alignItems:
+                'center',
 
-      justifyContent:
-        'center',
-    },
+            justifyContent:
+                'center',
+        },
 
-    topTitle: {
-      color:
-        COLORS.white,
+        topTitle: {
+            color:
+                COLORS.white,
 
-      fontFamily:
-        'Poppins_700Bold',
+            fontFamily:
+                'Poppins_700Bold',
 
-      fontSize:
-        18,
-    },
+            fontSize:
+                18,
+        },
 
-    identityRow: {
-      flexDirection:
-        'row',
+        identityRow: {
+            flexDirection:
+                'row',
 
-      alignItems:
-        'center',
+            alignItems:
+                'center',
 
-      marginTop:
-        18,
+            marginTop:
+                18,
 
-      paddingHorizontal:
-        5,
-    },
+            paddingHorizontal:
+                5,
+        },
 
-    avatarContainer: {
-      position:
-        'relative',
-    },
+        avatarContainer: {
+            position:
+                'relative',
+        },
 
-    avatar: {
-      width:
-        86,
+        avatar: {
+            width:
+                86,
 
-      height:
-        86,
+            height:
+                86,
 
-      borderRadius:
-        43,
+            borderRadius:
+                43,
 
-      borderWidth:
-        3,
+            borderWidth:
+                3,
 
-      borderColor:
-        COLORS.white,
+            borderColor:
+                COLORS.white,
 
-      backgroundColor:
-        '#F6DEDF',
+            backgroundColor:
+                '#F6DEDF',
 
-      alignItems:
-        'center',
+            alignItems:
+                'center',
 
-      justifyContent:
-        'center',
+            justifyContent:
+                'center',
 
-      overflow:
-        'hidden',
+            overflow:
+                'hidden',
 
-      shadowColor:
-        '#000000',
+            shadowColor:
+                '#000000',
 
-      shadowOffset: {
-        width:
-          0,
+            shadowOffset: {
+                width:
+                    0,
 
-        height:
-          3,
-      },
+                height:
+                    3,
+            },
 
-      shadowOpacity:
-        0.15,
+            shadowOpacity:
+                0.15,
 
-      shadowRadius:
-        5,
+            shadowRadius:
+                5,
 
-      elevation:
-        4,
-    },
+            elevation:
+                4,
+        },
 
-    avatarImage: {
-      width:
-        '100%',
+        avatarImage: {
+            width:
+                '100%',
 
-      height:
-        '100%',
-    },
+            height:
+                '100%',
+        },
 
-    cameraButton: {
-      position:
-        'absolute',
+        cameraButton: {
+            position:
+                'absolute',
 
-      width:
-        27,
+            width:
+                27,
 
-      height:
-        27,
+            height:
+                27,
 
-      right:
-        -1,
+            right:
+                -1,
 
-      bottom:
-        0,
+            bottom:
+                0,
 
-      borderRadius:
-        14,
+            borderRadius:
+                14,
 
-      borderWidth:
-        2,
+            borderWidth:
+                2,
 
-      borderColor:
-        COLORS.white,
+            borderColor:
+                COLORS.white,
 
-      backgroundColor:
-        COLORS.white,
+            backgroundColor:
+                COLORS.white,
 
-      alignItems:
-        'center',
+            alignItems:
+                'center',
 
-      justifyContent:
-        'center',
+            justifyContent:
+                'center',
 
-      elevation:
-        3,
-    },
+            elevation:
+                3,
+        },
 
-    identityContent: {
-      flex:
-        1,
+        identityContent: {
+            flex:
+                1,
 
-      marginLeft:
-        15,
+            marginLeft:
+                15,
 
-      minWidth:
-        0,
-    },
+            minWidth:
+                0,
+        },
 
-    profileName: {
-      color:
-        COLORS.white,
+        profileName: {
+            color:
+                COLORS.white,
 
-      fontFamily:
-        'Poppins_700Bold',
+            fontFamily:
+                'Poppins_700Bold',
 
-      fontSize:
-        22,
+            fontSize:
+                22,
 
-      lineHeight:
-        27,
-    },
+            lineHeight:
+                27,
+        },
 
-    profileEmail: {
-      marginTop:
-        3,
+        profileEmail: {
+            marginTop:
+                3,
 
-      color:
-        'rgba(255,255,255,0.84)',
+            color:
+                'rgba(255,255,255,0.84)',
 
-      fontFamily:
-        'Inter_400Regular',
+            fontFamily:
+                'Inter_400Regular',
 
-      fontSize:
-        11,
-    },
+            fontSize:
+                11,
+        },
 
-    donorBadge: {
-      alignSelf:
-        'flex-start',
+        donorBadge: {
+            alignSelf:
+                'flex-start',
 
-      marginTop:
-        9,
+            marginTop:
+                9,
 
-      minHeight:
-        24,
+            minHeight:
+                24,
 
-      paddingHorizontal:
-        8,
+            paddingHorizontal:
+                8,
 
-      flexDirection:
-        'row',
+            flexDirection:
+                'row',
 
-      alignItems:
-        'center',
+            alignItems:
+                'center',
 
-      gap:
-        4,
+            gap:
+                4,
 
-      borderRadius:
-        12,
-    },
+            borderRadius:
+                12,
+        },
 
-    donorBadgeText: {
-      fontFamily:
-        'Inter_600SemiBold',
+        donorBadgeText: {
+            fontFamily:
+                'Inter_600SemiBold',
 
-      fontSize:
-        9.5,
-    },
+            fontSize:
+                9.5,
+        },
 
-    statusDot: {
-      width:
-        6,
+        statusDot: {
+            width:
+                6,
 
-      height:
-        6,
+            height:
+                6,
 
-      borderRadius:
-        3,
-    },
+            borderRadius:
+                3,
+        },
 
-    quickCard: {
-      position:
-        'absolute',
+        quickCard: {
+            position:
+                'absolute',
 
-      left:
-        16,
+            left:
+                16,
 
-      right:
-        16,
+            right:
+                16,
 
-      bottom:
-        0,
+            bottom:
+                0,
 
-      height:
-        76,
+            height:
+                76,
 
-      paddingHorizontal:
-        14,
+            paddingHorizontal:
+                14,
 
-      flexDirection:
-        'row',
+            flexDirection:
+                'row',
 
-      alignItems:
-        'center',
+            alignItems:
+                'center',
 
-      borderRadius:
-        18,
+            borderRadius:
+                18,
 
-      backgroundColor:
-        COLORS.white,
+            backgroundColor:
+                COLORS.white,
 
-      borderWidth:
-        1,
+            borderWidth:
+                1,
 
-      borderColor:
-        '#EEEEF0',
+            borderColor:
+                '#EEEEF0',
 
-      shadowColor:
-        '#000000',
+            shadowColor:
+                '#000000',
 
-      shadowOffset: {
-        width:
-          0,
+            shadowOffset: {
+                width:
+                    0,
 
-        height:
-          5,
-      },
+                height:
+                    5,
+            },
 
-      shadowOpacity:
-        0.13,
+            shadowOpacity:
+                0.13,
 
-      shadowRadius:
-        12,
+            shadowRadius:
+                12,
 
-      elevation:
-        8,
+            elevation:
+                8,
 
-      zIndex:
-        50,
-    },
+            zIndex:
+                50,
+        },
 
-    quickItem: {
-      flex:
-        1,
+        quickItem: {
+            flex:
+                1,
 
-      flexDirection:
-        'row',
+            flexDirection:
+                'row',
 
-      alignItems:
-        'center',
+            alignItems:
+                'center',
 
-      minWidth:
-        0,
-    },
+            minWidth:
+                0,
+        },
 
-    quickIcon: {
-      width:
-        40,
+        quickIcon: {
+            width:
+                40,
 
-      height:
-        40,
+            height:
+                40,
 
-      marginRight:
-        9,
+            marginRight:
+                9,
 
-      borderRadius:
-        20,
+            borderRadius:
+                20,
 
-      alignItems:
-        'center',
+            alignItems:
+                'center',
 
-      justifyContent:
-        'center',
+            justifyContent:
+                'center',
 
-      backgroundColor:
-        COLORS.pinkSoft,
-    },
+            backgroundColor:
+                COLORS.pinkSoft,
+        },
 
-    quickContent: {
-      flex:
-        1,
+        quickContent: {
+            flex:
+                1,
 
-      minWidth:
-        0,
-    },
+            minWidth:
+                0,
+        },
 
-    quickValue: {
-      color:
-        COLORS.black,
+        quickValue: {
+            color:
+                COLORS.black,
 
-      fontFamily:
-        'Inter_600SemiBold',
+            fontFamily:
+                'Inter_600SemiBold',
 
-      fontSize:
-        12,
+            fontSize:
+                12,
 
-      lineHeight:
-        16,
-    },
+            lineHeight:
+                16,
+        },
 
-    quickLabel: {
-      marginTop:
-        2,
+        quickLabel: {
+            marginTop:
+                2,
 
-      color:
-        COLORS.lightMuted,
+            color:
+                COLORS.lightMuted,
 
-      fontFamily:
-        'Inter_400Regular',
+            fontFamily:
+                'Inter_400Regular',
 
-      fontSize:
-        10,
-    },
+            fontSize:
+                10,
+        },
 
-    quickDivider: {
-      width:
-        StyleSheet.hairlineWidth,
+        quickDivider: {
+            width:
+                StyleSheet.hairlineWidth,
 
-      height:
-        38,
+            height:
+                38,
 
-      marginHorizontal:
-        11,
+            marginHorizontal:
+                11,
 
-      backgroundColor:
-        COLORS.border,
-    },
+            backgroundColor:
+                COLORS.border,
+        },
 
-    content: {
-      flex:
-        1,
+        content: {
+            flex:
+                1,
 
-      backgroundColor:
-        COLORS.page,
-    },
+            backgroundColor:
+                COLORS.page,
+        },
 
-    contentContainer: {
-      paddingHorizontal:
-        18,
+        contentContainer: {
+            paddingHorizontal:
+                18,
 
-      paddingTop:
-        18,
+            paddingTop:
+                18,
 
-      paddingBottom:
-        32,
-    },
+            paddingBottom:
+                32,
+        },
 
-    sectionTitle: {
-      marginLeft:
-        3,
+        sectionTitle: {
+            marginLeft:
+                3,
 
-      marginTop:
-        2,
+            marginTop:
+                2,
 
-      marginBottom:
-        8,
+            marginBottom:
+                8,
 
-      color:
-        COLORS.black,
+            color:
+                COLORS.black,
 
-      fontFamily:
-        'Poppins_600SemiBold',
+            fontFamily:
+                'Poppins_600SemiBold',
 
-      fontSize:
-        14,
-    },
+            fontSize:
+                14,
+        },
 
-    card: {
-      marginBottom:
-        22,
+        card: {
+            marginBottom:
+                22,
 
-      paddingHorizontal:
-        13,
+            paddingHorizontal:
+                13,
 
-      borderWidth:
-        1,
+            borderWidth:
+                1,
 
-      borderColor:
-        COLORS.border,
+            borderColor:
+                COLORS.border,
 
-      borderRadius:
-        16,
+            borderRadius:
+                16,
 
-      backgroundColor:
-        COLORS.white,
+            backgroundColor:
+                COLORS.white,
 
-      shadowColor:
-        '#000000',
+            shadowColor:
+                '#000000',
 
-      shadowOffset: {
-        width:
-          0,
+            shadowOffset: {
+                width:
+                    0,
 
-        height:
-          2,
-      },
+                height:
+                    2,
+            },
 
-      shadowOpacity:
-        0.035,
+            shadowOpacity:
+                0.035,
 
-      shadowRadius:
-        5,
+            shadowRadius:
+                5,
 
-      elevation:
-        1,
-    },
+            elevation:
+                1,
+        },
 
-    divider: {
-      height:
-        StyleSheet.hairlineWidth,
+        divider: {
+            height:
+                StyleSheet.hairlineWidth,
 
-      marginLeft:
-        49,
+            marginLeft:
+                49,
 
-      backgroundColor:
-        COLORS.border,
-    },
+            backgroundColor:
+                COLORS.border,
+        },
 
-    menuRow: {
-      minHeight:
-        67,
+        menuRow: {
+            minHeight:
+                67,
 
-      flexDirection:
-        'row',
+            flexDirection:
+                'row',
 
-      alignItems:
-        'center',
+            alignItems:
+                'center',
 
-      paddingVertical:
-        10,
-    },
+            paddingVertical:
+                10,
+        },
 
-    menuIcon: {
-      width:
-        38,
+        menuIcon: {
+            width:
+                38,
 
-      height:
-        38,
+            height:
+                38,
 
-      marginRight:
-        11,
+            marginRight:
+                11,
 
-      borderRadius:
-        19,
+            borderRadius:
+                19,
 
-      alignItems:
-        'center',
+            alignItems:
+                'center',
 
-      justifyContent:
-        'center',
+            justifyContent:
+                'center',
 
-      backgroundColor:
-        COLORS.pinkSoft,
-    },
+            backgroundColor:
+                COLORS.pinkSoft,
+        },
 
-    menuContent: {
-      flex:
-        1,
+        menuContent: {
+            flex:
+                1,
 
-      minWidth:
-        0,
+            minWidth:
+                0,
 
-      paddingRight:
-        6,
-    },
+            paddingRight:
+                6,
+        },
 
-    menuTitle: {
-      color:
-        COLORS.black,
+        menuTitle: {
+            color:
+                COLORS.black,
 
-      fontFamily:
-        'Poppins_600SemiBold',
+            fontFamily:
+                'Poppins_600SemiBold',
 
-      fontSize:
-        12,
-    },
+            fontSize:
+                12,
+        },
 
-    menuSubtitle: {
-      marginTop:
-        3,
+        menuSubtitle: {
+            marginTop:
+                3,
 
-      color:
-        COLORS.muted,
+            color:
+                COLORS.muted,
 
-      fontFamily:
-        'Inter_400Regular',
+            fontFamily:
+                'Inter_400Regular',
 
-      fontSize:
-        10,
-    },
+            fontSize:
+                10,
+        },
 
-    infoRow: {
-      minHeight:
-        63,
+        infoRow: {
+            minHeight:
+                63,
 
-      flexDirection:
-        'row',
+            flexDirection:
+                'row',
 
-      alignItems:
-        'center',
+            alignItems:
+                'center',
 
-      paddingVertical:
-        9,
-    },
+            paddingVertical:
+                9,
+        },
 
-    infoIcon: {
-      width:
-        37,
+        infoIcon: {
+            width:
+                37,
 
-      height:
-        37,
+            height:
+                37,
 
-      marginRight:
-        11,
+            marginRight:
+                11,
 
-      borderRadius:
-        19,
+            borderRadius:
+                19,
 
-      alignItems:
-        'center',
+            alignItems:
+                'center',
 
-      justifyContent:
-        'center',
+            justifyContent:
+                'center',
 
-      backgroundColor:
-        COLORS.pinkSoft,
-    },
+            backgroundColor:
+                COLORS.pinkSoft,
+        },
 
-    infoContent: {
-      flex:
-        1,
+        infoContent: {
+            flex:
+                1,
 
-      minWidth:
-        0,
-    },
+            minWidth:
+                0,
+        },
 
-    infoLabel: {
-      color:
-        COLORS.lightMuted,
+        infoLabel: {
+            color:
+                COLORS.lightMuted,
 
-      fontFamily:
-        'Inter_500Medium',
+            fontFamily:
+                'Inter_500Medium',
 
-      fontSize:
-        9.5,
-    },
+            fontSize:
+                9.5,
+        },
 
-    infoValue: {
-      marginTop:
-        3,
+        infoValue: {
+            marginTop:
+                3,
 
-      color:
-        COLORS.black,
+            color:
+                COLORS.black,
 
-      fontFamily:
-        'Inter_600SemiBold',
+            fontFamily:
+                'Inter_600SemiBold',
 
-      fontSize:
-        12,
+            fontSize:
+                12,
 
-      lineHeight:
-        16,
-    },
+            lineHeight:
+                16,
+        },
 
-    medicalRow: {
-      minHeight:
-        73,
+        medicalRow: {
+            minHeight:
+                73,
 
-      flexDirection:
-        'row',
+            flexDirection:
+                'row',
 
-      alignItems:
-        'center',
+            alignItems:
+                'center',
 
-      justifyContent:
-        'space-between',
-    },
+            justifyContent:
+                'space-between',
+        },
 
-    medicalLeft: {
-      flex:
-        1,
+        medicalLeft: {
+            flex:
+                1,
 
-      flexDirection:
-        'row',
+            flexDirection:
+                'row',
 
-      alignItems:
-        'center',
-    },
+            alignItems:
+                'center',
+        },
 
-    medicalIcon: {
-      width:
-        40,
+        medicalIcon: {
+            width:
+                40,
 
-      height:
-        40,
+            height:
+                40,
 
-      marginRight:
-        10,
+            marginRight:
+                10,
 
-      borderRadius:
-        20,
+            borderRadius:
+                20,
 
-      alignItems:
-        'center',
+            alignItems:
+                'center',
 
-      justifyContent:
-        'center',
+            justifyContent:
+                'center',
 
-      backgroundColor:
-        COLORS.pinkSoft,
-    },
+            backgroundColor:
+                COLORS.pinkSoft,
+        },
 
-    medicalLabel: {
-      color:
-        COLORS.black,
+        medicalLabel: {
+            color:
+                COLORS.black,
 
-      fontFamily:
-        'Poppins_600SemiBold',
+            fontFamily:
+                'Poppins_600SemiBold',
 
-      fontSize:
-        12,
-    },
+            fontSize:
+                12,
+        },
 
-    medicalHelper: {
-      marginTop:
-        3,
+        medicalHelper: {
+            marginTop:
+                3,
 
-      color:
-        COLORS.lightMuted,
+            color:
+                COLORS.lightMuted,
 
-      fontFamily:
-        'Inter_400Regular',
+            fontFamily:
+                'Inter_400Regular',
 
-      fontSize:
-        10,
-    },
+            fontSize:
+                10,
+        },
 
-    bloodBadge: {
-      minWidth:
-        46,
+        bloodBadge: {
+            minWidth:
+                46,
 
-      height:
-        39,
+            height:
+                39,
 
-      paddingHorizontal:
-        10,
+            paddingHorizontal:
+                10,
 
-      borderRadius:
-        11,
+            borderRadius:
+                11,
 
-      alignItems:
-        'center',
+            alignItems:
+                'center',
 
-      justifyContent:
-        'center',
+            justifyContent:
+                'center',
 
-      backgroundColor:
-        COLORS.redButton,
-    },
+            backgroundColor:
+                COLORS.redButton,
+        },
 
-    bloodBadgeText: {
-      color:
-        COLORS.white,
+        bloodBadgeText: {
+            color:
+                COLORS.white,
 
-      fontFamily:
-        'Poppins_700Bold',
+            fontFamily:
+                'Poppins_700Bold',
 
-      fontSize:
-        13,
-    },
+            fontSize:
+                13,
+        },
 
-    statusRow: {
-      minHeight:
-        62,
+        statusRow: {
+            minHeight:
+                62,
 
-      flexDirection:
-        'row',
+            flexDirection:
+                'row',
 
-      alignItems:
-        'center',
+            alignItems:
+                'center',
 
-      justifyContent:
-        'space-between',
-    },
+            justifyContent:
+                'space-between',
+        },
 
-    statusLeft: {
-      flex:
-        1,
+        statusLeft: {
+            flex:
+                1,
 
-      flexDirection:
-        'row',
+            flexDirection:
+                'row',
 
-      alignItems:
-        'center',
-    },
+            alignItems:
+                'center',
+        },
 
-    statusIcon: {
-      width:
-        37,
+        statusIcon: {
+            width:
+                37,
 
-      height:
-        37,
+            height:
+                37,
 
-      marginRight:
-        11,
+            marginRight:
+                11,
 
-      borderRadius:
-        19,
+            borderRadius:
+                19,
 
-      alignItems:
-        'center',
+            alignItems:
+                'center',
 
-      justifyContent:
-        'center',
+            justifyContent:
+                'center',
 
-      backgroundColor:
-        COLORS.graySoft,
-    },
+            backgroundColor:
+                COLORS.graySoft,
+        },
 
-    statusLabel: {
-      color:
-        COLORS.black,
+        statusLabel: {
+            color:
+                COLORS.black,
 
-      fontFamily:
-        'Inter_500Medium',
+            fontFamily:
+                'Inter_500Medium',
 
-      fontSize:
-        11,
-    },
+            fontSize:
+                11,
+        },
 
-    statusBadge: {
-      maxWidth:
-        142,
+        statusBadge: {
+            maxWidth:
+                142,
 
-      paddingHorizontal:
-        9,
+            paddingHorizontal:
+                9,
 
-      paddingVertical:
-        5,
+            paddingVertical:
+                5,
 
-      borderRadius:
-        12,
-    },
+            borderRadius:
+                12,
+        },
 
-    statusBadgeActive: {
-      backgroundColor:
-        COLORS.greenSoft,
-    },
+        statusBadgeActive: {
+            backgroundColor:
+                COLORS.greenSoft,
+        },
 
-    statusBadgeNeutral: {
-      backgroundColor:
-        COLORS.graySoft,
-    },
+        statusBadgeNeutral: {
+            backgroundColor:
+                COLORS.graySoft,
+        },
 
-    statusBadgeText: {
-      fontFamily:
-        'Inter_600SemiBold',
+        statusBadgeText: {
+            fontFamily:
+                'Inter_600SemiBold',
 
-      fontSize:
-        9.5,
+            fontSize:
+                9.5,
 
-      textAlign:
-        'center',
-    },
+            textAlign:
+                'center',
+        },
 
-    statusBadgeTextActive: {
-      color:
-        COLORS.green,
-    },
+        statusBadgeTextActive: {
+            color:
+                COLORS.green,
+        },
 
-    statusBadgeTextNeutral: {
-      color:
-        COLORS.muted,
-    },
+        statusBadgeTextNeutral: {
+            color:
+                COLORS.muted,
+        },
 
-    errorCard: {
-      minHeight:
-        58,
+        errorCard: {
+            minHeight:
+                58,
 
-      marginBottom:
-        18,
+            marginBottom:
+                18,
 
-      paddingHorizontal:
-        12,
+            paddingHorizontal:
+                12,
 
-      paddingVertical:
-        10,
+            paddingVertical:
+                10,
 
-      flexDirection:
-        'row',
+            flexDirection:
+                'row',
 
-      alignItems:
-        'center',
+            alignItems:
+                'center',
 
-      gap:
-        9,
+            gap:
+                9,
 
-      borderRadius:
-        12,
+            borderRadius:
+                12,
 
-      borderWidth:
-        1,
+            borderWidth:
+                1,
 
-      borderColor:
-        '#ECB0B2',
+            borderColor:
+                '#ECB0B2',
 
-      backgroundColor:
-        COLORS.pinkSoft,
-    },
+            backgroundColor:
+                COLORS.pinkSoft,
+        },
 
-    errorContent: {
-      flex:
-        1,
-    },
+        errorContent: {
+            flex:
+                1,
+        },
 
-    errorTitle: {
-      color:
-        COLORS.redButton,
+        errorTitle: {
+            color:
+                COLORS.redButton,
 
-      fontFamily:
-        'Inter_600SemiBold',
+            fontFamily:
+                'Inter_600SemiBold',
 
-      fontSize:
-        11.5,
-    },
+            fontSize:
+                11.5,
+        },
 
-    errorText: {
-      marginTop:
-        2,
+        errorText: {
+            marginTop:
+                2,
 
-      color:
-        COLORS.muted,
+            color:
+                COLORS.muted,
 
-      fontFamily:
-        'Inter_400Regular',
+            fontFamily:
+                'Inter_400Regular',
 
-      fontSize:
-        10,
-    },
+            fontSize:
+                10,
+        },
 
-    logoutButton: {
-      height:
-        49,
+        logoutButton: {
+            height:
+                49,
 
-      marginTop:
-        3,
+            marginTop:
+                3,
 
-      borderRadius:
-        12,
+            borderRadius:
+                12,
 
-      alignItems:
-        'center',
+            alignItems:
+                'center',
 
-      justifyContent:
-        'center',
+            justifyContent:
+                'center',
 
-      backgroundColor:
-        COLORS.redButton,
+            backgroundColor:
+                COLORS.redButton,
 
-      shadowColor:
-        '#000000',
+            shadowColor:
+                '#000000',
 
-      shadowOffset: {
-        width:
-          0,
+            shadowOffset: {
+                width:
+                    0,
 
-        height:
-          2,
-      },
+                height:
+                    2,
+            },
 
-      shadowOpacity:
-        0.08,
+            shadowOpacity:
+                0.08,
 
-      shadowRadius:
-        4,
+            shadowRadius:
+                4,
 
-      elevation:
-        2,
-    },
+            elevation:
+                2,
+        },
 
-    logoutText: {
-      color:
-        COLORS.white,
+        logoutText: {
+            color:
+                COLORS.white,
 
-      fontFamily:
-        'Poppins_600SemiBold',
+            fontFamily:
+                'Poppins_600SemiBold',
 
-      fontSize:
-        12,
-    },
+            fontSize:
+                12,
+        },
 
-    footerText: {
-      marginTop:
-        18,
+        footerText: {
+            marginTop:
+                18,
 
-      color:
-        COLORS.lightMuted,
+            color:
+                COLORS.lightMuted,
 
-      fontFamily:
-        'Inter_400Regular',
+            fontFamily:
+                'Inter_400Regular',
 
-      fontSize:
-        9.5,
+            fontSize:
+                9.5,
 
-      textAlign:
-        'center',
-    },
+            textAlign:
+                'center',
+        },
 
-    logoutModalBackdrop: {
-      flex:
-        1,
+        logoutModalBackdrop: {
+            flex:
+                1,
 
-      alignItems:
-        'center',
+            alignItems:
+                'center',
 
-      justifyContent:
-        'center',
+            justifyContent:
+                'center',
 
-      paddingHorizontal:
-        24,
+            paddingHorizontal:
+                24,
 
-      backgroundColor:
-        'rgba(0, 0, 0, 0.52)',
-    },
+            backgroundColor:
+                'rgba(0, 0, 0, 0.52)',
+        },
 
-    logoutModalCard: {
-      width:
-        '100%',
+        logoutModalCard: {
+            width:
+                '100%',
 
-      maxWidth:
-        340,
+            maxWidth:
+                340,
 
-      paddingHorizontal:
-        22,
+            paddingHorizontal:
+                22,
 
-      paddingTop:
-        26,
+            paddingTop:
+                26,
 
-      paddingBottom:
-        20,
+            paddingBottom:
+                20,
 
-      borderRadius:
-        22,
+            borderRadius:
+                22,
 
-      alignItems:
-        'center',
+            alignItems:
+                'center',
 
-      backgroundColor:
-        COLORS.white,
+            backgroundColor:
+                COLORS.white,
 
-      shadowColor:
-        '#000000',
+            shadowColor:
+                '#000000',
 
-      shadowOffset: {
-        width:
-          0,
+            shadowOffset: {
+                width:
+                    0,
 
-        height:
-          8,
-      },
+                height:
+                    8,
+            },
 
-      shadowOpacity:
-        0.18,
+            shadowOpacity:
+                0.18,
 
-      shadowRadius:
-        18,
+            shadowRadius:
+                18,
 
-      elevation:
-        12,
-    },
+            elevation:
+                12,
+        },
 
-    logoutModalIcon: {
-      width:
-        58,
+        logoutModalIcon: {
+            width:
+                58,
 
-      height:
-        58,
+            height:
+                58,
 
-      marginBottom:
-        15,
+            marginBottom:
+                15,
 
-      borderRadius:
-        29,
+            borderRadius:
+                29,
 
-      alignItems:
-        'center',
+            alignItems:
+                'center',
 
-      justifyContent:
-        'center',
+            justifyContent:
+                'center',
 
-      backgroundColor:
-        COLORS.pinkSoft,
-    },
+            backgroundColor:
+                COLORS.pinkSoft,
+        },
 
-    logoutModalTitle: {
-      color:
-        COLORS.black,
+        logoutModalTitle: {
+            color:
+                COLORS.black,
 
-      fontFamily:
-        'Poppins_700Bold',
+            fontFamily:
+                'Poppins_700Bold',
 
-      fontSize:
-        19,
+            fontSize:
+                19,
 
-      textAlign:
-        'center',
-    },
+            textAlign:
+                'center',
+        },
 
-    logoutModalMessage: {
-      maxWidth:
-        255,
+        logoutModalMessage: {
+            maxWidth:
+                255,
 
-      marginTop:
-        7,
+            marginTop:
+                7,
 
-      color:
-        COLORS.muted,
+            color:
+                COLORS.muted,
 
-      fontFamily:
-        'Inter_400Regular',
+            fontFamily:
+                'Inter_400Regular',
 
-      fontSize:
-        13,
+            fontSize:
+                13,
 
-      lineHeight:
-        20,
+            lineHeight:
+                20,
 
-      textAlign:
-        'center',
-    },
+            textAlign:
+                'center',
+        },
 
-    logoutModalActions: {
-      width:
-        '100%',
+        logoutModalActions: {
+            width:
+                '100%',
 
-      marginTop:
-        23,
+            marginTop:
+                23,
 
-      flexDirection:
-        'row',
+            flexDirection:
+                'row',
 
-      gap:
-        10,
-    },
+            gap:
+                10,
+        },
 
-    logoutCancelButton: {
-      flex:
-        1,
+        logoutCancelButton: {
+            flex:
+                1,
 
-      height:
-        46,
+            height:
+                46,
 
-      alignItems:
-        'center',
+            alignItems:
+                'center',
 
-      justifyContent:
-        'center',
+            justifyContent:
+                'center',
 
-      borderWidth:
-        1,
+            borderWidth:
+                1,
 
-      borderColor:
-        COLORS.border,
+            borderColor:
+                COLORS.border,
 
-      borderRadius:
-        12,
+            borderRadius:
+                12,
 
-      backgroundColor:
-        COLORS.white,
-    },
+            backgroundColor:
+                COLORS.white,
+        },
 
-    logoutCancelText: {
-      color:
-        COLORS.black,
+        logoutCancelText: {
+            color:
+                COLORS.black,
 
-      fontFamily:
-        'Inter_600SemiBold',
+            fontFamily:
+                'Inter_600SemiBold',
 
-      fontSize:
-        13,
-    },
+            fontSize:
+                13,
+        },
 
-    logoutConfirmButton: {
-      flex:
-        1,
+        logoutConfirmButton: {
+            flex:
+                1,
 
-      height:
-        46,
+            height:
+                46,
 
-      alignItems:
-        'center',
+            alignItems:
+                'center',
 
-      justifyContent:
-        'center',
+            justifyContent:
+                'center',
 
-      borderRadius:
-        12,
+            borderRadius:
+                12,
 
-      backgroundColor:
-        COLORS.redButton,
-    },
+            backgroundColor:
+                COLORS.redButton,
+        },
 
-    logoutConfirmDisabled: {
-      opacity:
-        0.55,
-    },
+        logoutConfirmDisabled: {
+            opacity:
+                0.55,
+        },
 
-    logoutConfirmText: {
-      color:
-        COLORS.white,
+        logoutConfirmText: {
+            color:
+                COLORS.white,
 
-      fontFamily:
-        'Inter_600SemiBold',
+            fontFamily:
+                'Inter_600SemiBold',
 
-      fontSize:
-        13,
-    },
-  });
+            fontSize:
+                13,
+        },
+
+        actionPopupBackdrop: {
+            flex:
+                1,
+
+            paddingHorizontal:
+                24,
+
+            alignItems:
+                'center',
+
+            justifyContent:
+                'center',
+
+            backgroundColor:
+                'rgba(0, 0, 0, 0.52)',
+        },
+
+        actionPopupCard: {
+            width:
+                '100%',
+
+            maxWidth:
+                340,
+
+            paddingHorizontal:
+                22,
+
+            paddingTop:
+                25,
+
+            paddingBottom:
+                20,
+
+            borderRadius:
+                22,
+
+            alignItems:
+                'center',
+
+            backgroundColor:
+                COLORS.white,
+
+            shadowColor:
+                '#000000',
+
+            shadowOffset: {
+                width:
+                    0,
+
+                height:
+                    8,
+            },
+
+            shadowOpacity:
+                0.18,
+
+            shadowRadius:
+                18,
+
+            elevation:
+                12,
+        },
+
+        actionPopupIcon: {
+            width:
+                58,
+
+            height:
+                58,
+
+            marginBottom:
+                14,
+
+            borderRadius:
+                29,
+
+            alignItems:
+                'center',
+
+            justifyContent:
+                'center',
+
+            backgroundColor:
+                COLORS.pinkSoft,
+        },
+
+        actionPopupIconSuccess: {
+            backgroundColor:
+                COLORS.greenSoft,
+        },
+
+        actionPopupIconWarning: {
+            backgroundColor:
+                COLORS.orangeSoft,
+        },
+
+        actionPopupIconError: {
+            backgroundColor:
+                COLORS.pinkSoft,
+        },
+
+        actionPopupTitle: {
+            color:
+                COLORS.black,
+
+            fontFamily:
+                'Poppins_700Bold',
+
+            fontSize:
+                18,
+
+            lineHeight:
+                24,
+
+            textAlign:
+                'center',
+        },
+
+        actionPopupMessage: {
+            maxWidth:
+                275,
+
+            marginTop:
+                7,
+
+            color:
+                COLORS.muted,
+
+            fontFamily:
+                'Inter_400Regular',
+
+            fontSize:
+                12,
+
+            lineHeight:
+                18,
+
+            textAlign:
+                'center',
+        },
+
+        actionPopupButton: {
+            width:
+                '100%',
+
+            height:
+                46,
+
+            marginTop:
+                21,
+
+            borderRadius:
+                12,
+
+            alignItems:
+                'center',
+
+            justifyContent:
+                'center',
+
+            backgroundColor:
+                COLORS.redButton,
+        },
+
+        actionPopupButtonText: {
+            color:
+                COLORS.white,
+
+            fontFamily:
+                'Inter_600SemiBold',
+
+            fontSize:
+                12,
+        },
+    });

@@ -1,29 +1,26 @@
 const {
-  supabaseAdmin
-} =
-  require('../config/supabase');
+  supabaseAdmin,
+} = require('../config/supabase');
 
 const {
-  createNotification
-} =
-  require(
-    '../services/notificationService'
-  );
+  createNotification,
+} = require('../services/notificationService');
 
 const {
-  setActivityEntity
-} =
-  require(
-    '../middleware/activityLogMiddleware'
-  );
+  setActivityEntity,
+} = require('../middleware/activityLogMiddleware');
+
+const {
+  normalizeBloodType,
+  getCompatibleDonorTypes,
+  areRedBloodCellsCompatible,
+} = require('../utils/bloodCompatibility');
 
 // ============================================================
 // HELPERS
 // ============================================================
 
-function getAuthenticatedUserId(
-  req
-) {
+function getAuthenticatedUserId(req) {
   return (
     req.user?.id ||
     req.authUser?.id ||
@@ -32,9 +29,7 @@ function getAuthenticatedUserId(
   );
 }
 
-function cleanText(
-  value
-) {
+function cleanText(value) {
   if (
     value === undefined ||
     value === null
@@ -42,98 +37,21 @@ function cleanText(
     return null;
   }
 
-  const cleaned =
-    String(value)
-      .trim();
+  const cleaned = String(value).trim();
 
-  return (
-    cleaned ||
-    null
-  );
+  return cleaned || null;
 }
 
-function getRequestId(
-  req
-) {
+function getRequestId(req) {
   return String(
-    req.params.id ||
-    ''
+    req.params.id || ''
   ).trim();
 }
 
-function getInvitationId(
-  req
-) {
+function getInvitationId(req) {
   return String(
-    req.params.invitationId ||
-    ''
+    req.params.invitationId || ''
   ).trim();
-}
-
-// ============================================================
-// NORMALIZE BLOOD TYPE
-// ============================================================
-
-function normalizeBloodType(
-  value
-) {
-  if (
-    value === undefined ||
-    value === null
-  ) {
-    return null;
-  }
-
-  const normalized =
-    String(value)
-      .trim()
-      .toUpperCase();
-
-  return (
-    normalized ||
-    null
-  );
-}
-
-// ============================================================
-// EXACT BLOOD TYPE MATCH
-//
-// Direct donor invitations intentionally use exact blood-type
-// matching.
-//
-// Example:
-//
-// O+ request -> O+ donor only
-// AB- request -> AB- donor only
-//
-// This is separate from any compatibility-based donor search.
-// ============================================================
-
-function bloodTypesMatchExactly(
-  requestBloodType,
-  donorBloodType
-) {
-  const normalizedRequest =
-    normalizeBloodType(
-      requestBloodType
-    );
-
-  const normalizedDonor =
-    normalizeBloodType(
-      donorBloodType
-    );
-
-  if (
-    !normalizedRequest ||
-    !normalizedDonor
-  ) {
-    return false;
-  }
-
-  return (
-    normalizedRequest ===
-    normalizedDonor
-  );
 }
 
 // ============================================================
@@ -145,15 +63,195 @@ async function getOwnedBloodRequest(
   requesterId
 ) {
   const {
-    data:
-      bloodRequest,
-    error:
+    data: bloodRequest,
+    error: requestError,
+  } = await supabaseAdmin
+    .from('blood_requests')
+    .select(`
+      id,
+      requester_id,
+      status,
+      blood_type,
+      units_needed,
+      facility_name,
+      facility_type,
+      facility_address,
+      urgency,
+      needed_date,
+      needed_time,
+      message,
+      created_at
+    `)
+    .eq('id', requestId)
+    .eq('requester_id', requesterId)
+    .maybeSingle();
+
+  if (requestError) {
+    console.error(
+      'GET OWNED REQUEST FOR INVITATION ERROR:',
       requestError
-  } =
-    await supabaseAdmin
-      .from(
-        'blood_requests'
-      )
+    );
+
+    throw new Error(
+      'Unable to retrieve blood request.'
+    );
+  }
+
+  return bloodRequest || null;
+}
+
+// ============================================================
+// GET VERIFIED DONOR
+// ============================================================
+
+async function getVerifiedDonor(donorId) {
+  const {
+    data: donorApplication,
+    error: donorError,
+  } = await supabaseAdmin
+    .from('donor_applications')
+    .select(`
+      user_id,
+      status,
+      blood_type,
+      availability_status,
+      allow_urgent_requests,
+      travel_radius_km
+    `)
+    .eq('user_id', donorId)
+    .maybeSingle();
+
+  if (donorError) {
+    console.error(
+      'GET INVITATION DONOR ERROR:',
+      donorError
+    );
+
+    throw new Error(
+      'Unable to verify donor.'
+    );
+  }
+
+  return donorApplication || null;
+}
+
+// ============================================================
+// GET SAFE USER
+// ============================================================
+
+async function getSafeUser(userId) {
+  const {
+    data: user,
+    error: userError,
+  } = await supabaseAdmin
+    .from('users')
+    .select(`
+      id,
+      first_name,
+      middle_name,
+      last_name,
+      suffix,
+      city,
+      province,
+      profile_photo_url
+    `)
+    .eq('id', userId)
+    .maybeSingle();
+
+  if (userError) {
+    console.error(
+      'GET INVITATION USER ERROR:',
+      userError
+    );
+
+    return null;
+  }
+
+  if (!user) {
+    return null;
+  }
+
+  const fullName = [
+    user.first_name,
+    user.middle_name,
+    user.last_name,
+    user.suffix,
+  ]
+    .filter(Boolean)
+    .join(' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+  return {
+    id:
+      user.id,
+
+    first_name:
+      user.first_name || null,
+
+    last_name:
+      user.last_name || null,
+
+    full_name:
+      fullName || 'Hemo-Hero User',
+
+    city:
+      user.city || null,
+
+    province:
+      user.province || null,
+
+    profile_photo_url:
+      user.profile_photo_url || null,
+  };
+}
+
+// ============================================================
+// ENRICH INVITATIONS
+// ============================================================
+
+async function enrichInvitations(invitations) {
+  if (
+    !Array.isArray(invitations) ||
+    invitations.length === 0
+  ) {
+    return [];
+  }
+
+  const requestIds = [
+    ...new Set(
+      invitations
+        .map(
+          invitation =>
+            invitation.request_id
+        )
+        .filter(Boolean)
+    ),
+  ];
+
+  const requesterIds = [
+    ...new Set(
+      invitations
+        .map(
+          invitation =>
+            invitation.requester_id
+        )
+        .filter(Boolean)
+    ),
+  ];
+
+  // ----------------------------------------------------------
+  // BLOOD REQUESTS
+  // ----------------------------------------------------------
+
+  let bloodRequests = [];
+
+  if (requestIds.length > 0) {
+    const {
+      data,
+      error,
+    } = await supabaseAdmin
+      .from('blood_requests')
       .select(`
         id,
         requester_id,
@@ -169,269 +267,12 @@ async function getOwnedBloodRequest(
         message,
         created_at
       `)
-      .eq(
+      .in(
         'id',
-        requestId
-      )
-      .eq(
-        'requester_id',
-        requesterId
-      )
-      .maybeSingle();
+        requestIds
+      );
 
-  if (
-    requestError
-  ) {
-    console.error(
-      'GET OWNED REQUEST FOR INVITATION ERROR:',
-      requestError
-    );
-
-    throw new Error(
-      'Unable to retrieve blood request.'
-    );
-  }
-
-  return (
-    bloodRequest ||
-    null
-  );
-}
-
-// ============================================================
-// GET VERIFIED DONOR
-// ============================================================
-
-async function getVerifiedDonor(
-  donorId
-) {
-  const {
-    data:
-      donorApplication,
-    error:
-      donorError
-  } =
-    await supabaseAdmin
-      .from(
-        'donor_applications'
-      )
-      .select(`
-        user_id,
-        status,
-        blood_type,
-        availability_status,
-        allow_urgent_requests,
-        travel_radius_km
-      `)
-      .eq(
-        'user_id',
-        donorId
-      )
-      .maybeSingle();
-
-  if (
-    donorError
-  ) {
-    console.error(
-      'GET INVITATION DONOR ERROR:',
-      donorError
-    );
-
-    throw new Error(
-      'Unable to verify donor.'
-    );
-  }
-
-  return (
-    donorApplication ||
-    null
-  );
-}
-
-// ============================================================
-// GET SAFE USER
-// ============================================================
-
-async function getSafeUser(
-  userId
-) {
-  const {
-    data:
-      user,
-    error:
-      userError
-  } =
-    await supabaseAdmin
-      .from(
-        'users'
-      )
-      .select(`
-        id,
-        first_name,
-        middle_name,
-        last_name,
-        suffix,
-        city,
-        province,
-        profile_photo_url
-      `)
-      .eq(
-        'id',
-        userId
-      )
-      .maybeSingle();
-
-  if (
-    userError
-  ) {
-    console.error(
-      'GET INVITATION USER ERROR:',
-      userError
-    );
-
-    return null;
-  }
-
-  if (
-    !user
-  ) {
-    return null;
-  }
-
-  const fullName =
-    [
-      user.first_name,
-      user.middle_name,
-      user.last_name,
-      user.suffix
-    ]
-      .filter(
-        Boolean
-      )
-      .join(' ')
-      .replace(
-        /\s+/g,
-        ' '
-      )
-      .trim();
-
-  return {
-    id:
-      user.id,
-
-    first_name:
-      user.first_name ||
-      null,
-
-    last_name:
-      user.last_name ||
-      null,
-
-    full_name:
-      fullName ||
-      'Hemo-Hero User',
-
-    city:
-      user.city ||
-      null,
-
-    province:
-      user.province ||
-      null,
-
-    profile_photo_url:
-      user.profile_photo_url ||
-      null
-  };
-}
-
-// ============================================================
-// ENRICH INVITATIONS
-// ============================================================
-
-async function enrichInvitations(
-  invitations
-) {
-  if (
-    !Array.isArray(
-      invitations
-    ) ||
-    invitations.length ===
-      0
-  ) {
-    return [];
-  }
-
-  const requestIds =
-    [
-      ...new Set(
-        invitations
-          .map(
-            invitation =>
-              invitation.request_id
-          )
-          .filter(
-            Boolean
-          )
-      )
-    ];
-
-  const requesterIds =
-    [
-      ...new Set(
-        invitations
-          .map(
-            invitation =>
-              invitation.requester_id
-          )
-          .filter(
-            Boolean
-          )
-      )
-    ];
-
-  // ----------------------------------------------------------
-  // BLOOD REQUESTS
-  // ----------------------------------------------------------
-
-  let bloodRequests =
-    [];
-
-  if (
-    requestIds.length >
-    0
-  ) {
-    const {
-      data,
-      error
-    } =
-      await supabaseAdmin
-        .from(
-          'blood_requests'
-        )
-        .select(`
-          id,
-          requester_id,
-          status,
-          blood_type,
-          units_needed,
-          facility_name,
-          facility_type,
-          facility_address,
-          urgency,
-          needed_date,
-          needed_time,
-          message,
-          created_at
-        `)
-        .in(
-          'id',
-          requestIds
-        );
-
-    if (
-      error
-    ) {
+    if (error) {
       console.error(
         'ENRICH INVITATION REQUESTS ERROR:',
         error
@@ -443,47 +284,37 @@ async function enrichInvitations(
     }
 
     bloodRequests =
-      data ||
-      [];
+      data || [];
   }
 
   // ----------------------------------------------------------
   // REQUESTERS
   // ----------------------------------------------------------
 
-  let users =
-    [];
+  let users = [];
 
-  if (
-    requesterIds.length >
-    0
-  ) {
+  if (requesterIds.length > 0) {
     const {
       data,
-      error
-    } =
-      await supabaseAdmin
-        .from(
-          'users'
-        )
-        .select(`
-          id,
-          first_name,
-          middle_name,
-          last_name,
-          suffix,
-          city,
-          province,
-          profile_photo_url
-        `)
-        .in(
-          'id',
-          requesterIds
-        );
+      error,
+    } = await supabaseAdmin
+      .from('users')
+      .select(`
+        id,
+        first_name,
+        middle_name,
+        last_name,
+        suffix,
+        city,
+        province,
+        profile_photo_url
+      `)
+      .in(
+        'id',
+        requesterIds
+      );
 
-    if (
-      error
-    ) {
+    if (error) {
       console.error(
         'ENRICH INVITATION USERS ERROR:',
         error
@@ -495,8 +326,7 @@ async function enrichInvitations(
     }
 
     users =
-      data ||
-      [];
+      data || [];
   }
 
   // ----------------------------------------------------------
@@ -508,7 +338,7 @@ async function enrichInvitations(
 
   for (
     const request of
-      bloodRequests
+    bloodRequests
   ) {
     requestMap.set(
       request.id,
@@ -521,24 +351,21 @@ async function enrichInvitations(
 
   for (
     const user of
-      users
+    users
   ) {
-    const fullName =
-      [
-        user.first_name,
-        user.middle_name,
-        user.last_name,
-        user.suffix
-      ]
-        .filter(
-          Boolean
-        )
-        .join(' ')
-        .replace(
-          /\s+/g,
-          ' '
-        )
-        .trim();
+    const fullName = [
+      user.first_name,
+      user.middle_name,
+      user.last_name,
+      user.suffix,
+    ]
+      .filter(Boolean)
+      .join(' ')
+      .replace(
+        /\s+/g,
+        ' '
+      )
+      .trim();
 
     userMap.set(
       user.id,
@@ -568,7 +395,7 @@ async function enrichInvitations(
 
         profile_photo_url:
           user.profile_photo_url ||
-          null
+          null,
       }
     );
   }
@@ -587,7 +414,7 @@ async function enrichInvitations(
         userMap.get(
           invitation.requester_id
         ) ||
-        null
+        null,
     })
   );
 }
@@ -643,8 +470,8 @@ async function notifyDonorAboutInvitation(
         bloodRequest.blood_type,
 
       facility_name:
-        bloodRequest.facility_name
-    }
+        bloodRequest.facility_name,
+    },
   });
 }
 
@@ -697,8 +524,8 @@ async function notifyRequesterInvitationAccepted(
         bloodRequest.blood_type,
 
       facility_name:
-        bloodRequest.facility_name
-    }
+        bloodRequest.facility_name,
+    },
   });
 }
 
@@ -746,8 +573,8 @@ async function notifyRequesterInvitationDeclined(
         bloodRequest.blood_type,
 
       facility_name:
-        bloodRequest.facility_name
-    }
+        bloodRequest.facility_name,
+    },
   });
 }
 
@@ -772,7 +599,7 @@ async function sendDonorInvitation(
         .status(401)
         .json({
           error:
-            'Unauthorized'
+            'Unauthorized',
         });
     }
 
@@ -788,7 +615,7 @@ async function sendDonorInvitation(
         .status(400)
         .json({
           error:
-            'Request ID is required.'
+            'Request ID is required.',
         });
     }
 
@@ -805,7 +632,7 @@ async function sendDonorInvitation(
         .status(400)
         .json({
           error:
-            'Donor ID is required.'
+            'Donor ID is required.',
         });
     }
 
@@ -817,7 +644,7 @@ async function sendDonorInvitation(
         .status(400)
         .json({
           error:
-            'You cannot invite yourself to your own blood request.'
+            'You cannot invite yourself to your own blood request.',
         });
     }
 
@@ -835,7 +662,7 @@ async function sendDonorInvitation(
         .status(400)
         .json({
           error:
-            'Message must not exceed 250 characters.'
+            'Message must not exceed 250 characters.',
         });
     }
 
@@ -852,7 +679,7 @@ async function sendDonorInvitation(
         .status(404)
         .json({
           error:
-            'Blood request not found.'
+            'Blood request not found.',
         });
     }
 
@@ -864,7 +691,7 @@ async function sendDonorInvitation(
         .status(409)
         .json({
           error:
-            'Only active blood requests can invite donors.'
+            'Only active blood requests can invite donors.',
         });
     }
 
@@ -882,12 +709,16 @@ async function sendDonorInvitation(
         .status(409)
         .json({
           error:
-            'This user is not currently a verified donor.'
+            'This user is not currently a verified donor.',
         });
     }
 
+    // --------------------------------------------------------
+    // RED BLOOD CELL COMPATIBILITY
+    // --------------------------------------------------------
+
     if (
-      !bloodTypesMatchExactly(
+      !areRedBloodCellsCompatible(
         bloodRequest.blood_type,
         donorApplication.blood_type
       )
@@ -896,7 +727,7 @@ async function sendDonorInvitation(
         .status(409)
         .json({
           error:
-            'This donor\'s blood type does not match the blood type required by this request.',
+            'This donor\'s blood type is not compatible with the blood type required by this request.',
 
           required_blood_type:
             normalizeBloodType(
@@ -906,7 +737,12 @@ async function sendDonorInvitation(
           donor_blood_type:
             normalizeBloodType(
               donorApplication.blood_type
-            )
+            ),
+
+          compatible_donor_types:
+            getCompatibleDonorTypes(
+              bloodRequest.blood_type
+            ),
         });
     }
 
@@ -919,7 +755,7 @@ async function sendDonorInvitation(
         .status(409)
         .json({
           error:
-            'This donor is currently unavailable.'
+            'This donor is currently unavailable.',
         });
     }
 
@@ -933,15 +769,16 @@ async function sendDonorInvitation(
         .status(409)
         .json({
           error:
-            'This donor is not accepting urgent requests.'
+            'This donor is not accepting urgent requests.',
         });
     }
 
     const {
       data:
         existingInvitation,
+
       error:
-        existingError
+        existingError,
     } =
       await supabaseAdmin
         .from(
@@ -970,15 +807,12 @@ async function sendDonorInvitation(
         .status(500)
         .json({
           error:
-            'Unable to verify existing donor invitation.'
+            'Unable to verify existing donor invitation.',
         });
     }
 
     // --------------------------------------------------------
     // EXISTING INVITATION ENTITY
-    //
-    // This also allows failed duplicate attempts to reference
-    // the invitation that already exists.
     // --------------------------------------------------------
 
     if (
@@ -1002,7 +836,7 @@ async function sendDonorInvitation(
             'You have already invited this donor to this blood request.',
 
           invitation:
-            existingInvitation
+            existingInvitation,
         });
     }
 
@@ -1017,7 +851,7 @@ async function sendDonorInvitation(
             'This donor has already accepted your invitation.',
 
           invitation:
-            existingInvitation
+            existingInvitation,
         });
     }
 
@@ -1034,8 +868,9 @@ async function sendDonorInvitation(
       const {
         data:
           updatedInvitation,
+
         error:
-          updateError
+          updateError,
       } =
         await supabaseAdmin
           .from(
@@ -1057,7 +892,7 @@ async function sendDonorInvitation(
 
             updated_at:
               new Date()
-                .toISOString()
+                .toISOString(),
           })
           .eq(
             'id',
@@ -1078,7 +913,7 @@ async function sendDonorInvitation(
           .status(500)
           .json({
             error:
-              'Unable to send donor invitation.'
+              'Unable to send donor invitation.',
           });
       }
 
@@ -1092,8 +927,9 @@ async function sendDonorInvitation(
       const {
         data:
           createdInvitation,
+
         error:
-          insertError
+          insertError,
       } =
         await supabaseAdmin
           .from(
@@ -1114,7 +950,7 @@ async function sendDonorInvitation(
 
             message:
               message ||
-              null
+              null,
           })
           .select()
           .single();
@@ -1131,7 +967,7 @@ async function sendDonorInvitation(
           .status(500)
           .json({
             error:
-              'Unable to send donor invitation.'
+              'Unable to send donor invitation.',
           });
       }
 
@@ -1176,8 +1012,8 @@ async function sendDonorInvitation(
           request:
             bloodRequest,
 
-          requester
-        }
+          requester,
+        },
       });
   } catch (
     error
@@ -1192,7 +1028,7 @@ async function sendDonorInvitation(
       .json({
         error:
           error.message ||
-          'Internal server error'
+          'Internal server error',
       });
   }
 }
@@ -1218,15 +1054,16 @@ async function getMyDonorInvitations(
         .status(401)
         .json({
           error:
-            'Unauthorized'
+            'Unauthorized',
         });
     }
 
     const {
       data:
         invitations,
+
       error:
-        invitationsError
+        invitationsError,
     } =
       await supabaseAdmin
         .from(
@@ -1241,7 +1078,7 @@ async function getMyDonorInvitations(
           'created_at',
           {
             ascending:
-              false
+              false,
           }
         );
 
@@ -1257,7 +1094,7 @@ async function getMyDonorInvitations(
         .status(500)
         .json({
           error:
-            'Unable to retrieve donor invitations.'
+            'Unable to retrieve donor invitations.',
         });
     }
 
@@ -1281,12 +1118,12 @@ async function getMyDonorInvitations(
         0,
 
       cancelled:
-        0
+        0,
     };
 
     for (
       const invitation of
-        enriched
+      enriched
     ) {
       if (
         invitation.status ===
@@ -1330,7 +1167,7 @@ async function getMyDonorInvitations(
         counts,
 
         invitations:
-          enriched
+          enriched,
       });
   } catch (
     error
@@ -1345,7 +1182,7 @@ async function getMyDonorInvitations(
       .json({
         error:
           error.message ||
-          'Internal server error'
+          'Internal server error',
       });
   }
 }
@@ -1371,7 +1208,7 @@ async function acceptDonorInvitation(
         .status(401)
         .json({
           error:
-            'Unauthorized'
+            'Unauthorized',
         });
     }
 
@@ -1387,15 +1224,12 @@ async function acceptDonorInvitation(
         .status(400)
         .json({
           error:
-            'Invitation ID is required.'
+            'Invitation ID is required.',
         });
     }
 
     // --------------------------------------------------------
     // ACTIVITY ENTITY
-    //
-    // Set immediately so even failed attempts reference the
-    // invitation ID supplied in the request.
     // --------------------------------------------------------
 
     setActivityEntity(
@@ -1407,8 +1241,9 @@ async function acceptDonorInvitation(
     const {
       data:
         invitation,
+
       error:
-        invitationError
+        invitationError,
     } =
       await supabaseAdmin
         .from(
@@ -1437,7 +1272,7 @@ async function acceptDonorInvitation(
         .status(500)
         .json({
           error:
-            'Unable to retrieve donor invitation.'
+            'Unable to retrieve donor invitation.',
         });
     }
 
@@ -1448,7 +1283,7 @@ async function acceptDonorInvitation(
         .status(404)
         .json({
           error:
-            'Donor invitation not found.'
+            'Donor invitation not found.',
         });
     }
 
@@ -1466,7 +1301,7 @@ async function acceptDonorInvitation(
         .status(409)
         .json({
           error:
-            'You have already accepted this invitation.'
+            'You have already accepted this invitation.',
         });
     }
 
@@ -1478,15 +1313,16 @@ async function acceptDonorInvitation(
         .status(409)
         .json({
           error:
-            'Only pending donor invitations can be accepted.'
+            'Only pending donor invitations can be accepted.',
         });
     }
 
     const {
       data:
         bloodRequest,
+
       error:
-        requestError
+        requestError,
     } =
       await supabaseAdmin
         .from(
@@ -1524,7 +1360,7 @@ async function acceptDonorInvitation(
         .status(500)
         .json({
           error:
-            'Unable to retrieve blood request.'
+            'Unable to retrieve blood request.',
         });
     }
 
@@ -1535,7 +1371,7 @@ async function acceptDonorInvitation(
         .status(404)
         .json({
           error:
-            'Blood request no longer exists.'
+            'Blood request no longer exists.',
         });
     }
 
@@ -1547,7 +1383,7 @@ async function acceptDonorInvitation(
         .status(409)
         .json({
           error:
-            'This blood request is no longer active.'
+            'This blood request is no longer active.',
         });
     }
 
@@ -1559,7 +1395,7 @@ async function acceptDonorInvitation(
         .status(409)
         .json({
           error:
-            'This invitation no longer matches the blood request owner.'
+            'This invitation no longer matches the blood request owner.',
         });
     }
 
@@ -1577,12 +1413,16 @@ async function acceptDonorInvitation(
         .status(409)
         .json({
           error:
-            'Your donor verification is no longer active.'
+            'Your donor verification is no longer active.',
         });
     }
 
+    // --------------------------------------------------------
+    // RED BLOOD CELL COMPATIBILITY
+    // --------------------------------------------------------
+
     if (
-      !bloodTypesMatchExactly(
+      !areRedBloodCellsCompatible(
         bloodRequest.blood_type,
         donorApplication.blood_type
       )
@@ -1591,7 +1431,7 @@ async function acceptDonorInvitation(
         .status(409)
         .json({
           error:
-            'Your verified blood type does not match the blood type required by this request.',
+            'Your verified blood type is not compatible with the blood type required by this request.',
 
           required_blood_type:
             normalizeBloodType(
@@ -1601,15 +1441,21 @@ async function acceptDonorInvitation(
           donor_blood_type:
             normalizeBloodType(
               donorApplication.blood_type
-            )
+            ),
+
+          compatible_donor_types:
+            getCompatibleDonorTypes(
+              bloodRequest.blood_type
+            ),
         });
     }
 
     const {
       data:
         existingResponse,
+
       error:
-        responseLookupError
+        responseLookupError,
     } =
       await supabaseAdmin
         .from(
@@ -1638,7 +1484,7 @@ async function acceptDonorInvitation(
         .status(500)
         .json({
           error:
-            'Unable to prepare donor response.'
+            'Unable to prepare donor response.',
         });
     }
 
@@ -1651,8 +1497,9 @@ async function acceptDonorInvitation(
       const {
         data:
           updatedResponse,
+
         error:
-          responseUpdateError
+          responseUpdateError,
       } =
         await supabaseAdmin
           .from(
@@ -1669,7 +1516,7 @@ async function acceptDonorInvitation(
 
             updated_at:
               new Date()
-                .toISOString()
+                .toISOString(),
           })
           .eq(
             'id',
@@ -1690,7 +1537,7 @@ async function acceptDonorInvitation(
           .status(500)
           .json({
             error:
-              'Unable to accept donor invitation.'
+              'Unable to accept donor invitation.',
           });
       }
 
@@ -1700,8 +1547,9 @@ async function acceptDonorInvitation(
       const {
         data:
           createdResponse,
+
         error:
-          responseInsertError
+          responseInsertError,
       } =
         await supabaseAdmin
           .from(
@@ -1719,7 +1567,7 @@ async function acceptDonorInvitation(
 
             message:
               invitation.message ||
-              null
+              null,
           })
           .select()
           .single();
@@ -1736,7 +1584,7 @@ async function acceptDonorInvitation(
           .status(500)
           .json({
             error:
-              'Unable to accept donor invitation.'
+              'Unable to accept donor invitation.',
           });
       }
 
@@ -1751,8 +1599,9 @@ async function acceptDonorInvitation(
     const {
       data:
         updatedInvitation,
+
       error:
-        invitationUpdateError
+        invitationUpdateError,
     } =
       await supabaseAdmin
         .from(
@@ -1766,7 +1615,7 @@ async function acceptDonorInvitation(
             now,
 
           updated_at:
-            now
+            now,
         })
         .eq(
           'id',
@@ -1791,7 +1640,7 @@ async function acceptDonorInvitation(
         .status(500)
         .json({
           error:
-            'The donor response was created, but the invitation status could not be updated.'
+            'The donor response was created, but the invitation status could not be updated.',
         });
     }
 
@@ -1802,7 +1651,7 @@ async function acceptDonorInvitation(
         .status(409)
         .json({
           error:
-            'This invitation is no longer pending.'
+            'This invitation is no longer pending.',
         });
     }
 
@@ -1828,7 +1677,7 @@ async function acceptDonorInvitation(
           updatedInvitation,
 
         response:
-          donorResponse
+          donorResponse,
       });
   } catch (
     error
@@ -1843,7 +1692,7 @@ async function acceptDonorInvitation(
       .json({
         error:
           error.message ||
-          'Internal server error'
+          'Internal server error',
       });
   }
 }
@@ -1869,7 +1718,7 @@ async function declineDonorInvitation(
         .status(401)
         .json({
           error:
-            'Unauthorized'
+            'Unauthorized',
         });
     }
 
@@ -1885,7 +1734,7 @@ async function declineDonorInvitation(
         .status(400)
         .json({
           error:
-            'Invitation ID is required.'
+            'Invitation ID is required.',
         });
     }
 
@@ -1902,8 +1751,9 @@ async function declineDonorInvitation(
     const {
       data:
         invitation,
+
       error:
-        invitationError
+        invitationError,
     } =
       await supabaseAdmin
         .from(
@@ -1932,7 +1782,7 @@ async function declineDonorInvitation(
         .status(500)
         .json({
           error:
-            'Unable to retrieve donor invitation.'
+            'Unable to retrieve donor invitation.',
         });
     }
 
@@ -1943,7 +1793,7 @@ async function declineDonorInvitation(
         .status(404)
         .json({
           error:
-            'Donor invitation not found.'
+            'Donor invitation not found.',
         });
     }
 
@@ -1964,15 +1814,16 @@ async function declineDonorInvitation(
             invitation.status ===
               'accepted'
               ? 'An accepted invitation cannot be declined.'
-              : 'Only pending donor invitations can be declined.'
+              : 'Only pending donor invitations can be declined.',
         });
     }
 
     const {
       data:
         bloodRequest,
+
       error:
-        requestError
+        requestError,
     } =
       await supabaseAdmin
         .from(
@@ -2006,8 +1857,9 @@ async function declineDonorInvitation(
     const {
       data:
         updatedInvitation,
+
       error:
-        updateError
+        updateError,
     } =
       await supabaseAdmin
         .from(
@@ -2021,7 +1873,7 @@ async function declineDonorInvitation(
             now,
 
           updated_at:
-            now
+            now,
         })
         .eq(
           'id',
@@ -2046,7 +1898,7 @@ async function declineDonorInvitation(
         .status(500)
         .json({
           error:
-            'Unable to decline donor invitation.'
+            'Unable to decline donor invitation.',
         });
     }
 
@@ -2057,7 +1909,7 @@ async function declineDonorInvitation(
         .status(409)
         .json({
           error:
-            'This invitation is no longer pending.'
+            'This invitation is no longer pending.',
         });
     }
 
@@ -2083,7 +1935,7 @@ async function declineDonorInvitation(
           'Donor invitation declined.',
 
         invitation:
-          updatedInvitation
+          updatedInvitation,
       });
   } catch (
     error
@@ -2098,7 +1950,7 @@ async function declineDonorInvitation(
       .json({
         error:
           error.message ||
-          'Internal server error'
+          'Internal server error',
       });
   }
 }
@@ -2109,10 +1961,7 @@ async function declineDonorInvitation(
 
 module.exports = {
   sendDonorInvitation,
-
   getMyDonorInvitations,
-
   acceptDonorInvitation,
-
-  declineDonorInvitation
+  declineDonorInvitation,
 };

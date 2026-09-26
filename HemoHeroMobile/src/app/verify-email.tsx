@@ -5,9 +5,9 @@ import {
 } from 'react';
 
 import {
-  Alert,
   Image,
   KeyboardAvoidingView,
+  Modal,
   Platform,
   ScrollView,
   StyleSheet,
@@ -16,6 +16,10 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
+
+import {
+  MaterialIcons,
+} from '@expo/vector-icons';
 
 import {
   LinearGradient,
@@ -87,6 +91,20 @@ const CODE_LENGTH =
 const RESEND_SECONDS =
   60;
 
+  type ActionPopupVariant =
+  | 'info'
+  | 'success'
+  | 'warning'
+  | 'error';
+
+type ActionPopupState = {
+  visible: boolean;
+  title: string;
+  message: string;
+  variant: ActionPopupVariant;
+  onConfirm?: () => void;
+};
+
 // ============================================================
 // SCREEN
 // ============================================================
@@ -151,6 +169,18 @@ export default function VerifyEmailScreen() {
   ] =
     useState('');
 
+    const [
+  actionPopup,
+  setActionPopup,
+] =
+  useState<ActionPopupState>({
+    visible: false,
+    title: '',
+    message: '',
+    variant: 'info',
+    onConfirm: undefined,
+  });
+
   // ==========================================================
   // RESEND TIMER
   // ==========================================================
@@ -185,32 +215,69 @@ export default function VerifyEmailScreen() {
     resendSeconds,
   ]);
 
-  // ==========================================================
-  // MESSAGE
-  // ==========================================================
+ // ==========================================================
+// MESSAGE
+// ==========================================================
 
-  function showMessage(
-    title: string,
-    message: string
+function closeActionPopup() {
+  setActionPopup(
+    current => ({
+      ...current,
+      visible: false,
+      onConfirm: undefined,
+    })
+  );
+}
+
+function getMessageVariant(
+  title: string
+): ActionPopupVariant {
+  const value =
+    title.toLowerCase();
+
+  if (
+    value.includes('verified') ||
+    value.includes('sent') ||
+    value.includes('success')
   ) {
-    if (
-      Platform.OS ===
-        'web' &&
-      typeof window !==
-        'undefined'
-    ) {
-      window.alert(
-        `${title}\n\n${message}`
-      );
-
-      return;
-    }
-
-    Alert.alert(
-      title,
-      message
-    );
+    return 'success';
   }
+
+  if (
+    value.includes('failed') ||
+    value.includes('unable') ||
+    value.includes('error')
+  ) {
+    return 'error';
+  }
+
+  if (
+    value.includes('missing') ||
+    value.includes('invalid') ||
+    value.includes('required')
+  ) {
+    return 'warning';
+  }
+
+  return 'info';
+}
+
+function showMessage(
+  title: string,
+  message: string,
+  onConfirm?: () => void
+) {
+  setActionPopup({
+    visible: true,
+    title,
+    message,
+    variant:
+      getMessageVariant(
+        title
+      ),
+    onConfirm,
+  });
+}
 
   // ==========================================================
   // CODE INPUT
@@ -307,14 +374,15 @@ export default function VerifyEmailScreen() {
       );
 
       showMessage(
-        'Email Verified',
-        data?.message ||
-          'Your email has been verified successfully. You can now sign in.'
-      );
-
-      router.replace(
-        '/'
-      );
+  'Email Verified',
+  data?.message ||
+    'Your email has been verified successfully. You can now sign in.',
+  () => {
+    router.replace(
+      '/'
+    );
+  }
+);
     } catch (error) {
       console.log(
         'VERIFY EMAIL ERROR:',
@@ -833,6 +901,121 @@ export default function VerifyEmailScreen() {
               </View>
             </ScrollView>
           </KeyboardAvoidingView>
+          <Modal
+  visible={
+    actionPopup.visible
+  }
+  transparent
+  animationType="fade"
+  statusBarTranslucent
+  onRequestClose={
+    closeActionPopup
+  }
+>
+  <View
+    style={
+      styles.actionPopupOverlay
+    }
+  >
+    <View
+      style={
+        styles.actionPopupCard
+      }
+    >
+      <View
+        style={[
+          styles.actionPopupIcon,
+
+          actionPopup.variant ===
+            'success' &&
+            styles.actionPopupIconSuccess,
+
+          actionPopup.variant ===
+            'warning' &&
+            styles.actionPopupIconWarning,
+
+          actionPopup.variant ===
+            'error' &&
+            styles.actionPopupIconError,
+        ]}
+      >
+        <MaterialIcons
+          name={
+            actionPopup.variant ===
+            'success'
+              ? 'check-circle-outline'
+              : actionPopup.variant ===
+                  'warning'
+                ? 'warning-amber'
+                : actionPopup.variant ===
+                    'error'
+                  ? 'error-outline'
+                  : 'info-outline'
+          }
+          size={31}
+          color={
+            actionPopup.variant ===
+            'success'
+              ? '#178B49'
+              : actionPopup.variant ===
+                  'warning'
+                ? '#DD7A20'
+                : COLORS.redButton
+          }
+        />
+      </View>
+
+      <Text
+        style={
+          styles.actionPopupTitle
+        }
+      >
+        {
+          actionPopup.title
+        }
+      </Text>
+
+      <Text
+        style={
+          styles.actionPopupMessage
+        }
+      >
+        {
+          actionPopup.message
+        }
+      </Text>
+
+      <TouchableOpacity
+        style={
+          styles.actionPopupButton
+        }
+        activeOpacity={
+          0.85
+        }
+        onPress={() => {
+          const action =
+            actionPopup.onConfirm;
+
+          closeActionPopup();
+
+          if (action) {
+            action();
+          }
+        }}
+      >
+        <Text
+          style={
+            styles.actionPopupButtonText
+          }
+        >
+          Okay
+        </Text>
+      </TouchableOpacity>
+    </View>
+  </View>
+</Modal>
+
+          
         </SafeAreaView>
       </View>
     </View>
@@ -1465,4 +1648,173 @@ const styles =
       fontSize:
         11,
     },
+
+    // --------------------------------------------------------
+// HEMO-HERO ACTION POPUP
+// --------------------------------------------------------
+
+actionPopupOverlay: {
+  flex: 1,
+
+  paddingHorizontal:
+    24,
+
+  alignItems:
+    'center',
+
+  justifyContent:
+    'center',
+
+  backgroundColor:
+    'rgba(0,0,0,0.48)',
+},
+
+actionPopupCard: {
+  width:
+    '100%',
+
+  maxWidth:
+    360,
+
+  paddingHorizontal:
+    20,
+
+  paddingTop:
+    22,
+
+  paddingBottom:
+    18,
+
+  borderRadius:
+    22,
+
+  backgroundColor:
+    COLORS.white,
+
+  shadowColor:
+    '#000000',
+
+  shadowOffset: {
+    width: 0,
+    height: 8,
+  },
+
+  shadowOpacity:
+    0.2,
+
+  shadowRadius:
+    18,
+
+  elevation:
+    10,
+},
+
+actionPopupIcon: {
+  width:
+    56,
+
+  height:
+    56,
+
+  alignSelf:
+    'center',
+
+  marginBottom:
+    13,
+
+  borderRadius:
+    28,
+
+  alignItems:
+    'center',
+
+  justifyContent:
+    'center',
+
+  backgroundColor:
+    COLORS.errorBackground,
+},
+
+actionPopupIconSuccess: {
+  backgroundColor:
+    '#EAF7EF',
+},
+
+actionPopupIconWarning: {
+  backgroundColor:
+    '#FFF3E7',
+},
+
+actionPopupIconError: {
+  backgroundColor:
+    COLORS.errorBackground,
+},
+
+actionPopupTitle: {
+  color:
+    COLORS.black,
+
+  fontFamily:
+    'Poppins_600SemiBold',
+
+  fontSize:
+    16,
+
+  lineHeight:
+    22,
+
+  textAlign:
+    'center',
+},
+
+actionPopupMessage: {
+  marginTop:
+    8,
+
+  color:
+    COLORS.muted,
+
+  fontFamily:
+    'Inter_400Regular',
+
+  fontSize:
+    11,
+
+  lineHeight:
+    17,
+
+  textAlign:
+    'center',
+},
+
+actionPopupButton: {
+  height:
+    45,
+
+  marginTop:
+    19,
+
+  borderRadius:
+    10,
+
+  alignItems:
+    'center',
+
+  justifyContent:
+    'center',
+
+  backgroundColor:
+    COLORS.redButton,
+},
+
+actionPopupButtonText: {
+  color:
+    COLORS.white,
+
+  fontFamily:
+    'Poppins_600SemiBold',
+
+  fontSize:
+    10,
+},
   });

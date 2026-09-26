@@ -43,6 +43,14 @@ export type DonorResponse = {
   updated_at: string;
 };
 
+export type DonorResponseCounts = {
+  total: number;
+  pending: number;
+  accepted: number;
+  rejected: number;
+  withdrawn: number;
+};
+
 // ============================================================
 // REQUEST HELPER
 // ============================================================
@@ -106,6 +114,25 @@ export async function getMyDonorResponse(
 ) {
   return request(
     `/api/requests/${encodeURIComponent(requestId)}/my-response`,
+    {
+      method: 'GET',
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+      },
+    }
+  );
+}
+
+// ============================================================
+// GET RESPONSES FOR MY BLOOD REQUEST
+// ============================================================
+
+export async function getResponsesForMyBloodRequest(
+  accessToken: string,
+  requestId: string
+) {
+  return request(
+    `/api/requests/${encodeURIComponent(requestId)}/responses`,
     {
       method: 'GET',
       headers: {

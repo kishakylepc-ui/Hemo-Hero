@@ -1,12 +1,6 @@
-import {
-  useCallback,
-  useEffect,
-  useMemo,
-  useState,
-} from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 
 import {
-  Alert,
   Image,
   KeyboardAvoidingView,
   Modal,
@@ -19,27 +13,12 @@ import {
   View,
 } from 'react-native';
 
-import {
-  MaterialIcons,
-} from '@expo/vector-icons';
-
+import { MaterialIcons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
-
-import {
-  LinearGradient,
-} from 'expo-linear-gradient';
-
-import {
-  router,
-} from 'expo-router';
-
-import {
-  StatusBar,
-} from 'expo-status-bar';
-
-import {
-  SafeAreaView,
-} from 'react-native-safe-area-context';
+import { LinearGradient } from 'expo-linear-gradient';
+import { router } from 'expo-router';
+import { StatusBar } from 'expo-status-bar';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 import {
   deleteProfilePhoto,
@@ -156,6 +135,40 @@ const MIN_BIRTH_YEAR =
   CURRENT_YEAR - 120;
 
 // ============================================================
+// ACTION POPUP
+// ============================================================
+
+type ActionPopupVariant =
+  | 'info'
+  | 'success'
+  | 'warning'
+  | 'danger'
+  | 'error';
+
+type ActionPopupState = {
+  visible: boolean;
+
+  title: string;
+
+  message: string;
+
+  variant:
+    ActionPopupVariant;
+
+  confirmText:
+    string;
+
+  cancelText:
+    string;
+
+  showCancel:
+    boolean;
+
+  onConfirm?:
+    () => void;
+};
+
+// ============================================================
 // EDIT PROFILE SCREEN
 // ============================================================
 
@@ -167,7 +180,10 @@ export default function EditProfileScreen() {
   const [
     originalProfile,
     setOriginalProfile,
-  ] = useState<any>(null);
+  ] =
+    useState<any>(
+      null
+    );
 
   const [
     donorApplication,
@@ -180,22 +196,62 @@ export default function EditProfileScreen() {
   const [
     loading,
     setLoading,
-  ] = useState(true);
+  ] =
+    useState(
+      true
+    );
 
   const [
     saving,
     setSaving,
-  ] = useState(false);
+  ] =
+    useState(
+      false
+    );
 
   const [
     photoBusy,
     setPhotoBusy,
-  ] = useState(false);
+  ] =
+    useState(
+      false
+    );
 
   const [
     errorMessage,
     setErrorMessage,
-  ] = useState('');
+  ] =
+    useState('');
+
+  const [
+    actionPopup,
+    setActionPopup,
+  ] =
+    useState<ActionPopupState>({
+      visible:
+        false,
+
+      title:
+        '',
+
+      message:
+        '',
+
+      variant:
+        'info',
+
+      confirmText:
+        'Okay',
+
+      cancelText:
+        'Cancel',
+
+      showCancel:
+        false,
+
+      onConfirm:
+        undefined,
+    });
 
   // ==========================================================
   // FORM
@@ -204,62 +260,74 @@ export default function EditProfileScreen() {
   const [
     firstName,
     setFirstName,
-  ] = useState('');
+  ] =
+    useState('');
 
   const [
     middleName,
     setMiddleName,
-  ] = useState('');
+  ] =
+    useState('');
 
   const [
     lastName,
     setLastName,
-  ] = useState('');
+  ] =
+    useState('');
 
   const [
     suffix,
     setSuffix,
-  ] = useState('');
+  ] =
+    useState('');
 
   const [
     phone,
     setPhone,
-  ] = useState('');
+  ] =
+    useState('');
 
   const [
     dateOfBirth,
     setDateOfBirth,
-  ] = useState('');
+  ] =
+    useState('');
 
   const [
     gender,
     setGender,
-  ] = useState('');
+  ] =
+    useState('');
 
   const [
     barangay,
     setBarangay,
-  ] = useState('');
+  ] =
+    useState('');
 
   const [
     city,
     setCity,
-  ] = useState('');
+  ] =
+    useState('');
 
   const [
     province,
     setProvince,
-  ] = useState('');
+  ] =
+    useState('');
 
   const [
     bloodType,
     setBloodType,
-  ] = useState('');
+  ] =
+    useState('');
 
   const [
     profilePhotoUrl,
     setProfilePhotoUrl,
-  ] = useState('');
+  ] =
+    useState('');
 
   // ==========================================================
   // BIRTHDAY CALENDAR
@@ -268,7 +336,10 @@ export default function EditProfileScreen() {
   const [
     showBirthdayPicker,
     setShowBirthdayPicker,
-  ] = useState(false);
+  ] =
+    useState(
+      false
+    );
 
   const [
     birthdayDraft,
@@ -284,8 +355,12 @@ export default function EditProfileScreen() {
   ] =
     useState<Date>(
       new Date(
-        DEFAULT_BIRTHDAY.getFullYear(),
-        DEFAULT_BIRTHDAY.getMonth(),
+        DEFAULT_BIRTHDAY
+          .getFullYear(),
+
+        DEFAULT_BIRTHDAY
+          .getMonth(),
+
         1
       )
     );
@@ -303,11 +378,13 @@ export default function EditProfileScreen() {
   // ==========================================================
 
   const isApprovedDonor =
-    donorApplication?.status ===
+    donorApplication
+      ?.status ===
     'approved';
 
   const verifiedDonorBloodType =
-    donorApplication?.blood_type ||
+    donorApplication
+      ?.blood_type ||
     '';
 
   // ==========================================================
@@ -315,149 +392,185 @@ export default function EditProfileScreen() {
   // ==========================================================
 
   const loadProfile =
-    useCallback(async () => {
-      try {
-        setLoading(true);
-        setErrorMessage('');
-
-        const accessToken =
-          await getAccessToken();
-
-        if (!accessToken) {
-          router.replace('/');
-          return;
-        }
-
-        const [
-          profileResult,
-          donorResult,
-        ] =
-          await Promise.all([
-            getCurrentUser(
-              accessToken
-            ),
-
-            getMyDonorApplication(
-              accessToken
-            ).catch(() => ({
-              application:
-                null,
-            })),
-          ]);
-
-        if (
-          !profileResult?.user
-        ) {
-          throw new Error(
-            'Unable to load your profile.'
+    useCallback(
+      async () => {
+        try {
+          setLoading(
+            true
           );
-        }
 
-        const user =
-          profileResult.user;
-
-        const application =
-          donorResult
-            ?.application ||
-          null;
-
-        setOriginalProfile(
-          user
-        );
-
-        setDonorApplication(
-          application
-        );
-
-        setFirstName(
-          user.first_name || ''
-        );
-
-        setMiddleName(
-          user.middle_name || ''
-        );
-
-        setLastName(
-          user.last_name || ''
-        );
-
-        setSuffix(
-          user.suffix || ''
-        );
-
-        setPhone(
-          user.phone || ''
-        );
-
-        setDateOfBirth(
-          user.date_of_birth || ''
-        );
-
-        setGender(
-          user.gender || ''
-        );
-
-        setBarangay(
-          user.barangay || ''
-        );
-
-        setCity(
-          user.city || ''
-        );
-
-        setProvince(
-          user.province || ''
-        );
-
-        setProfilePhotoUrl(
-          user.profile_photo_url ||
+          setErrorMessage(
             ''
-        );
+          );
 
-        if (
-          application?.status ===
-          'approved'
-        ) {
-          setBloodType(
+          const accessToken =
+            await getAccessToken();
+
+          if (
+            !accessToken
+          ) {
+            router.replace(
+              '/'
+            );
+
+            return;
+          }
+
+          const [
+            profileResult,
+            donorResult,
+          ] =
+            await Promise.all([
+              getCurrentUser(
+                accessToken
+              ),
+
+              getMyDonorApplication(
+                accessToken
+              ).catch(
+                () => ({
+                  application:
+                    null,
+                })
+              ),
+            ]);
+
+          if (
+            !profileResult?.user
+          ) {
+            throw new Error(
+              'Unable to load your profile.'
+            );
+          }
+
+          const user =
+            profileResult.user;
+
+          const application =
+            donorResult
+              ?.application ||
+            null;
+
+          setOriginalProfile(
+            user
+          );
+
+          setDonorApplication(
             application
-              .blood_type ||
+          );
+
+          setFirstName(
+            user.first_name ||
+            ''
+          );
+
+          setMiddleName(
+            user.middle_name ||
+            ''
+          );
+
+          setLastName(
+            user.last_name ||
+            ''
+          );
+
+          setSuffix(
+            user.suffix ||
+            ''
+          );
+
+          setPhone(
+            user.phone ||
+            ''
+          );
+
+          setDateOfBirth(
+            user.date_of_birth ||
+            ''
+          );
+
+          setGender(
+            user.gender ||
+            ''
+          );
+
+          setBarangay(
+            user.barangay ||
+            ''
+          );
+
+          setCity(
+            user.city ||
+            ''
+          );
+
+          setProvince(
+            user.province ||
+            ''
+          );
+
+          setProfilePhotoUrl(
+            user.profile_photo_url ||
+            ''
+          );
+
+          if (
+            application
+              ?.status ===
+            'approved'
+          ) {
+            setBloodType(
+              application
+                .blood_type ||
               user.blood_type ||
               ''
-          );
-        } else {
-          setBloodType(
-            user.blood_type ||
+            );
+          } else {
+            setBloodType(
+              user.blood_type ||
               application
                 ?.blood_type ||
               ''
+            );
+          }
+        } catch (
+          error
+        ) {
+          console.log(
+            'EDIT PROFILE LOAD ERROR:',
+            error
+          );
+
+          setErrorMessage(
+            error instanceof Error
+              ? error.message
+              : 'Unable to load your profile.'
+          );
+        } finally {
+          setLoading(
+            false
           );
         }
-      } catch (error) {
-        console.log(
-          'EDIT PROFILE LOAD ERROR:',
-          error
-        );
+      },
+      []
+    );
 
-        setErrorMessage(
-          error instanceof Error
-            ? error.message
-            : 'Unable to load your profile.'
-        );
-      } finally {
-        setLoading(false);
-      }
-    }, []);
-
-  useEffect(() => {
-    loadProfile();
-  }, [loadProfile]);
+  useEffect(
+    () => {
+      loadProfile();
+    },
+    [
+      loadProfile,
+    ]
+  );
 
   // ==========================================================
   // DISPLAY DATA
   // ==========================================================
 
   const email =
-    originalProfile?.email ||
+    originalProfile
+      ?.email ||
     '';
 
   // ==========================================================
@@ -465,68 +578,201 @@ export default function EditProfileScreen() {
   // ==========================================================
 
   const addressChanged =
-    useMemo(() => {
-      if (!originalProfile) {
-        return false;
-      }
+    useMemo(
+      () => {
+        if (
+          !originalProfile
+        ) {
+          return false;
+        }
 
-      const oldBarangay =
-        String(
-          originalProfile
-            .barangay || ''
-        ).trim();
+        const oldBarangay =
+          String(
+            originalProfile
+              .barangay ||
+            ''
+          ).trim();
 
-      const oldCity =
-        String(
-          originalProfile
-            .city || ''
-        ).trim();
+        const oldCity =
+          String(
+            originalProfile
+              .city ||
+            ''
+          ).trim();
 
-      const oldProvince =
-        String(
-          originalProfile
-            .province || ''
-        ).trim();
+        const oldProvince =
+          String(
+            originalProfile
+              .province ||
+            ''
+          ).trim();
 
-      return (
-        barangay.trim() !==
-          oldBarangay ||
-        city.trim() !==
-          oldCity ||
-        province.trim() !==
-          oldProvince
-      );
-    }, [
-      barangay,
-      city,
-      province,
-      originalProfile,
-    ]);
+        return (
+          barangay.trim() !==
+            oldBarangay ||
+
+          city.trim() !==
+            oldCity ||
+
+          province.trim() !==
+            oldProvince
+        );
+      },
+      [
+        barangay,
+        city,
+        province,
+        originalProfile,
+      ]
+    );
 
   // ==========================================================
-  // MESSAGE
+  // CUSTOM ACTION POPUP
   // ==========================================================
+
+  function closeActionPopup() {
+    setActionPopup(
+      current => ({
+        ...current,
+
+        visible:
+          false,
+
+        onConfirm:
+          undefined,
+      })
+    );
+  }
+
+  function getMessageVariant(
+    title: string
+  ): ActionPopupVariant {
+    const value =
+      title.toLowerCase();
+
+    if (
+      value.includes(
+        'updated'
+      ) ||
+      value.includes(
+        'removed'
+      ) ||
+      value.includes(
+        'success'
+      )
+    ) {
+      return 'success';
+    }
+
+    if (
+      value.includes(
+        'failed'
+      ) ||
+      value.includes(
+        'unable'
+      ) ||
+      value.includes(
+        'error'
+      )
+    ) {
+      return 'error';
+    }
+
+    if (
+      value.includes(
+        'required'
+      ) ||
+      value.includes(
+        'missing'
+      ) ||
+      value.includes(
+        'invalid'
+      ) ||
+      value.includes(
+        'permission'
+      )
+    ) {
+      return 'warning';
+    }
+
+    return 'info';
+  }
 
   function showMessage(
     title: string,
-    message: string
+    message: string,
+    onConfirm?: () => void
   ) {
-    if (
-      Platform.OS === 'web' &&
-      typeof window !==
-        'undefined'
-    ) {
-      window.alert(
-        `${title}\n\n${message}`
-      );
+    setActionPopup({
+      visible:
+        true,
 
-      return;
-    }
-
-    Alert.alert(
       title,
-      message
-    );
+
+      message,
+
+      variant:
+        getMessageVariant(
+          title
+        ),
+
+      confirmText:
+        'Okay',
+
+      cancelText:
+        'Cancel',
+
+      showCancel:
+        false,
+
+      onConfirm,
+    });
+  }
+
+  function showConfirmation(
+    options: {
+      title: string;
+
+      message: string;
+
+      confirmText: string;
+
+      cancelText?: string;
+
+      variant?:
+        ActionPopupVariant;
+
+      onConfirm:
+        () => void;
+    }
+  ) {
+    setActionPopup({
+      visible:
+        true,
+
+      title:
+        options.title,
+
+      message:
+        options.message,
+
+      variant:
+        options.variant ||
+        'warning',
+
+      confirmText:
+        options.confirmText,
+
+      cancelText:
+        options.cancelText ||
+        'Cancel',
+
+      showCancel:
+        true,
+
+      onConfirm:
+        options.onConfirm,
+    });
   }
 
   // ==========================================================
@@ -568,8 +814,10 @@ export default function EditProfileScreen() {
     return (
       date.getUTCFullYear() ===
         year &&
+
       date.getUTCMonth() ===
         month - 1 &&
+
       date.getUTCDate() ===
         day
     );
@@ -583,7 +831,9 @@ export default function EditProfileScreen() {
         value
       );
 
-    if (!match) {
+    if (
+      !match
+    ) {
       return DEFAULT_BIRTHDAY;
     }
 
@@ -591,9 +841,11 @@ export default function EditProfileScreen() {
       Number(
         match[1]
       ),
+
       Number(
         match[2]
       ) - 1,
+
       Number(
         match[3]
       )
@@ -608,7 +860,8 @@ export default function EditProfileScreen() {
 
     const month =
       String(
-        date.getMonth() + 1
+        date.getMonth() +
+        1
       ).padStart(
         2,
         '0'
@@ -661,8 +914,10 @@ export default function EditProfileScreen() {
     return (
       first.getFullYear() ===
         second.getFullYear() &&
+
       first.getMonth() ===
         second.getMonth() &&
+
       first.getDate() ===
         second.getDate()
     );
@@ -699,92 +954,111 @@ export default function EditProfileScreen() {
   // ==========================================================
 
   const calendarDays =
-    useMemo(() => {
-      const year =
-        calendarMonth
-          .getFullYear();
+    useMemo(
+      () => {
+        const year =
+          calendarMonth
+            .getFullYear();
 
-      const month =
-        calendarMonth
-          .getMonth();
+        const month =
+          calendarMonth
+            .getMonth();
 
-      const firstDay =
-        new Date(
-          year,
-          month,
-          1
-        ).getDay();
+        const firstDay =
+          new Date(
+            year,
+            month,
+            1
+          ).getDay();
 
-      const daysInMonth =
-        new Date(
-          year,
-          month + 1,
+        const daysInMonth =
+          new Date(
+            year,
+            month + 1,
+            0
+          ).getDate();
+
+        const cells:
+          Array<
+            number | null
+          > = [];
+
+        for (
+          let index =
+            0;
+
+          index <
+          firstDay;
+
+          index +=
+            1
+        ) {
+          cells.push(
+            null
+          );
+        }
+
+        for (
+          let day =
+            1;
+
+          day <=
+          daysInMonth;
+
+          day +=
+            1
+        ) {
+          cells.push(
+            day
+          );
+        }
+
+        while (
+          cells.length %
+            7 !==
           0
-        ).getDate();
+        ) {
+          cells.push(
+            null
+          );
+        }
 
-      const cells:
-        Array<
-          number | null
-        > = [];
-
-      for (
-        let index = 0;
-        index < firstDay;
-        index += 1
-      ) {
-        cells.push(
-          null
-        );
-      }
-
-      for (
-        let day = 1;
-        day <= daysInMonth;
-        day += 1
-      ) {
-        cells.push(
-          day
-        );
-      }
-
-      while (
-        cells.length %
-          7 !==
-        0
-      ) {
-        cells.push(
-          null
-        );
-      }
-
-      return cells;
-    }, [
-      calendarMonth,
-    ]);
+        return cells;
+      },
+      [
+        calendarMonth,
+      ]
+    );
 
   // ==========================================================
   // BIRTH YEAR OPTIONS
   // ==========================================================
 
   const birthYears =
-    useMemo(() => {
-      const years:
-        number[] = [];
+    useMemo(
+      () => {
+        const years:
+          number[] = [];
 
-      for (
-        let year =
-          CURRENT_YEAR;
-        year >=
-        MIN_BIRTH_YEAR;
-        year -= 1
-      ) {
-        years.push(
-          year
-        );
-      }
+        for (
+          let year =
+            CURRENT_YEAR;
 
-      return years;
-    }, []);
+          year >=
+          MIN_BIRTH_YEAR;
+
+          year -=
+            1
+        ) {
+          years.push(
+            year
+          );
+        }
+
+        return years;
+      },
+      []
+    );
 
   // ==========================================================
   // CALENDAR CONTROLS
@@ -850,8 +1124,10 @@ export default function EditProfileScreen() {
       current =>
         new Date(
           year,
+
           current
             .getMonth(),
+
           1
         )
     );
@@ -1003,8 +1279,13 @@ export default function EditProfileScreen() {
     }
 
     try {
-      setPhotoBusy(true);
-      setErrorMessage('');
+      setPhotoBusy(
+        true
+      );
+
+      setErrorMessage(
+        ''
+      );
 
       if (
         Platform.OS !==
@@ -1058,8 +1339,13 @@ export default function EditProfileScreen() {
       const accessToken =
         await getAccessToken();
 
-      if (!accessToken) {
-        router.replace('/');
+      if (
+        !accessToken
+      ) {
+        router.replace(
+          '/'
+        );
+
         return;
       }
 
@@ -1088,12 +1374,16 @@ export default function EditProfileScreen() {
       const newPhotoUrl =
         uploadResult
           ?.profile_photo_url ||
+
         uploadResult
           ?.user
           ?.profile_photo_url ||
+
         '';
 
-      if (!newPhotoUrl) {
+      if (
+        !newPhotoUrl
+      ) {
         throw new Error(
           'Profile photo uploaded, but no photo URL was returned.'
         );
@@ -1115,7 +1405,9 @@ export default function EditProfileScreen() {
         'Profile Photo Updated',
         'Your new profile photo has been saved.'
       );
-    } catch (error) {
+    } catch (
+      error
+    ) {
       console.log(
         'PROFILE PHOTO UPLOAD ERROR:',
         error
@@ -1135,20 +1427,32 @@ export default function EditProfileScreen() {
         message
       );
     } finally {
-      setPhotoBusy(false);
+      setPhotoBusy(
+        false
+      );
     }
   }
 
   async function performRemoveProfilePhoto() {
     try {
-      setPhotoBusy(true);
-      setErrorMessage('');
+      setPhotoBusy(
+        true
+      );
+
+      setErrorMessage(
+        ''
+      );
 
       const accessToken =
         await getAccessToken();
 
-      if (!accessToken) {
-        router.replace('/');
+      if (
+        !accessToken
+      ) {
+        router.replace(
+          '/'
+        );
+
         return;
       }
 
@@ -1173,7 +1477,9 @@ export default function EditProfileScreen() {
         'Profile Photo Removed',
         'Your profile photo has been removed.'
       );
-    } catch (error) {
+    } catch (
+      error
+    ) {
       console.log(
         'PROFILE PHOTO REMOVE ERROR:',
         error
@@ -1193,7 +1499,9 @@ export default function EditProfileScreen() {
         message
       );
     } finally {
-      setPhotoBusy(false);
+      setPhotoBusy(
+        false
+      );
     }
   }
 
@@ -1206,50 +1514,25 @@ export default function EditProfileScreen() {
       return;
     }
 
-    if (
-      Platform.OS ===
-        'web' &&
-      typeof window !==
-        'undefined'
-    ) {
-      const confirmed =
-        window.confirm(
-          'Remove your current profile photo?'
-        );
+    showConfirmation({
+      title:
+        'Remove Profile Photo',
 
-      if (
-        confirmed
-      ) {
-        performRemoveProfilePhoto();
-      }
+      message:
+        'Remove your current profile photo?',
 
-      return;
-    }
+      confirmText:
+        'Remove',
 
-    Alert.alert(
-      'Remove Profile Photo',
-      'Remove your current profile photo?',
-      [
-        {
-          text:
-            'Cancel',
+      cancelText:
+        'Cancel',
 
-          style:
-            'cancel',
-        },
+      variant:
+        'danger',
 
-        {
-          text:
-            'Remove',
-
-          style:
-            'destructive',
-
-          onPress:
-            performRemoveProfilePhoto,
-        },
-      ]
-    );
+      onConfirm:
+        performRemoveProfilePhoto,
+    });
   }
 
   // ==========================================================
@@ -1264,7 +1547,9 @@ export default function EditProfileScreen() {
       return;
     }
 
-    setErrorMessage('');
+    setErrorMessage(
+      ''
+    );
 
     const cleanFirstName =
       firstName.trim();
@@ -1303,7 +1588,9 @@ export default function EditProfileScreen() {
       return;
     }
 
-    if (!cleanDate) {
+    if (
+      !cleanDate
+    ) {
       const message =
         'Date of birth is required.';
 
@@ -1339,7 +1626,9 @@ export default function EditProfileScreen() {
       return;
     }
 
-    if (!gender) {
+    if (
+      !gender
+    ) {
       const message =
         'Please select your gender.';
 
@@ -1376,13 +1665,20 @@ export default function EditProfileScreen() {
     }
 
     try {
-      setSaving(true);
+      setSaving(
+        true
+      );
 
       const accessToken =
         await getAccessToken();
 
-      if (!accessToken) {
-        router.replace('/');
+      if (
+        !accessToken
+      ) {
+        router.replace(
+          '/'
+        );
+
         return;
       }
 
@@ -1428,7 +1724,8 @@ export default function EditProfileScreen() {
         !isApprovedDonor
       ) {
         payload.blood_type =
-          bloodType || null;
+          bloodType ||
+          null;
       }
 
       if (
@@ -1449,12 +1746,17 @@ export default function EditProfileScreen() {
 
       showMessage(
         'Profile Updated',
-        result?.message ||
-          'Your profile was updated successfully.'
-      );
 
-      router.back();
-    } catch (error) {
+        result?.message ||
+          'Your profile was updated successfully.',
+
+        () => {
+          router.back();
+        }
+      );
+    } catch (
+      error
+    ) {
       console.log(
         'EDIT PROFILE SAVE ERROR:',
         error
@@ -1474,7 +1776,9 @@ export default function EditProfileScreen() {
         message
       );
     } finally {
-      setSaving(false);
+      setSaving(
+        false
+      );
     }
   }
 
@@ -1703,7 +2007,9 @@ export default function EditProfileScreen() {
                       styles.errorText
                     }
                   >
-                    {errorMessage}
+                    {
+                      errorMessage
+                    }
                   </Text>
                 </View>
               ) : null}
@@ -1755,7 +2061,9 @@ export default function EditProfileScreen() {
                         styles.readOnlyText
                       }
                     >
-                      {email}
+                      {
+                        email
+                      }
                     </Text>
 
                     <MaterialIcons
@@ -2020,7 +2328,9 @@ export default function EditProfileScreen() {
                                   styles.genderButtonTextActive,
                               ]}
                             >
-                              {option}
+                              {
+                                option
+                              }
                             </Text>
                           </TouchableOpacity>
                         );
@@ -2253,7 +2563,9 @@ export default function EditProfileScreen() {
                                   styles.bloodTypeTextSelected,
                               ]}
                             >
-                              {type}
+                              {
+                                type
+                              }
                             </Text>
                           </TouchableOpacity>
                         );
@@ -2741,7 +3053,9 @@ export default function EditProfileScreen() {
                                 styles.calendarYearOptionTextSelected,
                             ]}
                           >
-                            {year}
+                            {
+                              year
+                            }
                           </Text>
 
                           {selectedYear ? (
@@ -2763,133 +3077,136 @@ export default function EditProfileScreen() {
 
             {!showYearPicker ? (
               <>
-            {/* ==================================================
-                WEEKDAYS
-            ================================================== */}
+                {/* ==============================================
+                    WEEKDAYS
+                ============================================== */}
 
-            <View
-              style={
-                styles.weekRow
-              }
-            >
-              {WEEK_DAYS.map(
-                (
-                  day,
-                  index
-                ) => (
-                  <View
-                    key={`${day}-${index}`}
-                    style={
-                      styles.weekCell
-                    }
-                  >
-                    <Text
-                      style={
-                        styles.weekText
-                      }
-                    >
-                      {day}
-                    </Text>
-                  </View>
-                )
-              )}
-            </View>
-
-            {/* ==================================================
-                DAYS
-            ================================================== */}
-
-            <View
-              style={
-                styles.calendarGrid
-              }
-            >
-              {calendarDays.map(
-                (
-                  day,
-                  index
-                ) => {
-                  if (!day) {
-                    return (
-                      <View
-                        key={`empty-${index}`}
-                        style={
-                          styles.calendarDayCell
-                        }
-                      />
-                    );
+                <View
+                  style={
+                    styles.weekRow
                   }
-
-                  const currentDate =
-                    new Date(
-                      calendarMonth
-                        .getFullYear(),
-
-                      calendarMonth
-                        .getMonth(),
-
-                      day
-                    );
-
-                  const selected =
-                    isSameDate(
-                      currentDate,
-                      birthdayDraft
-                    );
-
-                  const future =
-                    isFutureDate(
-                      currentDate
-                    );
-
-                  return (
-                    <View
-                      key={
-                        `${calendarMonth.getFullYear()}-${calendarMonth.getMonth()}-${day}`
-                      }
-                      style={
-                        styles.calendarDayCell
-                      }
-                    >
-                      <TouchableOpacity
-                        style={[
-                          styles.calendarDayButton,
-
-                          selected &&
-                            styles.calendarDaySelected,
-                        ]}
-                        activeOpacity={
-                          0.75
-                        }
-                        disabled={
-                          future
-                        }
-                        onPress={() =>
-                          selectCalendarDay(
-                            day
-                          )
+                >
+                  {WEEK_DAYS.map(
+                    (
+                      day,
+                      index
+                    ) => (
+                      <View
+                        key={`${day}-${index}`}
+                        style={
+                          styles.weekCell
                         }
                       >
                         <Text
-                          style={[
-                            styles.calendarDayText,
-
-                            future &&
-                              styles.calendarDayDisabled,
-
-                            selected &&
-                              styles.calendarDaySelectedText,
-                          ]}
+                          style={
+                            styles.weekText
+                          }
                         >
-                          {day}
+                          {
+                            day
+                          }
                         </Text>
-                      </TouchableOpacity>
-                    </View>
-                  );
-                }
-              )}
-            </View>
+                      </View>
+                    )
+                  )}
+                </View>
 
+                {/* ==============================================
+                    DAYS
+                ============================================== */}
+
+                <View
+                  style={
+                    styles.calendarGrid
+                  }
+                >
+                  {calendarDays.map(
+                    (
+                      day,
+                      index
+                    ) => {
+                      if (
+                        !day
+                      ) {
+                        return (
+                          <View
+                            key={`empty-${index}`}
+                            style={
+                              styles.calendarDayCell
+                            }
+                          />
+                        );
+                      }
+
+                      const currentDate =
+                        new Date(
+                          calendarMonth
+                            .getFullYear(),
+
+                          calendarMonth
+                            .getMonth(),
+
+                          day
+                        );
+
+                      const selected =
+                        isSameDate(
+                          currentDate,
+                          birthdayDraft
+                        );
+
+                      const future =
+                        isFutureDate(
+                          currentDate
+                        );
+
+                      return (
+                        <View
+                          key={`${calendarMonth.getFullYear()}-${calendarMonth.getMonth()}-${day}`}
+                          style={
+                            styles.calendarDayCell
+                          }
+                        >
+                          <TouchableOpacity
+                            style={[
+                              styles.calendarDayButton,
+
+                              selected &&
+                                styles.calendarDaySelected,
+                            ]}
+                            activeOpacity={
+                              0.75
+                            }
+                            disabled={
+                              future
+                            }
+                            onPress={() =>
+                              selectCalendarDay(
+                                day
+                              )
+                            }
+                          >
+                            <Text
+                              style={[
+                                styles.calendarDayText,
+
+                                future &&
+                                  styles.calendarDayDisabled,
+
+                                selected &&
+                                  styles.calendarDaySelectedText,
+                              ]}
+                            >
+                              {
+                                day
+                              }
+                            </Text>
+                          </TouchableOpacity>
+                        </View>
+                      );
+                    }
+                  )}
+                </View>
               </>
             ) : null}
 
@@ -2966,6 +3283,177 @@ export default function EditProfileScreen() {
           </View>
         </View>
       </Modal>
+
+      {/* ======================================================
+          HEMO-HERO ACTION POPUP
+      ====================================================== */}
+
+      <Modal
+        visible={
+          actionPopup.visible
+        }
+        transparent
+        animationType="fade"
+        statusBarTranslucent
+        onRequestClose={
+          closeActionPopup
+        }
+      >
+        <View
+          style={
+            styles.actionPopupOverlay
+          }
+        >
+          <View
+            style={
+              styles.actionPopupCard
+            }
+          >
+            <View
+              style={[
+                styles.actionPopupIcon,
+
+                actionPopup.variant ===
+                  'success' &&
+                  styles.actionPopupIconSuccess,
+
+                actionPopup.variant ===
+                  'warning' &&
+                  styles.actionPopupIconWarning,
+
+                (
+                  actionPopup.variant ===
+                    'danger' ||
+                  actionPopup.variant ===
+                    'error'
+                ) &&
+                  styles.actionPopupIconDanger,
+              ]}
+            >
+              <MaterialIcons
+                name={
+                  actionPopup.variant ===
+                  'success'
+                    ? 'check-circle-outline'
+                    : actionPopup.variant ===
+                        'warning'
+                      ? 'warning-amber'
+                      : (
+                            actionPopup.variant ===
+                              'danger' ||
+                            actionPopup.variant ===
+                              'error'
+                          )
+                        ? 'error-outline'
+                        : 'info-outline'
+                }
+                size={31}
+                color={
+                  actionPopup.variant ===
+                  'success'
+                    ? COLORS.green
+                    : actionPopup.variant ===
+                        'warning'
+                      ? COLORS.orange
+                      : COLORS.redButton
+                }
+              />
+            </View>
+
+            <Text
+              style={
+                styles.actionPopupTitle
+              }
+            >
+              {
+                actionPopup.title
+              }
+            </Text>
+
+            <Text
+              style={
+                styles.actionPopupMessage
+              }
+            >
+              {
+                actionPopup.message
+              }
+            </Text>
+
+            <View
+              style={[
+                styles.actionPopupActions,
+
+                !actionPopup.showCancel &&
+                  styles.actionPopupActionsSingle,
+              ]}
+            >
+              {actionPopup.showCancel ? (
+                <TouchableOpacity
+                  style={
+                    styles.actionPopupSecondaryButton
+                  }
+                  activeOpacity={
+                    0.82
+                  }
+                  onPress={
+                    closeActionPopup
+                  }
+                >
+                  <Text
+                    style={
+                      styles.actionPopupSecondaryText
+                    }
+                  >
+                    {
+                      actionPopup.cancelText
+                    }
+                  </Text>
+                </TouchableOpacity>
+              ) : null}
+
+              <TouchableOpacity
+                style={[
+                  styles.actionPopupPrimaryButton,
+
+                  actionPopup.variant ===
+                    'success' &&
+                    styles.actionPopupPrimarySuccess,
+
+                  actionPopup.variant ===
+                    'danger' &&
+                    styles.actionPopupPrimaryDanger,
+                ]}
+                activeOpacity={
+                  0.85
+                }
+                onPress={() => {
+                  const action =
+                    actionPopup.onConfirm;
+
+                  closeActionPopup();
+
+                  if (
+                    action
+                  ) {
+                    action();
+                  }
+                }}
+              >
+                <Text
+                  style={
+                    styles.actionPopupPrimaryText
+                  }
+                >
+                  {
+                    actionPopup.confirmText
+                  }
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -2982,9 +3470,11 @@ function SectionHeader({
   icon:
     keyof typeof MaterialIcons.glyphMap;
 
-  title: string;
+  title:
+    string;
 
-  subtitle: string;
+  subtitle:
+    string;
 }) {
   return (
     <View
@@ -2998,7 +3488,9 @@ function SectionHeader({
         }
       >
         <MaterialIcons
-          name={icon}
+          name={
+            icon
+          }
           size={17}
           color={
             COLORS.redButton
@@ -3010,7 +3502,9 @@ function SectionHeader({
             styles.sectionTitle
           }
         >
-          {title}
+          {
+            title
+          }
         </Text>
       </View>
 
@@ -3019,7 +3513,9 @@ function SectionHeader({
           styles.sectionSubtitle
         }
       >
-        {subtitle}
+        {
+          subtitle
+        }
       </Text>
     </View>
   );
@@ -3030,23 +3526,31 @@ function SectionHeader({
 // ============================================================
 
 type FieldProps = {
-  label: string;
+  label:
+    string;
 
-  value: string;
+  value:
+    string;
 
-  placeholder: string;
+  placeholder:
+    string;
 
-  editable: boolean;
+  editable:
+    boolean;
 
   onChangeText:
-    (value: string) => void;
+    (
+      value:
+        string
+    ) => void;
 
   keyboardType?:
     | 'default'
     | 'phone-pad'
     | 'numbers-and-punctuation';
 
-  last?: boolean;
+  last?:
+    boolean;
 };
 
 function Field({
@@ -3072,7 +3576,9 @@ function Field({
           styles.fieldLabel
         }
       >
-        {label}
+        {
+          label
+        }
       </Text>
 
       <TextInput
@@ -3114,11 +3620,13 @@ const styles =
     // ========================================================
 
     flex: {
-      flex: 1,
+      flex:
+        1,
     },
 
     desktopBackground: {
-      flex: 1,
+      flex:
+        1,
 
       alignItems:
         'center',
@@ -3127,21 +3635,21 @@ const styles =
         'center',
 
       backgroundColor:
-        Platform.OS === 'web'
+        Platform.OS ===
+        'web'
           ? '#242424'
           : COLORS.page,
     },
 
     phone: {
       width:
-        Platform.OS === 'web'
+        Platform.OS ===
+        'web'
           ? 440
           : '100%',
 
       height:
-        Platform.OS === 'web'
-          ? '100%'
-          : '100%',
+        '100%',
 
       maxWidth:
         '100%',
@@ -3154,7 +3662,8 @@ const styles =
     },
 
     safeArea: {
-      flex: 1,
+      flex:
+        1,
 
       backgroundColor:
         COLORS.redDark,
@@ -3165,14 +3674,16 @@ const styles =
     // ========================================================
 
     loadingSafeArea: {
-      flex: 1,
+      flex:
+        1,
 
       backgroundColor:
         COLORS.page,
     },
 
     loadingContainer: {
-      flex: 1,
+      flex:
+        1,
 
       alignItems:
         'center',
@@ -3180,17 +3691,22 @@ const styles =
       justifyContent:
         'center',
 
-      paddingHorizontal: 30,
+      paddingHorizontal:
+        30,
     },
 
     loadingIcon: {
-      width: 66,
+      width:
+        66,
 
-      height: 66,
+      height:
+        66,
 
-      marginBottom: 16,
+      marginBottom:
+        16,
 
-      borderRadius: 33,
+      borderRadius:
+        33,
 
       alignItems:
         'center',
@@ -3209,11 +3725,13 @@ const styles =
       fontFamily:
         'Poppins_600SemiBold',
 
-      fontSize: 16,
+      fontSize:
+        16,
     },
 
     loadingText: {
-      marginTop: 5,
+      marginTop:
+        5,
 
       color:
         COLORS.muted,
@@ -3221,7 +3739,8 @@ const styles =
       fontFamily:
         'Inter_400Regular',
 
-      fontSize: 10.5,
+      fontSize:
+        10.5,
 
       textAlign:
         'center',
@@ -3232,9 +3751,11 @@ const styles =
     // ========================================================
 
     header: {
-      height: 82,
+      height:
+        82,
 
-      paddingHorizontal: 14,
+      paddingHorizontal:
+        14,
 
       flexDirection:
         'row',
@@ -3250,15 +3771,20 @@ const styles =
       position:
         'absolute',
 
-      width: 170,
+      width:
+        170,
 
-      height: 170,
+      height:
+        170,
 
-      borderRadius: 85,
+      borderRadius:
+        85,
 
-      top: -115,
+      top:
+        -115,
 
-      left: -90,
+      left:
+        -90,
 
       backgroundColor:
         'rgba(255,255,255,0.07)',
@@ -3268,24 +3794,31 @@ const styles =
       position:
         'absolute',
 
-      width: 180,
+      width:
+        180,
 
-      height: 180,
+      height:
+        180,
 
-      borderRadius: 90,
+      borderRadius:
+        90,
 
-      top: -120,
+      top:
+        -120,
 
-      right: -95,
+      right:
+        -95,
 
       backgroundColor:
         'rgba(255,255,255,0.07)',
     },
 
     headerButton: {
-      width: 44,
+      width:
+        44,
 
-      height: 44,
+      height:
+        44,
 
       alignItems:
         'center',
@@ -3295,13 +3828,16 @@ const styles =
     },
 
     headerRightSpacer: {
-      width: 44,
+      width:
+        44,
 
-      height: 44,
+      height:
+        44,
     },
 
     headerCenter: {
-      flex: 1,
+      flex:
+        1,
 
       alignItems:
         'center',
@@ -3314,13 +3850,16 @@ const styles =
       fontFamily:
         'Poppins_700Bold',
 
-      fontSize: 18,
+      fontSize:
+        18,
 
-      lineHeight: 23,
+      lineHeight:
+        23,
     },
 
     headerSubtitle: {
-      marginTop: 1,
+      marginTop:
+        1,
 
       color:
         'rgba(255,255,255,0.8)',
@@ -3328,7 +3867,8 @@ const styles =
       fontFamily:
         'Inter_400Regular',
 
-      fontSize: 9.5,
+      fontSize:
+        9.5,
     },
 
     // ========================================================
@@ -3336,18 +3876,22 @@ const styles =
     // ========================================================
 
     content: {
-      flex: 1,
+      flex:
+        1,
 
       backgroundColor:
         COLORS.page,
     },
 
     contentContainer: {
-      paddingHorizontal: 18,
+      paddingHorizontal:
+        18,
 
-      paddingTop: 20,
+      paddingTop:
+        20,
 
-      paddingBottom: 36,
+      paddingBottom:
+        36,
     },
 
     // ========================================================
@@ -3355,13 +3899,17 @@ const styles =
     // ========================================================
 
     errorCard: {
-      minHeight: 58,
+      minHeight:
+        58,
 
-      marginBottom: 20,
+      marginBottom:
+        20,
 
-      paddingHorizontal: 12,
+      paddingHorizontal:
+        12,
 
-      paddingVertical: 10,
+      paddingVertical:
+        10,
 
       flexDirection:
         'row',
@@ -3369,25 +3917,31 @@ const styles =
       alignItems:
         'center',
 
-      gap: 10,
+      gap:
+        10,
 
-      borderWidth: 1,
+      borderWidth:
+        1,
 
       borderColor:
         '#ECB0B2',
 
-      borderRadius: 14,
+      borderRadius:
+        14,
 
       backgroundColor:
         COLORS.pinkSoft,
     },
 
     errorIcon: {
-      width: 36,
+      width:
+        36,
 
-      height: 36,
+      height:
+        36,
 
-      borderRadius: 18,
+      borderRadius:
+        18,
 
       alignItems:
         'center',
@@ -3400,7 +3954,8 @@ const styles =
     },
 
     errorText: {
-      flex: 1,
+      flex:
+        1,
 
       color:
         COLORS.redButton,
@@ -3408,9 +3963,11 @@ const styles =
       fontFamily:
         'Inter_500Medium',
 
-      fontSize: 10.5,
+      fontSize:
+        10.5,
 
-      lineHeight: 15,
+      lineHeight:
+        15,
     },
 
     // ========================================================
@@ -3418,9 +3975,11 @@ const styles =
     // ========================================================
 
     sectionHeader: {
-      marginLeft: 2,
+      marginLeft:
+        2,
 
-      marginBottom: 9,
+      marginBottom:
+        9,
     },
 
     sectionTitleRow: {
@@ -3430,7 +3989,8 @@ const styles =
       alignItems:
         'center',
 
-      gap: 6,
+      gap:
+        6,
     },
 
     sectionTitle: {
@@ -3440,15 +4000,19 @@ const styles =
       fontFamily:
         'Poppins_600SemiBold',
 
-      fontSize: 14,
+      fontSize:
+        14,
 
-      lineHeight: 19,
+      lineHeight:
+        19,
     },
 
     sectionSubtitle: {
-      marginTop: 3,
+      marginTop:
+        3,
 
-      marginLeft: 23,
+      marginLeft:
+        23,
 
       color:
         COLORS.muted,
@@ -3456,9 +4020,11 @@ const styles =
       fontFamily:
         'Inter_400Regular',
 
-      fontSize: 10,
+      fontSize:
+        10,
 
-      lineHeight: 14,
+      lineHeight:
+        14,
     },
 
     // ========================================================
@@ -3466,16 +4032,20 @@ const styles =
     // ========================================================
 
     card: {
-      marginBottom: 22,
+      marginBottom:
+        22,
 
-      paddingHorizontal: 14,
+      paddingHorizontal:
+        14,
 
-      borderWidth: 1,
+      borderWidth:
+        1,
 
       borderColor:
         COLORS.border,
 
-      borderRadius: 16,
+      borderRadius:
+        16,
 
       backgroundColor:
         COLORS.white,
@@ -3484,16 +4054,21 @@ const styles =
         '#000000',
 
       shadowOffset: {
-        width: 0,
+        width:
+          0,
 
-        height: 2,
+        height:
+          2,
       },
 
-      shadowOpacity: 0.04,
+      shadowOpacity:
+        0.04,
 
-      shadowRadius: 5,
+      shadowRadius:
+        5,
 
-      elevation: 1,
+      elevation:
+        1,
     },
 
     // ========================================================
@@ -3501,9 +4076,11 @@ const styles =
     // ========================================================
 
     fieldContainer: {
-      paddingTop: 14,
+      paddingTop:
+        14,
 
-      paddingBottom: 15,
+      paddingBottom:
+        15,
 
       borderBottomWidth:
         StyleSheet.hairlineWidth,
@@ -3513,15 +4090,19 @@ const styles =
     },
 
     fieldContainerLast: {
-      paddingTop: 14,
+      paddingTop:
+        14,
 
-      paddingBottom: 15,
+      paddingBottom:
+        15,
 
-      borderBottomWidth: 0,
+      borderBottomWidth:
+        0,
     },
 
     fieldLabel: {
-      marginBottom: 7,
+      marginBottom:
+        7,
 
       color:
         '#444449',
@@ -3529,20 +4110,25 @@ const styles =
       fontFamily:
         'Inter_600SemiBold',
 
-      fontSize: 10.5,
+      fontSize:
+        10.5,
     },
 
     input: {
-      height: 44,
+      height:
+        44,
 
-      paddingHorizontal: 13,
+      paddingHorizontal:
+        13,
 
-      borderWidth: 1,
+      borderWidth:
+        1,
 
       borderColor:
         '#DDDDE2',
 
-      borderRadius: 11,
+      borderRadius:
+        11,
 
       color:
         COLORS.black,
@@ -3553,7 +4139,8 @@ const styles =
       fontFamily:
         'Inter_400Regular',
 
-      fontSize: 11,
+      fontSize:
+        11,
     },
 
     // ========================================================
@@ -3561,9 +4148,11 @@ const styles =
     // ========================================================
 
     birthdayButton: {
-      minHeight: 58,
+      minHeight:
+        58,
 
-      paddingHorizontal: 11,
+      paddingHorizontal:
+        11,
 
       flexDirection:
         'row',
@@ -3571,25 +4160,31 @@ const styles =
       alignItems:
         'center',
 
-      borderWidth: 1,
+      borderWidth:
+        1,
 
       borderColor:
         '#DDDDE2',
 
-      borderRadius: 12,
+      borderRadius:
+        12,
 
       backgroundColor:
         '#FCFCFD',
     },
 
     birthdayIcon: {
-      width: 38,
+      width:
+        38,
 
-      height: 38,
+      height:
+        38,
 
-      marginRight: 10,
+      marginRight:
+        10,
 
-      borderRadius: 19,
+      borderRadius:
+        19,
 
       alignItems:
         'center',
@@ -3602,7 +4197,8 @@ const styles =
     },
 
     birthdayContent: {
-      flex: 1,
+      flex:
+        1,
     },
 
     birthdayLabel: {
@@ -3612,11 +4208,13 @@ const styles =
       fontFamily:
         'Inter_400Regular',
 
-      fontSize: 9,
+      fontSize:
+        9,
     },
 
     birthdayValue: {
-      marginTop: 2,
+      marginTop:
+        2,
 
       color:
         COLORS.black,
@@ -3624,7 +4222,8 @@ const styles =
       fontFamily:
         'Inter_600SemiBold',
 
-      fontSize: 11.5,
+      fontSize:
+        11.5,
     },
 
     birthdayPlaceholder: {
@@ -3637,9 +4236,11 @@ const styles =
     // ========================================================
 
     readOnlyInput: {
-      height: 45,
+      height:
+        45,
 
-      paddingHorizontal: 13,
+      paddingHorizontal:
+        13,
 
       flexDirection:
         'row',
@@ -3647,21 +4248,25 @@ const styles =
       alignItems:
         'center',
 
-      gap: 9,
+      gap:
+        9,
 
-      borderWidth: 1,
+      borderWidth:
+        1,
 
       borderColor:
         COLORS.border,
 
-      borderRadius: 11,
+      borderRadius:
+        11,
 
       backgroundColor:
         COLORS.graySoft,
     },
 
     readOnlyText: {
-      flex: 1,
+      flex:
+        1,
 
       color:
         COLORS.muted,
@@ -3669,7 +4274,8 @@ const styles =
       fontFamily:
         'Inter_500Medium',
 
-      fontSize: 10.5,
+      fontSize:
+        10.5,
     },
 
     // ========================================================
@@ -3677,9 +4283,11 @@ const styles =
     // ========================================================
 
     optionSection: {
-      paddingTop: 14,
+      paddingTop:
+        14,
 
-      paddingBottom: 15,
+      paddingBottom:
+        15,
     },
 
     genderContainer: {
@@ -3689,20 +4297,25 @@ const styles =
       flexWrap:
         'wrap',
 
-      gap: 8,
+      gap:
+        8,
     },
 
     genderButton: {
-      minHeight: 39,
+      minHeight:
+        39,
 
-      paddingHorizontal: 14,
+      paddingHorizontal:
+        14,
 
-      borderWidth: 1,
+      borderWidth:
+        1,
 
       borderColor:
         '#DEDEE2',
 
-      borderRadius: 20,
+      borderRadius:
+        20,
 
       alignItems:
         'center',
@@ -3729,7 +4342,8 @@ const styles =
       fontFamily:
         'Inter_500Medium',
 
-      fontSize: 10,
+      fontSize:
+        10,
     },
 
     genderButtonTextActive: {
@@ -3745,13 +4359,17 @@ const styles =
     // ========================================================
 
     locationNotice: {
-      marginTop: 2,
+      marginTop:
+        2,
 
-      marginBottom: 14,
+      marginBottom:
+        14,
 
-      paddingHorizontal: 11,
+      paddingHorizontal:
+        11,
 
-      paddingVertical: 10,
+      paddingVertical:
+        10,
 
       flexDirection:
         'row',
@@ -3759,20 +4377,25 @@ const styles =
       alignItems:
         'flex-start',
 
-      gap: 9,
+      gap:
+        9,
 
-      borderRadius: 12,
+      borderRadius:
+        12,
 
       backgroundColor:
         COLORS.orangeSoft,
     },
 
     locationNoticeIcon: {
-      width: 31,
+      width:
+        31,
 
-      height: 31,
+      height:
+        31,
 
-      borderRadius: 16,
+      borderRadius:
+        16,
 
       alignItems:
         'center',
@@ -3785,7 +4408,8 @@ const styles =
     },
 
     locationNoticeText: {
-      flex: 1,
+      flex:
+        1,
 
       color:
         '#875622',
@@ -3793,9 +4417,11 @@ const styles =
       fontFamily:
         'Inter_400Regular',
 
-      fontSize: 9.5,
+      fontSize:
+        9.5,
 
-      lineHeight: 14,
+      lineHeight:
+        14,
     },
 
     // ========================================================
@@ -3803,7 +4429,8 @@ const styles =
     // ========================================================
 
     bloodTypeGrid: {
-      paddingVertical: 15,
+      paddingVertical:
+        15,
 
       flexDirection:
         'row',
@@ -3814,20 +4441,25 @@ const styles =
       justifyContent:
         'space-between',
 
-      rowGap: 9,
+      rowGap:
+        9,
     },
 
     bloodTypeButton: {
-      width: '23%',
+      width:
+        '23%',
 
-      height: 41,
+      height:
+        41,
 
-      borderWidth: 1,
+      borderWidth:
+        1,
 
       borderColor:
         '#DDDDE1',
 
-      borderRadius: 11,
+      borderRadius:
+        11,
 
       alignItems:
         'center',
@@ -3854,7 +4486,8 @@ const styles =
       fontFamily:
         'Inter_600SemiBold',
 
-      fontSize: 11,
+      fontSize:
+        11,
     },
 
     bloodTypeTextSelected: {
@@ -3867,7 +4500,8 @@ const styles =
     // ========================================================
 
     verifiedBloodContainer: {
-      minHeight: 76,
+      minHeight:
+        76,
 
       flexDirection:
         'row',
@@ -3877,13 +4511,17 @@ const styles =
     },
 
     verifiedBloodIcon: {
-      width: 42,
+      width:
+        42,
 
-      height: 42,
+      height:
+        42,
 
-      marginRight: 11,
+      marginRight:
+        11,
 
-      borderRadius: 21,
+      borderRadius:
+        21,
 
       alignItems:
         'center',
@@ -3896,7 +4534,8 @@ const styles =
     },
 
     verifiedBloodContent: {
-      flex: 1,
+      flex:
+        1,
     },
 
     verifiedBloodLabel: {
@@ -3906,11 +4545,13 @@ const styles =
       fontFamily:
         'Inter_400Regular',
 
-      fontSize: 9.5,
+      fontSize:
+        9.5,
     },
 
     verifiedBloodValue: {
-      marginTop: 1,
+      marginTop:
+        1,
 
       color:
         COLORS.redButton,
@@ -3918,15 +4559,19 @@ const styles =
       fontFamily:
         'Poppins_700Bold',
 
-      fontSize: 16,
+      fontSize:
+        16,
 
-      lineHeight: 21,
+      lineHeight:
+        21,
     },
 
     verifiedBadge: {
-      minHeight: 27,
+      minHeight:
+        27,
 
-      paddingHorizontal: 9,
+      paddingHorizontal:
+        9,
 
       flexDirection:
         'row',
@@ -3934,9 +4579,11 @@ const styles =
       alignItems:
         'center',
 
-      gap: 4,
+      gap:
+        4,
 
-      borderRadius: 14,
+      borderRadius:
+        14,
 
       backgroundColor:
         COLORS.greenSoft,
@@ -3949,7 +4596,8 @@ const styles =
       fontFamily:
         'Inter_600SemiBold',
 
-      fontSize: 9,
+      fontSize:
+        9,
     },
 
     // ========================================================
@@ -3957,13 +4605,17 @@ const styles =
     // ========================================================
 
     photoCard: {
-      minHeight: 104,
+      minHeight:
+        104,
 
-      marginBottom: 22,
+      marginBottom:
+        22,
 
-      paddingHorizontal: 14,
+      paddingHorizontal:
+        14,
 
-      paddingVertical: 14,
+      paddingVertical:
+        14,
 
       flexDirection:
         'row',
@@ -3971,12 +4623,14 @@ const styles =
       alignItems:
         'center',
 
-      borderWidth: 1,
+      borderWidth:
+        1,
 
       borderColor:
         COLORS.border,
 
-      borderRadius: 16,
+      borderRadius:
+        16,
 
       backgroundColor:
         COLORS.white,
@@ -3985,39 +4639,52 @@ const styles =
         '#000000',
 
       shadowOffset: {
-        width: 0,
+        width:
+          0,
 
-        height: 2,
+        height:
+          2,
       },
 
-      shadowOpacity: 0.04,
+      shadowOpacity:
+        0.04,
 
-      shadowRadius: 5,
+      shadowRadius:
+        5,
 
-      elevation: 1,
+      elevation:
+        1,
     },
 
     profilePhotoPreview: {
-      width: 68,
+      width:
+        68,
 
-      height: 68,
+      height:
+        68,
 
-      marginRight: 13,
+      marginRight:
+        13,
 
-      borderRadius: 34,
+      borderRadius:
+        34,
 
       backgroundColor:
         COLORS.graySoft,
     },
 
     photoIcon: {
-      width: 68,
+      width:
+        68,
 
-      height: 68,
+      height:
+        68,
 
-      marginRight: 13,
+      marginRight:
+        13,
 
-      borderRadius: 34,
+      borderRadius:
+        34,
 
       alignItems:
         'center',
@@ -4030,9 +4697,11 @@ const styles =
     },
 
     photoContent: {
-      flex: 1,
+      flex:
+        1,
 
-      minWidth: 0,
+      minWidth:
+        0,
     },
 
     photoTitle: {
@@ -4042,11 +4711,13 @@ const styles =
       fontFamily:
         'Inter_600SemiBold',
 
-      fontSize: 12,
+      fontSize:
+        12,
     },
 
     photoDescription: {
-      marginTop: 3,
+      marginTop:
+        3,
 
       color:
         COLORS.muted,
@@ -4054,13 +4725,16 @@ const styles =
       fontFamily:
         'Inter_400Regular',
 
-      fontSize: 9.5,
+      fontSize:
+        9.5,
 
-      lineHeight: 14,
+      lineHeight:
+        14,
     },
 
     photoActions: {
-      marginTop: 9,
+      marginTop:
+        9,
 
       flexDirection:
         'row',
@@ -4068,13 +4742,16 @@ const styles =
       flexWrap:
         'wrap',
 
-      gap: 7,
+      gap:
+        7,
     },
 
     photoActionButton: {
-      minHeight: 31,
+      minHeight:
+        31,
 
-      paddingHorizontal: 10,
+      paddingHorizontal:
+        10,
 
       flexDirection:
         'row',
@@ -4085,14 +4762,17 @@ const styles =
       justifyContent:
         'center',
 
-      gap: 5,
+      gap:
+        5,
 
-      borderWidth: 1,
+      borderWidth:
+        1,
 
       borderColor:
         '#E8C4C5',
 
-      borderRadius: 9,
+      borderRadius:
+        9,
 
       backgroundColor:
         COLORS.pinkSoft,
@@ -4105,13 +4785,16 @@ const styles =
       fontFamily:
         'Inter_600SemiBold',
 
-      fontSize: 9.5,
+      fontSize:
+        9.5,
     },
 
     removePhotoButton: {
-      minHeight: 31,
+      minHeight:
+        31,
 
-      paddingHorizontal: 10,
+      paddingHorizontal:
+        10,
 
       flexDirection:
         'row',
@@ -4122,14 +4805,17 @@ const styles =
       justifyContent:
         'center',
 
-      gap: 4,
+      gap:
+        4,
 
-      borderWidth: 1,
+      borderWidth:
+        1,
 
       borderColor:
         COLORS.border,
 
-      borderRadius: 9,
+      borderRadius:
+        9,
 
       backgroundColor:
         COLORS.white,
@@ -4142,7 +4828,8 @@ const styles =
       fontFamily:
         'Inter_500Medium',
 
-      fontSize: 9.5,
+      fontSize:
+        9.5,
     },
 
     // ========================================================
@@ -4150,9 +4837,11 @@ const styles =
     // ========================================================
 
     saveButton: {
-      height: 50,
+      height:
+        50,
 
-      borderRadius: 13,
+      borderRadius:
+        13,
 
       flexDirection:
         'row',
@@ -4163,7 +4852,8 @@ const styles =
       justifyContent:
         'center',
 
-      gap: 8,
+      gap:
+        8,
 
       backgroundColor:
         COLORS.redButton,
@@ -4172,20 +4862,26 @@ const styles =
         '#000000',
 
       shadowOffset: {
-        width: 0,
+        width:
+          0,
 
-        height: 3,
+        height:
+          3,
       },
 
-      shadowOpacity: 0.1,
+      shadowOpacity:
+        0.1,
 
-      shadowRadius: 5,
+      shadowRadius:
+        5,
 
-      elevation: 3,
+      elevation:
+        3,
     },
 
     saveButtonDisabled: {
-      opacity: 0.55,
+      opacity:
+        0.55,
     },
 
     saveButtonText: {
@@ -4195,13 +4891,16 @@ const styles =
       fontFamily:
         'Poppins_600SemiBold',
 
-      fontSize: 12,
+      fontSize:
+        12,
     },
 
     cancelButton: {
-      height: 46,
+      height:
+        46,
 
-      marginTop: 6,
+      marginTop:
+        6,
 
       alignItems:
         'center',
@@ -4217,7 +4916,8 @@ const styles =
       fontFamily:
         'Inter_500Medium',
 
-      fontSize: 10.5,
+      fontSize:
+        10.5,
     },
 
     // ========================================================
@@ -4225,7 +4925,8 @@ const styles =
     // ========================================================
 
     calendarOverlay: {
-      flex: 1,
+      flex:
+        1,
 
       alignItems:
         'center',
@@ -4233,7 +4934,8 @@ const styles =
       justifyContent:
         'center',
 
-      paddingHorizontal: 16,
+      paddingHorizontal:
+        16,
     },
 
     calendarBackdrop: {
@@ -4244,17 +4946,23 @@ const styles =
     },
 
     calendarModal: {
-      width: '100%',
+      width:
+        '100%',
 
-      maxWidth: 380,
+      maxWidth:
+        380,
 
-      paddingHorizontal: 18,
+      paddingHorizontal:
+        18,
 
-      paddingTop: 18,
+      paddingTop:
+        18,
 
-      paddingBottom: 20,
+      paddingBottom:
+        20,
 
-      borderRadius: 22,
+      borderRadius:
+        22,
 
       backgroundColor:
         COLORS.white,
@@ -4263,16 +4971,21 @@ const styles =
         '#000000',
 
       shadowOffset: {
-        width: 0,
+        width:
+          0,
 
-        height: 8,
+        height:
+          8,
       },
 
-      shadowOpacity: 0.18,
+      shadowOpacity:
+        0.18,
 
-      shadowRadius: 22,
+      shadowRadius:
+        22,
 
-      elevation: 12,
+      elevation:
+        12,
     },
 
     // ========================================================
@@ -4289,7 +5002,8 @@ const styles =
       justifyContent:
         'space-between',
 
-      marginBottom: 15,
+      marginBottom:
+        15,
     },
 
     calendarTitle: {
@@ -4299,11 +5013,13 @@ const styles =
       fontFamily:
         'Poppins_700Bold',
 
-      fontSize: 16,
+      fontSize:
+        16,
     },
 
     calendarSubtitle: {
-      marginTop: 1,
+      marginTop:
+        1,
 
       color:
         COLORS.muted,
@@ -4311,15 +5027,19 @@ const styles =
       fontFamily:
         'Inter_400Regular',
 
-      fontSize: 9,
+      fontSize:
+        9,
     },
 
     calendarClose: {
-      width: 38,
+      width:
+        38,
 
-      height: 38,
+      height:
+        38,
 
-      borderRadius: 19,
+      borderRadius:
+        19,
 
       alignItems:
         'center',
@@ -4336,9 +5056,11 @@ const styles =
     // ========================================================
 
     calendarMonthRow: {
-      marginTop: 2,
+      marginTop:
+        2,
 
-      marginBottom: 8,
+      marginBottom:
+        8,
 
       flexDirection:
         'row',
@@ -4351,11 +5073,14 @@ const styles =
     },
 
     calendarArrow: {
-      width: 40,
+      width:
+        40,
 
-      height: 40,
+      height:
+        40,
 
-      borderRadius: 14,
+      borderRadius:
+        14,
 
       alignItems:
         'center',
@@ -4399,7 +5124,8 @@ const styles =
       fontFamily:
         'Poppins_600SemiBold',
 
-      fontSize: 12,
+      fontSize:
+        12,
     },
 
     calendarYearButton: {
@@ -4565,14 +5291,16 @@ const styles =
       flexDirection:
         'row',
 
-      marginBottom: 4,
+      marginBottom:
+        4,
     },
 
     weekCell: {
       width:
         `${100 / 7}%`,
 
-      height: 30,
+      height:
+        30,
 
       alignItems:
         'center',
@@ -4588,7 +5316,8 @@ const styles =
       fontFamily:
         'Inter_600SemiBold',
 
-      fontSize: 9,
+      fontSize:
+        9,
     },
 
     // ========================================================
@@ -4607,7 +5336,8 @@ const styles =
       width:
         `${100 / 7}%`,
 
-      height: 42,
+      height:
+        42,
 
       alignItems:
         'center',
@@ -4617,11 +5347,14 @@ const styles =
     },
 
     calendarDayButton: {
-      width: 34,
+      width:
+        34,
 
-      height: 34,
+      height:
+        34,
 
-      borderRadius: 17,
+      borderRadius:
+        17,
 
       alignItems:
         'center',
@@ -4642,7 +5375,8 @@ const styles =
       fontFamily:
         'Inter_600SemiBold',
 
-      fontSize: 10,
+      fontSize:
+        10,
     },
 
     calendarDayDisabled: {
@@ -4660,11 +5394,14 @@ const styles =
     // ========================================================
 
     calendarSelectedInfo: {
-      minHeight: 40,
+      minHeight:
+        40,
 
-      marginTop: 8,
+      marginTop:
+        8,
 
-      paddingHorizontal: 11,
+      paddingHorizontal:
+        11,
 
       flexDirection:
         'row',
@@ -4672,14 +5409,16 @@ const styles =
       alignItems:
         'center',
 
-      borderRadius: 11,
+      borderRadius:
+        11,
 
       backgroundColor:
         COLORS.pinkSoft,
     },
 
     calendarSelectedLabel: {
-      marginLeft: 7,
+      marginLeft:
+        7,
 
       color:
         COLORS.muted,
@@ -4687,11 +5426,13 @@ const styles =
       fontFamily:
         'Inter_400Regular',
 
-      fontSize: 9.5,
+      fontSize:
+        9.5,
     },
 
     calendarSelectedValue: {
-      marginLeft: 4,
+      marginLeft:
+        4,
 
       color:
         COLORS.redButton,
@@ -4699,7 +5440,8 @@ const styles =
       fontFamily:
         'Inter_600SemiBold',
 
-      fontSize: 9.5,
+      fontSize:
+        9.5,
     },
 
     // ========================================================
@@ -4707,11 +5449,14 @@ const styles =
     // ========================================================
 
     confirmDateButton: {
-      height: 47,
+      height:
+        47,
 
-      marginTop: 14,
+      marginTop:
+        14,
 
-      borderRadius: 11,
+      borderRadius:
+        11,
 
       alignItems:
         'center',
@@ -4730,6 +5475,246 @@ const styles =
       fontFamily:
         'Poppins_600SemiBold',
 
-      fontSize: 10.5,
+      fontSize:
+        10.5,
+    },
+
+    // ========================================================
+    // HEMO-HERO ACTION POPUP
+    // ========================================================
+
+    actionPopupOverlay: {
+      flex:
+        1,
+
+      paddingHorizontal:
+        24,
+
+      alignItems:
+        'center',
+
+      justifyContent:
+        'center',
+
+      backgroundColor:
+        'rgba(0,0,0,0.48)',
+    },
+
+    actionPopupCard: {
+      width:
+        '100%',
+
+      maxWidth:
+        360,
+
+      paddingHorizontal:
+        20,
+
+      paddingTop:
+        22,
+
+      paddingBottom:
+        18,
+
+      borderRadius:
+        22,
+
+      backgroundColor:
+        COLORS.white,
+
+      shadowColor:
+        '#000000',
+
+      shadowOffset: {
+        width:
+          0,
+
+        height:
+          8,
+      },
+
+      shadowOpacity:
+        0.2,
+
+      shadowRadius:
+        18,
+
+      elevation:
+        10,
+    },
+
+    actionPopupIcon: {
+      width:
+        56,
+
+      height:
+        56,
+
+      alignSelf:
+        'center',
+
+      marginBottom:
+        13,
+
+      borderRadius:
+        28,
+
+      alignItems:
+        'center',
+
+      justifyContent:
+        'center',
+
+      backgroundColor:
+        COLORS.pinkSoft,
+    },
+
+    actionPopupIconSuccess: {
+      backgroundColor:
+        COLORS.greenSoft,
+    },
+
+    actionPopupIconWarning: {
+      backgroundColor:
+        COLORS.orangeSoft,
+    },
+
+    actionPopupIconDanger: {
+      backgroundColor:
+        COLORS.pinkSoft,
+    },
+
+    actionPopupTitle: {
+      color:
+        COLORS.black,
+
+      fontFamily:
+        'Poppins_600SemiBold',
+
+      fontSize:
+        16,
+
+      lineHeight:
+        22,
+
+      textAlign:
+        'center',
+    },
+
+    actionPopupMessage: {
+      marginTop:
+        8,
+
+      color:
+        COLORS.muted,
+
+      fontFamily:
+        'Inter_400Regular',
+
+      fontSize:
+        11,
+
+      lineHeight:
+        17,
+
+      textAlign:
+        'center',
+    },
+
+    actionPopupActions: {
+      marginTop:
+        19,
+
+      flexDirection:
+        'row',
+
+      gap:
+        9,
+    },
+
+    actionPopupActionsSingle: {
+      justifyContent:
+        'center',
+    },
+
+    actionPopupSecondaryButton: {
+      flex:
+        1,
+
+      height:
+        45,
+
+      borderWidth:
+        1,
+
+      borderColor:
+        '#E5CCCC',
+
+      borderRadius:
+        10,
+
+      alignItems:
+        'center',
+
+      justifyContent:
+        'center',
+
+      backgroundColor:
+        COLORS.white,
+    },
+
+    actionPopupSecondaryText: {
+      color:
+        COLORS.redButton,
+
+      fontFamily:
+        'Poppins_600SemiBold',
+
+      fontSize:
+        10,
+    },
+
+    actionPopupPrimaryButton: {
+      flex:
+        1,
+
+      minWidth:
+        128,
+
+      height:
+        45,
+
+      borderRadius:
+        10,
+
+      alignItems:
+        'center',
+
+      justifyContent:
+        'center',
+
+      backgroundColor:
+        COLORS.redButton,
+    },
+
+    actionPopupPrimarySuccess: {
+      backgroundColor:
+        COLORS.green,
+    },
+
+    actionPopupPrimaryDanger: {
+      backgroundColor:
+        COLORS.redButton,
+    },
+
+    actionPopupPrimaryText: {
+      color:
+        COLORS.white,
+
+      fontFamily:
+        'Poppins_600SemiBold',
+
+      fontSize:
+        10,
     },
   });
