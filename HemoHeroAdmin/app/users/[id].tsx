@@ -1,4 +1,6 @@
 import {
+  type ComponentProps,
+  type ReactNode,
   useCallback,
   useMemo,
   useState,
@@ -6,7 +8,6 @@ import {
 
 import {
   ActivityIndicator,
-  Image,
   Modal,
   Platform,
   Pressable,
@@ -18,13 +19,8 @@ import {
   View,
 } from 'react-native';
 
-import {
-  MaterialIcons,
-} from '@expo/vector-icons';
-
-import {
-  LinearGradient,
-} from 'expo-linear-gradient';
+import { MaterialIcons } from '@expo/vector-icons';
+import { LinearGradient } from 'expo-linear-gradient';
 
 import {
   router,
@@ -32,13 +28,10 @@ import {
   useLocalSearchParams,
 } from 'expo-router';
 
-import {
-  StatusBar,
-} from 'expo-status-bar';
+import { StatusBar } from 'expo-status-bar';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
-import {
-  SafeAreaView,
-} from 'react-native-safe-area-context';
+import AdminHeader from '../AdminHeader';
 
 import {
   activateAdminUser,
@@ -56,61 +49,34 @@ import {
 } from '../../lib/session';
 
 // ============================================================
-// IPAD PRO LANDSCAPE
+// DESIGN
 // ============================================================
 
-const DESIGN_WIDTH =
-  1366;
-
-const DESIGN_HEIGHT =
-  1024;
-
-// ============================================================
-// COLORS
-// ============================================================
+const DESIGN_WIDTH = 1366;
+const DESIGN_HEIGHT = 1024;
 
 const COLORS = {
-  outer:
-    '#02040A',
+  outer: '#02040A',
+  navy: '#050B19',
 
-  navy:
-    '#050B19',
+  card: '#091126',
+  cardLight: '#101A35',
 
-  card:
-    '#091126',
+  border: '#243554',
 
-  cardLight:
-    '#101A35',
+  red: '#DB0A0A',
+  redBright: '#EF3340',
 
-  border:
-    '#243554',
+  white: '#FFFFFF',
 
-  red:
-    '#DB0A0A',
+  muted: '#7F889F',
+  soft: '#B7C1D8',
 
-  redBright:
-    '#EF3340',
+  green: '#35C982',
+  orange: '#F3A34A',
+  blue: '#6EA8FE',
 
-  white:
-    '#FFFFFF',
-
-  muted:
-    '#7F889F',
-
-  soft:
-    '#B7C1D8',
-
-  green:
-    '#35C982',
-
-  orange:
-    '#F3A34A',
-
-  blue:
-    '#6EA8FE',
-
-  overlay:
-    'rgba(0,0,0,0.76)',
+  overlay: 'rgba(0,0,0,0.76)',
 };
 
 // ============================================================
@@ -118,97 +84,85 @@ const COLORS = {
 // ============================================================
 
 export default function AdminUserDetailsScreen() {
-  const {
-    id,
-  } =
+  const { id } =
     useLocalSearchParams<{
       id?: string;
     }>();
 
-  const {
-    width,
-    height,
-  } =
+  const { width, height } =
     useWindowDimensions();
 
   // ==========================================================
-  // RESPONSIVE TABLET FRAME
+  // RESPONSIVE IPAD FRAME
   // ==========================================================
 
-  const tablet =
-    useMemo(
-      () => {
-        if (
-          Platform.OS !==
-          'web'
-        ) {
-          return {
-            width,
-            height,
-
-            scale:
-              Math.min(
-                width /
-                  DESIGN_WIDTH,
-
-                height /
-                  DESIGN_HEIGHT
-              ),
-          };
-        }
-
-        const padding =
-          24;
-
-        const availableWidth =
-          Math.max(
-            width -
-              padding * 2,
-
-            320
-          );
-
-        const availableHeight =
-          Math.max(
-            height -
-              padding * 2,
-
-            320
-          );
-
-        const scale =
-          Math.min(
-            availableWidth /
-              DESIGN_WIDTH,
-
-            availableHeight /
-              DESIGN_HEIGHT,
-
-            1
-          );
-
-        return {
-          width:
-            DESIGN_WIDTH *
-            scale,
-
-          height:
-            DESIGN_HEIGHT *
-            scale,
-
-          scale,
-        };
-      },
-      [
+  const tablet = useMemo(() => {
+    if (Platform.OS !== 'web') {
+      return {
         width,
         height,
-      ]
-    );
+        scale: Math.min(
+          width / DESIGN_WIDTH,
+          height / DESIGN_HEIGHT
+        ),
+      };
+    }
+
+    const padding = 24;
+
+    const availableWidth =
+      Math.max(
+        width - padding * 2,
+        320
+      );
+
+    const availableHeight =
+      Math.max(
+        height - padding * 2,
+        320
+      );
+
+    const scale =
+      Math.min(
+        availableWidth /
+          DESIGN_WIDTH,
+
+        availableHeight /
+          DESIGN_HEIGHT,
+
+        1
+      );
+
+    return {
+      width:
+        DESIGN_WIDTH *
+        scale,
+
+      height:
+        DESIGN_HEIGHT *
+        scale,
+
+      scale,
+    };
+  }, [
+    width,
+    height,
+  ]);
+
+  // ==========================================================
+  // SCALE
+  // ==========================================================
 
   const s =
     Math.max(
       tablet.scale,
       0.68
+    );
+
+  const fs =
+    Math.max(
+      tablet.scale,
+      0.92
     );
 
   // ==========================================================
@@ -235,33 +189,25 @@ export default function AdminUserDetailsScreen() {
     loading,
     setLoading,
   ] =
-    useState(
-      true
-    );
+    useState(true);
 
   const [
     refreshing,
     setRefreshing,
   ] =
-    useState(
-      false
-    );
+    useState(false);
 
   const [
     errorMessage,
     setErrorMessage,
   ] =
-    useState(
-      ''
-    );
+    useState('');
 
   const [
     successMessage,
     setSuccessMessage,
   ] =
-    useState(
-      ''
-    );
+    useState('');
 
   // ==========================================================
   // ACTIVATE / DEACTIVATE
@@ -271,17 +217,13 @@ export default function AdminUserDetailsScreen() {
     actionModalVisible,
     setActionModalVisible,
   ] =
-    useState(
-      false
-    );
+    useState(false);
 
   const [
     processingAction,
     setProcessingAction,
   ] =
-    useState(
-      false
-    );
+    useState(false);
 
   // ==========================================================
   // DELETE
@@ -291,154 +233,105 @@ export default function AdminUserDetailsScreen() {
     deleteModalVisible,
     setDeleteModalVisible,
   ] =
-    useState(
-      false
-    );
+    useState(false);
 
   const [
     deleteConfirmation,
     setDeleteConfirmation,
   ] =
-    useState(
-      ''
-    );
+    useState('');
 
   const [
     processingDelete,
     setProcessingDelete,
   ] =
-    useState(
-      false
-    );
+    useState(false);
 
   // ==========================================================
   // LOAD USER
   // ==========================================================
 
-  useFocusEffect(
+  const loadUser =
     useCallback(
-      () => {
-        loadUser();
+      async (
+        refreshOnly = false
+      ) => {
+        try {
+          if (refreshOnly) {
+            setRefreshing(true);
+          } else {
+            setLoading(true);
+          }
+
+          setErrorMessage('');
+
+          const token =
+            await getAdminAccessToken();
+
+          const savedProfile =
+            await getAdminProfile();
+
+          if (
+            !token ||
+            savedProfile?.role !==
+              'admin'
+          ) {
+            await clearAdminSession();
+
+            router.replace('/');
+
+            return;
+          }
+
+          if (
+            !id ||
+            typeof id !==
+              'string'
+          ) {
+            setErrorMessage(
+              'Invalid user ID.'
+            );
+
+            return;
+          }
+
+          setProfile(
+            savedProfile
+          );
+
+          const result =
+            await getAdminUserById(
+              token,
+              id
+            );
+
+          setUser(
+            result.user
+          );
+        } catch (error) {
+          console.log(
+            'ADMIN USER DETAILS ERROR:',
+            error
+          );
+
+          setErrorMessage(
+            error instanceof Error
+              ? error.message
+              : 'Unable to load user details.'
+          );
+        } finally {
+          setLoading(false);
+          setRefreshing(false);
+        }
       },
-      [
-        id,
-      ]
-    )
+      [id]
+    );
+
+  useFocusEffect(
+    useCallback(() => {
+      loadUser();
+    }, [loadUser])
   );
-
-  async function loadUser(
-    refreshOnly = false
-  ) {
-    try {
-      if (
-        refreshOnly
-      ) {
-        setRefreshing(
-          true
-        );
-      } else {
-        setLoading(
-          true
-        );
-      }
-
-      setErrorMessage(
-        ''
-      );
-
-      const token =
-        await getAdminAccessToken();
-
-      const savedProfile =
-        await getAdminProfile();
-
-      if (
-        !token ||
-        savedProfile?.role !==
-          'admin'
-      ) {
-        await clearAdminSession();
-
-        router.replace(
-          '/'
-        );
-
-        return;
-      }
-
-      if (
-        !id ||
-        typeof id !==
-          'string'
-      ) {
-        setErrorMessage(
-          'Invalid user ID.'
-        );
-
-        return;
-      }
-
-      setProfile(
-        savedProfile
-      );
-
-      const result =
-        await getAdminUserById(
-          token,
-          id
-        );
-
-      setUser(
-        result.user
-      );
-    } catch (
-      error
-    ) {
-      console.log(
-        'ADMIN USER DETAILS ERROR:',
-        error
-      );
-
-      setErrorMessage(
-        error instanceof
-          Error
-          ? error.message
-          : 'Unable to load user details.'
-      );
-    } finally {
-      setLoading(
-        false
-      );
-
-      setRefreshing(
-        false
-      );
-    }
-  }
-
-  // ==========================================================
-  // ADMIN DISPLAY
-  // ==========================================================
-
-  const adminName =
-    [
-      profile?.first_name,
-      profile?.last_name,
-    ]
-      .filter(
-        Boolean
-      )
-      .join(' ')
-      .trim() ||
-    profile?.email ||
-    'Administrator';
-
-  const adminInitial =
-    adminName
-      .charAt(
-        0
-      )
-      .toUpperCase();
 
   // ==========================================================
   // USER DISPLAY
@@ -446,26 +339,20 @@ export default function AdminUserDetailsScreen() {
 
   const userName =
     user
-      ? getUserDisplayName(
-          user
-        )
+      ? getUserDisplayName(user)
       : 'User';
 
   const userInitials =
     user
-      ? getInitials(
-          user
-        )
+      ? getInitials(user)
       : 'U';
 
   // ==========================================================
-  // EDIT USER
+  // EDIT
   // ==========================================================
 
   function openEditUser() {
-    if (
-      !user
-    ) {
+    if (!user) {
       return;
     }
 
@@ -487,13 +374,8 @@ export default function AdminUserDetailsScreen() {
       return;
     }
 
-    setErrorMessage(
-      ''
-    );
-
-    setSuccessMessage(
-      ''
-    );
+    setErrorMessage('');
+    setSuccessMessage('');
 
     setActionModalVisible(
       true
@@ -501,9 +383,7 @@ export default function AdminUserDetailsScreen() {
   }
 
   function closeActionModal() {
-    if (
-      processingAction
-    ) {
+    if (processingAction) {
       return;
     }
 
@@ -525,25 +405,16 @@ export default function AdminUserDetailsScreen() {
         true
       );
 
-      setErrorMessage(
-        ''
-      );
-
-      setSuccessMessage(
-        ''
-      );
+      setErrorMessage('');
+      setSuccessMessage('');
 
       const token =
         await getAdminAccessToken();
 
-      if (
-        !token
-      ) {
+      if (!token) {
         await clearAdminSession();
 
-        router.replace(
-          '/'
-        );
+        router.replace('/');
 
         return;
       }
@@ -568,27 +439,24 @@ export default function AdminUserDetailsScreen() {
 
       setSuccessMessage(
         result.message ||
-        (
-          wasActive
-            ? 'User account deactivated successfully.'
-            : 'User account activated successfully.'
-        )
+          (
+            wasActive
+              ? 'User account deactivated successfully.'
+              : 'User account activated successfully.'
+          )
       );
 
       setActionModalVisible(
         false
       );
-    } catch (
-      error
-    ) {
+    } catch (error) {
       console.log(
         'ADMIN USER DETAILS ACTION ERROR:',
         error
       );
 
       setErrorMessage(
-        error instanceof
-          Error
+        error instanceof Error
           ? error.message
           : 'Unable to update user account.'
       );
@@ -604,7 +472,7 @@ export default function AdminUserDetailsScreen() {
   }
 
   // ==========================================================
-  // DELETE USER
+  // DELETE
   // ==========================================================
 
   function openDeleteModal() {
@@ -616,17 +484,9 @@ export default function AdminUserDetailsScreen() {
       return;
     }
 
-    setDeleteConfirmation(
-      ''
-    );
-
-    setErrorMessage(
-      ''
-    );
-
-    setSuccessMessage(
-      ''
-    );
+    setDeleteConfirmation('');
+    setErrorMessage('');
+    setSuccessMessage('');
 
     setDeleteModalVisible(
       true
@@ -634,9 +494,7 @@ export default function AdminUserDetailsScreen() {
   }
 
   function closeDeleteModal() {
-    if (
-      processingDelete
-    ) {
+    if (processingDelete) {
       return;
     }
 
@@ -644,9 +502,7 @@ export default function AdminUserDetailsScreen() {
       false
     );
 
-    setDeleteConfirmation(
-      ''
-    );
+    setDeleteConfirmation('');
   }
 
   async function confirmDeleteUser() {
@@ -671,21 +527,15 @@ export default function AdminUserDetailsScreen() {
         true
       );
 
-      setErrorMessage(
-        ''
-      );
+      setErrorMessage('');
 
       const token =
         await getAdminAccessToken();
 
-      if (
-        !token
-      ) {
+      if (!token) {
         await clearAdminSession();
 
-        router.replace(
-          '/'
-        );
+        router.replace('/');
 
         return;
       }
@@ -699,24 +549,19 @@ export default function AdminUserDetailsScreen() {
         false
       );
 
-      setDeleteConfirmation(
-        ''
-      );
+      setDeleteConfirmation('');
 
       router.replace(
         '/users'
       );
-    } catch (
-      error
-    ) {
+    } catch (error) {
       console.log(
         'ADMIN DELETE USER ERROR:',
         error
       );
 
       setErrorMessage(
-        error instanceof
-          Error
+        error instanceof Error
           ? error.message
           : 'Unable to permanently delete user account.'
       );
@@ -725,9 +570,7 @@ export default function AdminUserDetailsScreen() {
         false
       );
 
-      setDeleteConfirmation(
-        ''
-      );
+      setDeleteConfirmation('');
     } finally {
       setProcessingDelete(
         false
@@ -785,218 +628,20 @@ export default function AdminUserDetailsScreen() {
                 HEADER
             ================================================== */}
 
-            <View
-              style={[
-                styles.header,
-
-                {
-                  height:
-                    96 * s,
-
-                  paddingHorizontal:
-                    48 * s,
-                },
-              ]}
-            >
-              <Pressable
-                style={({ pressed }) => [
-                  styles.brandArea,
-
-                  pressed &&
-                    styles.pressed,
-                ]}
-                onPress={() =>
-                  router.replace(
-                    '/dashboard'
-                  )
-                }
-              >
-                <View
-                  style={[
-                    styles.logoCircle,
-
-                    {
-                      width:
-                        52 * s,
-
-                      height:
-                        52 * s,
-
-                      borderRadius:
-                        26 * s,
-                    },
-                  ]}
-                >
-                  <Image
-                    source={require('../../assets/images/hemo-hero-logo.png')}
-                    style={{
-                      width:
-                        46 * s,
-
-                      height:
-                        46 * s,
-                    }}
-                    resizeMode="contain"
-                  />
-                </View>
-
-                <View>
-                  <Text
-                    style={[
-                      styles.brand,
-
-                      {
-                        fontSize:
-                          27 * s,
-                      },
-                    ]}
-                  >
-                    <Text
-                      style={
-                        styles.brandRed
-                      }
-                    >
-                      Hemo-
-                    </Text>
-
-                    Hero
-                  </Text>
-
-                  <Text
-                    style={[
-                      styles.portal,
-
-                      {
-                        fontSize:
-                          9 * s,
-
-                        letterSpacing:
-                          1.6 * s,
-                      },
-                    ]}
-                  >
-                    ADMIN PORTAL
-                  </Text>
-                </View>
-              </Pressable>
-
-              <View
-                style={
-                  styles.adminSection
-                }
-              >
-                <View
-                  style={
-                    styles.notificationWrap
-                  }
-                >
-                  <MaterialIcons
-                    name="notifications-none"
-                    size={
-                      24 * s
-                    }
-                    color={
-                      COLORS.white
-                    }
-                  />
-
-                  <View
-                    style={[
-                      styles.notificationBadge,
-
-                      {
-                        minWidth:
-                          18 * s,
-
-                        height:
-                          18 * s,
-
-                        borderRadius:
-                          9 * s,
-                      },
-                    ]}
-                  >
-                    <Text
-                      style={[
-                        styles.notificationBadgeText,
-
-                        {
-                          fontSize:
-                            9 * s,
-                        },
-                      ]}
-                    >
-                      3
-                    </Text>
-                  </View>
-                </View>
-
-                <View
-                  style={[
-                    styles.avatar,
-
-                    {
-                      width:
-                        48 * s,
-
-                      height:
-                        48 * s,
-
-                      borderRadius:
-                        24 * s,
-                    },
-                  ]}
-                >
-                  <Text
-                    style={[
-                      styles.avatarText,
-
-                      {
-                        fontSize:
-                          15 * s,
-                      },
-                    ]}
-                  >
-                    {
-                      adminInitial
-                    }
-                  </Text>
-                </View>
-
-                <View>
-                  <Text
-                    numberOfLines={
-                      1
-                    }
-                    style={[
-                      styles.adminName,
-
-                      {
-                        fontSize:
-                          12 * s,
-                      },
-                    ]}
-                  >
-                    {
-                      adminName
-                    }
-                  </Text>
-
-                  <Text
-                    style={[
-                      styles.adminRole,
-
-                      {
-                        fontSize:
-                          10 * s,
-                      },
-                    ]}
-                  >
-                    Admin
-                  </Text>
-                </View>
-              </View>
-            </View>
+            <AdminHeader
+              profile={
+                profile
+              }
+              scale={
+                s
+              }
+              fontScale={
+                fs
+              }
+              notificationCount={
+                0
+              }
+            />
 
             {/* ==================================================
                 CONTENT
@@ -1024,9 +669,9 @@ export default function AdminUserDetailsScreen() {
                 false
               }
             >
-              {/* ================================================
-                  BACK + TITLE
-              ================================================ */}
+              {/* =================================================
+                  TITLE
+              ================================================= */}
 
               <View
                 style={[
@@ -1047,7 +692,9 @@ export default function AdminUserDetailsScreen() {
                     onPress={() =>
                       router.back()
                     }
-                    style={({ pressed }) => [
+                    style={({
+                      pressed,
+                    }) => [
                       styles.backButton,
 
                       {
@@ -1086,10 +733,10 @@ export default function AdminUserDetailsScreen() {
 
                         {
                           fontSize:
-                            30 * s,
+                            30 * fs,
 
                           lineHeight:
-                            38 * s,
+                            38 * fs,
                         },
                       ]}
                     >
@@ -1102,7 +749,7 @@ export default function AdminUserDetailsScreen() {
 
                         {
                           fontSize:
-                            12 * s,
+                            14 * fs,
 
                           marginTop:
                             3 * s,
@@ -1119,11 +766,11 @@ export default function AdminUserDetailsScreen() {
                     refreshing
                   }
                   onPress={() =>
-                    loadUser(
-                      true
-                    )
+                    loadUser(true)
                   }
-                  style={({ pressed }) => [
+                  style={({
+                    pressed,
+                  }) => [
                     styles.refreshButton,
 
                     {
@@ -1172,7 +819,7 @@ export default function AdminUserDetailsScreen() {
 
                           {
                             fontSize:
-                              11 * s,
+                              13 * fs,
                           },
                         ]}
                       >
@@ -1183,9 +830,9 @@ export default function AdminUserDetailsScreen() {
                 </Pressable>
               </View>
 
-              {/* ================================================
+              {/* =================================================
                   LOADING
-              ================================================ */}
+              ================================================= */}
 
               {loading ? (
                 <View
@@ -1211,7 +858,7 @@ export default function AdminUserDetailsScreen() {
 
                       {
                         fontSize:
-                          12 * s,
+                          13 * fs,
 
                         marginTop:
                           14 * s,
@@ -1249,7 +896,7 @@ export default function AdminUserDetailsScreen() {
 
                       {
                         fontSize:
-                          18 * s,
+                          18 * fs,
 
                         marginTop:
                           14 * s,
@@ -1265,7 +912,7 @@ export default function AdminUserDetailsScreen() {
 
                       {
                         fontSize:
-                          11 * s,
+                          12.5 * fs,
 
                         marginTop:
                           6 * s,
@@ -1279,105 +926,47 @@ export default function AdminUserDetailsScreen() {
                 </View>
               ) : user ? (
                 <>
-                  {/* ============================================
+                  {/* =============================================
                       SUCCESS
-                  ============================================ */}
+                  ============================================= */}
 
                   {successMessage ? (
-                    <View
-                      style={[
-                        styles.successCard,
-
-                        {
-                          padding:
-                            14 * s,
-
-                          borderRadius:
-                            12 * s,
-
-                          marginBottom:
-                            18 * s,
-                        },
-                      ]}
-                    >
-                      <MaterialIcons
-                        name="check-circle"
-                        size={
-                          21 * s
-                        }
-                        color={
-                          COLORS.green
-                        }
-                      />
-
-                      <Text
-                        style={[
-                          styles.successCardText,
-
-                          {
-                            fontSize:
-                              11 * s,
-                          },
-                        ]}
-                      >
-                        {
-                          successMessage
-                        }
-                      </Text>
-                    </View>
+                    <MessageCard
+                      type="success"
+                      message={
+                        successMessage
+                      }
+                      scale={
+                        s
+                      }
+                      fontScale={
+                        fs
+                      }
+                    />
                   ) : null}
 
-                  {/* ============================================
+                  {/* =============================================
                       ERROR
-                  ============================================ */}
+                  ============================================= */}
 
                   {errorMessage ? (
-                    <View
-                      style={[
-                        styles.errorCard,
-
-                        {
-                          padding:
-                            14 * s,
-
-                          borderRadius:
-                            12 * s,
-
-                          marginBottom:
-                            18 * s,
-                        },
-                      ]}
-                    >
-                      <MaterialIcons
-                        name="error-outline"
-                        size={
-                          21 * s
-                        }
-                        color={
-                          COLORS.redBright
-                        }
-                      />
-
-                      <Text
-                        style={[
-                          styles.errorText,
-
-                          {
-                            fontSize:
-                              11 * s,
-                          },
-                        ]}
-                      >
-                        {
-                          errorMessage
-                        }
-                      </Text>
-                    </View>
+                    <MessageCard
+                      type="error"
+                      message={
+                        errorMessage
+                      }
+                      scale={
+                        s
+                      }
+                      fontScale={
+                        fs
+                      }
+                    />
                   ) : null}
 
-                  {/* ============================================
-                      PROFILE HEADER
-                  ============================================ */}
+                  {/* =============================================
+                      PROFILE
+                  ============================================= */}
 
                   <View
                     style={[
@@ -1428,7 +1017,7 @@ export default function AdminUserDetailsScreen() {
 
                             {
                               fontSize:
-                                20 * s,
+                                20 * fs,
                             },
                           ]}
                         >
@@ -1449,7 +1038,7 @@ export default function AdminUserDetailsScreen() {
 
                             {
                               fontSize:
-                                20 * s,
+                                22 * fs,
                             },
                           ]}
                         >
@@ -1464,7 +1053,7 @@ export default function AdminUserDetailsScreen() {
 
                             {
                               fontSize:
-                                11 * s,
+                                13 * fs,
 
                               marginTop:
                                 4 * s,
@@ -1519,7 +1108,7 @@ export default function AdminUserDetailsScreen() {
 
                                 {
                                   fontSize:
-                                    9 * s,
+                                    11 * fs,
                                 },
                               ]}
                             >
@@ -1530,9 +1119,9 @@ export default function AdminUserDetailsScreen() {
                       </View>
                     </View>
 
-                    {/* ==========================================
-                        USER ACTIONS
-                    ========================================== */}
+                    {/* =========================================
+                        ACTIONS
+                    ========================================= */}
 
                     <View
                       style={[
@@ -1544,15 +1133,13 @@ export default function AdminUserDetailsScreen() {
                         },
                       ]}
                     >
-                      {/* ========================================
-                          EDIT
-                      ======================================== */}
-
                       <Pressable
                         onPress={
                           openEditUser
                         }
-                        style={({ pressed }) => [
+                        style={({
+                          pressed,
+                        }) => [
                           styles.editButton,
 
                           {
@@ -1589,7 +1176,7 @@ export default function AdminUserDetailsScreen() {
 
                             {
                               fontSize:
-                                9 * s,
+                                12 * fs,
                             },
                           ]}
                         >
@@ -1597,15 +1184,13 @@ export default function AdminUserDetailsScreen() {
                         </Text>
                       </Pressable>
 
-                      {/* ========================================
-                          ACTIVATE / DEACTIVATE
-                      ======================================== */}
-
                       <Pressable
                         onPress={
                           openActionModal
                         }
-                        style={({ pressed }) => [
+                        style={({
+                          pressed,
+                        }) => [
                           styles.accountActionButton,
 
                           {
@@ -1652,7 +1237,7 @@ export default function AdminUserDetailsScreen() {
 
                             {
                               fontSize:
-                                9 * s,
+                                12 * fs,
                             },
 
                             user.is_active
@@ -1666,15 +1251,13 @@ export default function AdminUserDetailsScreen() {
                         </Text>
                       </Pressable>
 
-                      {/* ========================================
-                          DELETE
-                      ======================================== */}
-
                       <Pressable
                         onPress={
                           openDeleteModal
                         }
-                        style={({ pressed }) => [
+                        style={({
+                          pressed,
+                        }) => [
                           styles.deleteButton,
 
                           {
@@ -1711,7 +1294,7 @@ export default function AdminUserDetailsScreen() {
 
                             {
                               fontSize:
-                                9 * s,
+                                12 * fs,
                             },
                           ]}
                         >
@@ -1721,9 +1304,9 @@ export default function AdminUserDetailsScreen() {
                     </View>
                   </View>
 
-                  {/* ============================================
-                      TWO COLUMNS
-                  ============================================ */}
+                  {/* =============================================
+                      DETAILS
+                  ============================================= */}
 
                   <View
                     style={[
@@ -1735,9 +1318,7 @@ export default function AdminUserDetailsScreen() {
                       },
                     ]}
                   >
-                    {/* ==========================================
-                        LEFT
-                    ========================================== */}
+                    {/* LEFT */}
 
                     <View
                       style={
@@ -1871,9 +1452,7 @@ export default function AdminUserDetailsScreen() {
                       </SectionCard>
                     </View>
 
-                    {/* ==========================================
-                        RIGHT
-                    ========================================== */}
+                    {/* RIGHT */}
 
                     <View
                       style={
@@ -2019,8 +1598,8 @@ export default function AdminUserDetailsScreen() {
                             value={
                               user.id
                             }
-                            last
                             mono
+                            last
                           />
                         )}
                       </SectionCard>
@@ -2032,9 +1611,9 @@ export default function AdminUserDetailsScreen() {
           </SafeAreaView>
         </LinearGradient>
 
-        {/* ====================================================
+        {/* ======================================================
             ACTIVATE / DEACTIVATE MODAL
-        ==================================================== */}
+        ====================================================== */}
 
         <Modal
           visible={
@@ -2054,7 +1633,7 @@ export default function AdminUserDetailsScreen() {
           >
             <Pressable
               style={
-                StyleSheet.absoluteFill
+                StyleSheet.absoluteFillObject
               }
               disabled={
                 processingAction
@@ -2071,6 +1650,9 @@ export default function AdminUserDetailsScreen() {
                 {
                   width:
                     455 * s,
+
+                  maxWidth:
+                    '90%',
 
                   padding:
                     30 * s,
@@ -2123,7 +1705,7 @@ export default function AdminUserDetailsScreen() {
 
                   {
                     fontSize:
-                      21 * s,
+                      21 * fs,
 
                     marginTop:
                       18 * s,
@@ -2141,10 +1723,10 @@ export default function AdminUserDetailsScreen() {
 
                   {
                     fontSize:
-                      12 * s,
+                      14 * fs,
 
                     lineHeight:
-                      20 * s,
+                      22 * fs,
 
                     marginTop:
                       9 * s,
@@ -2178,7 +1760,7 @@ export default function AdminUserDetailsScreen() {
 
                     {
                       fontSize:
-                        12 * s,
+                        13 * fs,
                     },
                   ]}
                 >
@@ -2193,7 +1775,7 @@ export default function AdminUserDetailsScreen() {
 
                     {
                       fontSize:
-                        10 * s,
+                        12 * fs,
 
                       marginTop:
                         3 * s,
@@ -2225,7 +1807,9 @@ export default function AdminUserDetailsScreen() {
                   onPress={
                     closeActionModal
                   }
-                  style={({ pressed }) => [
+                  style={({
+                    pressed,
+                  }) => [
                     styles.cancelButton,
 
                     {
@@ -2246,7 +1830,7 @@ export default function AdminUserDetailsScreen() {
 
                       {
                         fontSize:
-                          11 * s,
+                          13 * fs,
                       },
                     ]}
                   >
@@ -2261,7 +1845,9 @@ export default function AdminUserDetailsScreen() {
                   onPress={
                     confirmAccountAction
                   }
-                  style={({ pressed }) => [
+                  style={({
+                    pressed,
+                  }) => [
                     styles.confirmButton,
 
                     !user?.is_active &&
@@ -2296,7 +1882,7 @@ export default function AdminUserDetailsScreen() {
 
                         {
                           fontSize:
-                            11 * s,
+                            13 * fs,
                         },
                       ]}
                     >
@@ -2311,9 +1897,9 @@ export default function AdminUserDetailsScreen() {
           </View>
         </Modal>
 
-        {/* ====================================================
-            PERMANENT DELETE MODAL
-        ==================================================== */}
+        {/* ======================================================
+            DELETE MODAL
+        ====================================================== */}
 
         <Modal
           visible={
@@ -2333,7 +1919,7 @@ export default function AdminUserDetailsScreen() {
           >
             <Pressable
               style={
-                StyleSheet.absoluteFill
+                StyleSheet.absoluteFillObject
               }
               disabled={
                 processingDelete
@@ -2350,6 +1936,9 @@ export default function AdminUserDetailsScreen() {
                 {
                   width:
                     500 * s,
+
+                  maxWidth:
+                    '90%',
 
                   padding:
                     30 * s,
@@ -2392,7 +1981,7 @@ export default function AdminUserDetailsScreen() {
 
                   {
                     fontSize:
-                      21 * s,
+                      21 * fs,
 
                     marginTop:
                       18 * s,
@@ -2408,10 +1997,10 @@ export default function AdminUserDetailsScreen() {
 
                   {
                     fontSize:
-                      11 * s,
+                      13 * fs,
 
                     lineHeight:
-                      19 * s,
+                      21 * fs,
 
                     marginTop:
                       9 * s,
@@ -2443,7 +2032,7 @@ export default function AdminUserDetailsScreen() {
 
                     {
                       fontSize:
-                        12 * s,
+                        13 * fs,
                     },
                   ]}
                 >
@@ -2458,7 +2047,7 @@ export default function AdminUserDetailsScreen() {
 
                     {
                       fontSize:
-                        10 * s,
+                        12 * fs,
 
                       marginTop:
                         3 * s,
@@ -2502,7 +2091,7 @@ export default function AdminUserDetailsScreen() {
 
                     {
                       fontSize:
-                        9 * s,
+                        11.5 * fs,
                     },
                   ]}
                 >
@@ -2542,7 +2131,7 @@ export default function AdminUserDetailsScreen() {
                       14 * s,
 
                     fontSize:
-                      11 * s,
+                      13 * fs,
 
                     marginTop:
                       13 * s,
@@ -2570,7 +2159,9 @@ export default function AdminUserDetailsScreen() {
                   onPress={
                     closeDeleteModal
                   }
-                  style={({ pressed }) => [
+                  style={({
+                    pressed,
+                  }) => [
                     styles.cancelButton,
 
                     {
@@ -2591,7 +2182,7 @@ export default function AdminUserDetailsScreen() {
 
                       {
                         fontSize:
-                          11 * s,
+                          13 * fs,
                       },
                     ]}
                   >
@@ -2610,7 +2201,9 @@ export default function AdminUserDetailsScreen() {
                   onPress={
                     confirmDeleteUser
                   }
-                  style={({ pressed }) => [
+                  style={({
+                    pressed,
+                  }) => [
                     styles.permanentDeleteButton,
 
                     {
@@ -2659,7 +2252,7 @@ export default function AdminUserDetailsScreen() {
 
                           {
                             fontSize:
-                              10 * s,
+                              12 * fs,
                           },
                         ]}
                       >
@@ -2678,6 +2271,88 @@ export default function AdminUserDetailsScreen() {
 }
 
 // ============================================================
+// MESSAGE CARD
+// ============================================================
+
+function MessageCard({
+  type,
+  message,
+  scale,
+  fontScale,
+}: {
+  type:
+    'success' |
+    'error';
+
+  message:
+    string;
+
+  scale:
+    number;
+
+  fontScale:
+    number;
+}) {
+  const success =
+    type ===
+    'success';
+
+  return (
+    <View
+      style={[
+        success
+          ? styles.successCard
+          : styles.errorCard,
+
+        {
+          padding:
+            14 * scale,
+
+          borderRadius:
+            12 * scale,
+
+          marginBottom:
+            18 * scale,
+        },
+      ]}
+    >
+      <MaterialIcons
+        name={
+          success
+            ? 'check-circle'
+            : 'error-outline'
+        }
+        size={
+          21 * scale
+        }
+        color={
+          success
+            ? COLORS.green
+            : COLORS.redBright
+        }
+      />
+
+      <Text
+        style={[
+          success
+            ? styles.successCardText
+            : styles.errorText,
+
+          {
+            fontSize:
+              12.5 * fontScale,
+          },
+        ]}
+      >
+        {
+          message
+        }
+      </Text>
+    </View>
+  );
+}
+
+// ============================================================
 // SECTION CARD
 // ============================================================
 
@@ -2687,18 +2362,26 @@ function SectionCard({
   icon,
   children,
 }: {
-  scale: number;
+  scale:
+    number;
 
-  title: string;
+  title:
+    string;
 
   icon:
-    React.ComponentProps<
+    ComponentProps<
       typeof MaterialIcons
     >['name'];
 
   children:
-    React.ReactNode;
+    ReactNode;
 }) {
+  const fs =
+    Math.max(
+      scale,
+      0.92
+    );
+
   return (
     <View
       style={[
@@ -2761,7 +2444,7 @@ function SectionCard({
 
             {
               fontSize:
-                12 * scale,
+                16 * fs,
             },
           ]}
         >
@@ -2796,18 +2479,28 @@ function InfoRow({
   last = false,
   mono = false,
 }: {
-  scale: number;
+  scale:
+    number;
 
-  label: string;
+  label:
+    string;
 
   value?:
-    | string
-    | null;
+    string |
+    null;
 
-  last?: boolean;
+  last?:
+    boolean;
 
-  mono?: boolean;
+  mono?:
+    boolean;
 }) {
+  const fs =
+    Math.max(
+      scale,
+      0.92
+    );
+
   return (
     <View
       style={[
@@ -2831,7 +2524,7 @@ function InfoRow({
 
           {
             fontSize:
-              9 * scale,
+              11.5 * fs,
           },
         ]}
       >
@@ -2852,8 +2545,8 @@ function InfoRow({
           {
             fontSize:
               mono
-                ? 9 * scale
-                : 10 * scale,
+                ? 11.5 * fs
+                : 13 * fs,
           },
 
           mono &&
@@ -2877,10 +2570,18 @@ function StatusBadge({
   scale,
   active,
 }: {
-  scale: number;
+  scale:
+    number;
 
-  active: boolean;
+  active:
+    boolean;
 }) {
+  const fs =
+    Math.max(
+      scale,
+      0.92
+    );
+
   return (
     <View
       style={[
@@ -2929,7 +2630,7 @@ function StatusBadge({
 
           {
             fontSize:
-              9 * scale,
+              11.5 * fs,
           },
 
           active
@@ -2950,7 +2651,8 @@ function StatusBadge({
 // ============================================================
 
 function getUserDisplayName(
-  user: AdminManagedUser
+  user:
+    AdminManagedUser
 ) {
   if (
     user.full_name
@@ -2966,9 +2668,7 @@ function getUserDisplayName(
       user.last_name,
       user.suffix,
     ]
-      .filter(
-        Boolean
-      )
+      .filter(Boolean)
       .join(' ')
       .replace(
         /\s+/g,
@@ -2984,22 +2684,19 @@ function getUserDisplayName(
 }
 
 function getInitials(
-  user: AdminManagedUser
+  user:
+    AdminManagedUser
 ) {
   const first =
     user.first_name
       ?.trim()
-      .charAt(
-        0
-      ) ||
+      .charAt(0) ||
     '';
 
   const last =
     user.last_name
       ?.trim()
-      .charAt(
-        0
-      ) ||
+      .charAt(0) ||
     '';
 
   const initials =
@@ -3009,20 +2706,17 @@ function getInitials(
   return (
     initials ||
     user.email
-      ?.charAt(
-        0
-      )
+      ?.charAt(0)
       .toUpperCase() ||
     'U'
   );
 }
 
 function getDonorStatus(
-  user: AdminManagedUser
+  user:
+    AdminManagedUser
 ) {
-  if (
-    !user.donor
-  ) {
+  if (!user.donor) {
     return 'Not Registered';
   }
 
@@ -3030,7 +2724,8 @@ function getDonorStatus(
     String(
       user.donor.status ||
       ''
-    ).toLowerCase();
+    )
+      .toLowerCase();
 
   if (
     status ===
@@ -3065,12 +2760,10 @@ function getDonorStatus(
 
 function formatValue(
   value?:
-    | string
-    | null
+    string |
+    null
 ) {
-  if (
-    !value
-  ) {
+  if (!value) {
     return '—';
   }
 
@@ -3088,19 +2781,15 @@ function formatValue(
 
 function formatDate(
   value?:
-    | string
-    | null
+    string |
+    null
 ) {
-  if (
-    !value
-  ) {
+  if (!value) {
     return '—';
   }
 
   const date =
-    new Date(
-      value
-    );
+    new Date(value);
 
   if (
     Number.isNaN(
@@ -3110,19 +2799,20 @@ function formatDate(
     return '—';
   }
 
-  return date.toLocaleDateString(
-    'en-PH',
-    {
-      month:
-        'short',
+  return date
+    .toLocaleDateString(
+      'en-PH',
+      {
+        month:
+          'short',
 
-      day:
-        'numeric',
+        day:
+          'numeric',
 
-      year:
-        'numeric',
-    }
-  );
+        year:
+          'numeric',
+      }
+    );
 }
 
 // ============================================================
@@ -3132,8 +2822,7 @@ function formatDate(
 const styles =
   StyleSheet.create({
     outer: {
-      flex:
-        1,
+      flex: 1,
 
       alignItems:
         'center',
@@ -3154,7 +2843,7 @@ const styles =
 
       borderRadius:
         Platform.OS ===
-          'web'
+        'web'
           ? 24
           : 0,
     },
@@ -3186,180 +2875,6 @@ const styles =
       flexGrow:
         1,
     },
-
-    // ========================================================
-    // HEADER
-    // ========================================================
-
-    header: {
-      flexDirection:
-        'row',
-
-      alignItems:
-        'center',
-
-      justifyContent:
-        'space-between',
-
-      borderBottomWidth:
-        1,
-
-      borderBottomColor:
-        COLORS.border,
-    },
-
-    brandArea: {
-      flexDirection:
-        'row',
-
-      alignItems:
-        'center',
-
-      gap:
-        14,
-    },
-
-    logoCircle: {
-      alignItems:
-        'center',
-
-      justifyContent:
-        'center',
-
-      backgroundColor:
-        COLORS.white,
-
-      overflow:
-        'hidden',
-    },
-
-    brand: {
-      color:
-        COLORS.white,
-
-      fontFamily:
-        'Poppins_700Bold',
-    },
-
-    brandRed: {
-      color:
-        COLORS.redBright,
-    },
-
-    portal: {
-      color:
-        COLORS.redBright,
-
-      fontFamily:
-        'Inter_600SemiBold',
-
-      marginTop:
-        1,
-    },
-
-    adminSection: {
-      flexDirection:
-        'row',
-
-      alignItems:
-        'center',
-
-      gap:
-        12,
-    },
-
-    notificationWrap: {
-      marginRight:
-        4,
-
-      position:
-        'relative',
-
-      width:
-        28,
-
-      alignItems:
-        'center',
-
-      justifyContent:
-        'center',
-    },
-
-    notificationBadge: {
-      position:
-        'absolute',
-
-      top:
-        -4,
-
-      right:
-        -6,
-
-      paddingHorizontal:
-        4,
-
-      backgroundColor:
-        COLORS.redBright,
-
-      alignItems:
-        'center',
-
-      justifyContent:
-        'center',
-    },
-
-    notificationBadgeText: {
-      color:
-        COLORS.white,
-
-      fontFamily:
-        'Inter_700Bold',
-    },
-
-    avatar: {
-      alignItems:
-        'center',
-
-      justifyContent:
-        'center',
-
-      backgroundColor:
-        '#ECECEC',
-    },
-
-    avatarText: {
-      color:
-        '#111111',
-
-      fontFamily:
-        'Poppins_600SemiBold',
-    },
-
-    adminName: {
-      maxWidth:
-        180,
-
-      color:
-        COLORS.white,
-
-      fontFamily:
-        'Inter_600SemiBold',
-    },
-
-    adminRole: {
-      marginTop:
-        2,
-
-      color:
-        COLORS.muted,
-
-      fontFamily:
-        'Inter_400Regular',
-    },
-
-    // ========================================================
-    // TITLE
-    // ========================================================
 
     titleRow: {
       flexDirection:
@@ -3440,10 +2955,6 @@ const styles =
       fontFamily:
         'Inter_600SemiBold',
     },
-
-    // ========================================================
-    // PROFILE
-    // ========================================================
 
     profileCard: {
       flexDirection:
@@ -3575,10 +3086,6 @@ const styles =
         'wrap',
     },
 
-    // ========================================================
-    // EDIT
-    // ========================================================
-
     editButton: {
       flexDirection:
         'row',
@@ -3606,10 +3113,6 @@ const styles =
       fontFamily:
         'Inter_600SemiBold',
     },
-
-    // ========================================================
-    // ACCOUNT ACTION
-    // ========================================================
 
     accountActionButton: {
       flexDirection:
@@ -3656,10 +3159,6 @@ const styles =
         COLORS.green,
     },
 
-    // ========================================================
-    // DELETE BUTTON
-    // ========================================================
-
     deleteButton: {
       flexDirection:
         'row',
@@ -3687,10 +3186,6 @@ const styles =
       fontFamily:
         'Inter_600SemiBold',
     },
-
-    // ========================================================
-    // STATUS
-    // ========================================================
 
     statusBadge: {
       flexDirection:
@@ -3749,10 +3244,6 @@ const styles =
         COLORS.redBright,
     },
 
-    // ========================================================
-    // COLUMNS
-    // ========================================================
-
     columns: {
       flexDirection:
         'row',
@@ -3762,10 +3253,6 @@ const styles =
       flex:
         1,
     },
-
-    // ========================================================
-    // SECTION CARD
-    // ========================================================
 
     sectionCard: {
       overflow:
@@ -3816,10 +3303,6 @@ const styles =
       fontFamily:
         'Poppins_600SemiBold',
     },
-
-    // ========================================================
-    // INFO
-    // ========================================================
 
     infoRow: {
       flexDirection:
@@ -3872,10 +3355,6 @@ const styles =
       fontFamily:
         'Inter_400Regular',
     },
-
-    // ========================================================
-    // MESSAGES
-    // ========================================================
 
     successCard: {
       flexDirection:
@@ -3939,10 +3418,6 @@ const styles =
         'Inter_500Medium',
     },
 
-    // ========================================================
-    // LOADING
-    // ========================================================
-
     loadingArea: {
       alignItems:
         'center',
@@ -3989,10 +3464,6 @@ const styles =
         'center',
     },
 
-    // ========================================================
-    // MODAL
-    // ========================================================
-
     modalOverlay: {
       flex:
         1,
@@ -4024,11 +3495,8 @@ const styles =
         '#000000',
 
       shadowOffset: {
-        width:
-          0,
-
-        height:
-          12,
+        width: 0,
+        height: 12,
       },
 
       shadowOpacity:
@@ -4189,10 +3657,6 @@ const styles =
         'Inter_600SemiBold',
     },
 
-    // ========================================================
-    // DELETE MODAL
-    // ========================================================
-
     deleteModalCard: {
       alignItems:
         'center',
@@ -4210,11 +3674,8 @@ const styles =
         '#000000',
 
       shadowOffset: {
-        width:
-          0,
-
-        height:
-          12,
+        width: 0,
+        height: 12,
       },
 
       shadowOpacity:
@@ -4386,10 +3847,6 @@ const styles =
       fontFamily:
         'Inter_600SemiBold',
     },
-
-    // ========================================================
-    // GENERIC
-    // ========================================================
 
     pressed: {
       opacity:

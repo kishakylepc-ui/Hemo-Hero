@@ -40,6 +40,7 @@ import {
 } from 'react-native-safe-area-context';
 
 import AdminBottomNav from '../AdminBottomNav';
+import AdminHeader from '../AdminHeader';
 
 import {
   getAdminDonorApplications,
@@ -211,6 +212,12 @@ export default function ApplicationsScreen() {
       tablet.scale,
       0.68
     );
+
+  const fs =
+  Math.max(
+    tablet.scale,
+    0.92
+  );
 
   // ==========================================================
   // STATE
@@ -402,19 +409,6 @@ export default function ApplicationsScreen() {
   // ADMIN NAME
   // ==========================================================
 
-  const adminName =
-    [
-      profile?.first_name,
-      profile?.last_name,
-    ]
-      .filter(
-        Boolean
-      )
-      .join(' ')
-      .trim() ||
-    profile?.email ||
-    'Administrator';
-
   // ==========================================================
   // OPEN APPLICATION
   // ==========================================================
@@ -474,220 +468,15 @@ export default function ApplicationsScreen() {
             }
           >
             {/* ============================================== */}
-            {/* HEADER */}
-            {/* ============================================== */}
+{/* HEADER */}
+{/* ============================================== */}
 
-            <View
-              style={[
-                styles.header,
-
-                {
-                  height:
-                    96 * s,
-
-                  paddingHorizontal:
-                    48 * s,
-                },
-              ]}
-            >
-              <Pressable
-                style={
-                  styles.brandArea
-                }
-                onPress={() =>
-                  router.replace(
-                    '/dashboard'
-                  )
-                }
-              >
-                <View
-                  style={[
-                    styles.logoCircle,
-
-                    {
-                      width:
-                        52 * s,
-
-                      height:
-                        52 * s,
-
-                      borderRadius:
-                        26 * s,
-                    },
-                  ]}
-                >
-                  <Image
-                    source={require('../../assets/images/hemo-hero-logo.png')}
-                    style={{
-                      width:
-                        46 * s,
-
-                      height:
-                        46 * s,
-                    }}
-                    resizeMode="contain"
-                  />
-                </View>
-
-                <View>
-                  <Text
-                    style={[
-                      styles.brand,
-
-                      {
-                        fontSize:
-                          27 * s,
-                      },
-                    ]}
-                  >
-                    <Text
-                      style={
-                        styles.brandRed
-                      }
-                    >
-                      Hemo-
-                    </Text>
-
-                    Hero
-                  </Text>
-
-                  <Text
-                    style={[
-                      styles.portal,
-
-                      {
-                        fontSize:
-                          9 * s,
-
-                        letterSpacing:
-                          1.6 *
-                          s,
-                      },
-                    ]}
-                  >
-                    ADMIN PORTAL
-                  </Text>
-                </View>
-              </Pressable>
-
-              {/* ADMIN */}
-
-              <View
-                style={
-                  styles.adminSection
-                }
-              >
-                <View
-                  style={
-                    styles.notificationWrap
-                  }
-                >
-                  <MaterialIcons
-                    name="notifications-none"
-                    size={
-                      24 * s
-                    }
-                    color={
-                      COLORS.white
-                    }
-                  />
-
-                  <View
-                    style={[
-                      styles.notificationBadge,
-
-                      {
-                        minWidth:
-                          18 * s,
-
-                        height:
-                          18 * s,
-
-                        borderRadius:
-                          9 * s,
-                      },
-                    ]}
-                  >
-                    <Text
-                      style={[
-                        styles.notificationBadgeText,
-
-                        {
-                          fontSize:
-                            9 * s,
-                        },
-                      ]}
-                    >
-                      3
-                    </Text>
-                  </View>
-                </View>
-
-                <View
-                  style={[
-                    styles.avatar,
-
-                    {
-                      width:
-                        48 * s,
-
-                      height:
-                        48 * s,
-
-                      borderRadius:
-                        24 * s,
-                    },
-                  ]}
-                >
-                  <Text
-                    style={[
-                      styles.avatarText,
-
-                      {
-                        fontSize:
-                          15 * s,
-                      },
-                    ]}
-                  >
-                    {adminName
-                      .charAt(
-                        0
-                      )
-                      .toUpperCase()}
-                  </Text>
-                </View>
-
-                <View>
-                  <Text
-                    style={[
-                      styles.adminName,
-
-                      {
-                        fontSize:
-                          12 * s,
-                      },
-                    ]}
-                  >
-                    {
-                      adminName
-                    }
-                  </Text>
-
-                  <Text
-                    style={[
-                      styles.adminRole,
-
-                      {
-                        fontSize:
-                          10 * s,
-                      },
-                    ]}
-                  >
-                    Admin
-                  </Text>
-                </View>
-              </View>
-            </View>
+<AdminHeader
+  profile={profile}
+  scale={s}
+  fontScale={fs}
+  notificationCount={0}
+/>
 
             {/* ============================================== */}
             {/* CONTENT */}

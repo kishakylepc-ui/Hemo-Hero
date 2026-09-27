@@ -1,4 +1,6 @@
 import {
+  type ComponentProps,
+  type ReactNode,
   useCallback,
   useMemo,
   useState,
@@ -6,7 +8,6 @@ import {
 
 import {
   ActivityIndicator,
-  Image,
   KeyboardAvoidingView,
   Platform,
   Pressable,
@@ -39,6 +40,8 @@ import {
 import {
   SafeAreaView,
 } from 'react-native-safe-area-context';
+
+import AdminHeader from '../../AdminHeader';
 
 import {
   getAdminUserById,
@@ -213,6 +216,12 @@ export default function AdminEditUserScreen() {
       0.68
     );
 
+  const fs =
+    Math.max(
+      tablet.scale,
+      0.92
+    );
+
   // ==========================================================
   // ADMIN
   // ==========================================================
@@ -366,7 +375,7 @@ export default function AdminEditUserScreen() {
     );
 
   // ==========================================================
-  // LOAD
+  // LOAD USER
   // ==========================================================
 
   useFocusEffect(
@@ -517,30 +526,6 @@ export default function AdminEditUserScreen() {
       );
     }
   }
-
-  // ==========================================================
-  // ADMIN DISPLAY
-  // ==========================================================
-
-  const adminName =
-    [
-      profile?.first_name,
-      profile?.last_name,
-    ]
-      .filter(
-        Boolean
-      )
-      .join(' ')
-      .trim() ||
-    profile?.email ||
-    'Administrator';
-
-  const adminInitial =
-    adminName
-      .charAt(
-        0
-      )
-      .toUpperCase();
 
   // ==========================================================
   // USER DISPLAY
@@ -812,9 +797,14 @@ export default function AdminEditUserScreen() {
         />
 
         <Text
-          style={
-            styles.loadingScreenText
-          }
+          style={[
+            styles.loadingScreenText,
+
+            {
+              fontSize:
+                13 * fs,
+            },
+          ]}
         >
           Loading user information...
         </Text>
@@ -872,218 +862,20 @@ export default function AdminEditUserScreen() {
                 HEADER
             ================================================== */}
 
-            <View
-              style={[
-                styles.header,
-
-                {
-                  height:
-                    96 * s,
-
-                  paddingHorizontal:
-                    48 * s,
-                },
-              ]}
-            >
-              <Pressable
-                style={({ pressed }) => [
-                  styles.brandArea,
-
-                  pressed &&
-                    styles.pressed,
-                ]}
-                onPress={() =>
-                  router.replace(
-                    '/dashboard'
-                  )
-                }
-              >
-                <View
-                  style={[
-                    styles.logoCircle,
-
-                    {
-                      width:
-                        52 * s,
-
-                      height:
-                        52 * s,
-
-                      borderRadius:
-                        26 * s,
-                    },
-                  ]}
-                >
-                  <Image
-                    source={require('../../../assets/images/hemo-hero-logo.png')}
-                    style={{
-                      width:
-                        46 * s,
-
-                      height:
-                        46 * s,
-                    }}
-                    resizeMode="contain"
-                  />
-                </View>
-
-                <View>
-                  <Text
-                    style={[
-                      styles.brand,
-
-                      {
-                        fontSize:
-                          27 * s,
-                      },
-                    ]}
-                  >
-                    <Text
-                      style={
-                        styles.brandRed
-                      }
-                    >
-                      Hemo-
-                    </Text>
-
-                    Hero
-                  </Text>
-
-                  <Text
-                    style={[
-                      styles.portal,
-
-                      {
-                        fontSize:
-                          9 * s,
-
-                        letterSpacing:
-                          1.6 * s,
-                      },
-                    ]}
-                  >
-                    ADMIN PORTAL
-                  </Text>
-                </View>
-              </Pressable>
-
-              <View
-                style={
-                  styles.adminSection
-                }
-              >
-                <View
-                  style={
-                    styles.notificationWrap
-                  }
-                >
-                  <MaterialIcons
-                    name="notifications-none"
-                    size={
-                      24 * s
-                    }
-                    color={
-                      COLORS.white
-                    }
-                  />
-
-                  <View
-                    style={[
-                      styles.notificationBadge,
-
-                      {
-                        minWidth:
-                          18 * s,
-
-                        height:
-                          18 * s,
-
-                        borderRadius:
-                          9 * s,
-                      },
-                    ]}
-                  >
-                    <Text
-                      style={[
-                        styles.notificationBadgeText,
-
-                        {
-                          fontSize:
-                            9 * s,
-                        },
-                      ]}
-                    >
-                      3
-                    </Text>
-                  </View>
-                </View>
-
-                <View
-                  style={[
-                    styles.adminAvatar,
-
-                    {
-                      width:
-                        48 * s,
-
-                      height:
-                        48 * s,
-
-                      borderRadius:
-                        24 * s,
-                    },
-                  ]}
-                >
-                  <Text
-                    style={[
-                      styles.adminAvatarText,
-
-                      {
-                        fontSize:
-                          15 * s,
-                      },
-                    ]}
-                  >
-                    {
-                      adminInitial
-                    }
-                  </Text>
-                </View>
-
-                <View>
-                  <Text
-                    numberOfLines={
-                      1
-                    }
-                    style={[
-                      styles.adminName,
-
-                      {
-                        fontSize:
-                          12 * s,
-                      },
-                    ]}
-                  >
-                    {
-                      adminName
-                    }
-                  </Text>
-
-                  <Text
-                    style={[
-                      styles.adminRole,
-
-                      {
-                        fontSize:
-                          10 * s,
-                      },
-                    ]}
-                  >
-                    Admin
-                  </Text>
-                </View>
-              </View>
-            </View>
+            <AdminHeader
+              profile={
+                profile
+              }
+              scale={
+                s
+              }
+              fontScale={
+                fs
+              }
+              notificationCount={
+                0
+              }
+            />
 
             {/* ==================================================
                 CONTENT
@@ -1185,10 +977,10 @@ export default function AdminEditUserScreen() {
 
                           {
                             fontSize:
-                              30 * s,
+                              30 * fs,
 
                             lineHeight:
-                              38 * s,
+                              38 * fs,
                           },
                         ]}
                       >
@@ -1201,7 +993,7 @@ export default function AdminEditUserScreen() {
 
                           {
                             fontSize:
-                              12 * s,
+                              14 * fs,
 
                             marginTop:
                               3 * s,
@@ -1245,7 +1037,7 @@ export default function AdminEditUserScreen() {
 
                         {
                           fontSize:
-                            10 * s,
+                            12.5 * fs,
                         },
                       ]}
                     >
@@ -1291,7 +1083,7 @@ export default function AdminEditUserScreen() {
 
                         {
                           fontSize:
-                            11 * s,
+                            12.5 * fs,
                         },
                       ]}
                     >
@@ -1330,7 +1122,7 @@ export default function AdminEditUserScreen() {
 
                           {
                             fontSize:
-                              9 * s,
+                              11.5 * fs,
                           },
                         ]}
                       >
@@ -1387,7 +1179,7 @@ export default function AdminEditUserScreen() {
 
                         {
                           fontSize:
-                            11 * s,
+                            12.5 * fs,
                         },
                       ]}
                     >
@@ -1428,7 +1220,7 @@ export default function AdminEditUserScreen() {
 
                         {
                           fontSize:
-                            16 * s,
+                            18 * fs,
 
                           marginTop:
                             12 * s,
@@ -1444,7 +1236,7 @@ export default function AdminEditUserScreen() {
 
                         {
                           fontSize:
-                            10 * s,
+                            12.5 * fs,
 
                           marginTop:
                             5 * s,
@@ -1537,7 +1329,7 @@ export default function AdminEditUserScreen() {
 
                                 {
                                   fontSize:
-                                    9 * s,
+                                    11.5 * fs,
                                 },
                               ]}
                             >
@@ -1763,7 +1555,7 @@ export default function AdminEditUserScreen() {
 
                               {
                                 fontSize:
-                                  8 * s,
+                                  11 * fs,
 
                                 marginTop:
                                   5 * s,
@@ -1860,7 +1652,7 @@ export default function AdminEditUserScreen() {
 
                                         {
                                           fontSize:
-                                            9 * s,
+                                            11.5 * fs,
                                         },
 
                                         active &&
@@ -2052,7 +1844,7 @@ export default function AdminEditUserScreen() {
 
                             {
                               fontSize:
-                                10 * s,
+                                12.5 * fs,
                             },
                           ]}
                         >
@@ -2119,7 +1911,7 @@ export default function AdminEditUserScreen() {
 
                                 {
                                   fontSize:
-                                    10 * s,
+                                    12.5 * fs,
                                 },
                               ]}
                             >
@@ -2151,20 +1943,29 @@ function FormSection({
   icon,
   children,
 }: {
-  scale: number;
+  scale:
+    number;
 
-  title: string;
+  title:
+    string;
 
-  description: string;
+  description:
+    string;
 
   icon:
-    React.ComponentProps<
+    ComponentProps<
       typeof MaterialIcons
     >['name'];
 
   children:
-    React.ReactNode;
+    ReactNode;
 }) {
+  const fs =
+    Math.max(
+      scale,
+      0.92
+    );
+
   return (
     <View
       style={[
@@ -2232,7 +2033,7 @@ function FormSection({
 
               {
                 fontSize:
-                  12 * scale,
+                  16 * fs,
               },
             ]}
           >
@@ -2247,7 +2048,7 @@ function FormSection({
 
               {
                 fontSize:
-                  9 * scale,
+                  12 * fs,
 
                 marginTop:
                   2 * scale,
@@ -2284,12 +2085,21 @@ function FormLabel({
   label,
   required = false,
 }: {
-  scale: number;
+  scale:
+    number;
 
-  label: string;
+  label:
+    string;
 
-  required?: boolean;
+  required?:
+    boolean;
 }) {
+  const fs =
+    Math.max(
+      scale,
+      0.92
+    );
+
   return (
     <Text
       style={[
@@ -2297,7 +2107,7 @@ function FormLabel({
 
         {
           fontSize:
-            9 * scale,
+            11.5 * fs,
 
           marginBottom:
             6 * scale,
@@ -2335,18 +2145,22 @@ function InputBox({
   autoCapitalize = 'words',
   editable = true,
 }: {
-  scale: number;
+  scale:
+    number;
 
-  value: string;
+  value:
+    string;
 
   onChangeText: (
-    value: string
+    value:
+      string
   ) => void;
 
-  placeholder: string;
+  placeholder:
+    string;
 
   icon?:
-    React.ComponentProps<
+    ComponentProps<
       typeof MaterialIcons
     >['name'];
 
@@ -2362,8 +2176,15 @@ function InputBox({
     | 'words'
     | 'characters';
 
-  editable?: boolean;
+  editable?:
+    boolean;
 }) {
+  const fs =
+    Math.max(
+      scale,
+      0.92
+    );
+
   return (
     <View
       style={[
@@ -2432,7 +2253,7 @@ function InputBox({
 
           {
             fontSize:
-              10 * scale,
+              13 * fs,
           },
         ]}
       />
@@ -2445,7 +2266,8 @@ function InputBox({
 // ============================================================
 
 function getUserDisplayName(
-  user: AdminManagedUser
+  user:
+    AdminManagedUser
 ) {
   if (
     user.full_name
@@ -2570,180 +2392,6 @@ const styles =
         1,
     },
 
-    // ========================================================
-    // HEADER
-    // ========================================================
-
-    header: {
-      flexDirection:
-        'row',
-
-      alignItems:
-        'center',
-
-      justifyContent:
-        'space-between',
-
-      borderBottomWidth:
-        1,
-
-      borderBottomColor:
-        COLORS.border,
-    },
-
-    brandArea: {
-      flexDirection:
-        'row',
-
-      alignItems:
-        'center',
-
-      gap:
-        14,
-    },
-
-    logoCircle: {
-      alignItems:
-        'center',
-
-      justifyContent:
-        'center',
-
-      overflow:
-        'hidden',
-
-      backgroundColor:
-        COLORS.white,
-    },
-
-    brand: {
-      color:
-        COLORS.white,
-
-      fontFamily:
-        'Poppins_700Bold',
-    },
-
-    brandRed: {
-      color:
-        COLORS.redBright,
-    },
-
-    portal: {
-      marginTop:
-        1,
-
-      color:
-        COLORS.redBright,
-
-      fontFamily:
-        'Inter_600SemiBold',
-    },
-
-    adminSection: {
-      flexDirection:
-        'row',
-
-      alignItems:
-        'center',
-
-      gap:
-        12,
-    },
-
-    notificationWrap: {
-      position:
-        'relative',
-
-      width:
-        28,
-
-      marginRight:
-        4,
-
-      alignItems:
-        'center',
-
-      justifyContent:
-        'center',
-    },
-
-    notificationBadge: {
-      position:
-        'absolute',
-
-      top:
-        -4,
-
-      right:
-        -6,
-
-      paddingHorizontal:
-        4,
-
-      alignItems:
-        'center',
-
-      justifyContent:
-        'center',
-
-      backgroundColor:
-        COLORS.redBright,
-    },
-
-    notificationBadgeText: {
-      color:
-        COLORS.white,
-
-      fontFamily:
-        'Inter_700Bold',
-    },
-
-    adminAvatar: {
-      alignItems:
-        'center',
-
-      justifyContent:
-        'center',
-
-      backgroundColor:
-        '#ECECEC',
-    },
-
-    adminAvatarText: {
-      color:
-        '#111111',
-
-      fontFamily:
-        'Poppins_600SemiBold',
-    },
-
-    adminName: {
-      maxWidth:
-        180,
-
-      color:
-        COLORS.white,
-
-      fontFamily:
-        'Inter_600SemiBold',
-    },
-
-    adminRole: {
-      marginTop:
-        2,
-
-      color:
-        COLORS.muted,
-
-      fontFamily:
-        'Inter_400Regular',
-    },
-
-    // ========================================================
-    // TITLE
-    // ========================================================
-
     titleRow: {
       flexDirection:
         'row',
@@ -2827,10 +2475,6 @@ const styles =
         'Inter_600SemiBold',
     },
 
-    // ========================================================
-    // SECTION
-    // ========================================================
-
     sectionCard: {
       overflow:
         'hidden',
@@ -2893,10 +2537,6 @@ const styles =
       fontFamily:
         'Inter_400Regular',
     },
-
-    // ========================================================
-    // FORM
-    // ========================================================
 
     formGrid: {
       flexDirection:
@@ -2982,10 +2622,6 @@ const styles =
         'Inter_400Regular',
     },
 
-    // ========================================================
-    // GENDER
-    // ========================================================
-
     genderRow: {
       flexDirection:
         'row',
@@ -3034,10 +2670,6 @@ const styles =
       color:
         COLORS.white,
     },
-
-    // ========================================================
-    // INFO / MESSAGES
-    // ========================================================
 
     warningBox: {
       flexDirection:
@@ -3190,10 +2822,6 @@ const styles =
         'Inter_400Regular',
     },
 
-    // ========================================================
-    // ACTIONS
-    // ========================================================
-
     formActions: {
       flexDirection:
         'row',
@@ -3248,10 +2876,6 @@ const styles =
       fontFamily:
         'Inter_600SemiBold',
     },
-
-    // ========================================================
-    // GENERIC
-    // ========================================================
 
     pressed: {
       opacity:

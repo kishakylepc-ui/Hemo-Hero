@@ -1,4 +1,6 @@
 import {
+  type ComponentProps,
+  type ReactNode,
   useCallback,
   useMemo,
   useState,
@@ -6,7 +8,6 @@ import {
 
 import {
   ActivityIndicator,
-  Image,
   KeyboardAvoidingView,
   Platform,
   Pressable,
@@ -39,6 +40,8 @@ import {
   SafeAreaView,
 } from 'react-native-safe-area-context';
 
+import AdminHeader from '../AdminHeader';
+
 import {
   createAdminUser,
   type AdminManagedUser,
@@ -51,19 +54,11 @@ import {
   getAdminProfile,
 } from '../../lib/session';
 
-// ============================================================
-// IPAD PRO LANDSCAPE
-// ============================================================
-
 const DESIGN_WIDTH =
   1366;
 
 const DESIGN_HEIGHT =
   1024;
-
-// ============================================================
-// COLORS
-// ============================================================
 
 const COLORS = {
   outer:
@@ -103,19 +98,11 @@ const COLORS = {
     '#F3A34A',
 };
 
-// ============================================================
-// GENDER OPTIONS
-// ============================================================
-
 const GENDER_OPTIONS = [
   'Male',
   'Female',
   'Prefer not to say',
 ] as const;
-
-// ============================================================
-// SCREEN
-// ============================================================
 
 export default function AdminCreateUserScreen() {
   const {
@@ -123,10 +110,6 @@ export default function AdminCreateUserScreen() {
     height,
   } =
     useWindowDimensions();
-
-  // ==========================================================
-  // RESPONSIVE TABLET FRAME
-  // ==========================================================
 
   const tablet =
     useMemo(
@@ -204,9 +187,11 @@ export default function AdminCreateUserScreen() {
       0.68
     );
 
-  // ==========================================================
-  // ADMIN
-  // ==========================================================
+  const fs =
+    Math.max(
+      tablet.scale,
+      0.92
+    );
 
   const [
     profile,
@@ -223,10 +208,6 @@ export default function AdminCreateUserScreen() {
     useState(
       true
     );
-
-  // ==========================================================
-  // ACCOUNT
-  // ==========================================================
 
   const [
     email,
@@ -267,10 +248,6 @@ export default function AdminCreateUserScreen() {
     useState(
       false
     );
-
-  // ==========================================================
-  // PERSONAL
-  // ==========================================================
 
   const [
     firstName,
@@ -328,10 +305,6 @@ export default function AdminCreateUserScreen() {
       ''
     );
 
-  // ==========================================================
-  // LOCATION
-  // ==========================================================
-
   const [
     barangay,
     setBarangay,
@@ -355,10 +328,6 @@ export default function AdminCreateUserScreen() {
     useState(
       ''
     );
-
-  // ==========================================================
-  // SUBMISSION
-  // ==========================================================
 
   const [
     submitting,
@@ -391,10 +360,6 @@ export default function AdminCreateUserScreen() {
     useState<AdminManagedUser | null>(
       null
     );
-
-  // ==========================================================
-  // AUTH GUARD
-  // ==========================================================
 
   useFocusEffect(
     useCallback(
@@ -454,34 +419,6 @@ export default function AdminCreateUserScreen() {
     }
   }
 
-  // ==========================================================
-  // ADMIN DISPLAY
-  // ==========================================================
-
-  const adminName =
-    [
-      profile?.first_name,
-      profile?.last_name,
-    ]
-      .filter(
-        Boolean
-      )
-      .join(' ')
-      .trim() ||
-    profile?.email ||
-    'Administrator';
-
-  const adminInitial =
-    adminName
-      .charAt(
-        0
-      )
-      .toUpperCase();
-
-  // ==========================================================
-  // PASSWORD VALIDATION
-  // ==========================================================
-
   const passwordRules =
     useMemo(
       () => {
@@ -522,10 +459,6 @@ export default function AdminCreateUserScreen() {
     ).every(
       Boolean
     );
-
-  // ==========================================================
-  // VALIDATE FORM
-  // ==========================================================
 
   function validateForm() {
     const cleanEmail =
@@ -598,10 +531,6 @@ export default function AdminCreateUserScreen() {
 
     return null;
   }
-
-  // ==========================================================
-  // CREATE
-  // ==========================================================
 
   async function handleCreateUser() {
     if (
@@ -738,10 +667,6 @@ export default function AdminCreateUserScreen() {
     }
   }
 
-  // ==========================================================
-  // RESET FORM
-  // ==========================================================
-
   function resetForm() {
     if (
       submitting
@@ -814,10 +739,6 @@ export default function AdminCreateUserScreen() {
     );
   }
 
-  // ==========================================================
-  // SESSION LOADING
-  // ==========================================================
-
   if (
     checkingSession
   ) {
@@ -835,19 +756,20 @@ export default function AdminCreateUserScreen() {
         />
 
         <Text
-          style={
-            styles.sessionLoadingText
-          }
+          style={[
+            styles.sessionLoadingText,
+
+            {
+              fontSize:
+                13 * fs,
+            },
+          ]}
         >
           Loading Admin Portal...
         </Text>
       </View>
     );
   }
-
-  // ==========================================================
-  // UI
-  // ==========================================================
 
   return (
     <View
@@ -891,226 +813,20 @@ export default function AdminCreateUserScreen() {
               styles.safeArea
             }
           >
-            {/* ==================================================
-                HEADER
-            ================================================== */}
-
-            <View
-              style={[
-                styles.header,
-
-                {
-                  height:
-                    96 * s,
-
-                  paddingHorizontal:
-                    48 * s,
-                },
-              ]}
-            >
-              <Pressable
-                style={({ pressed }) => [
-                  styles.brandArea,
-
-                  pressed &&
-                    styles.pressed,
-                ]}
-                onPress={() =>
-                  router.replace(
-                    '/dashboard'
-                  )
-                }
-              >
-                <View
-                  style={[
-                    styles.logoCircle,
-
-                    {
-                      width:
-                        52 * s,
-
-                      height:
-                        52 * s,
-
-                      borderRadius:
-                        26 * s,
-                    },
-                  ]}
-                >
-                  <Image
-                    source={require('../../assets/images/hemo-hero-logo.png')}
-                    style={{
-                      width:
-                        46 * s,
-
-                      height:
-                        46 * s,
-                    }}
-                    resizeMode="contain"
-                  />
-                </View>
-
-                <View>
-                  <Text
-                    style={[
-                      styles.brand,
-
-                      {
-                        fontSize:
-                          27 * s,
-                      },
-                    ]}
-                  >
-                    <Text
-                      style={
-                        styles.brandRed
-                      }
-                    >
-                      Hemo-
-                    </Text>
-
-                    Hero
-                  </Text>
-
-                  <Text
-                    style={[
-                      styles.portal,
-
-                      {
-                        fontSize:
-                          9 * s,
-
-                        letterSpacing:
-                          1.6 * s,
-                      },
-                    ]}
-                  >
-                    ADMIN PORTAL
-                  </Text>
-                </View>
-              </Pressable>
-
-              <View
-                style={
-                  styles.adminSection
-                }
-              >
-                <View
-                  style={
-                    styles.notificationWrap
-                  }
-                >
-                  <MaterialIcons
-                    name="notifications-none"
-                    size={
-                      24 * s
-                    }
-                    color={
-                      COLORS.white
-                    }
-                  />
-
-                  <View
-                    style={[
-                      styles.notificationBadge,
-
-                      {
-                        minWidth:
-                          18 * s,
-
-                        height:
-                          18 * s,
-
-                        borderRadius:
-                          9 * s,
-                      },
-                    ]}
-                  >
-                    <Text
-                      style={[
-                        styles.notificationBadgeText,
-
-                        {
-                          fontSize:
-                            9 * s,
-                        },
-                      ]}
-                    >
-                      3
-                    </Text>
-                  </View>
-                </View>
-
-                <View
-                  style={[
-                    styles.adminAvatar,
-
-                    {
-                      width:
-                        48 * s,
-
-                      height:
-                        48 * s,
-
-                      borderRadius:
-                        24 * s,
-                    },
-                  ]}
-                >
-                  <Text
-                    style={[
-                      styles.adminAvatarText,
-
-                      {
-                        fontSize:
-                          15 * s,
-                      },
-                    ]}
-                  >
-                    {
-                      adminInitial
-                    }
-                  </Text>
-                </View>
-
-                <View>
-                  <Text
-                    numberOfLines={
-                      1
-                    }
-                    style={[
-                      styles.adminName,
-
-                      {
-                        fontSize:
-                          12 * s,
-                      },
-                    ]}
-                  >
-                    {
-                      adminName
-                    }
-                  </Text>
-
-                  <Text
-                    style={[
-                      styles.adminRole,
-
-                      {
-                        fontSize:
-                          10 * s,
-                      },
-                    ]}
-                  >
-                    Admin
-                  </Text>
-                </View>
-              </View>
-            </View>
-
-            {/* ==================================================
-                CONTENT
-            ================================================== */}
+            <AdminHeader
+              profile={
+                profile
+              }
+              scale={
+                s
+              }
+              fontScale={
+                fs
+              }
+              notificationCount={
+                0
+              }
+            />
 
             <KeyboardAvoidingView
               style={
@@ -1146,10 +862,6 @@ export default function AdminCreateUserScreen() {
                   false
                 }
               >
-                {/* ================================================
-                    TITLE
-                ================================================ */}
-
                 <View
                   style={[
                     styles.titleRow,
@@ -1208,10 +920,10 @@ export default function AdminCreateUserScreen() {
 
                           {
                             fontSize:
-                              30 * s,
+                              30 * fs,
 
                             lineHeight:
-                              38 * s,
+                              38 * fs,
                           },
                         ]}
                       >
@@ -1224,7 +936,7 @@ export default function AdminCreateUserScreen() {
 
                           {
                             fontSize:
-                              12 * s,
+                              14 * fs,
 
                             marginTop:
                               3 * s,
@@ -1268,7 +980,7 @@ export default function AdminCreateUserScreen() {
 
                         {
                           fontSize:
-                            10 * s,
+                            12.5 * fs,
                         },
                       ]}
                     >
@@ -1276,10 +988,6 @@ export default function AdminCreateUserScreen() {
                     </Text>
                   </View>
                 </View>
-
-                {/* ================================================
-                    SUCCESS
-                ================================================ */}
 
                 {successMessage &&
                 createdUser ? (
@@ -1345,7 +1053,7 @@ export default function AdminCreateUserScreen() {
 
                             {
                               fontSize:
-                                12 * s,
+                                14 * fs,
                             },
                           ]}
                         >
@@ -1360,7 +1068,7 @@ export default function AdminCreateUserScreen() {
 
                             {
                               fontSize:
-                                10 * s,
+                                12.5 * fs,
 
                               marginTop:
                                 3 * s,
@@ -1410,7 +1118,7 @@ export default function AdminCreateUserScreen() {
 
                             {
                               fontSize:
-                                9 * s,
+                                11.5 * fs,
                             },
                           ]}
                         >
@@ -1448,7 +1156,7 @@ export default function AdminCreateUserScreen() {
 
                             {
                               fontSize:
-                                9 * s,
+                                11.5 * fs,
                             },
                           ]}
                         >
@@ -1468,10 +1176,6 @@ export default function AdminCreateUserScreen() {
                     </View>
                   </View>
                 ) : null}
-
-                {/* ================================================
-                    ERROR
-                ================================================ */}
 
                 {errorMessage ? (
                   <View
@@ -1506,7 +1210,7 @@ export default function AdminCreateUserScreen() {
 
                         {
                           fontSize:
-                            11 * s,
+                            12.5 * fs,
                         },
                       ]}
                     >
@@ -1516,10 +1220,6 @@ export default function AdminCreateUserScreen() {
                     </Text>
                   </View>
                 ) : null}
-
-                {/* ================================================
-                    ACCOUNT INFORMATION
-                ================================================ */}
 
                 <FormSection
                   scale={
@@ -1665,10 +1365,6 @@ export default function AdminCreateUserScreen() {
                     </View>
                   </View>
 
-                  {/* ============================================
-                      PASSWORD REQUIREMENTS
-                  ============================================ */}
-
                   <View
                     style={[
                       styles.passwordRequirements,
@@ -1691,7 +1387,7 @@ export default function AdminCreateUserScreen() {
 
                         {
                           fontSize:
-                            9 * s,
+                            11.5 * fs,
 
                           marginBottom:
                             9 * s,
@@ -1778,10 +1474,6 @@ export default function AdminCreateUserScreen() {
                       20 * s,
                   }}
                 />
-
-                {/* ================================================
-                    PERSONAL INFORMATION
-                ================================================ */}
 
                 <FormSection
                   scale={
@@ -1987,7 +1679,7 @@ export default function AdminCreateUserScreen() {
 
                           {
                             fontSize:
-                              8 * s,
+                              11 * fs,
 
                             marginTop:
                               5 * s,
@@ -1997,10 +1689,6 @@ export default function AdminCreateUserScreen() {
                         Format: YYYY-MM-DD
                       </Text>
                     </View>
-
-                    {/* ==========================================
-                        GENDER
-                    ========================================== */}
 
                     <View
                       style={
@@ -2088,7 +1776,7 @@ export default function AdminCreateUserScreen() {
 
                                     {
                                       fontSize:
-                                        9 * s,
+                                        11.5 * fs,
                                     },
 
                                     active &&
@@ -2114,10 +1802,6 @@ export default function AdminCreateUserScreen() {
                       20 * s,
                   }}
                 />
-
-                {/* ================================================
-                    LOCATION
-                ================================================ */}
 
                 <FormSection
                   scale={
@@ -2226,10 +1910,6 @@ export default function AdminCreateUserScreen() {
                   </View>
                 </FormSection>
 
-                {/* ================================================
-                    ACTIONS
-                ================================================ */}
-
                 <View
                   style={[
                     styles.formActions,
@@ -2280,7 +1960,7 @@ export default function AdminCreateUserScreen() {
 
                         {
                           fontSize:
-                            10 * s,
+                            12.5 * fs,
                         },
                       ]}
                     >
@@ -2347,7 +2027,7 @@ export default function AdminCreateUserScreen() {
 
                             {
                               fontSize:
-                                10 * s,
+                                12.5 * fs,
                             },
                           ]}
                         >
@@ -2366,10 +2046,6 @@ export default function AdminCreateUserScreen() {
   );
 }
 
-// ============================================================
-// FORM SECTION
-// ============================================================
-
 function FormSection({
   scale,
   title,
@@ -2384,13 +2060,19 @@ function FormSection({
   description: string;
 
   icon:
-    React.ComponentProps<
+    ComponentProps<
       typeof MaterialIcons
     >['name'];
 
   children:
-    React.ReactNode;
+    ReactNode;
 }) {
+  const fs =
+    Math.max(
+      scale,
+      0.92
+    );
+
   return (
     <View
       style={[
@@ -2454,7 +2136,7 @@ function FormSection({
 
               {
                 fontSize:
-                  12 * scale,
+                  16 * fs,
               },
             ]}
           >
@@ -2469,7 +2151,7 @@ function FormSection({
 
               {
                 fontSize:
-                  9 * scale,
+                  12 * fs,
 
                 marginTop:
                   2 * scale,
@@ -2497,10 +2179,6 @@ function FormSection({
   );
 }
 
-// ============================================================
-// LABEL
-// ============================================================
-
 function FormLabel({
   scale,
   label,
@@ -2512,6 +2190,12 @@ function FormLabel({
 
   required?: boolean;
 }) {
+  const fs =
+    Math.max(
+      scale,
+      0.92
+    );
+
   return (
     <Text
       style={[
@@ -2519,7 +2203,7 @@ function FormLabel({
 
         {
           fontSize:
-            9 * scale,
+            11.5 * fs,
 
           marginBottom:
             6 * scale,
@@ -2542,10 +2226,6 @@ function FormLabel({
     </Text>
   );
 }
-
-// ============================================================
-// INPUT
-// ============================================================
 
 function InputBox({
   scale,
@@ -2571,12 +2251,12 @@ function InputBox({
   placeholder: string;
 
   icon?:
-    React.ComponentProps<
+    ComponentProps<
       typeof MaterialIcons
     >['name'];
 
   rightIcon?:
-    React.ComponentProps<
+    ComponentProps<
       typeof MaterialIcons
     >['name'];
 
@@ -2598,6 +2278,12 @@ function InputBox({
 
   editable?: boolean;
 }) {
+  const fs =
+    Math.max(
+      scale,
+      0.92
+    );
+
   return (
     <View
       style={[
@@ -2669,7 +2355,7 @@ function InputBox({
 
           {
             fontSize:
-              10 * scale,
+              13 * fs,
           },
         ]}
       />
@@ -2701,10 +2387,6 @@ function InputBox({
   );
 }
 
-// ============================================================
-// PASSWORD RULE
-// ============================================================
-
 function PasswordRule({
   scale,
   passed,
@@ -2716,6 +2398,12 @@ function PasswordRule({
 
   label: string;
 }) {
+  const fs =
+    Math.max(
+      scale,
+      0.92
+    );
+
   return (
     <View
       style={
@@ -2744,7 +2432,7 @@ function PasswordRule({
 
           {
             fontSize:
-              8 * scale,
+              11.5 * fs,
 
             marginLeft:
               6 * scale,
@@ -2761,10 +2449,6 @@ function PasswordRule({
     </View>
   );
 }
-
-// ============================================================
-// STYLES
-// ============================================================
 
 const styles =
   StyleSheet.create({
@@ -2854,180 +2538,6 @@ const styles =
         1,
     },
 
-    // ========================================================
-    // HEADER
-    // ========================================================
-
-    header: {
-      flexDirection:
-        'row',
-
-      alignItems:
-        'center',
-
-      justifyContent:
-        'space-between',
-
-      borderBottomWidth:
-        1,
-
-      borderBottomColor:
-        COLORS.border,
-    },
-
-    brandArea: {
-      flexDirection:
-        'row',
-
-      alignItems:
-        'center',
-
-      gap:
-        14,
-    },
-
-    logoCircle: {
-      alignItems:
-        'center',
-
-      justifyContent:
-        'center',
-
-      backgroundColor:
-        COLORS.white,
-
-      overflow:
-        'hidden',
-    },
-
-    brand: {
-      color:
-        COLORS.white,
-
-      fontFamily:
-        'Poppins_700Bold',
-    },
-
-    brandRed: {
-      color:
-        COLORS.redBright,
-    },
-
-    portal: {
-      marginTop:
-        1,
-
-      color:
-        COLORS.redBright,
-
-      fontFamily:
-        'Inter_600SemiBold',
-    },
-
-    adminSection: {
-      flexDirection:
-        'row',
-
-      alignItems:
-        'center',
-
-      gap:
-        12,
-    },
-
-    notificationWrap: {
-      position:
-        'relative',
-
-      width:
-        28,
-
-      marginRight:
-        4,
-
-      alignItems:
-        'center',
-
-      justifyContent:
-        'center',
-    },
-
-    notificationBadge: {
-      position:
-        'absolute',
-
-      top:
-        -4,
-
-      right:
-        -6,
-
-      paddingHorizontal:
-        4,
-
-      alignItems:
-        'center',
-
-      justifyContent:
-        'center',
-
-      backgroundColor:
-        COLORS.redBright,
-    },
-
-    notificationBadgeText: {
-      color:
-        COLORS.white,
-
-      fontFamily:
-        'Inter_700Bold',
-    },
-
-    adminAvatar: {
-      alignItems:
-        'center',
-
-      justifyContent:
-        'center',
-
-      backgroundColor:
-        '#ECECEC',
-    },
-
-    adminAvatarText: {
-      color:
-        '#111111',
-
-      fontFamily:
-        'Poppins_600SemiBold',
-    },
-
-    adminName: {
-      maxWidth:
-        180,
-
-      color:
-        COLORS.white,
-
-      fontFamily:
-        'Inter_600SemiBold',
-    },
-
-    adminRole: {
-      marginTop:
-        2,
-
-      color:
-        COLORS.muted,
-
-      fontFamily:
-        'Inter_400Regular',
-    },
-
-    // ========================================================
-    // TITLE
-    // ========================================================
-
     titleRow: {
       flexDirection:
         'row',
@@ -3108,10 +2618,6 @@ const styles =
         'Inter_600SemiBold',
     },
 
-    // ========================================================
-    // SECTION
-    // ========================================================
-
     sectionCard: {
       overflow:
         'hidden',
@@ -3169,10 +2675,6 @@ const styles =
       fontFamily:
         'Inter_400Regular',
     },
-
-    // ========================================================
-    // FORM
-    // ========================================================
 
     formGrid: {
       flexDirection:
@@ -3258,10 +2760,6 @@ const styles =
         'Inter_400Regular',
     },
 
-    // ========================================================
-    // PASSWORD
-    // ========================================================
-
     passwordRequirements: {
       borderWidth:
         1,
@@ -3293,7 +2791,6 @@ const styles =
 
       rowGap:
         8,
-
     },
 
     passwordRule: {
@@ -3319,10 +2816,6 @@ const styles =
       color:
         COLORS.green,
     },
-
-    // ========================================================
-    // GENDER
-    // ========================================================
 
     genderRow: {
       flexDirection:
@@ -3373,10 +2866,6 @@ const styles =
         COLORS.white,
     },
 
-    // ========================================================
-    // ERROR
-    // ========================================================
-
     errorCard: {
       flexDirection:
         'row',
@@ -3407,10 +2896,6 @@ const styles =
       fontFamily:
         'Inter_500Medium',
     },
-
-    // ========================================================
-    // SUCCESS
-    // ========================================================
 
     createdCard: {
       flexDirection:
@@ -3539,10 +3024,6 @@ const styles =
         'Inter_600SemiBold',
     },
 
-    // ========================================================
-    // ACTIONS
-    // ========================================================
-
     formActions: {
       flexDirection:
         'row',
@@ -3597,10 +3078,6 @@ const styles =
       fontFamily:
         'Inter_600SemiBold',
     },
-
-    // ========================================================
-    // GENERIC
-    // ========================================================
 
     pressed: {
       opacity:

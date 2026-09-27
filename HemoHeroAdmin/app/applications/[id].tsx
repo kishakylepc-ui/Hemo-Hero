@@ -1,4 +1,6 @@
 import {
+  type ComponentProps,
+  type ReactNode,
   useCallback,
   useMemo,
   useState,
@@ -6,9 +8,8 @@ import {
 
 import {
   ActivityIndicator,
-  Alert,
-  Image,
   Linking,
+  Modal,
   Platform,
   Pressable,
   ScrollView,
@@ -19,13 +20,8 @@ import {
   View,
 } from 'react-native';
 
-import {
-  MaterialIcons,
-} from '@expo/vector-icons';
-
-import {
-  LinearGradient,
-} from 'expo-linear-gradient';
+import { MaterialIcons } from '@expo/vector-icons';
+import { LinearGradient } from 'expo-linear-gradient';
 
 import {
   router,
@@ -33,13 +29,10 @@ import {
   useLocalSearchParams,
 } from 'expo-router';
 
-import {
-  StatusBar,
-} from 'expo-status-bar';
+import { StatusBar } from 'expo-status-bar';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
-import {
-  SafeAreaView,
-} from 'react-native-safe-area-context';
+import AdminHeader from '../AdminHeader';
 
 import {
   approveDonorApplication,
@@ -56,19 +49,14 @@ import {
 } from '../../lib/session';
 
 // ============================================================
-// IPAD PRO LANDSCAPE
+// DESIGN
 // ============================================================
 
 const DESIGN_WIDTH = 1366;
 const DESIGN_HEIGHT = 1024;
 
-// ============================================================
-// COLORS
-// ============================================================
-
 const COLORS = {
   outer: '#02040A',
-
   navy: '#050B19',
 
   card: '#091126',
@@ -112,13 +100,67 @@ const MONTH_NAMES = [
 ];
 
 // ============================================================
+// MODAL TYPES
+// ============================================================
+
+type ActionModalVariant =
+  | 'info'
+  | 'success'
+  | 'error'
+  | 'warning'
+  | 'approve'
+  | 'reject';
+
+type ActionModalState = {
+  visible: boolean;
+
+  title: string;
+
+  message: string;
+
+  variant: ActionModalVariant;
+
+  confirmLabel: string;
+
+  cancelLabel: string;
+
+  showCancel: boolean;
+
+  onConfirm?:
+    () =>
+      | void
+      | Promise<void>;
+};
+
+const INITIAL_ACTION_MODAL:
+  ActionModalState = {
+    visible: false,
+
+    title: '',
+
+    message: '',
+
+    variant: 'info',
+
+    confirmLabel:
+      'Continue',
+
+    cancelLabel:
+      'Cancel',
+
+    showCancel:
+      false,
+
+    onConfirm:
+      undefined,
+  };
+
+// ============================================================
 // SCREEN
 // ============================================================
 
 export default function ApplicationReviewScreen() {
-  const {
-    id,
-  } =
+  const { id } =
     useLocalSearchParams<{
       id: string;
     }>();
@@ -130,7 +172,7 @@ export default function ApplicationReviewScreen() {
     useWindowDimensions();
 
   // ==========================================================
-  // IPAD PRO CANVAS
+  // RESPONSIVE IPAD CANVAS
   // ==========================================================
 
   const tablet =
@@ -162,6 +204,7 @@ export default function ApplicationReviewScreen() {
           Math.max(
             width -
               padding * 2,
+
             320
           );
 
@@ -169,6 +212,7 @@ export default function ApplicationReviewScreen() {
           Math.max(
             height -
               padding * 2,
+
             320
           );
 
@@ -201,10 +245,26 @@ export default function ApplicationReviewScreen() {
       ]
     );
 
+  // ==========================================================
+  // SCALE
+  // ==========================================================
+
   const s =
     Math.max(
       tablet.scale,
       0.68
+    );
+
+  const fs =
+    Math.max(
+      tablet.scale,
+      0.9
+    );
+
+  const headerFs =
+    Math.max(
+      tablet.scale,
+      0.92
     );
 
   // ==========================================================
@@ -250,6 +310,14 @@ export default function ApplicationReviewScreen() {
     setError,
   ] =
     useState('');
+
+  const [
+    actionModal,
+    setActionModal,
+  ] =
+    useState<ActionModalState>(
+      INITIAL_ACTION_MODAL
+    );
 
   // ==========================================================
   // LOAD APPLICATION
@@ -319,7 +387,8 @@ export default function ApplicationReviewScreen() {
           );
 
           setError(
-            loadError instanceof Error
+            loadError instanceof
+              Error
               ? loadError.message
               : 'Unable to load donor application.'
           );
@@ -344,21 +413,6 @@ export default function ApplicationReviewScreen() {
       ]
     )
   );
-
-  // ==========================================================
-  // ADMIN NAME
-  // ==========================================================
-
-  const adminName =
-    [
-      profile?.first_name,
-      profile?.last_name,
-    ]
-      .filter(Boolean)
-      .join(' ')
-      .trim() ||
-    profile?.email ||
-    'Administrator';
 
   // ==========================================================
   // APPLICANT
@@ -401,89 +455,109 @@ export default function ApplicationReviewScreen() {
     'A';
 
   // ==========================================================
-  // CONFIRMATION
+  // CUSTOM ACTION MODAL
   // ==========================================================
+
+  function closeActionModal() {
+    setActionModal(
+      INITIAL_ACTION_MODAL
+    );
+  }
 
   function confirmAction(
     title: string,
     message: string,
-    onConfirm: () => void
-  ) {
-    if (
-      Platform.OS ===
-        'web' &&
-      typeof window !==
-        'undefined'
-    ) {
-      const confirmed =
-        window.confirm(
-          `${title}\n\n${message}`
-        );
+    onConfirm:
+      () =>
+        | void
+        | Promise<void>,
+    options?: {
+      variant?:
+        ActionModalVariant;
 
-      if (
-        confirmed
-      ) {
-        onConfirm();
-      }
+      confirmLabel?:
+        string;
 
-      return;
+      cancelLabel?:
+        string;
     }
+  ) {
+    setActionModal({
+      visible:
+        true,
 
-    Alert.alert(
       title,
+
       message,
-      [
-        {
-          text:
-            'Cancel',
 
-          style:
-            'cancel',
-        },
+      variant:
+        options
+          ?.variant ||
+        'info',
 
-        {
-          text:
-            'Continue',
+      confirmLabel:
+        options
+          ?.confirmLabel ||
+        'Continue',
 
-          style:
-            'default',
+      cancelLabel:
+        options
+          ?.cancelLabel ||
+        'Cancel',
 
-          onPress:
-            onConfirm,
-        },
-      ]
-    );
+      showCancel:
+        true,
+
+      onConfirm,
+    });
   }
-
-  // ==========================================================
-  // MESSAGE
-  // ==========================================================
 
   function showMessage(
     title: string,
-    message: string
+    message: string,
+    variant:
+      ActionModalVariant =
+        'info'
   ) {
-    if (
-      Platform.OS ===
-        'web' &&
-      typeof window !==
-        'undefined'
-    ) {
-      window.alert(
-        `${title}\n\n${message}`
-      );
+    setActionModal({
+      visible:
+        true,
 
-      return;
-    }
-
-    Alert.alert(
       title,
-      message
-    );
+
+      message,
+
+      variant,
+
+      confirmLabel:
+        'Continue',
+
+      cancelLabel:
+        'Cancel',
+
+      showCancel:
+        false,
+
+      onConfirm:
+        undefined,
+    });
+  }
+
+  function handleActionModalConfirm() {
+    const action =
+      actionModal.onConfirm;
+
+    closeActionModal();
+
+    if (
+      action
+    ) {
+      void action();
+    }
   }
 
   // ==========================================================
-  // VIEW GOVERNMENT ID
+  // GOVERNMENT ID
   // ==========================================================
 
   async function handleViewId() {
@@ -497,7 +571,8 @@ export default function ApplicationReviewScreen() {
     ) {
       showMessage(
         'Government ID',
-        'A verification document is not currently available.'
+        'A verification document is not currently available.',
+        'info'
       );
 
       return;
@@ -530,9 +605,11 @@ export default function ApplicationReviewScreen() {
 
       showMessage(
         'Unable to Open ID',
-        viewError instanceof Error
+        viewError instanceof
+          Error
           ? viewError.message
-          : 'Unable to open the verification document.'
+          : 'Unable to open the verification document.',
+        'error'
       );
     }
   }
@@ -552,7 +629,14 @@ export default function ApplicationReviewScreen() {
     confirmAction(
       'Approve Donor Application',
       `Approve ${applicantName} as a verified Hemo-Hero donor?`,
-      performApprove
+      performApprove,
+      {
+        variant:
+          'approve',
+
+        confirmLabel:
+          'Approve',
+      }
     );
   }
 
@@ -589,12 +673,13 @@ export default function ApplicationReviewScreen() {
         adminNote
       );
 
+      await loadApplication();
+
       showMessage(
         'Application Approved',
-        `${applicantName} is now a verified donor.`
+        `${applicantName} is now a verified donor.`,
+        'success'
       );
-
-      await loadApplication();
     } catch (
       approveError
     ) {
@@ -605,9 +690,11 @@ export default function ApplicationReviewScreen() {
 
       showMessage(
         'Unable to Approve',
-        approveError instanceof Error
+        approveError instanceof
+          Error
           ? approveError.message
-          : 'Unable to approve the donor application.'
+          : 'Unable to approve the donor application.',
+        'error'
       );
     } finally {
       setSubmitting(
@@ -633,7 +720,8 @@ export default function ApplicationReviewScreen() {
     ) {
       showMessage(
         'Reason Required',
-        'Enter an admin note explaining why this application is being rejected.'
+        'Enter an admin note explaining why this application is being rejected.',
+        'warning'
       );
 
       return;
@@ -642,7 +730,14 @@ export default function ApplicationReviewScreen() {
     confirmAction(
       'Reject Donor Application',
       `Reject ${applicantName}'s donor application?`,
-      performReject
+      performReject,
+      {
+        variant:
+          'reject',
+
+        confirmLabel:
+          'Reject',
+      }
     );
   }
 
@@ -679,12 +774,13 @@ export default function ApplicationReviewScreen() {
         adminNote
       );
 
+      await loadApplication();
+
       showMessage(
         'Application Rejected',
-        `${applicantName}'s donor application has been rejected.`
+        `${applicantName}'s donor application has been rejected.`,
+        'success'
       );
-
-      await loadApplication();
     } catch (
       rejectError
     ) {
@@ -695,9 +791,11 @@ export default function ApplicationReviewScreen() {
 
       showMessage(
         'Unable to Reject',
-        rejectError instanceof Error
+        rejectError instanceof
+          Error
           ? rejectError.message
-          : 'Unable to reject the donor application.'
+          : 'Unable to reject the donor application.',
+        'error'
       );
     } finally {
       setSubmitting(
@@ -752,172 +850,20 @@ export default function ApplicationReviewScreen() {
               styles.safeArea
             }
           >
-            {/* ================================================= */}
-            {/* HEADER */}
-            {/* ================================================= */}
+            {/* ==================================================
+                HEADER
+            ================================================== */}
 
-            <View
-              style={[
-                styles.header,
+            <AdminHeader
+              profile={profile}
+              scale={s}
+              fontScale={headerFs}
+              notificationCount={0}
+            />
 
-                {
-                  height:
-                    96 * s,
-
-                  paddingHorizontal:
-                    48 * s,
-                },
-              ]}
-            >
-              <Pressable
-                style={
-                  styles.brandArea
-                }
-                onPress={() =>
-                  router.replace(
-                    '/dashboard'
-                  )
-                }
-              >
-                <View
-                  style={[
-                    styles.logoCircle,
-
-                    {
-                      width:
-                        52 * s,
-
-                      height:
-                        52 * s,
-
-                      borderRadius:
-                        26 * s,
-                    },
-                  ]}
-                >
-                  <Image
-                    source={require('../../assets/images/hemo-hero-logo.png')}
-                    style={{
-                      width:
-                        46 * s,
-
-                      height:
-                        46 * s,
-                    }}
-                    resizeMode="contain"
-                  />
-                </View>
-
-                <View>
-                  <Text
-                    style={[
-                      styles.brand,
-
-                      {
-                        fontSize:
-                          27 * s,
-                      },
-                    ]}
-                  >
-                    <Text
-                      style={
-                        styles.brandRed
-                      }
-                    >
-                      Hemo-
-                    </Text>
-
-                    Hero
-                  </Text>
-
-                  <Text
-                    style={[
-                      styles.portal,
-
-                      {
-                        fontSize:
-                          9 * s,
-
-                        letterSpacing:
-                          1.6 * s,
-                      },
-                    ]}
-                  >
-                    ADMIN PORTAL
-                  </Text>
-                </View>
-              </Pressable>
-
-              <View
-                style={
-                  styles.adminSection
-                }
-              >
-                <View
-                  style={[
-                    styles.adminAvatar,
-
-                    {
-                      width:
-                        48 * s,
-
-                      height:
-                        48 * s,
-
-                      borderRadius:
-                        24 * s,
-                    },
-                  ]}
-                >
-                  <Text
-                    style={[
-                      styles.adminAvatarText,
-
-                      {
-                        fontSize:
-                          15 * s,
-                      },
-                    ]}
-                  >
-                    {adminName
-                      .charAt(0)
-                      .toUpperCase()}
-                  </Text>
-                </View>
-
-                <View>
-                  <Text
-                    style={[
-                      styles.adminName,
-
-                      {
-                        fontSize:
-                          12 * s,
-                      },
-                    ]}
-                  >
-                    {adminName}
-                  </Text>
-
-                  <Text
-                    style={[
-                      styles.adminRole,
-
-                      {
-                        fontSize:
-                          10 * s,
-                      },
-                    ]}
-                  >
-                    Administrator
-                  </Text>
-                </View>
-              </View>
-            </View>
-
-            {/* ================================================= */}
-            {/* CONTENT */}
-            {/* ================================================= */}
+            {/* ==================================================
+                BODY
+            ================================================== */}
 
             {loading ? (
               <View
@@ -938,7 +884,7 @@ export default function ApplicationReviewScreen() {
 
                     {
                       fontSize:
-                        12 * s,
+                        14 * fs,
 
                       marginTop:
                         14 * s,
@@ -970,7 +916,7 @@ export default function ApplicationReviewScreen() {
 
                     {
                       fontSize:
-                        20 * s,
+                        20 * fs,
 
                       marginTop:
                         15 * s,
@@ -986,14 +932,16 @@ export default function ApplicationReviewScreen() {
 
                     {
                       fontSize:
-                        12 * s,
+                        13 * fs,
 
                       marginTop:
                         7 * s,
                     },
                   ]}
                 >
-                  {error}
+                  {
+                    error
+                  }
                 </Text>
 
                 <Pressable
@@ -1005,7 +953,7 @@ export default function ApplicationReviewScreen() {
                         20 * s,
 
                       height:
-                        44 * s,
+                        46 * s,
 
                       borderRadius:
                         9 * s,
@@ -1024,7 +972,7 @@ export default function ApplicationReviewScreen() {
 
                       {
                         fontSize:
-                          11 * s,
+                          13 * fs,
                       },
                     ]}
                   >
@@ -1089,7 +1037,7 @@ export default function ApplicationReviewScreen() {
 
                       {
                         fontSize:
-                          11 * s,
+                          13 * fs,
                       },
                     ]}
                   >
@@ -1097,9 +1045,9 @@ export default function ApplicationReviewScreen() {
                   </Text>
                 </Pressable>
 
-                {/* ================================================= */}
-                {/* APPLICANT SUMMARY */}
-                {/* ================================================= */}
+                {/* ==================================================
+                    APPLICANT SUMMARY
+                ================================================== */}
 
                 <View
                   style={[
@@ -1147,11 +1095,13 @@ export default function ApplicationReviewScreen() {
 
                           {
                             fontSize:
-                              18 * s,
+                              19 * fs,
                           },
                         ]}
                       >
-                        {applicantInitials}
+                        {
+                          applicantInitials
+                        }
                       </Text>
                     </View>
 
@@ -1166,11 +1116,13 @@ export default function ApplicationReviewScreen() {
 
                           {
                             fontSize:
-                              23 * s,
+                              23 * fs,
                           },
                         ]}
                       >
-                        {applicantName}
+                        {
+                          applicantName
+                        }
                       </Text>
 
                       <Text
@@ -1179,7 +1131,7 @@ export default function ApplicationReviewScreen() {
 
                           {
                             fontSize:
-                              11 * s,
+                              13 * fs,
 
                             marginTop:
                               3 * s,
@@ -1196,7 +1148,7 @@ export default function ApplicationReviewScreen() {
 
                           {
                             fontSize:
-                              10 * s,
+                              12 * fs,
 
                             marginTop:
                               6 * s,
@@ -1221,25 +1173,23 @@ export default function ApplicationReviewScreen() {
                       value={
                         application.blood_type
                       }
-                      scale={
-                        s
-                      }
+                      scale={s}
+                      fontScale={fs}
                     />
 
                     <StatusBadge
                       status={
                         application.status
                       }
-                      scale={
-                        s
-                      }
+                      scale={s}
+                      fontScale={fs}
                     />
                   </View>
                 </View>
 
-                {/* ================================================= */}
-                {/* MAIN GRID */}
-                {/* ================================================= */}
+                {/* ==================================================
+                    MAIN GRID
+                ================================================== */}
 
                 <View
                   style={[
@@ -1251,7 +1201,9 @@ export default function ApplicationReviewScreen() {
                     },
                   ]}
                 >
-                  {/* LEFT */}
+                  {/* ==================================================
+                      LEFT COLUMN
+                  ================================================== */}
 
                   <View
                     style={
@@ -1261,17 +1213,14 @@ export default function ApplicationReviewScreen() {
                     {/* PERSONAL INFORMATION */}
 
                     <SectionCard
-                      scale={
-                        s
-                      }
+                      scale={s}
+                      fontScale={fs}
                       icon="person-outline"
                       title="Personal Information"
                     >
                       <InfoGrid>
                         <InfoItem
-                          scale={
-                            s
-                          }
+                          fontScale={fs}
                           label="Full Name"
                           value={
                             applicantName
@@ -1279,9 +1228,7 @@ export default function ApplicationReviewScreen() {
                         />
 
                         <InfoItem
-                          scale={
-                            s
-                          }
+                          fontScale={fs}
                           label="Email Address"
                           value={
                             user?.email ||
@@ -1290,9 +1237,7 @@ export default function ApplicationReviewScreen() {
                         />
 
                         <InfoItem
-                          scale={
-                            s
-                          }
+                          fontScale={fs}
                           label="Phone Number"
                           value={
                             user?.phone ||
@@ -1301,9 +1246,7 @@ export default function ApplicationReviewScreen() {
                         />
 
                         <InfoItem
-                          scale={
-                            s
-                          }
+                          fontScale={fs}
                           label="Date of Birth"
                           value={
                             formatDate(
@@ -1313,9 +1256,7 @@ export default function ApplicationReviewScreen() {
                         />
 
                         <InfoItem
-                          scale={
-                            s
-                          }
+                          fontScale={fs}
                           label="Gender"
                           value={
                             formatValue(
@@ -1325,9 +1266,7 @@ export default function ApplicationReviewScreen() {
                         />
 
                         <InfoItem
-                          scale={
-                            s
-                          }
+                          fontScale={fs}
                           label="Location"
                           value={
                             formatLocation(
@@ -1339,22 +1278,17 @@ export default function ApplicationReviewScreen() {
                       </InfoGrid>
                     </SectionCard>
 
-                    {/* ================================================= */}
                     {/* BLOOD INFORMATION */}
-                    {/* ================================================= */}
 
                     <SectionCard
-                      scale={
-                        s
-                      }
+                      scale={s}
+                      fontScale={fs}
                       icon="bloodtype"
                       title="Blood Information"
                     >
                       <InfoGrid>
                         <InfoItem
-                          scale={
-                            s
-                          }
+                          fontScale={fs}
                           label="Blood Type"
                           value={
                             application.blood_type
@@ -1363,9 +1297,7 @@ export default function ApplicationReviewScreen() {
                         />
 
                         <InfoItem
-                          scale={
-                            s
-                          }
+                          fontScale={fs}
                           label="Previous Donor"
                           value={
                             application.has_donated_before
@@ -1375,9 +1307,7 @@ export default function ApplicationReviewScreen() {
                         />
 
                         <InfoItem
-                          scale={
-                            s
-                          }
+                          fontScale={fs}
                           label="Last Donation"
                           value={
                             formatDonationHistory(
@@ -1387,9 +1317,7 @@ export default function ApplicationReviewScreen() {
                         />
 
                         <InfoItem
-                          scale={
-                            s
-                          }
+                          fontScale={fs}
                           label="Last Donation Facility"
                           value={
                             application.has_donated_before
@@ -1401,20 +1329,17 @@ export default function ApplicationReviewScreen() {
                       </InfoGrid>
                     </SectionCard>
 
-                    {/* LOCATION & AVAILABILITY */}
+                    {/* LOCATION + AVAILABILITY */}
 
                     <SectionCard
-                      scale={
-                        s
-                      }
+                      scale={s}
+                      fontScale={fs}
                       icon="location-on"
                       title="Location & Availability"
                     >
                       <InfoGrid>
                         <InfoItem
-                          scale={
-                            s
-                          }
+                          fontScale={fs}
                           label="Availability"
                           value={
                             application.availability_status ===
@@ -1429,17 +1354,13 @@ export default function ApplicationReviewScreen() {
                         />
 
                         <InfoItem
-                          scale={
-                            s
-                          }
+                          fontScale={fs}
                           label="Travel Radius"
                           value={`${application.travel_radius_km} km`}
                         />
 
                         <InfoItem
-                          scale={
-                            s
-                          }
+                          fontScale={fs}
                           label="Urgent Requests"
                           value={
                             application.allow_urgent_requests
@@ -1449,9 +1370,7 @@ export default function ApplicationReviewScreen() {
                         />
 
                         <InfoItem
-                          scale={
-                            s
-                          }
+                          fontScale={fs}
                           label="Consent Confirmed"
                           value={
                             application.consent_confirmed
@@ -1461,9 +1380,7 @@ export default function ApplicationReviewScreen() {
                         />
 
                         <InfoItem
-                          scale={
-                            s
-                          }
+                          fontScale={fs}
                           label="Latitude"
                           value={
                             formatCoordinate(
@@ -1473,9 +1390,7 @@ export default function ApplicationReviewScreen() {
                         />
 
                         <InfoItem
-                          scale={
-                            s
-                          }
+                          fontScale={fs}
                           label="Longitude"
                           value={
                             formatCoordinate(
@@ -1487,21 +1402,20 @@ export default function ApplicationReviewScreen() {
                     </SectionCard>
                   </View>
 
-                  {/* RIGHT */}
+                  {/* ==================================================
+                      RIGHT COLUMN
+                  ================================================== */}
 
                   <View
                     style={
                       styles.rightColumn
                     }
                   >
-                    {/* ================================================= */}
-                    {/* VERIFICATION */}
-                    {/* ================================================= */}
+                    {/* IDENTITY VERIFICATION */}
 
                     <SectionCard
-                      scale={
-                        s
-                      }
+                      scale={s}
+                      fontScale={fs}
                       icon="badge"
                       title="Identity Verification"
                     >
@@ -1561,7 +1475,7 @@ export default function ApplicationReviewScreen() {
 
                                 {
                                   fontSize:
-                                    12 * s,
+                                    14 * fs,
                                 },
                               ]}
                             >
@@ -1574,13 +1488,13 @@ export default function ApplicationReviewScreen() {
 
                                 {
                                   fontSize:
-                                    10 * s,
+                                    12 * fs,
 
                                   marginTop:
                                     3 * s,
 
                                   lineHeight:
-                                    15 * s,
+                                    18 * fs,
                                 },
                               ]}
                             >
@@ -1598,12 +1512,14 @@ export default function ApplicationReviewScreen() {
                           onPress={
                             handleViewId
                           }
-                          style={[
+                          style={({
+                            pressed,
+                          }) => [
                             styles.viewIdButton,
 
                             {
                               height:
-                                44 * s,
+                                46 * s,
 
                               borderRadius:
                                 9 * s,
@@ -1616,6 +1532,12 @@ export default function ApplicationReviewScreen() {
                               .verification
                               ?.available &&
                               styles.disabledButton,
+
+                            pressed &&
+                              application
+                                .verification
+                                ?.available &&
+                              styles.buttonPressed,
                           ]}
                         >
                           <MaterialIcons
@@ -1634,7 +1556,7 @@ export default function ApplicationReviewScreen() {
 
                               {
                                 fontSize:
-                                  11 * s,
+                                  13 * fs,
                               },
                             ]}
                           >
@@ -1655,7 +1577,10 @@ export default function ApplicationReviewScreen() {
 
                               {
                                 fontSize:
-                                  9 * s,
+                                  11 * fs,
+
+                                lineHeight:
+                                  16 * fs,
 
                                 marginTop:
                                   9 * s,
@@ -1668,14 +1593,11 @@ export default function ApplicationReviewScreen() {
                       </View>
                     </SectionCard>
 
-                    {/* ================================================= */}
                     {/* ADMIN REVIEW */}
-                    {/* ================================================= */}
 
                     <SectionCard
-                      scale={
-                        s
-                      }
+                      scale={s}
+                      fontScale={fs}
                       icon="fact-check"
                       title="Admin Review"
                     >
@@ -1685,7 +1607,7 @@ export default function ApplicationReviewScreen() {
 
                           {
                             fontSize:
-                              10 * s,
+                              11 * fs,
 
                             marginBottom:
                               8 * s,
@@ -1735,10 +1657,10 @@ export default function ApplicationReviewScreen() {
                               14 * s,
 
                             fontSize:
-                              11 * s,
+                              13 * fs,
 
                             lineHeight:
-                              18 * s,
+                              20 * fs,
                           },
 
                           application.status !==
@@ -1753,7 +1675,7 @@ export default function ApplicationReviewScreen() {
 
                           {
                             fontSize:
-                              9 * s,
+                              11 * fs,
 
                             marginTop:
                               6 * s,
@@ -1785,7 +1707,9 @@ export default function ApplicationReviewScreen() {
                             onPress={
                               handleReject
                             }
-                            style={[
+                            style={({
+                              pressed,
+                            }) => [
                               styles.rejectButton,
 
                               {
@@ -1798,6 +1722,10 @@ export default function ApplicationReviewScreen() {
 
                               submitting &&
                                 styles.disabledButton,
+
+                              pressed &&
+                                !submitting &&
+                                styles.buttonPressed,
                             ]}
                           >
                             <MaterialIcons
@@ -1816,7 +1744,7 @@ export default function ApplicationReviewScreen() {
 
                                 {
                                   fontSize:
-                                    11 * s,
+                                    13 * fs,
                                 },
                               ]}
                             >
@@ -1831,7 +1759,9 @@ export default function ApplicationReviewScreen() {
                             onPress={
                               handleApprove
                             }
-                            style={[
+                            style={({
+                              pressed,
+                            }) => [
                               styles.approveButton,
 
                               {
@@ -1844,6 +1774,10 @@ export default function ApplicationReviewScreen() {
 
                               submitting &&
                                 styles.disabledButton,
+
+                              pressed &&
+                                !submitting &&
+                                styles.buttonPressed,
                             ]}
                           >
                             {submitting ? (
@@ -1870,7 +1804,7 @@ export default function ApplicationReviewScreen() {
 
                                     {
                                       fontSize:
-                                        11 * s,
+                                        13 * fs,
                                     },
                                   ]}
                                 >
@@ -1932,7 +1866,7 @@ export default function ApplicationReviewScreen() {
 
                                 {
                                   fontSize:
-                                    11 * s,
+                                    13 * fs,
                                 },
                               ]}
                             >
@@ -1948,7 +1882,7 @@ export default function ApplicationReviewScreen() {
 
                                 {
                                   fontSize:
-                                    9 * s,
+                                    11 * fs,
 
                                   marginTop:
                                     2 * s,
@@ -1971,7 +1905,285 @@ export default function ApplicationReviewScreen() {
           </SafeAreaView>
         </LinearGradient>
       </View>
+
+      {/* ========================================================
+          CUSTOM HEMO-HERO MODAL
+      ======================================================== */}
+
+      <ActionModal
+        state={
+          actionModal
+        }
+        scale={s}
+        fontScale={fs}
+        onClose={
+          closeActionModal
+        }
+        onConfirm={
+          handleActionModalConfirm
+        }
+      />
     </View>
+  );
+}
+
+// ============================================================
+// ACTION MODAL
+// ============================================================
+
+function ActionModal({
+  state,
+  scale,
+  fontScale,
+  onClose,
+  onConfirm,
+}: {
+  state:
+    ActionModalState;
+
+  scale:
+    number;
+
+  fontScale:
+    number;
+
+  onClose:
+    () => void;
+
+  onConfirm:
+    () => void;
+}) {
+  const accent =
+    getActionModalAccent(
+      state.variant
+    );
+
+  return (
+    <Modal
+      transparent
+      visible={
+        state.visible
+      }
+      animationType="fade"
+      statusBarTranslucent
+      onRequestClose={
+        onClose
+      }
+    >
+      <View
+        style={
+          styles.modalBackdrop
+        }
+      >
+        <Pressable
+          style={
+            StyleSheet.absoluteFillObject
+          }
+          onPress={
+            onClose
+          }
+        />
+
+        <View
+          style={[
+            styles.modalCard,
+
+            {
+              width:
+                500 * scale,
+
+              maxWidth:
+                '88%',
+
+              borderRadius:
+                18 * scale,
+
+              padding:
+                26 * scale,
+
+              borderColor:
+                accent,
+            },
+          ]}
+        >
+          <View
+            style={[
+              styles.modalIconWrap,
+
+              {
+                width:
+                  56 * scale,
+
+                height:
+                  56 * scale,
+
+                borderRadius:
+                  28 * scale,
+
+                backgroundColor:
+                  getActionModalTint(
+                    state.variant
+                  ),
+              },
+            ]}
+          >
+            <MaterialIcons
+              name={
+                getActionModalIcon(
+                  state.variant
+                )
+              }
+              size={
+                29 * scale
+              }
+              color={
+                accent
+              }
+            />
+          </View>
+
+          <Text
+            style={[
+              styles.modalTitle,
+
+              {
+                fontSize:
+                  20 * fontScale,
+
+                lineHeight:
+                  27 * fontScale,
+
+                marginTop:
+                  17 * scale,
+              },
+            ]}
+          >
+            {
+              state.title
+            }
+          </Text>
+
+          <Text
+            style={[
+              styles.modalMessage,
+
+              {
+                fontSize:
+                  14 * fontScale,
+
+                lineHeight:
+                  22 * fontScale,
+
+                marginTop:
+                  8 * scale,
+              },
+            ]}
+          >
+            {
+              state.message
+            }
+          </Text>
+
+          <View
+            style={[
+              styles.modalActions,
+
+              {
+                gap:
+                  10 * scale,
+
+                marginTop:
+                  24 * scale,
+              },
+            ]}
+          >
+            {state.showCancel ? (
+              <Pressable
+                onPress={
+                  onClose
+                }
+                style={({
+                  pressed,
+                }) => [
+                  styles.modalCancelButton,
+
+                  {
+                    height:
+                      48 * scale,
+
+                    borderRadius:
+                      10 * scale,
+                  },
+
+                  pressed &&
+                    styles.buttonPressed,
+                ]}
+              >
+                <Text
+                  style={[
+                    styles.modalCancelText,
+
+                    {
+                      fontSize:
+                        13 * fontScale,
+                    },
+                  ]}
+                >
+                  {
+                    state.cancelLabel
+                  }
+                </Text>
+              </Pressable>
+            ) : null}
+
+            <Pressable
+              onPress={
+                onConfirm
+              }
+              style={({
+                pressed,
+              }) => [
+                styles.modalPrimaryButton,
+
+                {
+                  height:
+                    48 * scale,
+
+                  borderRadius:
+                    10 * scale,
+
+                  backgroundColor:
+                    getActionModalPrimaryColor(
+                      state.variant
+                    ),
+                },
+
+                !state.showCancel &&
+                  styles.modalSingleButton,
+
+                pressed &&
+                  styles.buttonPressed,
+              ]}
+            >
+              <Text
+                style={[
+                  styles.modalPrimaryText,
+
+                  {
+                    fontSize:
+                      13 * fontScale,
+                  },
+                ]}
+              >
+                {
+                  state.confirmLabel
+                }
+              </Text>
+            </Pressable>
+          </View>
+        </View>
+      </View>
+    </Modal>
   );
 }
 
@@ -1981,18 +2193,27 @@ export default function ApplicationReviewScreen() {
 
 function SectionCard({
   scale,
+  fontScale,
   icon,
   title,
   children,
 }: {
-  scale: number;
+  scale:
+    number;
 
-  icon: any;
+  fontScale:
+    number;
 
-  title: string;
+  icon:
+    ComponentProps<
+      typeof MaterialIcons
+    >['name'];
+
+  title:
+    string;
 
   children:
-    React.ReactNode;
+    ReactNode;
 }) {
   return (
     <View
@@ -2059,15 +2280,19 @@ function SectionCard({
 
             {
               fontSize:
-                15 * scale,
+                16 * fontScale,
             },
           ]}
         >
-          {title}
+          {
+            title
+          }
         </Text>
       </View>
 
-      {children}
+      {
+        children
+      }
     </View>
   );
 }
@@ -2080,7 +2305,7 @@ function InfoGrid({
   children,
 }: {
   children:
-    React.ReactNode;
+    ReactNode;
 }) {
   return (
     <View
@@ -2088,7 +2313,9 @@ function InfoGrid({
         styles.infoGrid
       }
     >
-      {children}
+      {
+        children
+      }
     </View>
   );
 }
@@ -2098,21 +2325,26 @@ function InfoGrid({
 // ============================================================
 
 function InfoItem({
-  scale,
+  fontScale,
   label,
   value,
   highlight = false,
   positive = false,
 }: {
-  scale: number;
+  fontScale:
+    number;
 
-  label: string;
+  label:
+    string;
 
-  value: string;
+  value:
+    string;
 
-  highlight?: boolean;
+  highlight?:
+    boolean;
 
-  positive?: boolean;
+  positive?:
+    boolean;
 }) {
   return (
     <View
@@ -2126,11 +2358,13 @@ function InfoItem({
 
           {
             fontSize:
-              9 * scale,
+              11 * fontScale,
           },
         ]}
       >
-        {label}
+        {
+          label
+        }
       </Text>
 
       <Text
@@ -2142,13 +2376,13 @@ function InfoItem({
 
           {
             fontSize:
-              11 * scale,
+              13 * fontScale,
 
             marginTop:
-              4 * scale,
+              4,
 
             lineHeight:
-              16 * scale,
+              19 * fontScale,
           },
 
           highlight &&
@@ -2158,7 +2392,9 @@ function InfoItem({
             styles.infoPositive,
         ]}
       >
-        {value}
+        {
+          value
+        }
       </Text>
     </View>
   );
@@ -2171,10 +2407,16 @@ function InfoItem({
 function BloodBadge({
   value,
   scale,
+  fontScale,
 }: {
-  value: string;
+  value:
+    string;
 
-  scale: number;
+  scale:
+    number;
+
+  fontScale:
+    number;
 }) {
   return (
     <View
@@ -2183,10 +2425,10 @@ function BloodBadge({
 
         {
           height:
-            36 * scale,
+            38 * scale,
 
           minWidth:
-            54 * scale,
+            58 * scale,
 
           borderRadius:
             8 * scale,
@@ -2202,11 +2444,13 @@ function BloodBadge({
 
           {
             fontSize:
-              12 * scale,
+              13 * fontScale,
           },
         ]}
       >
-        {value}
+        {
+          value
+        }
       </Text>
     </View>
   );
@@ -2219,10 +2463,16 @@ function BloodBadge({
 function StatusBadge({
   status,
   scale,
+  fontScale,
 }: {
-  status: string;
+  status:
+    string;
 
-  scale: number;
+  scale:
+    number;
+
+  fontScale:
+    number;
 }) {
   const normalized =
     String(
@@ -2237,10 +2487,10 @@ function StatusBadge({
 
         {
           height:
-            36 * scale,
+            38 * scale,
 
           minWidth:
-            100 * scale,
+            105 * scale,
 
           borderRadius:
             8 * scale,
@@ -2272,7 +2522,7 @@ function StatusBadge({
 
           {
             fontSize:
-              10 * scale,
+              12 * fontScale,
           },
 
           normalized ===
@@ -2301,11 +2551,126 @@ function StatusBadge({
 }
 
 // ============================================================
-// HELPERS
+// MODAL HELPERS
+// ============================================================
+
+function getActionModalAccent(
+  variant:
+    ActionModalVariant
+) {
+  switch (
+    variant
+  ) {
+    case 'success':
+    case 'approve':
+      return COLORS.green;
+
+    case 'warning':
+      return COLORS.orange;
+
+    case 'reject':
+    case 'error':
+      return COLORS.redBright;
+
+    case 'info':
+    default:
+      return COLORS.blue;
+  }
+}
+
+function getActionModalTint(
+  variant:
+    ActionModalVariant
+) {
+  switch (
+    variant
+  ) {
+    case 'success':
+    case 'approve':
+      return 'rgba(53,201,130,0.12)';
+
+    case 'warning':
+      return 'rgba(243,163,74,0.12)';
+
+    case 'reject':
+    case 'error':
+      return 'rgba(239,51,64,0.12)';
+
+    case 'info':
+    default:
+      return 'rgba(74,140,255,0.12)';
+  }
+}
+
+function getActionModalPrimaryColor(
+  variant:
+    ActionModalVariant
+) {
+  if (
+    variant ===
+    'reject'
+  ) {
+    return COLORS.redDark;
+  }
+
+  if (
+    variant ===
+      'success' ||
+    variant ===
+      'approve'
+  ) {
+    return COLORS.green;
+  }
+
+  if (
+    variant ===
+    'warning'
+  ) {
+    return COLORS.orange;
+  }
+
+  return COLORS.red;
+}
+
+function getActionModalIcon(
+  variant:
+    ActionModalVariant
+):
+  ComponentProps<
+    typeof MaterialIcons
+  >['name'] {
+  switch (
+    variant
+  ) {
+    case 'success':
+      return 'check-circle';
+
+    case 'warning':
+      return 'warning-amber';
+
+    case 'approve':
+      return 'verified';
+
+    case 'reject':
+      return 'cancel';
+
+    case 'error':
+      return 'error-outline';
+
+    case 'info':
+    default:
+      return 'info-outline';
+  }
+}
+
+// ============================================================
+// FORMAT VALUE
 // ============================================================
 
 function formatValue(
-  value?: string | null
+  value?:
+    | string
+    | null
 ) {
   if (
     !value
@@ -2321,7 +2686,8 @@ function formatValue(
     .replace(
       /\b\w/g,
       character =>
-        character.toUpperCase()
+        character
+          .toUpperCase()
     );
 }
 
@@ -2330,45 +2696,41 @@ function formatValue(
 // ============================================================
 
 function formatDonationHistory(
-  application: DonorApplication
+  application:
+    DonorApplication
 ) {
-  // ----------------------------------------------------------
-  // FIRST-TIME DONOR
-  // ----------------------------------------------------------
-
   if (
-    !application.has_donated_before
+    !application
+      .has_donated_before
   ) {
     return 'First-time donor';
   }
 
-  // ----------------------------------------------------------
-  // EXACT DATE
-  // ----------------------------------------------------------
-
   if (
-    application.last_donation_date
+    application
+      .last_donation_date
   ) {
     return formatDate(
-      application.last_donation_date
+      application
+        .last_donation_date
     );
   }
 
-  // ----------------------------------------------------------
-  // APPROXIMATE MONTH + YEAR
-  // ----------------------------------------------------------
-
   const month =
-    application.last_donation_month;
+    application
+      .last_donation_month;
 
   const year =
-    application.last_donation_year;
+    application
+      .last_donation_year;
 
   if (
     typeof month ===
       'number' &&
-    month >= 1 &&
-    month <= 12 &&
+    month >=
+      1 &&
+    month <=
+      12 &&
     typeof year ===
       'number' &&
     Number.isInteger(
@@ -2378,10 +2740,6 @@ function formatDonationHistory(
     return `Approximately ${MONTH_NAMES[month - 1]} ${year}`;
   }
 
-  // ----------------------------------------------------------
-  // LEGACY APPLICATION
-  // ----------------------------------------------------------
-
   return 'Date not provided';
 }
 
@@ -2390,17 +2748,15 @@ function formatDonationHistory(
 // ============================================================
 
 function formatDate(
-  value?: string | null
+  value?:
+    | string
+    | null
 ) {
   if (
     !value
   ) {
     return '—';
   }
-
-  // Date-only values such as 2026-06-14 should be interpreted
-  // as a local calendar date rather than UTC. This prevents
-  // timezone shifts from displaying the previous day.
 
   const dateOnlyMatch =
     value.match(
@@ -2463,7 +2819,9 @@ function formatDate(
 // ============================================================
 
 function formatDateTime(
-  value?: string | null
+  value?:
+    | string
+    | null
 ) {
   if (
     !value
@@ -2511,26 +2869,28 @@ function formatDateTime(
 // ============================================================
 
 function formatLocation(
-  city?: string | null,
-  province?: string | null
+  city?:
+    | string
+    | null,
+
+  province?:
+    | string
+    | null
 ) {
   const parts =
     [
       city,
       province,
     ]
-      .filter(Boolean);
+      .filter(
+        Boolean
+      );
 
-  if (
-    parts.length ===
-      0
-  ) {
-    return '—';
-  }
-
-  return parts.join(
-    ', '
-  );
+  return parts.length
+    ? parts.join(
+        ', '
+      )
+    : '—';
 }
 
 // ============================================================
@@ -2538,20 +2898,25 @@ function formatLocation(
 // ============================================================
 
 function formatCoordinate(
-  value?: number | null
+  value?:
+    | number
+    | null
 ) {
   if (
-    value === null ||
-    value === undefined
+    value ===
+      null ||
+    value ===
+      undefined
   ) {
     return '—';
   }
 
   return Number(
     value
-  ).toFixed(
-    5
-  );
+  )
+    .toFixed(
+      5
+    );
 }
 
 // ============================================================
@@ -2582,7 +2947,7 @@ const styles =
 
       borderRadius:
         Platform.OS ===
-          'web'
+        'web'
           ? 24
           : 0,
     },
@@ -2602,130 +2967,6 @@ const styles =
     safeArea: {
       flex: 1,
     },
-
-    // ========================================================
-    // HEADER
-    // ========================================================
-
-    header: {
-      flexDirection:
-        'row',
-
-      alignItems:
-        'center',
-
-      justifyContent:
-        'space-between',
-
-      borderBottomWidth:
-        1,
-
-      borderBottomColor:
-        COLORS.border,
-    },
-
-    brandArea: {
-      flexDirection:
-        'row',
-
-      alignItems:
-        'center',
-
-      gap: 14,
-    },
-
-    logoCircle: {
-      alignItems:
-        'center',
-
-      justifyContent:
-        'center',
-
-      backgroundColor:
-        COLORS.white,
-
-      overflow:
-        'hidden',
-    },
-
-    brand: {
-      color:
-        COLORS.white,
-
-      fontFamily:
-        'Poppins_700Bold',
-    },
-
-    brandRed: {
-      color:
-        COLORS.redBright,
-    },
-
-    portal: {
-      color:
-        COLORS.redBright,
-
-      fontFamily:
-        'Inter_600SemiBold',
-
-      marginTop: 1,
-    },
-
-    adminSection: {
-      flexDirection:
-        'row',
-
-      alignItems:
-        'center',
-
-      gap: 11,
-    },
-
-    adminAvatar: {
-      alignItems:
-        'center',
-
-      justifyContent:
-        'center',
-
-      backgroundColor:
-        COLORS.cardLight,
-
-      borderWidth: 1,
-
-      borderColor:
-        COLORS.border,
-    },
-
-    adminAvatarText: {
-      color:
-        COLORS.white,
-
-      fontFamily:
-        'Poppins_600SemiBold',
-    },
-
-    adminName: {
-      color:
-        COLORS.white,
-
-      fontFamily:
-        'Inter_600SemiBold',
-    },
-
-    adminRole: {
-      color:
-        COLORS.muted,
-
-      fontFamily:
-        'Inter_400Regular',
-
-      marginTop: 2,
-    },
-
-    // ========================================================
-    // CONTENT
-    // ========================================================
 
     scroll: {
       flex: 1,
@@ -2816,10 +3057,6 @@ const styles =
         'Inter_600SemiBold',
     },
 
-    // ========================================================
-    // PROFILE
-    // ========================================================
-
     profileCard: {
       flexDirection:
         'row',
@@ -2830,7 +3067,8 @@ const styles =
       justifyContent:
         'space-between',
 
-      borderWidth: 1,
+      borderWidth:
+        1,
 
       borderColor:
         COLORS.border,
@@ -2840,7 +3078,8 @@ const styles =
     },
 
     profileMain: {
-      flex: 1,
+      flex:
+        1,
 
       flexDirection:
         'row',
@@ -2859,7 +3098,8 @@ const styles =
       backgroundColor:
         COLORS.cardLight,
 
-      borderWidth: 1,
+      borderWidth:
+        1,
 
       borderColor:
         COLORS.border,
@@ -2874,7 +3114,8 @@ const styles =
     },
 
     profileNameArea: {
-      flex: 1,
+      flex:
+        1,
     },
 
     applicantName: {
@@ -2908,7 +3149,8 @@ const styles =
       alignItems:
         'center',
 
-      gap: 10,
+      gap:
+        10,
     },
 
     bloodBadge: {
@@ -2918,7 +3160,8 @@ const styles =
       justifyContent:
         'center',
 
-      borderWidth: 1,
+      borderWidth:
+        1,
 
       borderColor:
         '#C21319',
@@ -2942,7 +3185,8 @@ const styles =
       justifyContent:
         'center',
 
-      borderWidth: 1,
+      borderWidth:
+        1,
     },
 
     statusBadgeText: {
@@ -3002,10 +3246,6 @@ const styles =
         COLORS.muted,
     },
 
-    // ========================================================
-    // MAIN GRID
-    // ========================================================
-
     mainGrid: {
       flexDirection:
         'row',
@@ -3015,19 +3255,18 @@ const styles =
     },
 
     leftColumn: {
-      flex: 1.55,
+      flex:
+        1.55,
     },
 
     rightColumn: {
-      flex: 1,
+      flex:
+        1,
     },
 
-    // ========================================================
-    // SECTION CARD
-    // ========================================================
-
     sectionCard: {
-      borderWidth: 1,
+      borderWidth:
+        1,
 
       borderColor:
         COLORS.border,
@@ -3063,10 +3302,6 @@ const styles =
         'Poppins_600SemiBold',
     },
 
-    // ========================================================
-    // INFO
-    // ========================================================
-
     infoGrid: {
       flexDirection:
         'row',
@@ -3074,9 +3309,11 @@ const styles =
       flexWrap:
         'wrap',
 
-      rowGap: 18,
+      rowGap:
+        18,
 
-      columnGap: 10,
+      columnGap:
+        10,
     },
 
     infoItem: {
@@ -3119,12 +3356,9 @@ const styles =
         COLORS.green,
     },
 
-    // ========================================================
-    // VERIFICATION
-    // ========================================================
-
     verificationPanel: {
-      borderWidth: 1,
+      borderWidth:
+        1,
 
       borderColor:
         COLORS.border,
@@ -3148,7 +3382,8 @@ const styles =
       justifyContent:
         'center',
 
-      marginRight: 11,
+      marginRight:
+        11,
 
       backgroundColor:
         'rgba(239,51,64,0.10)',
@@ -3184,7 +3419,8 @@ const styles =
       justifyContent:
         'center',
 
-      gap: 7,
+      gap:
+        7,
 
       backgroundColor:
         COLORS.red,
@@ -3209,10 +3445,6 @@ const styles =
         'center',
     },
 
-    // ========================================================
-    // REVIEW
-    // ========================================================
-
     noteLabel: {
       color:
         COLORS.muted,
@@ -3231,7 +3463,8 @@ const styles =
       fontFamily:
         'Inter_400Regular',
 
-      borderWidth: 1,
+      borderWidth:
+        1,
 
       borderColor:
         COLORS.border,
@@ -3241,7 +3474,8 @@ const styles =
     },
 
     noteInputDisabled: {
-      opacity: 0.75,
+      opacity:
+        0.75,
     },
 
     noteCounter: {
@@ -3261,7 +3495,8 @@ const styles =
     },
 
     rejectButton: {
-      flex: 1,
+      flex:
+        1,
 
       flexDirection:
         'row',
@@ -3272,9 +3507,11 @@ const styles =
       justifyContent:
         'center',
 
-      gap: 7,
+      gap:
+        7,
 
-      borderWidth: 1,
+      borderWidth:
+        1,
 
       borderColor:
         COLORS.redBright,
@@ -3292,7 +3529,8 @@ const styles =
     },
 
     approveButton: {
-      flex: 1,
+      flex:
+        1,
 
       flexDirection:
         'row',
@@ -3303,7 +3541,8 @@ const styles =
       justifyContent:
         'center',
 
-      gap: 7,
+      gap:
+        7,
 
       backgroundColor:
         COLORS.red,
@@ -3318,7 +3557,20 @@ const styles =
     },
 
     disabledButton: {
-      opacity: 0.45,
+      opacity:
+        0.45,
+    },
+
+    buttonPressed: {
+      opacity:
+        0.8,
+
+      transform: [
+        {
+          scale:
+            0.985,
+        },
+      ],
     },
 
     reviewedPanel: {
@@ -3328,9 +3580,11 @@ const styles =
       alignItems:
         'center',
 
-      gap: 10,
+      gap:
+        10,
 
-      borderWidth: 1,
+      borderWidth:
+        1,
 
       borderColor:
         COLORS.border,
@@ -3340,7 +3594,8 @@ const styles =
     },
 
     reviewedTextArea: {
-      flex: 1,
+      flex:
+        1,
     },
 
     reviewedTitle: {
@@ -3357,5 +3612,155 @@ const styles =
 
       fontFamily:
         'Inter_400Regular',
+    },
+
+    modalBackdrop: {
+      flex:
+        1,
+
+      alignItems:
+        'center',
+
+      justifyContent:
+        'center',
+
+      padding:
+        24,
+
+      backgroundColor:
+        'rgba(2,4,10,0.78)',
+    },
+
+    modalCard: {
+      alignItems:
+        'center',
+
+      borderWidth:
+        1,
+
+      backgroundColor:
+        '#0B142A',
+
+      shadowColor:
+        '#000000',
+
+      shadowOpacity:
+        0.35,
+
+      shadowRadius:
+        24,
+
+      shadowOffset: {
+        width:
+          0,
+
+        height:
+          14,
+      },
+
+      elevation:
+        18,
+    },
+
+    modalIconWrap: {
+      alignItems:
+        'center',
+
+      justifyContent:
+        'center',
+    },
+
+    modalTitle: {
+      color:
+        COLORS.white,
+
+      fontFamily:
+        'Poppins_600SemiBold',
+
+      textAlign:
+        'center',
+    },
+
+    modalMessage: {
+      maxWidth:
+        430,
+
+      color:
+        COLORS.soft,
+
+      fontFamily:
+        'Inter_400Regular',
+
+      textAlign:
+        'center',
+    },
+
+    modalActions: {
+      width:
+        '100%',
+
+      flexDirection:
+        'row',
+
+      alignItems:
+        'center',
+    },
+
+    modalCancelButton: {
+      flex:
+        1,
+
+      alignItems:
+        'center',
+
+      justifyContent:
+        'center',
+
+      borderWidth:
+        1,
+
+      borderColor:
+        COLORS.border,
+
+      backgroundColor:
+        COLORS.cardLight,
+    },
+
+    modalPrimaryButton: {
+      flex:
+        1,
+
+      alignItems:
+        'center',
+
+      justifyContent:
+        'center',
+    },
+
+    modalSingleButton: {
+      maxWidth:
+        190,
+
+      marginLeft:
+        'auto',
+
+      marginRight:
+        'auto',
+    },
+
+    modalCancelText: {
+      color:
+        COLORS.soft,
+
+      fontFamily:
+        'Inter_600SemiBold',
+    },
+
+    modalPrimaryText: {
+      color:
+        COLORS.white,
+
+      fontFamily:
+        'Inter_600SemiBold',
     },
   });

@@ -1,4 +1,5 @@
 import {
+  type ComponentProps,
   useEffect,
   useMemo,
   useState,
@@ -6,7 +7,6 @@ import {
 
 import {
   ActivityIndicator,
-  Image,
   Modal,
   Platform,
   Pressable,
@@ -38,6 +38,11 @@ import {
 } from 'react-native-safe-area-context';
 
 import AdminBottomNav from '../AdminBottomNav';
+import AdminHeader from '../AdminHeader';
+
+import {
+  type AdminProfile,
+} from '../../lib/api';
 
 import {
   clearAdminSession,
@@ -56,8 +61,6 @@ const DESIGN_HEIGHT =
 
 // ============================================================
 // COLORS
-//
-// MATCHED TO DASHBOARD / APPLICATIONS / LOG TRAILS
 // ============================================================
 
 const COLORS = {
@@ -94,31 +97,17 @@ const COLORS = {
   soft:
     '#B7C1D8',
 
+  green:
+    '#35C982',
+
+  orange:
+    '#F3A34A',
+
+  blue:
+    '#6EA8FE',
+
   overlay:
-    'rgba(0,0,0,0.74)',
-
-  cancel:
-    '#101A35',
-};
-
-// ============================================================
-// TYPES
-// ============================================================
-
-type AdminProfile = {
-  id?: string;
-
-  email?: string;
-
-  first_name?: string;
-
-  middle_name?: string | null;
-
-  last_name?: string;
-
-  suffix?: string | null;
-
-  role?: string;
+    'rgba(0,0,0,0.76)',
 };
 
 // ============================================================
@@ -212,8 +201,14 @@ export default function AdminSettingsScreen() {
       0.68
     );
 
+  const fs =
+    Math.max(
+      tablet.scale,
+      0.92
+    );
+
   // ==========================================================
-  // STATE
+  // PROFILE
   // ==========================================================
 
   const [
@@ -230,6 +225,86 @@ export default function AdminSettingsScreen() {
   ] =
     useState(
       true
+    );
+
+  // ==========================================================
+  // NOTIFICATION PREFERENCES
+  // ==========================================================
+
+  const [
+    donorApplicationAlerts,
+    setDonorApplicationAlerts,
+  ] =
+    useState(
+      true
+    );
+
+  const [
+    bloodRequestAlerts,
+    setBloodRequestAlerts,
+  ] =
+    useState(
+      true
+    );
+
+  const [
+    userAccountAlerts,
+    setUserAccountAlerts,
+  ] =
+    useState(
+      true
+    );
+
+  const [
+    securityAlerts,
+    setSecurityAlerts,
+  ] =
+    useState(
+      true
+    );
+
+  // ==========================================================
+  // MODALS
+  // ==========================================================
+
+  const [
+    profileModalVisible,
+    setProfileModalVisible,
+  ] =
+    useState(
+      false
+    );
+
+  const [
+    securityModalVisible,
+    setSecurityModalVisible,
+  ] =
+    useState(
+      false
+    );
+
+  const [
+    sessionModalVisible,
+    setSessionModalVisible,
+  ] =
+    useState(
+      false
+    );
+
+  const [
+    aboutModalVisible,
+    setAboutModalVisible,
+  ] =
+    useState(
+      false
+    );
+
+  const [
+    passwordModalVisible,
+    setPasswordModalVisible,
+  ] =
+    useState(
+      false
     );
 
   const [
@@ -302,7 +377,7 @@ export default function AdminSettingsScreen() {
   }
 
   // ==========================================================
-  // ADMIN NAME
+  // ADMIN DISPLAY
   // ==========================================================
 
   const adminName =
@@ -326,7 +401,9 @@ export default function AdminSettingsScreen() {
 
   const adminInitial =
     adminName
-      .charAt(0)
+      .charAt(
+        0
+      )
       .toUpperCase();
 
   // ==========================================================
@@ -411,6 +488,22 @@ export default function AdminSettingsScreen() {
             COLORS.redBright
           }
         />
+
+        <Text
+          style={[
+            styles.loadingText,
+
+            {
+              fontSize:
+                13 * fs,
+
+              marginTop:
+                14 * s,
+            },
+          ]}
+        >
+          Loading settings...
+        </Text>
       </View>
     );
   }
@@ -465,250 +558,20 @@ export default function AdminSettingsScreen() {
                 HEADER
             ================================================== */}
 
-            <View
-              style={[
-                styles.header,
-
-                {
-                  height:
-                    96 * s,
-
-                  paddingHorizontal:
-                    48 * s,
-                },
-              ]}
-            >
-              {/* ================================================
-                  BRAND
-              ================================================ */}
-
-              <Pressable
-                style={({ pressed }) => [
-                  styles.brandArea,
-
-                  pressed &&
-                    styles.headerPressed,
-                ]}
-                onPress={() =>
-                  router.replace(
-                    '/dashboard'
-                  )
-                }
-              >
-                <View
-                  style={[
-                    styles.logoCircle,
-
-                    {
-                      width:
-                        52 * s,
-
-                      height:
-                        52 * s,
-
-                      borderRadius:
-                        26 * s,
-                    },
-                  ]}
-                >
-                  <Image
-                    source={require('../../assets/images/hemo-hero-logo.png')}
-                    style={{
-                      width:
-                        46 * s,
-
-                      height:
-                        46 * s,
-                    }}
-                    resizeMode="contain"
-                  />
-                </View>
-
-                <View>
-                  <Text
-                    style={[
-                      styles.brand,
-
-                      {
-                        fontSize:
-                          27 * s,
-                      },
-                    ]}
-                  >
-                    <Text
-                      style={
-                        styles.brandRed
-                      }
-                    >
-                      Hemo-
-                    </Text>
-
-                    Hero
-                  </Text>
-
-                  <Text
-                    style={[
-                      styles.portal,
-
-                      {
-                        fontSize:
-                          9 * s,
-
-                        letterSpacing:
-                          1.6 * s,
-                      },
-                    ]}
-                  >
-                    ADMIN PORTAL
-                  </Text>
-                </View>
-              </Pressable>
-
-              {/* ================================================
-                  ADMIN AREA
-              ================================================ */}
-
-              <View
-                style={
-                  styles.adminSection
-                }
-              >
-                {/* ==============================================
-                    NOTIFICATION
-                ============================================== */}
-
-                <Pressable
-                  style={({ pressed }) => [
-                    styles.notificationWrap,
-
-                    pressed &&
-                      styles.headerPressed,
-                  ]}
-                  onPress={() => {
-                    console.log(
-                      'Admin notifications'
-                    );
-                  }}
-                >
-                  <MaterialIcons
-                    name="notifications-none"
-                    size={
-                      24 * s
-                    }
-                    color={
-                      COLORS.white
-                    }
-                  />
-
-                  <View
-                    style={[
-                      styles.notificationBadge,
-
-                      {
-                        minWidth:
-                          18 * s,
-
-                        height:
-                          18 * s,
-
-                        borderRadius:
-                          9 * s,
-                      },
-                    ]}
-                  >
-                    <Text
-                      style={[
-                        styles.notificationBadgeText,
-
-                        {
-                          fontSize:
-                            9 * s,
-                        },
-                      ]}
-                    >
-                      3
-                    </Text>
-                  </View>
-                </Pressable>
-
-                {/* ==============================================
-                    AVATAR
-                ============================================== */}
-
-                <View
-                  style={[
-                    styles.avatar,
-
-                    {
-                      width:
-                        48 * s,
-
-                      height:
-                        48 * s,
-
-                      borderRadius:
-                        24 * s,
-                    },
-                  ]}
-                >
-                  <Text
-                    style={[
-                      styles.avatarText,
-
-                      {
-                        fontSize:
-                          15 * s,
-                      },
-                    ]}
-                  >
-                    {
-                      adminInitial
-                    }
-                  </Text>
-                </View>
-
-                {/* ==============================================
-                    ADMIN INFO
-                ============================================== */}
-
-                <View
-                  style={
-                    styles.adminInfo
-                  }
-                >
-                  <Text
-                    numberOfLines={
-                      1
-                    }
-                    style={[
-                      styles.adminName,
-
-                      {
-                        fontSize:
-                          12 * s,
-                      },
-                    ]}
-                  >
-                    {
-                      adminName
-                    }
-                  </Text>
-
-                  <Text
-                    style={[
-                      styles.adminRole,
-
-                      {
-                        fontSize:
-                          10 * s,
-                      },
-                    ]}
-                  >
-                    Admin
-                  </Text>
-                </View>
-              </View>
-            </View>
+            <AdminHeader
+              profile={
+                profile
+              }
+              scale={
+                s
+              }
+              fontScale={
+                fs
+              }
+              notificationCount={
+                0
+              }
+            />
 
             {/* ==================================================
                 CONTENT
@@ -726,36 +589,36 @@ export default function AdminSettingsScreen() {
                     48 * s,
 
                   paddingTop:
-                    32 * s,
+                    30 * s,
 
                   paddingBottom:
-                    30 * s,
+                    36 * s,
                 },
               ]}
               showsVerticalScrollIndicator={
                 false
               }
             >
-              {/* ================================================
-                  TITLE
-              ================================================ */}
+              {/* =================================================
+                  PAGE TITLE
+              ================================================= */}
 
               <View
                 style={{
                   marginBottom:
-                    28 * s,
+                    24 * s,
                 }}
               >
                 <Text
                   style={[
-                    styles.title,
+                    styles.pageTitle,
 
                     {
                       fontSize:
-                        32 * s,
+                        30 * fs,
 
                       lineHeight:
-                        40 * s,
+                        38 * fs,
                     },
                   ]}
                 >
@@ -764,54 +627,46 @@ export default function AdminSettingsScreen() {
 
                 <Text
                   style={[
-                    styles.subtitle,
+                    styles.pageSubtitle,
 
                     {
+                      fontSize:
+                        14 * fs,
+
                       marginTop:
                         4 * s,
-
-                      fontSize:
-                        13 * s,
                     },
                   ]}
                 >
-                  Manage your administrator account and portal preferences.
+                  Manage administrator account settings, security, notifications, and portal preferences.
                 </Text>
               </View>
 
-              {/* ================================================
-                  ACCOUNT
-              ================================================ */}
+              {/* =================================================
+                  ADMINISTRATOR ACCOUNT
+              ================================================= */}
 
-              <Text
-                style={[
-                  styles.sectionLabel,
-
-                  {
-                    fontSize:
-                      10 * s,
-
-                    marginBottom:
-                      10 * s,
-                  },
-                ]}
+              <SectionLabel
+                scale={
+                  s
+                }
+                fontScale={
+                  fs
+                }
               >
-                ACCOUNT
-              </Text>
+                ADMINISTRATOR ACCOUNT
+              </SectionLabel>
 
               <View
                 style={[
-                  styles.card,
+                  styles.profileCard,
 
                   {
-                    minHeight:
-                      120 * s,
-
-                    paddingHorizontal:
-                      24 * s,
+                    padding:
+                      22 * s,
 
                     borderRadius:
-                      14 * s,
+                      15 * s,
 
                     marginBottom:
                       24 * s,
@@ -824,300 +679,1041 @@ export default function AdminSettingsScreen() {
                   }
                 >
                   <View
-                    style={[
-                      styles.profileAvatar,
-
-                      {
-                        width:
-                          62 * s,
-
-                        height:
-                          62 * s,
-
-                        borderRadius:
-                          31 * s,
-
-                        marginRight:
-                          18 * s,
-                      },
-                    ]}
+                    style={
+                      styles.profileLeft
+                    }
                   >
-                    <Text
+                    <View
                       style={[
-                        styles.profileAvatarText,
+                        styles.profileAvatar,
 
                         {
-                          fontSize:
-                            20 * s,
+                          width:
+                            68 * s,
+
+                          height:
+                            68 * s,
+
+                          borderRadius:
+                            34 * s,
+
+                          marginRight:
+                            17 * s,
                         },
                       ]}
                     >
-                      {
-                        adminInitial
+                      <Text
+                        style={[
+                          styles.profileAvatarText,
+
+                          {
+                            fontSize:
+                              21 * fs,
+                          },
+                        ]}
+                      >
+                        {
+                          adminInitial
+                        }
+                      </Text>
+                    </View>
+
+                    <View
+                      style={
+                        styles.profileBody
                       }
+                    >
+                      <Text
+                        numberOfLines={
+                          1
+                        }
+                        style={[
+                          styles.profileName,
+
+                          {
+                            fontSize:
+                              18 * fs,
+                          },
+                        ]}
+                      >
+                        {
+                          adminName
+                        }
+                      </Text>
+
+                      <Text
+                        numberOfLines={
+                          1
+                        }
+                        style={[
+                          styles.profileEmail,
+
+                          {
+                            fontSize:
+                              12.5 * fs,
+
+                            marginTop:
+                              3 * s,
+                          },
+                        ]}
+                      >
+                        {profile?.email ||
+                          'Administrator account'}
+                      </Text>
+
+                      <View
+                        style={[
+                          styles.profileBadges,
+
+                          {
+                            gap:
+                              8 * s,
+
+                            marginTop:
+                              9 * s,
+                          },
+                        ]}
+                      >
+                        <View
+                          style={[
+                            styles.adminBadge,
+
+                            {
+                              paddingHorizontal:
+                                10 * s,
+
+                              paddingVertical:
+                                5 * s,
+
+                              borderRadius:
+                                9 * s,
+                            },
+                          ]}
+                        >
+                          <MaterialIcons
+                            name="admin-panel-settings"
+                            size={
+                              13 * s
+                            }
+                            color={
+                              COLORS.redBright
+                            }
+                          />
+
+                          <Text
+                            style={[
+                              styles.adminBadgeText,
+
+                              {
+                                fontSize:
+                                  10.5 * fs,
+                              },
+                            ]}
+                          >
+                            ADMINISTRATOR
+                          </Text>
+                        </View>
+
+                        <View
+                          style={[
+                            styles.activeBadge,
+
+                            {
+                              paddingHorizontal:
+                                10 * s,
+
+                              paddingVertical:
+                                5 * s,
+
+                              borderRadius:
+                                9 * s,
+                            },
+                          ]}
+                        >
+                          <View
+                            style={[
+                              styles.activeDot,
+
+                              {
+                                width:
+                                  6 * s,
+
+                                height:
+                                  6 * s,
+
+                                borderRadius:
+                                  3 * s,
+                              },
+                            ]}
+                          />
+
+                          <Text
+                            style={[
+                              styles.activeBadgeText,
+
+                              {
+                                fontSize:
+                                  10.5 * fs,
+                              },
+                            ]}
+                          >
+                            ACTIVE SESSION
+                          </Text>
+                        </View>
+                      </View>
+                    </View>
+                  </View>
+
+                  <Pressable
+                    onPress={() =>
+                      setProfileModalVisible(
+                        true
+                      )
+                    }
+                    style={({ pressed }) => [
+                      styles.profileButton,
+
+                      {
+                        height:
+                          42 * s,
+
+                        paddingHorizontal:
+                          15 * s,
+
+                        borderRadius:
+                          9 * s,
+
+                        gap:
+                          7 * s,
+                      },
+
+                      pressed &&
+                        styles.pressed,
+                    ]}
+                  >
+                    <MaterialIcons
+                      name="person-outline"
+                      size={
+                        18 * s
+                      }
+                      color={
+                        COLORS.white
+                      }
+                    />
+
+                    <Text
+                      style={[
+                        styles.profileButtonText,
+
+                        {
+                          fontSize:
+                            12 * fs,
+                        },
+                      ]}
+                    >
+                      View Profile
                     </Text>
+                  </Pressable>
+                </View>
+              </View>
+
+              {/* =================================================
+                  ACCOUNT + SECURITY
+              ================================================= */}
+
+              <View
+                style={[
+                  styles.twoColumns,
+
+                  {
+                    gap:
+                      20 * s,
+
+                    marginBottom:
+                      24 * s,
+                  },
+                ]}
+              >
+                {/* ===============================================
+                    ACCOUNT & PROFILE
+                =============================================== */}
+
+                <View
+                  style={
+                    styles.column
+                  }
+                >
+                  <SectionLabel
+                    scale={
+                      s
+                    }
+                    fontScale={
+                      fs
+                    }
+                  >
+                    ACCOUNT & PROFILE
+                  </SectionLabel>
+
+                  <View
+                    style={[
+                      styles.settingsCard,
+
+                      {
+                        borderRadius:
+                          14 * s,
+
+                        paddingHorizontal:
+                          20 * s,
+                      },
+                    ]}
+                  >
+                    <SettingsRow
+                      scale={
+                        s
+                      }
+                      fontScale={
+                        fs
+                      }
+                      icon="person-outline"
+                      title="Administrator Profile"
+                      description="View the administrator name, email address, and assigned role."
+                      onPress={() =>
+                        setProfileModalVisible(
+                          true
+                        )
+                      }
+                    />
+
+                    <Divider />
+
+                    <SettingsRow
+                      scale={
+                        s
+                      }
+                      fontScale={
+                        fs
+                      }
+                      icon="lock-outline"
+                      title="Change Password"
+                      description="Update the password used to sign in to the Admin Portal."
+                      status="Setup required"
+                      onPress={() =>
+                        setPasswordModalVisible(
+                          true
+                        )
+                      }
+                    />
+
+                    <Divider />
+
+                    <SettingsRow
+                      scale={
+                        s
+                      }
+                      fontScale={
+                        fs
+                      }
+                      icon="badge"
+                      title="Account Role"
+                      description="Administrator permissions and account access level."
+                      value="Admin"
+                    />
+                  </View>
+                </View>
+
+                {/* ===============================================
+                    SECURITY & SESSIONS
+                =============================================== */}
+
+                <View
+                  style={
+                    styles.column
+                  }
+                >
+                  <SectionLabel
+                    scale={
+                      s
+                    }
+                    fontScale={
+                      fs
+                    }
+                  >
+                    SECURITY & SESSIONS
+                  </SectionLabel>
+
+                  <View
+                    style={[
+                      styles.settingsCard,
+
+                      {
+                        borderRadius:
+                          14 * s,
+
+                        paddingHorizontal:
+                          20 * s,
+                      },
+                    ]}
+                  >
+                    <SettingsRow
+                      scale={
+                        s
+                      }
+                      fontScale={
+                        fs
+                      }
+                      icon="security"
+                      title="Account Security"
+                      description="Review administrator security recommendations and access information."
+                      onPress={() =>
+                        setSecurityModalVisible(
+                          true
+                        )
+                      }
+                    />
+
+                    <Divider />
+
+                    <SettingsRow
+                      scale={
+                        s
+                      }
+                      fontScale={
+                        fs
+                      }
+                      icon="devices"
+                      title="Current Session"
+                      description="View information about the currently authenticated admin session."
+                      value="Active"
+                      valueColor={
+                        COLORS.green
+                      }
+                      onPress={() =>
+                        setSessionModalVisible(
+                          true
+                        )
+                      }
+                    />
+
+                    <Divider />
+
+                    <SettingsRow
+                      scale={
+                        s
+                      }
+                      fontScale={
+                        fs
+                      }
+                      icon="history"
+                      title="Audit & Log Trails"
+                      description="Review administrator actions and recorded system activity."
+                      onPress={() =>
+                        router.push(
+                          '/activity-logs' as any
+                        )
+                      }
+                    />
+                  </View>
+                </View>
+              </View>
+
+              {/* =================================================
+                  NOTIFICATIONS
+              ================================================= */}
+
+              <SectionLabel
+                scale={
+                  s
+                }
+                fontScale={
+                  fs
+                }
+              >
+                NOTIFICATIONS
+              </SectionLabel>
+
+              <View
+                style={[
+                  styles.notificationCard,
+
+                  {
+                    padding:
+                      20 * s,
+
+                    borderRadius:
+                      14 * s,
+
+                    marginBottom:
+                      24 * s,
+                  },
+                ]}
+              >
+                <View
+                  style={[
+                    styles.sectionIntro,
+
+                    {
+                      marginBottom:
+                        14 * s,
+                    },
+                  ]}
+                >
+                  <View
+                    style={[
+                      styles.sectionIntroIcon,
+
+                      {
+                        width:
+                          38 * s,
+
+                        height:
+                          38 * s,
+
+                        borderRadius:
+                          10 * s,
+
+                        marginRight:
+                          11 * s,
+                      },
+                    ]}
+                  >
+                    <MaterialIcons
+                      name="notifications-none"
+                      size={
+                        20 * s
+                      }
+                      color={
+                        COLORS.redBright
+                      }
+                    />
                   </View>
 
                   <View
                     style={
-                      styles.profileBody
+                      styles.sectionIntroText
                     }
                   >
                     <Text
                       style={[
-                        styles.profileName,
+                        styles.sectionIntroTitle,
 
                         {
                           fontSize:
-                            16 * s,
+                            14 * fs,
                         },
                       ]}
                     >
-                      {
-                        adminName
-                      }
+                      Admin Notification Preferences
                     </Text>
 
                     <Text
                       style={[
-                        styles.profileEmail,
+                        styles.sectionIntroDescription,
 
                         {
                           fontSize:
-                            11 * s,
+                            11.5 * fs,
+
+                          lineHeight:
+                            17 * fs,
+
+                          marginTop:
+                            2 * s,
+                        },
+                      ]}
+                    >
+                      Choose which important activities should be highlighted to administrators.
+                    </Text>
+                  </View>
+                </View>
+
+                <View
+                  style={[
+                    styles.preferenceGrid,
+
+                    {
+                      gap:
+                        12 * s,
+                    },
+                  ]}
+                >
+                  <PreferenceTile
+                    scale={
+                      s
+                    }
+                    fontScale={
+                      fs
+                    }
+                    icon="assignment"
+                    title="Donor Applications"
+                    description="New applications and application status activity."
+                    value={
+                      donorApplicationAlerts
+                    }
+                    onChange={
+                      setDonorApplicationAlerts
+                    }
+                  />
+
+                  <PreferenceTile
+                    scale={
+                      s
+                    }
+                    fontScale={
+                      fs
+                    }
+                    icon="bloodtype"
+                    title="Blood Requests"
+                    description="New requests and important request updates."
+                    value={
+                      bloodRequestAlerts
+                    }
+                    onChange={
+                      setBloodRequestAlerts
+                    }
+                  />
+
+                  <PreferenceTile
+                    scale={
+                      s
+                    }
+                    fontScale={
+                      fs
+                    }
+                    icon="manage-accounts"
+                    title="User Account Activity"
+                    description="Important changes involving registered user accounts."
+                    value={
+                      userAccountAlerts
+                    }
+                    onChange={
+                      setUserAccountAlerts
+                    }
+                  />
+
+                  <PreferenceTile
+                    scale={
+                      s
+                    }
+                    fontScale={
+                      fs
+                    }
+                    icon="verified-user"
+                    title="Security Alerts"
+                    description="Security-related and administrator account notices."
+                    value={
+                      securityAlerts
+                    }
+                    onChange={
+                      setSecurityAlerts
+                    }
+                  />
+                </View>
+
+                <View
+                  style={[
+                    styles.preferenceNotice,
+
+                    {
+                      padding:
+                        11 * s,
+
+                      borderRadius:
+                        9 * s,
+
+                      marginTop:
+                        14 * s,
+                    },
+                  ]}
+                >
+                  <MaterialIcons
+                    name="info-outline"
+                    size={
+                      17 * s
+                    }
+                    color={
+                      COLORS.blue
+                    }
+                  />
+
+                  <Text
+                    style={[
+                      styles.preferenceNoticeText,
+
+                      {
+                        fontSize:
+                          10.5 * fs,
+
+                        lineHeight:
+                          16 * fs,
+                      },
+                    ]}
+                  >
+                    These switches currently control the Admin Portal interface only. Server-saved notification preferences can be connected later.
+                  </Text>
+                </View>
+              </View>
+
+              {/* =================================================
+                  SYSTEM + DATA
+              ================================================= */}
+
+              <View
+                style={[
+                  styles.twoColumns,
+
+                  {
+                    gap:
+                      20 * s,
+
+                    marginBottom:
+                      24 * s,
+                  },
+                ]}
+              >
+                {/* ===============================================
+                    SYSTEM PREFERENCES
+                =============================================== */}
+
+                <View
+                  style={
+                    styles.column
+                  }
+                >
+                  <SectionLabel
+                    scale={
+                      s
+                    }
+                    fontScale={
+                      fs
+                    }
+                  >
+                    SYSTEM PREFERENCES
+                  </SectionLabel>
+
+                  <View
+                    style={[
+                      styles.settingsCard,
+
+                      {
+                        borderRadius:
+                          14 * s,
+
+                        paddingHorizontal:
+                          20 * s,
+                      },
+                    ]}
+                  >
+                    <SettingsRow
+                      scale={
+                        s
+                      }
+                      fontScale={
+                        fs
+                      }
+                      icon="dark-mode"
+                      title="Appearance"
+                      description="Visual theme used by the Hemo-Hero Admin Portal."
+                      value="Dark"
+                    />
+
+                    <Divider />
+
+                    <SettingsRow
+                      scale={
+                        s
+                      }
+                      fontScale={
+                        fs
+                      }
+                      icon="dashboard"
+                      title="Default Landing Page"
+                      description="The first page shown after administrator sign-in."
+                      value="Dashboard"
+                    />
+
+                    <Divider />
+
+                    <SettingsRow
+                      scale={
+                        s
+                      }
+                      fontScale={
+                        fs
+                      }
+                      icon="format-list-numbered"
+                      title="Records Per Page"
+                      description="Default number of records displayed in management tables."
+                      value="12"
+                    />
+
+                    <Divider />
+
+                    <SettingsRow
+                      scale={
+                        s
+                      }
+                      fontScale={
+                        fs
+                      }
+                      icon="schedule"
+                      title="Date & Time"
+                      description="Date and time values follow the device and system locale."
+                      value="System"
+                    />
+                  </View>
+                </View>
+
+                {/* ===============================================
+                    DATA & RECORDS
+                =============================================== */}
+
+                <View
+                  style={
+                    styles.column
+                  }
+                >
+                  <SectionLabel
+                    scale={
+                      s
+                    }
+                    fontScale={
+                      fs
+                    }
+                  >
+                    DATA & RECORDS
+                  </SectionLabel>
+
+                  <View
+                    style={[
+                      styles.settingsCard,
+
+                      {
+                        borderRadius:
+                          14 * s,
+
+                        paddingHorizontal:
+                          20 * s,
+                      },
+                    ]}
+                  >
+                    <SettingsRow
+                      scale={
+                        s
+                      }
+                      fontScale={
+                        fs
+                      }
+                      icon="history"
+                      title="System Log Trails"
+                      description="View activity records created by administrator and system actions."
+                      onPress={() =>
+                        router.push(
+                          '/activity-logs' as any
+                        )
+                      }
+                    />
+
+                    <Divider />
+
+                    <SettingsRow
+                      scale={
+                        s
+                      }
+                      fontScale={
+                        fs
+                      }
+                      icon="file-download"
+                      title="Report Exports"
+                      description="Export administrative reports and system records."
+                      status="Not configured"
+                    />
+
+                    <Divider />
+
+                    <SettingsRow
+                      scale={
+                        s
+                      }
+                      fontScale={
+                        fs
+                      }
+                      icon="storage"
+                      title="Data Management"
+                      description="Application data is managed by the Hemo-Hero backend and database."
+                      value="System"
+                    />
+                  </View>
+                </View>
+              </View>
+
+              {/* =================================================
+                  ABOUT
+              ================================================= */}
+
+              <SectionLabel
+                scale={
+                  s
+                }
+                fontScale={
+                  fs
+                }
+              >
+                ABOUT
+              </SectionLabel>
+
+              <View
+                style={[
+                  styles.aboutCard,
+
+                  {
+                    padding:
+                      20 * s,
+
+                    borderRadius:
+                      14 * s,
+
+                    marginBottom:
+                      24 * s,
+                  },
+                ]}
+              >
+                <View
+                  style={
+                    styles.aboutLeft
+                  }
+                >
+                  <View
+                    style={[
+                      styles.aboutIcon,
+
+                      {
+                        width:
+                          46 * s,
+
+                        height:
+                          46 * s,
+
+                        borderRadius:
+                          12 * s,
+
+                        marginRight:
+                          14 * s,
+                      },
+                    ]}
+                  >
+                    <MaterialIcons
+                      name="bloodtype"
+                      size={
+                        24 * s
+                      }
+                      color={
+                        COLORS.redBright
+                      }
+                    />
+                  </View>
+
+                  <View
+                    style={
+                      styles.aboutText
+                    }
+                  >
+                    <Text
+                      style={[
+                        styles.aboutTitle,
+
+                        {
+                          fontSize:
+                            14 * fs,
+                        },
+                      ]}
+                    >
+                      Hemo-Hero Admin Portal
+                    </Text>
+
+                    <Text
+                      style={[
+                        styles.aboutDescription,
+
+                        {
+                          fontSize:
+                            11.5 * fs,
+
+                          lineHeight:
+                            17 * fs,
 
                           marginTop:
                             3 * s,
                         },
                       ]}
                     >
-                      {
-                        profile?.email ||
-                        'Administrator account'
-                      }
+                      Administrative interface for managing users, donor applications, blood requests, and system records.
                     </Text>
-
-                    <View
-                      style={[
-                        styles.roleBadge,
-
-                        {
-                          marginTop:
-                            8 * s,
-
-                          paddingHorizontal:
-                            10 * s,
-
-                          paddingVertical:
-                            4 * s,
-
-                          borderRadius:
-                            10 * s,
-                        },
-                      ]}
-                    >
-                      <Text
-                        style={[
-                          styles.roleBadgeText,
-
-                          {
-                            fontSize:
-                              8 * s,
-                          },
-                        ]}
-                      >
-                        ADMINISTRATOR
-                      </Text>
-                    </View>
                   </View>
                 </View>
-              </View>
 
-              {/* ================================================
-                  TWO COLUMN SETTINGS
-              ================================================ */}
-
-              <View
-                style={[
-                  styles.columns,
-
-                  {
-                    gap:
-                      20 * s,
-                  },
-                ]}
-              >
-                {/* ==============================================
-                    SECURITY
-                ============================================== */}
-
-                <View
-                  style={
-                    styles.column
+                <Pressable
+                  onPress={() =>
+                    setAboutModalVisible(
+                      true
+                    )
                   }
+                  style={({ pressed }) => [
+                    styles.aboutButton,
+
+                    {
+                      height:
+                        40 * s,
+
+                      paddingHorizontal:
+                        14 * s,
+
+                      borderRadius:
+                        9 * s,
+                    },
+
+                    pressed &&
+                      styles.pressed,
+                  ]}
                 >
                   <Text
                     style={[
-                      styles.sectionLabel,
+                      styles.aboutButtonText,
 
                       {
                         fontSize:
-                          10 * s,
-
-                        marginBottom:
-                          10 * s,
+                          11.5 * fs,
                       },
                     ]}
                   >
-                    SECURITY
+                    Portal Info
                   </Text>
 
-                  <View
-                    style={[
-                      styles.card,
-
-                      {
-                        borderRadius:
-                          14 * s,
-
-                        paddingHorizontal:
-                          22 * s,
-                      },
-                    ]}
-                  >
-                    <SettingsRow
-                      scale={
-                        s
-                      }
-                      icon="lock-outline"
-                      title="Change Password"
-                      description="Update the password used to access the Admin Portal."
-                      onPress={() => {
-                        console.log(
-                          'Change Password'
-                        );
-                      }}
-                    />
-
-                    <View
-                      style={
-                        styles.divider
-                      }
-                    />
-
-                    <SettingsRow
-                      scale={
-                        s
-                      }
-                      icon="security"
-                      title="Account Security"
-                      description="Review administrator account and session security."
-                      onPress={() => {
-                        console.log(
-                          'Account Security'
-                        );
-                      }}
-                    />
-                  </View>
-                </View>
-
-                {/* ==============================================
-                    SYSTEM
-                ============================================== */}
-
-                <View
-                  style={
-                    styles.column
-                  }
-                >
-                  <Text
-                    style={[
-                      styles.sectionLabel,
-
-                      {
-                        fontSize:
-                          10 * s,
-
-                        marginBottom:
-                          10 * s,
-                      },
-                    ]}
-                  >
-                    SYSTEM
-                  </Text>
-
-                  <View
-                    style={[
-                      styles.card,
-
-                      {
-                        borderRadius:
-                          14 * s,
-
-                        paddingHorizontal:
-                          22 * s,
-                      },
-                    ]}
-                  >
-                    <SettingsRow
-                      scale={
-                        s
-                      }
-                      icon="notifications-none"
-                      title="Notification Preferences"
-                      description="Manage alerts shown in the Admin Portal."
-                      onPress={() => {
-                        console.log(
-                          'Notification Preferences'
-                        );
-                      }}
-                    />
-
-                    <View
-                      style={
-                        styles.divider
-                      }
-                    />
-
-                    <SettingsRow
-                      scale={
-                        s
-                      }
-                      icon="tune"
-                      title="Application Settings"
-                      description="Configure general Hemo-Hero administration options."
-                      onPress={() => {
-                        console.log(
-                          'Application Settings'
-                        );
-                      }}
-                    />
-                  </View>
-                </View>
+                  <MaterialIcons
+                    name="chevron-right"
+                    size={
+                      18 * s
+                    }
+                    color={
+                      COLORS.white
+                    }
+                  />
+                </Pressable>
               </View>
 
-              {/* ================================================
+              {/* =================================================
                   ACCOUNT ACTIONS
-              ================================================ */}
+              ================================================= */}
 
-              <Text
-                style={[
-                  styles.sectionLabel,
-
-                  {
-                    fontSize:
-                      10 * s,
-
-                    marginTop:
-                      26 * s,
-
-                    marginBottom:
-                      10 * s,
-                  },
-                ]}
+              <SectionLabel
+                scale={
+                  s
+                }
+                fontScale={
+                  fs
+                }
               >
                 ACCOUNT ACTIONS
-              </Text>
+              </SectionLabel>
 
               <View
                 style={[
@@ -1125,10 +1721,10 @@ export default function AdminSettingsScreen() {
 
                   {
                     minHeight:
-                      96 * s,
+                      100 * s,
 
                     paddingHorizontal:
-                      24 * s,
+                      22 * s,
 
                     borderRadius:
                       14 * s,
@@ -1137,37 +1733,73 @@ export default function AdminSettingsScreen() {
               >
                 <View
                   style={
-                    styles.signOutInfo
+                    styles.signOutLeft
                   }
                 >
-                  <Text
+                  <View
                     style={[
-                      styles.signOutTitle,
+                      styles.signOutIcon,
 
                       {
-                        fontSize:
+                        width:
+                          44 * s,
+
+                        height:
+                          44 * s,
+
+                        borderRadius:
+                          11 * s,
+
+                        marginRight:
                           14 * s,
                       },
                     ]}
                   >
-                    Sign Out
-                  </Text>
+                    <MaterialIcons
+                      name="logout"
+                      size={
+                        22 * s
+                      }
+                      color={
+                        COLORS.redBright
+                      }
+                    />
+                  </View>
 
-                  <Text
-                    style={[
-                      styles.signOutDescription,
-
-                      {
-                        fontSize:
-                          11 * s,
-
-                        marginTop:
-                          4 * s,
-                      },
-                    ]}
+                  <View
+                    style={
+                      styles.signOutText
+                    }
                   >
-                    End your current administrator session.
-                  </Text>
+                    <Text
+                      style={[
+                        styles.signOutTitle,
+
+                        {
+                          fontSize:
+                            15 * fs,
+                        },
+                      ]}
+                    >
+                      Sign Out
+                    </Text>
+
+                    <Text
+                      style={[
+                        styles.signOutDescription,
+
+                        {
+                          fontSize:
+                            12 * fs,
+
+                          marginTop:
+                            3 * s,
+                        },
+                      ]}
+                    >
+                      End the current administrator session on this device.
+                    </Text>
+                  </View>
                 </View>
 
                 <Pressable
@@ -1179,17 +1811,20 @@ export default function AdminSettingsScreen() {
 
                     {
                       height:
-                        46 * s,
+                        44 * s,
 
                       minWidth:
-                        135 * s,
+                        128 * s,
+
+                      paddingHorizontal:
+                        18 * s,
 
                       borderRadius:
                         10 * s,
                     },
 
                     pressed &&
-                      styles.signOutPressed,
+                      styles.pressed,
                   ]}
                 >
                   <Text
@@ -1198,7 +1833,7 @@ export default function AdminSettingsScreen() {
 
                       {
                         fontSize:
-                          12 * s,
+                          12.5 * fs,
                       },
                     ]}
                   >
@@ -1208,19 +1843,1096 @@ export default function AdminSettingsScreen() {
               </View>
             </ScrollView>
 
-            {/* ==================================================
-                SHARED BOTTOM NAV
-            ================================================== */}
-
             <AdminBottomNav
               activeTab="settings"
             />
           </SafeAreaView>
         </LinearGradient>
 
-        {/* ====================================================
-            LOGOUT CONFIRMATION
-        ==================================================== */}
+        {/* ======================================================
+            PROFILE MODAL
+        ====================================================== */}
+
+        <Modal
+          visible={
+            profileModalVisible
+          }
+          transparent
+          animationType="fade"
+          statusBarTranslucent
+          onRequestClose={() =>
+            setProfileModalVisible(
+              false
+            )
+          }
+        >
+          <View
+            style={
+              styles.modalOverlay
+            }
+          >
+            <Pressable
+              style={
+                StyleSheet.absoluteFillObject
+              }
+              onPress={() =>
+                setProfileModalVisible(
+                  false
+                )
+              }
+            />
+
+            <View
+              style={[
+                styles.modalCard,
+
+                {
+                  width:
+                    500 * s,
+
+                  maxWidth:
+                    '90%',
+
+                  padding:
+                    28 * s,
+
+                  borderRadius:
+                    20 * s,
+                },
+              ]}
+            >
+              <ModalIcon
+                scale={
+                  s
+                }
+                icon="person-outline"
+                color={
+                  COLORS.redBright
+                }
+              />
+
+              <Text
+                style={[
+                  styles.modalTitle,
+
+                  {
+                    fontSize:
+                      21 * fs,
+
+                    marginTop:
+                      15 * s,
+                  },
+                ]}
+              >
+                Administrator Profile
+              </Text>
+
+              <Text
+                style={[
+                  styles.modalSubtitle,
+
+                  {
+                    fontSize:
+                      12.5 * fs,
+
+                    lineHeight:
+                      19 * fs,
+
+                    marginTop:
+                      5 * s,
+
+                    marginBottom:
+                      18 * s,
+                  },
+                ]}
+              >
+                Account information associated with the currently signed-in administrator.
+              </Text>
+
+              <View
+                style={[
+                  styles.infoCard,
+
+                  {
+                    borderRadius:
+                      12 * s,
+
+                    paddingHorizontal:
+                      15 * s,
+                  },
+                ]}
+              >
+                <InfoRow
+                  scale={
+                    s
+                  }
+                  fontScale={
+                    fs
+                  }
+                  label="Name"
+                  value={
+                    adminName
+                  }
+                />
+
+                <InfoRow
+                  scale={
+                    s
+                  }
+                  fontScale={
+                    fs
+                  }
+                  label="Email"
+                  value={
+                    profile?.email ||
+                    'Unavailable'
+                  }
+                />
+
+                <InfoRow
+                  scale={
+                    s
+                  }
+                  fontScale={
+                    fs
+                  }
+                  label="Role"
+                  value="Administrator"
+                />
+
+                <InfoRow
+                  scale={
+                    s
+                  }
+                  fontScale={
+                    fs
+                  }
+                  label="Account Status"
+                  value="Active"
+                  last
+                />
+              </View>
+
+              <Pressable
+                onPress={() =>
+                  setProfileModalVisible(
+                    false
+                  )
+                }
+                style={({ pressed }) => [
+                  styles.primaryModalButton,
+
+                  {
+                    height:
+                      48 * s,
+
+                    borderRadius:
+                      10 * s,
+
+                    marginTop:
+                      20 * s,
+                  },
+
+                  pressed &&
+                    styles.pressed,
+                ]}
+              >
+                <Text
+                  style={[
+                    styles.primaryModalButtonText,
+
+                    {
+                      fontSize:
+                        13 * fs,
+                    },
+                  ]}
+                >
+                  Close
+                </Text>
+              </Pressable>
+            </View>
+          </View>
+        </Modal>
+
+        {/* ======================================================
+            CHANGE PASSWORD MODAL
+        ====================================================== */}
+
+        <Modal
+          visible={
+            passwordModalVisible
+          }
+          transparent
+          animationType="fade"
+          statusBarTranslucent
+          onRequestClose={() =>
+            setPasswordModalVisible(
+              false
+            )
+          }
+        >
+          <View
+            style={
+              styles.modalOverlay
+            }
+          >
+            <Pressable
+              style={
+                StyleSheet.absoluteFillObject
+              }
+              onPress={() =>
+                setPasswordModalVisible(
+                  false
+                )
+              }
+            />
+
+            <View
+              style={[
+                styles.modalCard,
+
+                {
+                  width:
+                    470 * s,
+
+                  maxWidth:
+                    '90%',
+
+                  padding:
+                    28 * s,
+
+                  borderRadius:
+                    20 * s,
+                },
+              ]}
+            >
+              <ModalIcon
+                scale={
+                  s
+                }
+                icon="lock-outline"
+                color={
+                  COLORS.orange
+                }
+              />
+
+              <Text
+                style={[
+                  styles.modalTitle,
+
+                  {
+                    fontSize:
+                      21 * fs,
+
+                    marginTop:
+                      15 * s,
+                  },
+                ]}
+              >
+                Change Password
+              </Text>
+
+              <Text
+                style={[
+                  styles.modalSubtitle,
+
+                  {
+                    fontSize:
+                      12.5 * fs,
+
+                    lineHeight:
+                      20 * fs,
+
+                    marginTop:
+                      6 * s,
+                  },
+                ]}
+              >
+                Password changes are not yet connected to an administrator password-update endpoint.
+              </Text>
+
+              <View
+                style={[
+                  styles.warningBox,
+
+                  {
+                    padding:
+                      12 * s,
+
+                    borderRadius:
+                      10 * s,
+
+                    marginTop:
+                      18 * s,
+                  },
+                ]}
+              >
+                <MaterialIcons
+                  name="info-outline"
+                  size={
+                    18 * s
+                  }
+                  color={
+                    COLORS.orange
+                  }
+                />
+
+                <Text
+                  style={[
+                    styles.warningText,
+
+                    {
+                      fontSize:
+                        11.5 * fs,
+
+                      lineHeight:
+                        18 * fs,
+                    },
+                  ]}
+                >
+                  This setting is shown because password management is normally part of an admin portal. It can be activated once the backend endpoint is added.
+                </Text>
+              </View>
+
+              <Pressable
+                onPress={() =>
+                  setPasswordModalVisible(
+                    false
+                  )
+                }
+                style={({ pressed }) => [
+                  styles.primaryModalButton,
+
+                  {
+                    height:
+                      48 * s,
+
+                    borderRadius:
+                      10 * s,
+
+                    marginTop:
+                      20 * s,
+                  },
+
+                  pressed &&
+                    styles.pressed,
+                ]}
+              >
+                <Text
+                  style={[
+                    styles.primaryModalButtonText,
+
+                    {
+                      fontSize:
+                        13 * fs,
+                    },
+                  ]}
+                >
+                  Close
+                </Text>
+              </Pressable>
+            </View>
+          </View>
+        </Modal>
+
+        {/* ======================================================
+            SECURITY MODAL
+        ====================================================== */}
+
+        <Modal
+          visible={
+            securityModalVisible
+          }
+          transparent
+          animationType="fade"
+          statusBarTranslucent
+          onRequestClose={() =>
+            setSecurityModalVisible(
+              false
+            )
+          }
+        >
+          <View
+            style={
+              styles.modalOverlay
+            }
+          >
+            <Pressable
+              style={
+                StyleSheet.absoluteFillObject
+              }
+              onPress={() =>
+                setSecurityModalVisible(
+                  false
+                )
+              }
+            />
+
+            <View
+              style={[
+                styles.modalCard,
+
+                {
+                  width:
+                    500 * s,
+
+                  maxWidth:
+                    '90%',
+
+                  padding:
+                    28 * s,
+
+                  borderRadius:
+                    20 * s,
+                },
+              ]}
+            >
+              <ModalIcon
+                scale={
+                  s
+                }
+                icon="security"
+                color={
+                  COLORS.green
+                }
+              />
+
+              <Text
+                style={[
+                  styles.modalTitle,
+
+                  {
+                    fontSize:
+                      21 * fs,
+
+                    marginTop:
+                      15 * s,
+                  },
+                ]}
+              >
+                Account Security
+              </Text>
+
+              <Text
+                style={[
+                  styles.modalSubtitle,
+
+                  {
+                    fontSize:
+                      12.5 * fs,
+
+                    lineHeight:
+                      19 * fs,
+
+                    marginTop:
+                      5 * s,
+
+                    marginBottom:
+                      18 * s,
+                  },
+                ]}
+              >
+                Security information for the administrator account currently using the portal.
+              </Text>
+
+              <View
+                style={[
+                  styles.infoCard,
+
+                  {
+                    borderRadius:
+                      12 * s,
+
+                    paddingHorizontal:
+                      15 * s,
+                  },
+                ]}
+              >
+                <InfoRow
+                  scale={
+                    s
+                  }
+                  fontScale={
+                    fs
+                  }
+                  label="Access Level"
+                  value="Administrator"
+                />
+
+                <InfoRow
+                  scale={
+                    s
+                  }
+                  fontScale={
+                    fs
+                  }
+                  label="Session Status"
+                  value="Authenticated"
+                />
+
+                <InfoRow
+                  scale={
+                    s
+                  }
+                  fontScale={
+                    fs
+                  }
+                  label="Audit Logging"
+                  value="Available"
+                  last
+                />
+              </View>
+
+              <View
+                style={[
+                  styles.securityTip,
+
+                  {
+                    padding:
+                      12 * s,
+
+                    borderRadius:
+                      10 * s,
+
+                    marginTop:
+                      15 * s,
+                  },
+                ]}
+              >
+                <MaterialIcons
+                  name="verified-user"
+                  size={
+                    18 * s
+                  }
+                  color={
+                    COLORS.green
+                  }
+                />
+
+                <Text
+                  style={[
+                    styles.securityTipText,
+
+                    {
+                      fontSize:
+                        11.5 * fs,
+
+                      lineHeight:
+                        18 * fs,
+                    },
+                  ]}
+                >
+                  Use a strong administrator password and sign out when the device is shared with another person.
+                </Text>
+              </View>
+
+              <View
+                style={[
+                  styles.modalButtonRow,
+
+                  {
+                    gap:
+                      10 * s,
+
+                    marginTop:
+                      20 * s,
+                  },
+                ]}
+              >
+                <Pressable
+                  onPress={() => {
+                    setSecurityModalVisible(
+                      false
+                    );
+
+                    router.push(
+                      '/activity-logs' as any
+                    );
+                  }}
+                  style={({ pressed }) => [
+                    styles.secondaryModalButton,
+
+                    {
+                      height:
+                        48 * s,
+
+                      borderRadius:
+                        10 * s,
+                    },
+
+                    pressed &&
+                      styles.pressed,
+                  ]}
+                >
+                  <MaterialIcons
+                    name="history"
+                    size={
+                      18 * s
+                    }
+                    color={
+                      COLORS.white
+                    }
+                  />
+
+                  <Text
+                    style={[
+                      styles.secondaryModalButtonText,
+
+                      {
+                        fontSize:
+                          12 * fs,
+                      },
+                    ]}
+                  >
+                    View Log Trails
+                  </Text>
+                </Pressable>
+
+                <Pressable
+                  onPress={() =>
+                    setSecurityModalVisible(
+                      false
+                    )
+                  }
+                  style={({ pressed }) => [
+                    styles.primaryModalButton,
+                    styles.flexModalButton,
+
+                    {
+                      height:
+                        48 * s,
+
+                      borderRadius:
+                        10 * s,
+                    },
+
+                    pressed &&
+                      styles.pressed,
+                  ]}
+                >
+                  <Text
+                    style={[
+                      styles.primaryModalButtonText,
+
+                      {
+                        fontSize:
+                          12 * fs,
+                      },
+                    ]}
+                  >
+                    Close
+                  </Text>
+                </Pressable>
+              </View>
+            </View>
+          </View>
+        </Modal>
+
+        {/* ======================================================
+            SESSION MODAL
+        ====================================================== */}
+
+        <Modal
+          visible={
+            sessionModalVisible
+          }
+          transparent
+          animationType="fade"
+          statusBarTranslucent
+          onRequestClose={() =>
+            setSessionModalVisible(
+              false
+            )
+          }
+        >
+          <View
+            style={
+              styles.modalOverlay
+            }
+          >
+            <Pressable
+              style={
+                StyleSheet.absoluteFillObject
+              }
+              onPress={() =>
+                setSessionModalVisible(
+                  false
+                )
+              }
+            />
+
+            <View
+              style={[
+                styles.modalCard,
+
+                {
+                  width:
+                    480 * s,
+
+                  maxWidth:
+                    '90%',
+
+                  padding:
+                    28 * s,
+
+                  borderRadius:
+                    20 * s,
+                },
+              ]}
+            >
+              <ModalIcon
+                scale={
+                  s
+                }
+                icon="devices"
+                color={
+                  COLORS.blue
+                }
+              />
+
+              <Text
+                style={[
+                  styles.modalTitle,
+
+                  {
+                    fontSize:
+                      21 * fs,
+
+                    marginTop:
+                      15 * s,
+                  },
+                ]}
+              >
+                Current Session
+              </Text>
+
+              <Text
+                style={[
+                  styles.modalSubtitle,
+
+                  {
+                    fontSize:
+                      12.5 * fs,
+
+                    lineHeight:
+                      19 * fs,
+
+                    marginTop:
+                      5 * s,
+
+                    marginBottom:
+                      18 * s,
+                  },
+                ]}
+              >
+                Details about the administrator session currently active on this device.
+              </Text>
+
+              <View
+                style={[
+                  styles.infoCard,
+
+                  {
+                    borderRadius:
+                      12 * s,
+
+                    paddingHorizontal:
+                      15 * s,
+                  },
+                ]}
+              >
+                <InfoRow
+                  scale={
+                    s
+                  }
+                  fontScale={
+                    fs
+                  }
+                  label="Administrator"
+                  value={
+                    adminName
+                  }
+                />
+
+                <InfoRow
+                  scale={
+                    s
+                  }
+                  fontScale={
+                    fs
+                  }
+                  label="Role"
+                  value="Admin"
+                />
+
+                <InfoRow
+                  scale={
+                    s
+                  }
+                  fontScale={
+                    fs
+                  }
+                  label="Session"
+                  value="Active"
+                />
+
+                <InfoRow
+                  scale={
+                    s
+                  }
+                  fontScale={
+                    fs
+                  }
+                  label="Interface"
+                  value="Admin Portal"
+                  last
+                />
+              </View>
+
+              <Pressable
+                onPress={() =>
+                  setSessionModalVisible(
+                    false
+                  )
+                }
+                style={({ pressed }) => [
+                  styles.primaryModalButton,
+
+                  {
+                    height:
+                      48 * s,
+
+                    borderRadius:
+                      10 * s,
+
+                    marginTop:
+                      20 * s,
+                  },
+
+                  pressed &&
+                    styles.pressed,
+                ]}
+              >
+                <Text
+                  style={[
+                    styles.primaryModalButtonText,
+
+                    {
+                      fontSize:
+                        13 * fs,
+                    },
+                  ]}
+                >
+                  Close
+                </Text>
+              </Pressable>
+            </View>
+          </View>
+        </Modal>
+
+        {/* ======================================================
+            ABOUT MODAL
+        ====================================================== */}
+
+        <Modal
+          visible={
+            aboutModalVisible
+          }
+          transparent
+          animationType="fade"
+          statusBarTranslucent
+          onRequestClose={() =>
+            setAboutModalVisible(
+              false
+            )
+          }
+        >
+          <View
+            style={
+              styles.modalOverlay
+            }
+          >
+            <Pressable
+              style={
+                StyleSheet.absoluteFillObject
+              }
+              onPress={() =>
+                setAboutModalVisible(
+                  false
+                )
+              }
+            />
+
+            <View
+              style={[
+                styles.modalCard,
+
+                {
+                  width:
+                    500 * s,
+
+                  maxWidth:
+                    '90%',
+
+                  padding:
+                    28 * s,
+
+                  borderRadius:
+                    20 * s,
+                },
+              ]}
+            >
+              <ModalIcon
+                scale={
+                  s
+                }
+                icon="bloodtype"
+                color={
+                  COLORS.redBright
+                }
+              />
+
+              <Text
+                style={[
+                  styles.modalTitle,
+
+                  {
+                    fontSize:
+                      21 * fs,
+
+                    marginTop:
+                      15 * s,
+                  },
+                ]}
+              >
+                Hemo-Hero Admin Portal
+              </Text>
+
+              <Text
+                style={[
+                  styles.modalSubtitle,
+
+                  {
+                    fontSize:
+                      12.5 * fs,
+
+                    lineHeight:
+                      20 * fs,
+
+                    marginTop:
+                      6 * s,
+
+                    marginBottom:
+                      18 * s,
+                  },
+                ]}
+              >
+                Administrative interface for managing Hemo-Hero operations and records.
+              </Text>
+
+              <View
+                style={[
+                  styles.infoCard,
+
+                  {
+                    borderRadius:
+                      12 * s,
+
+                    paddingHorizontal:
+                      15 * s,
+                  },
+                ]}
+              >
+                <InfoRow
+                  scale={
+                    s
+                  }
+                  fontScale={
+                    fs
+                  }
+                  label="Application"
+                  value="Hemo-Hero"
+                />
+
+                <InfoRow
+                  scale={
+                    s
+                  }
+                  fontScale={
+                    fs
+                  }
+                  label="Portal"
+                  value="Administrator"
+                />
+
+                <InfoRow
+                  scale={
+                    s
+                  }
+                  fontScale={
+                    fs
+                  }
+                  label="Interface"
+                  value="Tablet / Desktop"
+                />
+
+                <InfoRow
+                  scale={
+                    s
+                  }
+                  fontScale={
+                    fs
+                  }
+                  label="Theme"
+                  value="Dark"
+                  last
+                />
+              </View>
+
+              <Pressable
+                onPress={() =>
+                  setAboutModalVisible(
+                    false
+                  )
+                }
+                style={({ pressed }) => [
+                  styles.primaryModalButton,
+
+                  {
+                    height:
+                      48 * s,
+
+                    borderRadius:
+                      10 * s,
+
+                    marginTop:
+                      20 * s,
+                  },
+
+                  pressed &&
+                    styles.pressed,
+                ]}
+              >
+                <Text
+                  style={[
+                    styles.primaryModalButtonText,
+
+                    {
+                      fontSize:
+                        13 * fs,
+                    },
+                  ]}
+                >
+                  Close
+                </Text>
+              </Pressable>
+            </View>
+          </View>
+        </Modal>
+
+        {/* ======================================================
+            LOGOUT MODAL
+        ====================================================== */}
 
         <Modal
           visible={
@@ -1240,7 +2952,7 @@ export default function AdminSettingsScreen() {
           >
             <Pressable
               style={
-                StyleSheet.absoluteFill
+                StyleSheet.absoluteFillObject
               }
               disabled={
                 loggingOut
@@ -1258,27 +2970,37 @@ export default function AdminSettingsScreen() {
                   width:
                     430 * s,
 
-                  paddingHorizontal:
-                    30 * s,
+                  maxWidth:
+                    '90%',
 
-                  paddingTop:
-                    30 * s,
-
-                  paddingBottom:
-                    26 * s,
+                  padding:
+                    28 * s,
 
                   borderRadius:
                     20 * s,
                 },
               ]}
             >
+              <ModalIcon
+                scale={
+                  s
+                }
+                icon="logout"
+                color={
+                  COLORS.redBright
+                }
+              />
+
               <Text
                 style={[
                   styles.modalTitle,
 
                   {
                     fontSize:
-                      22 * s,
+                      21 * fs,
+
+                    marginTop:
+                      15 * s,
                   },
                 ]}
               >
@@ -1287,17 +3009,17 @@ export default function AdminSettingsScreen() {
 
               <Text
                 style={[
-                  styles.modalMessage,
+                  styles.modalSubtitle,
 
                   {
-                    marginTop:
-                      10 * s,
-
                     fontSize:
-                      12 * s,
+                      13 * fs,
 
                     lineHeight:
-                      20 * s,
+                      20 * fs,
+
+                    marginTop:
+                      6 * s,
                   },
                 ]}
               >
@@ -1306,21 +3028,17 @@ export default function AdminSettingsScreen() {
 
               <View
                 style={[
-                  styles.modalButtons,
+                  styles.modalButtonRow,
 
                   {
                     gap:
                       12 * s,
 
                     marginTop:
-                      26 * s,
+                      24 * s,
                   },
                 ]}
               >
-                {/* ============================================
-                    CANCEL
-                ============================================ */}
-
                 <Pressable
                   disabled={
                     loggingOut
@@ -1333,33 +3051,29 @@ export default function AdminSettingsScreen() {
 
                     {
                       height:
-                        50 * s,
+                        49 * s,
 
                       borderRadius:
                         10 * s,
                     },
 
                     pressed &&
-                      styles.modalPressed,
+                      styles.pressed,
                   ]}
                 >
                   <Text
                     style={[
-                      styles.cancelText,
+                      styles.cancelButtonText,
 
                       {
                         fontSize:
-                          12 * s,
+                          13 * fs,
                       },
                     ]}
                   >
                     Cancel
                   </Text>
                 </Pressable>
-
-                {/* ============================================
-                    SIGN OUT
-                ============================================ */}
 
                 <Pressable
                   disabled={
@@ -1369,18 +3083,18 @@ export default function AdminSettingsScreen() {
                     confirmLogout
                   }
                   style={({ pressed }) => [
-                    styles.confirmButton,
+                    styles.logoutConfirmButton,
 
                     {
                       height:
-                        50 * s,
+                        49 * s,
 
                       borderRadius:
                         10 * s,
                     },
 
                     pressed &&
-                      styles.modalPressed,
+                      styles.pressed,
 
                     loggingOut &&
                       styles.disabled,
@@ -1396,11 +3110,11 @@ export default function AdminSettingsScreen() {
                   ) : (
                     <Text
                       style={[
-                        styles.confirmText,
+                        styles.logoutConfirmText,
 
                         {
                           fontSize:
-                            12 * s,
+                            13 * fs,
                         },
                       ]}
                     >
@@ -1418,31 +3132,93 @@ export default function AdminSettingsScreen() {
 }
 
 // ============================================================
+// SECTION LABEL
+// ============================================================
+
+function SectionLabel({
+  scale,
+  fontScale,
+  children,
+}: {
+  scale:
+    number;
+
+  fontScale:
+    number;
+
+  children:
+    string;
+}) {
+  return (
+    <Text
+      style={[
+        styles.sectionLabel,
+
+        {
+          fontSize:
+            11 * fontScale,
+
+          marginBottom:
+            10 * scale,
+        },
+      ]}
+    >
+      {
+        children
+      }
+    </Text>
+  );
+}
+
+// ============================================================
 // SETTINGS ROW
 // ============================================================
 
 function SettingsRow({
   scale,
+  fontScale,
   icon,
   title,
   description,
   onPress,
+  value,
+  valueColor,
+  status,
 }: {
-  scale: number;
+  scale:
+    number;
+
+  fontScale:
+    number;
 
   icon:
-    React.ComponentProps<
+    ComponentProps<
       typeof MaterialIcons
     >['name'];
 
-  title: string;
+  title:
+    string;
 
-  description: string;
+  description:
+    string;
 
-  onPress: () => void;
+  onPress?:
+    () => void;
+
+  value?:
+    string;
+
+  valueColor?:
+    string;
+
+  status?:
+    string;
 }) {
   return (
     <Pressable
+      disabled={
+        !onPress
+      }
       onPress={
         onPress
       }
@@ -1464,16 +3240,16 @@ function SettingsRow({
 
           {
             width:
-              44 * scale,
+              42 * scale,
 
             height:
-              44 * scale,
+              42 * scale,
 
             borderRadius:
-              11 * scale,
+              10 * scale,
 
             marginRight:
-              14 * scale,
+              13 * scale,
           },
         ]}
       >
@@ -1482,7 +3258,7 @@ function SettingsRow({
             icon
           }
           size={
-            24 * scale
+            21 * scale
           }
           color={
             COLORS.redBright
@@ -1501,7 +3277,7 @@ function SettingsRow({
 
             {
               fontSize:
-                12 * scale,
+                13 * fontScale,
             },
           ]}
         >
@@ -1515,14 +3291,14 @@ function SettingsRow({
             styles.settingsDescription,
 
             {
-              marginTop:
-                4 * scale,
-
               fontSize:
-                10 * scale,
+                11.5 * fontScale,
 
               lineHeight:
-                15 * scale,
+                17 * fontScale,
+
+              marginTop:
+                3 * scale,
             },
           ]}
         >
@@ -1532,16 +3308,410 @@ function SettingsRow({
         </Text>
       </View>
 
+      {value ? (
+        <Text
+          style={[
+            styles.settingsValue,
+
+            {
+              fontSize:
+                11.5 * fontScale,
+
+              color:
+                valueColor ||
+                COLORS.soft,
+            },
+          ]}
+        >
+          {
+            value
+          }
+        </Text>
+      ) : null}
+
+      {status ? (
+        <View
+          style={[
+            styles.statusBadge,
+
+            {
+              paddingHorizontal:
+                8 * scale,
+
+              paddingVertical:
+                5 * scale,
+
+              borderRadius:
+                8 * scale,
+            },
+          ]}
+        >
+          <Text
+            style={[
+              styles.statusBadgeText,
+
+              {
+                fontSize:
+                  9.5 * fontScale,
+              },
+            ]}
+          >
+            {
+              status
+            }
+          </Text>
+        </View>
+      ) : null}
+
+      {onPress ? (
+        <MaterialIcons
+          name="chevron-right"
+          size={
+            22 * scale
+          }
+          color={
+            COLORS.muted
+          }
+          style={{
+            marginLeft:
+              7 * scale,
+          }}
+        />
+      ) : null}
+    </Pressable>
+  );
+}
+
+// ============================================================
+// PREFERENCE TILE
+// ============================================================
+
+function PreferenceTile({
+  scale,
+  fontScale,
+  icon,
+  title,
+  description,
+  value,
+  onChange,
+}: {
+  scale:
+    number;
+
+  fontScale:
+    number;
+
+  icon:
+    ComponentProps<
+      typeof MaterialIcons
+    >['name'];
+
+  title:
+    string;
+
+  description:
+    string;
+
+  value:
+    boolean;
+
+  onChange:
+    (
+      value:
+        boolean
+    ) => void;
+}) {
+  return (
+    <View
+      style={[
+        styles.preferenceTile,
+
+        {
+          minHeight:
+            102 * scale,
+
+          padding:
+            15 * scale,
+
+          borderRadius:
+            12 * scale,
+        },
+      ]}
+    >
+      <View
+        style={
+          styles.preferenceTileTop
+        }
+      >
+        <View
+          style={[
+            styles.preferenceIcon,
+
+            {
+              width:
+                37 * scale,
+
+              height:
+                37 * scale,
+
+              borderRadius:
+                9 * scale,
+            },
+          ]}
+        >
+          <MaterialIcons
+            name={
+              icon
+            }
+            size={
+              19 * scale
+            }
+            color={
+              COLORS.redBright
+            }
+          />
+        </View>
+
+        <Pressable
+          onPress={() =>
+            onChange(
+              !value
+            )
+          }
+          style={[
+            styles.toggle,
+
+            {
+              width:
+                46 * scale,
+
+              height:
+                26 * scale,
+
+              borderRadius:
+                13 * scale,
+
+              padding:
+                3 * scale,
+            },
+
+            value &&
+              styles.toggleActive,
+          ]}
+        >
+          <View
+            style={[
+              styles.toggleThumb,
+
+              {
+                width:
+                  20 * scale,
+
+                height:
+                  20 * scale,
+
+                borderRadius:
+                  10 * scale,
+
+                transform: [
+                  {
+                    translateX:
+                      value
+                        ? 20 *
+                          scale
+                        : 0,
+                  },
+                ],
+              },
+            ]}
+          />
+        </Pressable>
+      </View>
+
+      <Text
+        style={[
+          styles.preferenceTitle,
+
+          {
+            fontSize:
+              12.5 * fontScale,
+
+            marginTop:
+              9 * scale,
+          },
+        ]}
+      >
+        {
+          title
+        }
+      </Text>
+
+      <Text
+        style={[
+          styles.preferenceDescription,
+
+          {
+            fontSize:
+              10.5 * fontScale,
+
+            lineHeight:
+              15 * fontScale,
+
+            marginTop:
+              3 * scale,
+          },
+        ]}
+      >
+        {
+          description
+        }
+      </Text>
+    </View>
+  );
+}
+
+// ============================================================
+// MODAL ICON
+// ============================================================
+
+function ModalIcon({
+  scale,
+  icon,
+  color,
+}: {
+  scale:
+    number;
+
+  icon:
+    ComponentProps<
+      typeof MaterialIcons
+    >['name'];
+
+  color:
+    string;
+}) {
+  return (
+    <View
+      style={[
+        styles.modalIcon,
+
+        {
+          width:
+            56 * scale,
+
+          height:
+            56 * scale,
+
+          borderRadius:
+            28 * scale,
+        },
+      ]}
+    >
       <MaterialIcons
-        name="chevron-right"
+        name={
+          icon
+        }
         size={
-          24 * scale
+          27 * scale
         }
         color={
-          COLORS.muted
+          color
         }
       />
-    </Pressable>
+    </View>
+  );
+}
+
+// ============================================================
+// INFO ROW
+// ============================================================
+
+function InfoRow({
+  scale,
+  fontScale,
+  label,
+  value,
+  last = false,
+}: {
+  scale:
+    number;
+
+  fontScale:
+    number;
+
+  label:
+    string;
+
+  value:
+    string;
+
+  last?:
+    boolean;
+}) {
+  return (
+    <View
+      style={[
+        styles.infoRow,
+
+        {
+          minHeight:
+            52 * scale,
+
+          paddingVertical:
+            9 * scale,
+        },
+
+        last &&
+          styles.infoRowLast,
+      ]}
+    >
+      <Text
+        style={[
+          styles.infoLabel,
+
+          {
+            fontSize:
+              11.5 * fontScale,
+          },
+        ]}
+      >
+        {
+          label
+        }
+      </Text>
+
+      <Text
+        numberOfLines={
+          1
+        }
+        style={[
+          styles.infoValue,
+
+          {
+            fontSize:
+              11.5 * fontScale,
+          },
+        ]}
+      >
+        {
+          value
+        }
+      </Text>
+    </View>
+  );
+}
+
+// ============================================================
+// DIVIDER
+// ============================================================
+
+function Divider() {
+  return (
+    <View
+      style={
+        styles.divider
+      }
+    />
   );
 }
 
@@ -1601,6 +3771,16 @@ const styles =
         1,
     },
 
+    scroll: {
+      flex:
+        1,
+    },
+
+    content: {
+      flexGrow:
+        1,
+    },
+
     loadingScreen: {
       flex:
         1,
@@ -1615,183 +3795,7 @@ const styles =
         COLORS.outer,
     },
 
-    // ========================================================
-    // HEADER
-    // ========================================================
-
-    header: {
-      flexDirection:
-        'row',
-
-      alignItems:
-        'center',
-
-      justifyContent:
-        'space-between',
-
-      borderBottomWidth:
-        1,
-
-      borderBottomColor:
-        COLORS.border,
-    },
-
-    brandArea: {
-      flexDirection:
-        'row',
-
-      alignItems:
-        'center',
-
-      gap:
-        14,
-    },
-
-    logoCircle: {
-      alignItems:
-        'center',
-
-      justifyContent:
-        'center',
-
-      backgroundColor:
-        COLORS.white,
-
-      overflow:
-        'hidden',
-    },
-
-    brand: {
-      color:
-        COLORS.white,
-
-      fontFamily:
-        'Poppins_700Bold',
-    },
-
-    brandRed: {
-      color:
-        COLORS.redBright,
-    },
-
-    portal: {
-      color:
-        COLORS.redBright,
-
-      fontFamily:
-        'Inter_600SemiBold',
-
-      marginTop:
-        1,
-    },
-
-    // ========================================================
-    // ADMIN AREA
-    // ========================================================
-
-    adminSection: {
-      flexDirection:
-        'row',
-
-      alignItems:
-        'center',
-
-      gap:
-        12,
-    },
-
-    notificationWrap: {
-      marginRight:
-        4,
-
-      position:
-        'relative',
-
-      width:
-        28,
-
-      alignItems:
-        'center',
-
-      justifyContent:
-        'center',
-    },
-
-    notificationBadge: {
-      position:
-        'absolute',
-
-      top:
-        -4,
-
-      right:
-        -6,
-
-      paddingHorizontal:
-        4,
-
-      backgroundColor:
-        COLORS.redBright,
-
-      alignItems:
-        'center',
-
-      justifyContent:
-        'center',
-    },
-
-    notificationBadgeText: {
-      color:
-        COLORS.white,
-
-      fontFamily:
-        'Inter_700Bold',
-    },
-
-    headerPressed: {
-      opacity:
-        0.68,
-    },
-
-    avatar: {
-      alignItems:
-        'center',
-
-      justifyContent:
-        'center',
-
-      backgroundColor:
-        '#ECECEC',
-    },
-
-    avatarText: {
-      color:
-        '#111111',
-
-      fontFamily:
-        'Poppins_600SemiBold',
-    },
-
-    adminInfo: {
-      minWidth:
-        90,
-    },
-
-    adminName: {
-      maxWidth:
-        190,
-
-      color:
-        COLORS.white,
-
-      fontFamily:
-        'Inter_600SemiBold',
-    },
-
-    adminRole: {
-      marginTop:
-        2,
-
+    loadingText: {
       color:
         COLORS.muted,
 
@@ -1800,20 +3804,10 @@ const styles =
     },
 
     // ========================================================
-    // CONTENT
+    // PAGE
     // ========================================================
 
-    scroll: {
-      flex:
-        1,
-    },
-
-    content: {
-      flexGrow:
-        1,
-    },
-
-    title: {
+    pageTitle: {
       color:
         COLORS.white,
 
@@ -1821,17 +3815,13 @@ const styles =
         'Poppins_700Bold',
     },
 
-    subtitle: {
+    pageSubtitle: {
       color:
         COLORS.muted,
 
       fontFamily:
         'Inter_400Regular',
     },
-
-    // ========================================================
-    // SECTIONS
-    // ========================================================
 
     sectionLabel: {
       color:
@@ -1841,10 +3831,14 @@ const styles =
         'Inter_700Bold',
 
       letterSpacing:
-        1,
+        0.8,
     },
 
-    card: {
+    // ========================================================
+    // PROFILE
+    // ========================================================
+
+    profileCard: {
       borderWidth:
         1,
 
@@ -1855,11 +3849,21 @@ const styles =
         COLORS.card,
     },
 
-    // ========================================================
-    // PROFILE
-    // ========================================================
-
     profileRow: {
+      flexDirection:
+        'row',
+
+      alignItems:
+        'center',
+
+      justifyContent:
+        'space-between',
+
+      gap:
+        16,
+    },
+
+    profileLeft: {
       flex:
         1,
 
@@ -1868,9 +3872,15 @@ const styles =
 
       alignItems:
         'center',
+
+      minWidth:
+        0,
     },
 
     profileAvatar: {
+      flexShrink:
+        0,
+
       alignItems:
         'center',
 
@@ -1892,6 +3902,9 @@ const styles =
     profileBody: {
       flex:
         1,
+
+      minWidth:
+        0,
     },
 
     profileName: {
@@ -1910,21 +3923,38 @@ const styles =
         'Inter_400Regular',
     },
 
-    roleBadge: {
-      alignSelf:
-        'flex-start',
+    profileBadges: {
+      flexDirection:
+        'row',
+
+      alignItems:
+        'center',
+
+      flexWrap:
+        'wrap',
+    },
+
+    adminBadge: {
+      flexDirection:
+        'row',
+
+      alignItems:
+        'center',
+
+      gap:
+        5,
 
       borderWidth:
         1,
 
       borderColor:
-        'rgba(239,51,64,0.35)',
+        'rgba(239,51,64,0.34)',
 
       backgroundColor:
-        'rgba(239,51,64,0.12)',
+        'rgba(239,51,64,0.10)',
     },
 
-    roleBadgeText: {
+    adminBadgeText: {
       color:
         COLORS.redBright,
 
@@ -1932,52 +3962,49 @@ const styles =
         'Inter_700Bold',
 
       letterSpacing:
-        0.5,
+        0.35,
     },
 
-    // ========================================================
-    // COLUMNS
-    // ========================================================
-
-    columns: {
-      flexDirection:
-        'row',
-    },
-
-    column: {
-      flex:
-        1,
-    },
-
-    divider: {
-      height:
-        1,
-
-      backgroundColor:
-        COLORS.border,
-    },
-
-    // ========================================================
-    // SETTINGS ROW
-    // ========================================================
-
-    settingsRow: {
+    activeBadge: {
       flexDirection:
         'row',
 
       alignItems:
         'center',
-    },
 
-    settingsRowPressed: {
-      opacity:
-        0.66,
+      gap:
+        6,
+
+      borderWidth:
+        1,
+
+      borderColor:
+        'rgba(53,201,130,0.30)',
 
       backgroundColor:
-        'rgba(255,255,255,0.02)',
+        'rgba(53,201,130,0.08)',
     },
 
-    settingsIcon: {
+    activeDot: {
+      backgroundColor:
+        COLORS.green,
+    },
+
+    activeBadgeText: {
+      color:
+        COLORS.green,
+
+      fontFamily:
+        'Inter_700Bold',
+
+      letterSpacing:
+        0.3,
+    },
+
+    profileButton: {
+      flexDirection:
+        'row',
+
       alignItems:
         'center',
 
@@ -1988,18 +4015,94 @@ const styles =
         1,
 
       borderColor:
-        'rgba(239,51,64,0.24)',
+        COLORS.border,
 
       backgroundColor:
-        'rgba(239,51,64,0.09)',
+        COLORS.cardLight,
+    },
+
+    profileButtonText: {
+      color:
+        COLORS.white,
+
+      fontFamily:
+        'Inter_600SemiBold',
+    },
+
+    // ========================================================
+    // COLUMNS
+    // ========================================================
+
+    twoColumns: {
+      flexDirection:
+        'row',
+    },
+
+    column: {
+      flex:
+        1,
+    },
+
+    // ========================================================
+    // SETTINGS CARD
+    // ========================================================
+
+    settingsCard: {
+      overflow:
+        'hidden',
+
+      borderWidth:
+        1,
+
+      borderColor:
+        COLORS.border,
+
+      backgroundColor:
+        COLORS.card,
+    },
+
+    settingsRow: {
+      flexDirection:
+        'row',
+
+      alignItems:
+        'center',
+    },
+
+    settingsRowPressed: {
+      backgroundColor:
+        'rgba(255,255,255,0.025)',
+    },
+
+    settingsIcon: {
+      flexShrink:
+        0,
+
+      alignItems:
+        'center',
+
+      justifyContent:
+        'center',
+
+      borderWidth:
+        1,
+
+      borderColor:
+        'rgba(239,51,64,0.22)',
+
+      backgroundColor:
+        'rgba(239,51,64,0.08)',
     },
 
     settingsText: {
       flex:
         1,
 
+      minWidth:
+        0,
+
       paddingRight:
-        12,
+        10,
     },
 
     settingsTitle: {
@@ -2018,8 +4121,329 @@ const styles =
         'Inter_400Regular',
     },
 
+    settingsValue: {
+      maxWidth:
+        100,
+
+      marginLeft:
+        8,
+
+      fontFamily:
+        'Inter_600SemiBold',
+
+      textAlign:
+        'right',
+    },
+
+    statusBadge: {
+      flexShrink:
+        0,
+
+      borderWidth:
+        1,
+
+      borderColor:
+        COLORS.border,
+
+      backgroundColor:
+        COLORS.cardLight,
+    },
+
+    statusBadgeText: {
+      color:
+        COLORS.soft,
+
+      fontFamily:
+        'Inter_600SemiBold',
+    },
+
+    divider: {
+      height:
+        1,
+
+      backgroundColor:
+        COLORS.border,
+    },
+
     // ========================================================
-    // SIGN OUT CARD
+    // NOTIFICATIONS
+    // ========================================================
+
+    notificationCard: {
+      borderWidth:
+        1,
+
+      borderColor:
+        COLORS.border,
+
+      backgroundColor:
+        COLORS.card,
+    },
+
+    sectionIntro: {
+      flexDirection:
+        'row',
+
+      alignItems:
+        'center',
+    },
+
+    sectionIntroIcon: {
+      flexShrink:
+        0,
+
+      alignItems:
+        'center',
+
+      justifyContent:
+        'center',
+
+      backgroundColor:
+        'rgba(239,51,64,0.08)',
+    },
+
+    sectionIntroText: {
+      flex:
+        1,
+    },
+
+    sectionIntroTitle: {
+      color:
+        COLORS.white,
+
+      fontFamily:
+        'Poppins_600SemiBold',
+    },
+
+    sectionIntroDescription: {
+      color:
+        COLORS.muted,
+
+      fontFamily:
+        'Inter_400Regular',
+    },
+
+    preferenceGrid: {
+      flexDirection:
+        'row',
+
+      flexWrap:
+        'wrap',
+    },
+
+    preferenceTile: {
+      width:
+        '49%',
+
+      borderWidth:
+        1,
+
+      borderColor:
+        COLORS.border,
+
+      backgroundColor:
+        COLORS.cardLight,
+    },
+
+    preferenceTileTop: {
+      flexDirection:
+        'row',
+
+      alignItems:
+        'center',
+
+      justifyContent:
+        'space-between',
+    },
+
+    preferenceIcon: {
+      alignItems:
+        'center',
+
+      justifyContent:
+        'center',
+
+      backgroundColor:
+        'rgba(239,51,64,0.08)',
+    },
+
+    preferenceTitle: {
+      color:
+        COLORS.white,
+
+      fontFamily:
+        'Inter_600SemiBold',
+    },
+
+    preferenceDescription: {
+      color:
+        COLORS.muted,
+
+      fontFamily:
+        'Inter_400Regular',
+    },
+
+    toggle: {
+      justifyContent:
+        'center',
+
+      backgroundColor:
+        '#28334C',
+    },
+
+    toggleActive: {
+      backgroundColor:
+        COLORS.red,
+    },
+
+    toggleThumb: {
+      backgroundColor:
+        COLORS.white,
+    },
+
+    preferenceNotice: {
+      flexDirection:
+        'row',
+
+      alignItems:
+        'flex-start',
+
+      gap:
+        8,
+
+      borderWidth:
+        1,
+
+      borderColor:
+        'rgba(110,168,254,0.25)',
+
+      backgroundColor:
+        'rgba(110,168,254,0.06)',
+    },
+
+    preferenceNoticeText: {
+      flex:
+        1,
+
+      color:
+        COLORS.soft,
+
+      fontFamily:
+        'Inter_400Regular',
+    },
+
+    // ========================================================
+    // ABOUT
+    // ========================================================
+
+    aboutCard: {
+      flexDirection:
+        'row',
+
+      alignItems:
+        'center',
+
+      justifyContent:
+        'space-between',
+
+      gap:
+        18,
+
+      borderWidth:
+        1,
+
+      borderColor:
+        COLORS.border,
+
+      backgroundColor:
+        COLORS.card,
+    },
+
+    aboutLeft: {
+      flex:
+        1,
+
+      flexDirection:
+        'row',
+
+      alignItems:
+        'center',
+    },
+
+    aboutIcon: {
+      flexShrink:
+        0,
+
+      alignItems:
+        'center',
+
+      justifyContent:
+        'center',
+
+      borderWidth:
+        1,
+
+      borderColor:
+        'rgba(239,51,64,0.22)',
+
+      backgroundColor:
+        'rgba(239,51,64,0.08)',
+    },
+
+    aboutText: {
+      flex:
+        1,
+    },
+
+    aboutTitle: {
+      color:
+        COLORS.white,
+
+      fontFamily:
+        'Poppins_600SemiBold',
+    },
+
+    aboutDescription: {
+      color:
+        COLORS.muted,
+
+      fontFamily:
+        'Inter_400Regular',
+    },
+
+    aboutButton: {
+      flexDirection:
+        'row',
+
+      alignItems:
+        'center',
+
+      justifyContent:
+        'center',
+
+      gap:
+        4,
+
+      borderWidth:
+        1,
+
+      borderColor:
+        COLORS.border,
+
+      backgroundColor:
+        COLORS.cardLight,
+    },
+
+    aboutButtonText: {
+      color:
+        COLORS.white,
+
+      fontFamily:
+        'Inter_600SemiBold',
+    },
+
+    // ========================================================
+    // SIGN OUT
     // ========================================================
 
     signOutCard: {
@@ -2029,17 +4453,54 @@ const styles =
       alignItems:
         'center',
 
+      justifyContent:
+        'space-between',
+
+      gap:
+        16,
+
       borderWidth:
         1,
 
       borderColor:
-        'rgba(239,51,64,0.40)',
+        'rgba(239,51,64,0.38)',
 
       backgroundColor:
-        'rgba(65,17,31,0.55)',
+        'rgba(65,17,31,0.48)',
     },
 
-    signOutInfo: {
+    signOutLeft: {
+      flex:
+        1,
+
+      flexDirection:
+        'row',
+
+      alignItems:
+        'center',
+    },
+
+    signOutIcon: {
+      flexShrink:
+        0,
+
+      alignItems:
+        'center',
+
+      justifyContent:
+        'center',
+
+      borderWidth:
+        1,
+
+      borderColor:
+        'rgba(239,51,64,0.28)',
+
+      backgroundColor:
+        'rgba(239,51,64,0.08)',
+    },
+
+    signOutText: {
       flex:
         1,
     },
@@ -2071,22 +4532,10 @@ const styles =
         1,
 
       borderColor:
-        'rgba(239,51,64,0.58)',
+        'rgba(239,51,64,0.55)',
 
       backgroundColor:
         COLORS.red,
-    },
-
-    signOutPressed: {
-      opacity:
-        0.8,
-
-      transform: [
-        {
-          scale:
-            0.985,
-        },
-      ],
     },
 
     signOutButtonText: {
@@ -2098,7 +4547,7 @@ const styles =
     },
 
     // ========================================================
-    // LOGOUT MODAL
+    // MODALS
     // ========================================================
 
     modalOverlay: {
@@ -2116,6 +4565,9 @@ const styles =
     },
 
     modalCard: {
+      alignItems:
+        'center',
+
       borderWidth:
         1,
 
@@ -2137,13 +4589,30 @@ const styles =
       },
 
       shadowOpacity:
-        0.4,
+        0.42,
 
       shadowRadius:
-        28,
+        30,
 
       elevation:
-        20,
+        22,
+    },
+
+    modalIcon: {
+      alignItems:
+        'center',
+
+      justifyContent:
+        'center',
+
+      borderWidth:
+        1,
+
+      borderColor:
+        COLORS.border,
+
+      backgroundColor:
+        COLORS.cardLight,
     },
 
     modalTitle: {
@@ -2157,7 +4626,7 @@ const styles =
         'center',
     },
 
-    modalMessage: {
+    modalSubtitle: {
       color:
         COLORS.muted,
 
@@ -2168,9 +4637,202 @@ const styles =
         'center',
     },
 
-    modalButtons: {
+    infoCard: {
+      width:
+        '100%',
+
+      borderWidth:
+        1,
+
+      borderColor:
+        COLORS.border,
+
+      backgroundColor:
+        COLORS.cardLight,
+    },
+
+    infoRow: {
       flexDirection:
         'row',
+
+      alignItems:
+        'center',
+
+      justifyContent:
+        'space-between',
+
+      borderBottomWidth:
+        1,
+
+      borderBottomColor:
+        COLORS.border,
+    },
+
+    infoRowLast: {
+      borderBottomWidth:
+        0,
+    },
+
+    infoLabel: {
+      color:
+        COLORS.muted,
+
+      fontFamily:
+        'Inter_500Medium',
+    },
+
+    infoValue: {
+      maxWidth:
+        '60%',
+
+      color:
+        COLORS.white,
+
+      fontFamily:
+        'Inter_600SemiBold',
+
+      textAlign:
+        'right',
+    },
+
+    warningBox: {
+      width:
+        '100%',
+
+      flexDirection:
+        'row',
+
+      alignItems:
+        'flex-start',
+
+      gap:
+        8,
+
+      borderWidth:
+        1,
+
+      borderColor:
+        'rgba(243,163,74,0.30)',
+
+      backgroundColor:
+        'rgba(243,163,74,0.06)',
+    },
+
+    warningText: {
+      flex:
+        1,
+
+      color:
+        '#E8C79F',
+
+      fontFamily:
+        'Inter_400Regular',
+    },
+
+    securityTip: {
+      width:
+        '100%',
+
+      flexDirection:
+        'row',
+
+      alignItems:
+        'flex-start',
+
+      gap:
+        8,
+
+      borderWidth:
+        1,
+
+      borderColor:
+        'rgba(53,201,130,0.26)',
+
+      backgroundColor:
+        'rgba(53,201,130,0.05)',
+    },
+
+    securityTipText: {
+      flex:
+        1,
+
+      color:
+        COLORS.soft,
+
+      fontFamily:
+        'Inter_400Regular',
+    },
+
+    modalButtonRow: {
+      width:
+        '100%',
+
+      flexDirection:
+        'row',
+    },
+
+    primaryModalButton: {
+      width:
+        '100%',
+
+      alignItems:
+        'center',
+
+      justifyContent:
+        'center',
+
+      backgroundColor:
+        COLORS.red,
+    },
+
+    flexModalButton: {
+      flex:
+        1,
+
+      width:
+        'auto',
+    },
+
+    primaryModalButtonText: {
+      color:
+        COLORS.white,
+
+      fontFamily:
+        'Inter_600SemiBold',
+    },
+
+    secondaryModalButton: {
+      flex:
+        1,
+
+      flexDirection:
+        'row',
+
+      alignItems:
+        'center',
+
+      justifyContent:
+        'center',
+
+      gap:
+        7,
+
+      borderWidth:
+        1,
+
+      borderColor:
+        COLORS.border,
+
+      backgroundColor:
+        COLORS.cardLight,
+    },
+
+    secondaryModalButtonText: {
+      color:
+        COLORS.white,
+
+      fontFamily:
+        'Inter_600SemiBold',
     },
 
     cancelButton: {
@@ -2190,10 +4852,18 @@ const styles =
         COLORS.border,
 
       backgroundColor:
-        COLORS.cancel,
+        COLORS.cardLight,
     },
 
-    confirmButton: {
+    cancelButtonText: {
+      color:
+        COLORS.white,
+
+      fontFamily:
+        'Inter_600SemiBold',
+    },
+
+    logoutConfirmButton: {
       flex:
         1,
 
@@ -2207,7 +4877,7 @@ const styles =
         COLORS.red,
     },
 
-    cancelText: {
+    logoutConfirmText: {
       color:
         COLORS.white,
 
@@ -2215,17 +4885,13 @@ const styles =
         'Inter_600SemiBold',
     },
 
-    confirmText: {
-      color:
-        COLORS.white,
+    // ========================================================
+    // GENERIC
+    // ========================================================
 
-      fontFamily:
-        'Poppins_600SemiBold',
-    },
-
-    modalPressed: {
+    pressed: {
       opacity:
-        0.8,
+        0.76,
 
       transform: [
         {
@@ -2237,6 +4903,6 @@ const styles =
 
     disabled: {
       opacity:
-        0.55,
+        0.48,
     },
   });

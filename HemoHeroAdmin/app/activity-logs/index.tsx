@@ -6,7 +6,6 @@ import {
 
 import {
   ActivityIndicator,
-  Image,
   Platform,
   Pressable,
   ScrollView,
@@ -38,6 +37,7 @@ import {
 } from 'react-native-safe-area-context';
 
 import AdminBottomNav from '../AdminBottomNav';
+import AdminHeader from '../AdminHeader';
 
 import {
   getAdminActivityLogs,
@@ -69,8 +69,6 @@ const PAGE_LIMIT =
 
 // ============================================================
 // COLORS
-//
-// MATCHED WITH DONOR APPLICATIONS
 // ============================================================
 
 const COLORS = {
@@ -214,10 +212,20 @@ export default function ActivityLogsScreen() {
       ]
     );
 
+  // ==========================================================
+  // SCALE
+  // ==========================================================
+
   const s =
     Math.max(
       tablet.scale,
       0.68
+    );
+
+  const fs =
+    Math.max(
+      tablet.scale,
+      0.92
     );
 
   // ==========================================================
@@ -373,19 +381,11 @@ export default function ActivityLogsScreen() {
         ''
       );
 
-      // ------------------------------------------------------
-      // SESSION
-      // ------------------------------------------------------
-
       const token =
         await getAdminAccessToken();
 
       const savedProfile =
         await getAdminProfile();
-
-      // ------------------------------------------------------
-      // ADMIN PROTECTION
-      // ------------------------------------------------------
 
       if (
         !token ||
@@ -404,10 +404,6 @@ export default function ActivityLogsScreen() {
       setProfile(
         savedProfile
       );
-
-      // ------------------------------------------------------
-      // STATUS FILTER
-      // ------------------------------------------------------
 
       let success:
         | boolean
@@ -429,10 +425,6 @@ export default function ActivityLogsScreen() {
         success =
           false;
       }
-
-      // ------------------------------------------------------
-      // LOAD SUMMARY + LOGS
-      // ------------------------------------------------------
 
       const [
         summaryResult,
@@ -538,7 +530,8 @@ export default function ActivityLogsScreen() {
   // ==========================================================
 
   function changeStatusFilter(
-    value: StatusFilter
+    value:
+      StatusFilter
   ) {
     setPage(
       1
@@ -550,7 +543,8 @@ export default function ActivityLogsScreen() {
   }
 
   function changeModuleFilter(
-    value: ModuleFilter
+    value:
+      ModuleFilter
   ) {
     setPage(
       1
@@ -560,28 +554,6 @@ export default function ActivityLogsScreen() {
       value
     );
   }
-
-  // ==========================================================
-  // ADMIN DISPLAY
-  // ==========================================================
-
-  const adminName =
-    [
-      profile?.first_name,
-      profile?.last_name,
-    ]
-      .filter(
-        Boolean
-      )
-      .join(' ')
-      .trim() ||
-    profile?.email ||
-    'Administrator';
-
-  const adminInitial =
-    adminName
-      .charAt(0)
-      .toUpperCase();
 
   // ==========================================================
   // UI
@@ -633,247 +605,20 @@ export default function ActivityLogsScreen() {
                 HEADER
             ================================================== */}
 
-            <View
-              style={[
-                styles.header,
-
-                {
-                  height:
-                    96 * s,
-
-                  paddingHorizontal:
-                    48 * s,
-                },
-              ]}
-            >
-              {/* ================================================
-                  BRAND
-              ================================================ */}
-
-              <Pressable
-                style={
-                  styles.brandArea
-                }
-                onPress={() =>
-                  router.replace(
-                    '/dashboard'
-                  )
-                }
-              >
-                <View
-                  style={[
-                    styles.logoCircle,
-
-                    {
-                      width:
-                        52 * s,
-
-                      height:
-                        52 * s,
-
-                      borderRadius:
-                        26 * s,
-                    },
-                  ]}
-                >
-                  <Image
-                    source={require('../../assets/images/hemo-hero-logo.png')}
-                    style={{
-                      width:
-                        46 * s,
-
-                      height:
-                        46 * s,
-                    }}
-                    resizeMode="contain"
-                  />
-                </View>
-
-                <View>
-                  <Text
-                    style={[
-                      styles.brand,
-
-                      {
-                        fontSize:
-                          27 * s,
-                      },
-                    ]}
-                  >
-                    <Text
-                      style={
-                        styles.brandRed
-                      }
-                    >
-                      Hemo-
-                    </Text>
-
-                    Hero
-                  </Text>
-
-                  <Text
-                    style={[
-                      styles.portal,
-
-                      {
-                        fontSize:
-                          9 * s,
-
-                        letterSpacing:
-                          1.6 * s,
-                      },
-                    ]}
-                  >
-                    ADMIN PORTAL
-                  </Text>
-                </View>
-              </Pressable>
-
-              {/* ================================================
-                  ADMIN
-              ================================================ */}
-
-              <View
-                style={
-                  styles.adminSection
-                }
-              >
-                {/* ==============================================
-                    NOTIFICATION
-                ============================================== */}
-
-                <View
-                  style={
-                    styles.notificationWrap
-                  }
-                >
-                  <MaterialIcons
-                    name="notifications-none"
-                    size={
-                      24 * s
-                    }
-                    color={
-                      COLORS.white
-                    }
-                  />
-
-                  <View
-                    style={[
-                      styles.notificationBadge,
-
-                      {
-                        minWidth:
-                          18 * s,
-
-                        height:
-                          18 * s,
-
-                        borderRadius:
-                          9 * s,
-                      },
-                    ]}
-                  >
-                    <Text
-                      style={[
-                        styles.notificationBadgeText,
-
-                        {
-                          fontSize:
-                            9 * s,
-                        },
-                      ]}
-                    >
-                      3
-                    </Text>
-                  </View>
-                </View>
-
-                {/* ==============================================
-                    AVATAR
-                ============================================== */}
-
-                <View
-                  style={[
-                    styles.avatar,
-
-                    {
-                      width:
-                        48 * s,
-
-                      height:
-                        48 * s,
-
-                      borderRadius:
-                        24 * s,
-                    },
-                  ]}
-                >
-                  <Text
-                    style={[
-                      styles.avatarText,
-
-                      {
-                        fontSize:
-                          15 * s,
-                      },
-                    ]}
-                  >
-                    {
-                      adminInitial
-                    }
-                  </Text>
-                </View>
-
-                {/* ==============================================
-                    ADMIN DETAILS
-                ============================================== */}
-
-                <Pressable
-                  onPress={() =>
-                    router.push(
-                      '/settings'
-                    )
-                  }
-                  style={({ pressed }) => [
-                    styles.adminInfo,
-
-                    pressed &&
-                      styles.pressed,
-                  ]}
-                >
-                  <Text
-                    numberOfLines={
-                      1
-                    }
-                    style={[
-                      styles.adminName,
-
-                      {
-                        fontSize:
-                          12 * s,
-                      },
-                    ]}
-                  >
-                    {
-                      adminName
-                    }
-                  </Text>
-
-                  <Text
-                    style={[
-                      styles.adminRole,
-
-                      {
-                        fontSize:
-                          10 * s,
-                      },
-                    ]}
-                  >
-                    Admin
-                  </Text>
-                </Pressable>
-              </View>
-            </View>
+            <AdminHeader
+              profile={
+                profile
+              }
+              scale={
+                s
+              }
+              fontScale={
+                fs
+              }
+              notificationCount={
+                0
+              }
+            />
 
             {/* ==================================================
                 CONTENT
@@ -922,10 +667,10 @@ export default function ActivityLogsScreen() {
 
                       {
                         fontSize:
-                          32 * s,
+                          30 * fs,
 
                         lineHeight:
-                          40 * s,
+                          38 * fs,
                       },
                     ]}
                   >
@@ -938,7 +683,7 @@ export default function ActivityLogsScreen() {
 
                       {
                         fontSize:
-                          13 * s,
+                          14 * fs,
 
                         marginTop:
                           4 * s,
@@ -949,10 +694,6 @@ export default function ActivityLogsScreen() {
                   </Text>
                 </View>
 
-                {/* ==============================================
-                    REFRESH
-                ============================================== */}
-
                 <Pressable
                   disabled={
                     refreshing
@@ -962,7 +703,9 @@ export default function ActivityLogsScreen() {
                       true
                     )
                   }
-                  style={({ pressed }) => [
+                  style={({
+                    pressed,
+                  }) => [
                     styles.refreshButton,
 
                     {
@@ -1011,7 +754,7 @@ export default function ActivityLogsScreen() {
 
                           {
                             fontSize:
-                              11 * s,
+                              13 * fs,
                           },
                         ]}
                       >
@@ -1043,6 +786,9 @@ export default function ActivityLogsScreen() {
                   scale={
                     s
                   }
+                  fontScale={
+                    fs
+                  }
                   icon="history"
                   title="TOTAL ACTIVITIES"
                   value={
@@ -1057,6 +803,9 @@ export default function ActivityLogsScreen() {
                   scale={
                     s
                   }
+                  fontScale={
+                    fs
+                  }
                   icon="check-circle"
                   title="SUCCESSFUL"
                   value={
@@ -1070,6 +819,9 @@ export default function ActivityLogsScreen() {
                 <SummaryCard
                   scale={
                     s
+                  }
+                  fontScale={
+                    fs
                   }
                   icon="error"
                   title="FAILED"
@@ -1102,9 +854,7 @@ export default function ActivityLogsScreen() {
                   },
                 ]}
               >
-                {/* ==============================================
-                    EMAIL SEARCH
-                ============================================== */}
+                {/* EMAIL SEARCH */}
 
                 <View
                   style={[
@@ -1165,7 +915,7 @@ export default function ActivityLogsScreen() {
 
                         {
                           fontSize:
-                            11 * s,
+                            13 * fs,
                         },
                       ]}
                     />
@@ -1193,7 +943,9 @@ export default function ActivityLogsScreen() {
                     onPress={
                       submitSearch
                     }
-                    style={({ pressed }) => [
+                    style={({
+                      pressed,
+                    }) => [
                       styles.searchButton,
 
                       {
@@ -1217,7 +969,7 @@ export default function ActivityLogsScreen() {
 
                         {
                           fontSize:
-                            11 * s,
+                            13 * fs,
                         },
                       ]}
                     >
@@ -1226,9 +978,7 @@ export default function ActivityLogsScreen() {
                   </Pressable>
                 </View>
 
-                {/* ==============================================
-                    MODULE FILTER
-                ============================================== */}
+                {/* MODULE FILTER */}
 
                 <View
                   style={[
@@ -1246,7 +996,7 @@ export default function ActivityLogsScreen() {
 
                       {
                         fontSize:
-                          9 * s,
+                          11 * fs,
 
                         marginRight:
                           10 * s,
@@ -1259,6 +1009,9 @@ export default function ActivityLogsScreen() {
                   <FilterChip
                     scale={
                       s
+                    }
+                    fontScale={
+                      fs
                     }
                     label="All"
                     selected={
@@ -1275,6 +1028,9 @@ export default function ActivityLogsScreen() {
                   <FilterChip
                     scale={
                       s
+                    }
+                    fontScale={
+                      fs
                     }
                     label="Authentication"
                     selected={
@@ -1292,6 +1048,9 @@ export default function ActivityLogsScreen() {
                     scale={
                       s
                     }
+                    fontScale={
+                      fs
+                    }
                     label="Profile"
                     selected={
                       moduleFilter ===
@@ -1308,6 +1067,9 @@ export default function ActivityLogsScreen() {
                     scale={
                       s
                     }
+                    fontScale={
+                      fs
+                    }
                     label="Account Security"
                     selected={
                       moduleFilter ===
@@ -1321,9 +1083,7 @@ export default function ActivityLogsScreen() {
                   />
                 </View>
 
-                {/* ==============================================
-                    STATUS FILTER
-                ============================================== */}
+                {/* STATUS FILTER */}
 
                 <View
                   style={[
@@ -1341,7 +1101,7 @@ export default function ActivityLogsScreen() {
 
                       {
                         fontSize:
-                          9 * s,
+                          11 * fs,
 
                         marginRight:
                           10 * s,
@@ -1354,6 +1114,9 @@ export default function ActivityLogsScreen() {
                   <FilterChip
                     scale={
                       s
+                    }
+                    fontScale={
+                      fs
                     }
                     label="All"
                     selected={
@@ -1371,6 +1134,9 @@ export default function ActivityLogsScreen() {
                     scale={
                       s
                     }
+                    fontScale={
+                      fs
+                    }
                     label="Successful"
                     selected={
                       statusFilter ===
@@ -1386,6 +1152,9 @@ export default function ActivityLogsScreen() {
                   <FilterChip
                     scale={
                       s
+                    }
+                    fontScale={
+                      fs
                     }
                     label="Failed"
                     selected={
@@ -1438,7 +1207,7 @@ export default function ActivityLogsScreen() {
 
                       {
                         fontSize:
-                          11 * s,
+                          12 * fs,
                       },
                     ]}
                   >
@@ -1463,9 +1232,7 @@ export default function ActivityLogsScreen() {
                   },
                 ]}
               >
-                {/* ==============================================
-                    TABLE HEADER
-                ============================================== */}
+                {/* TABLE HEADER */}
 
                 <View
                   style={[
@@ -1487,7 +1254,7 @@ export default function ActivityLogsScreen() {
 
                       {
                         fontSize:
-                          9 * s,
+                          11 * fs,
                       },
                     ]}
                   >
@@ -1501,7 +1268,7 @@ export default function ActivityLogsScreen() {
 
                       {
                         fontSize:
-                          9 * s,
+                          11 * fs,
                       },
                     ]}
                   >
@@ -1515,7 +1282,7 @@ export default function ActivityLogsScreen() {
 
                       {
                         fontSize:
-                          9 * s,
+                          11 * fs,
                       },
                     ]}
                   >
@@ -1529,7 +1296,7 @@ export default function ActivityLogsScreen() {
 
                       {
                         fontSize:
-                          9 * s,
+                          11 * fs,
                       },
                     ]}
                   >
@@ -1543,7 +1310,7 @@ export default function ActivityLogsScreen() {
 
                       {
                         fontSize:
-                          9 * s,
+                          11 * fs,
                       },
                     ]}
                   >
@@ -1551,9 +1318,7 @@ export default function ActivityLogsScreen() {
                   </Text>
                 </View>
 
-                {/* ==============================================
-                    LOADING
-                ============================================== */}
+                {/* LOADING */}
 
                 {loading ? (
                   <View
@@ -1579,7 +1344,7 @@ export default function ActivityLogsScreen() {
 
                         {
                           fontSize:
-                            11 * s,
+                            12 * fs,
 
                           marginTop:
                             12 * s,
@@ -1634,7 +1399,7 @@ export default function ActivityLogsScreen() {
 
                         {
                           fontSize:
-                            17 * s,
+                            18 * fs,
 
                           marginTop:
                             15 * s,
@@ -1650,7 +1415,7 @@ export default function ActivityLogsScreen() {
 
                         {
                           fontSize:
-                            11 * s,
+                            12 * fs,
 
                           marginTop:
                             5 * s,
@@ -1672,6 +1437,9 @@ export default function ActivityLogsScreen() {
                         }
                         scale={
                           s
+                        }
+                        fontScale={
+                          fs
                         }
                       />
                     )
@@ -1702,7 +1470,7 @@ export default function ActivityLogsScreen() {
 
                       {
                         fontSize:
-                          10 * s,
+                          11.5 * fs,
                       },
                     ]}
                   >
@@ -1749,7 +1517,9 @@ export default function ActivityLogsScreen() {
                             )
                         )
                       }
-                      style={({ pressed }) => [
+                      style={({
+                        pressed,
+                      }) => [
                         styles.pageButton,
 
                         {
@@ -1787,7 +1557,7 @@ export default function ActivityLogsScreen() {
 
                           {
                             fontSize:
-                              10 * s,
+                              12 * fs,
                           },
                         ]}
                       >
@@ -1807,7 +1577,9 @@ export default function ActivityLogsScreen() {
                             1
                         )
                       }
-                      style={({ pressed }) => [
+                      style={({
+                        pressed,
+                      }) => [
                         styles.pageButton,
 
                         {
@@ -1835,7 +1607,7 @@ export default function ActivityLogsScreen() {
 
                           {
                             fontSize:
-                              10 * s,
+                              12 * fs,
                           },
                         ]}
                       >
@@ -1857,10 +1629,6 @@ export default function ActivityLogsScreen() {
               ) : null}
             </ScrollView>
 
-            {/* ==================================================
-                SHARED BOTTOM NAVIGATION
-            ================================================== */}
-
             <AdminBottomNav
               activeTab="activityLogs"
             />
@@ -1877,23 +1645,31 @@ export default function ActivityLogsScreen() {
 
 function SummaryCard({
   scale,
+  fontScale,
   icon,
   title,
   value,
   color,
 }: {
-  scale: number;
+  scale:
+    number;
+
+  fontScale:
+    number;
 
   icon:
     | 'history'
     | 'check-circle'
     | 'error';
 
-  title: string;
+  title:
+    string;
 
-  value: number;
+  value:
+    number;
 
-  color: string;
+  color:
+    string;
 }) {
   return (
     <View
@@ -1952,7 +1728,7 @@ function SummaryCard({
 
             {
               fontSize:
-                9 * scale,
+                11 * fontScale,
             },
           ]}
         >
@@ -1967,7 +1743,7 @@ function SummaryCard({
 
             {
               fontSize:
-                28 * scale,
+                28 * fontScale,
             },
           ]}
         >
@@ -1986,24 +1762,34 @@ function SummaryCard({
 
 function FilterChip({
   scale,
+  fontScale,
   label,
   selected,
   onPress,
 }: {
-  scale: number;
+  scale:
+    number;
 
-  label: string;
+  fontScale:
+    number;
 
-  selected: boolean;
+  label:
+    string;
 
-  onPress: () => void;
+  selected:
+    boolean;
+
+  onPress:
+    () => void;
 }) {
   return (
     <Pressable
       onPress={
         onPress
       }
-      style={({ pressed }) => [
+      style={({
+        pressed,
+      }) => [
         styles.filterChip,
 
         {
@@ -2030,7 +1816,7 @@ function FilterChip({
 
           {
             fontSize:
-              9 * scale,
+              12 * fontScale,
           },
 
           selected &&
@@ -2052,10 +1838,16 @@ function FilterChip({
 function ActivityRow({
   log,
   scale,
+  fontScale,
 }: {
-  log: ActivityLog;
+  log:
+    ActivityLog;
 
-  scale: number;
+  scale:
+    number;
+
+  fontScale:
+    number;
 }) {
   const actionLabel =
     formatAction(
@@ -2088,9 +1880,7 @@ function ActivityRow({
         },
       ]}
     >
-      {/* ======================================================
-          ACTIVITY
-      ====================================================== */}
+      {/* ACTIVITY */}
 
       <View
         style={[
@@ -2146,7 +1936,7 @@ function ActivityRow({
 
               {
                 fontSize:
-                  10 * scale,
+                  12.5 * fontScale,
               },
             ]}
           >
@@ -2164,7 +1954,7 @@ function ActivityRow({
 
               {
                 fontSize:
-                  9 * scale,
+                  11.5 * fontScale,
 
                 marginTop:
                   2 * scale,
@@ -2177,9 +1967,7 @@ function ActivityRow({
         </View>
       </View>
 
-      {/* ======================================================
-          USER
-      ====================================================== */}
+      {/* USER */}
 
       <View
         style={
@@ -2195,7 +1983,7 @@ function ActivityRow({
 
             {
               fontSize:
-                10 * scale,
+                12.5 * fontScale,
             },
           ]}
         >
@@ -2213,7 +2001,7 @@ function ActivityRow({
 
             {
               fontSize:
-                9 * scale,
+                11.5 * fontScale,
 
               marginTop:
                 2 * scale,
@@ -2225,9 +2013,7 @@ function ActivityRow({
         </Text>
       </View>
 
-      {/* ======================================================
-          MODULE
-      ====================================================== */}
+      {/* MODULE */}
 
       <View
         style={
@@ -2243,7 +2029,7 @@ function ActivityRow({
 
             {
               fontSize:
-                10 * scale,
+                12.5 * fontScale,
             },
           ]}
         >
@@ -2261,7 +2047,7 @@ function ActivityRow({
 
             {
               fontSize:
-                9 * scale,
+                11.5 * fontScale,
 
               marginTop:
                 2 * scale,
@@ -2275,9 +2061,7 @@ function ActivityRow({
         </Text>
       </View>
 
-      {/* ======================================================
-          STATUS
-      ====================================================== */}
+      {/* STATUS */}
 
       <View
         style={
@@ -2331,7 +2115,7 @@ function ActivityRow({
 
               {
                 fontSize:
-                  9 * scale,
+                  11.5 * fontScale,
               },
 
               log.success
@@ -2346,9 +2130,7 @@ function ActivityRow({
         </View>
       </View>
 
-      {/* ======================================================
-          DATE
-      ====================================================== */}
+      {/* DATE */}
 
       <View
         style={
@@ -2361,7 +2143,7 @@ function ActivityRow({
 
             {
               fontSize:
-                10 * scale,
+                12.5 * fontScale,
             },
           ]}
         >
@@ -2376,7 +2158,7 @@ function ActivityRow({
 
             {
               fontSize:
-                9 * scale,
+                11.5 * fontScale,
 
               marginTop:
                 2 * scale,
@@ -2397,7 +2179,8 @@ function ActivityRow({
 // ============================================================
 
 function formatAction(
-  action: string
+  action:
+    string
 ) {
   return String(
     action ||
@@ -2422,7 +2205,8 @@ function formatAction(
 // ============================================================
 
 function getActionIcon(
-  action: string
+  action:
+    string
 ):
   | 'login'
   | 'logout'
@@ -2489,7 +2273,8 @@ function getActionIcon(
 // ============================================================
 
 function formatDate(
-  value: string
+  value:
+    string
 ) {
   const date =
     new Date(
@@ -2549,10 +2334,6 @@ function formatDate(
 
 const styles =
   StyleSheet.create({
-    // ========================================================
-    // PAGE
-    // ========================================================
-
     outer: {
       flex:
         1,
@@ -2609,189 +2390,6 @@ const styles =
         1,
     },
 
-    // ========================================================
-    // HEADER
-    // ========================================================
-
-    header: {
-      flexDirection:
-        'row',
-
-      alignItems:
-        'center',
-
-      justifyContent:
-        'space-between',
-
-      borderBottomWidth:
-        1,
-
-      borderBottomColor:
-        COLORS.border,
-    },
-
-    brandArea: {
-      flexDirection:
-        'row',
-
-      alignItems:
-        'center',
-
-      gap:
-        14,
-    },
-
-    logoCircle: {
-      alignItems:
-        'center',
-
-      justifyContent:
-        'center',
-
-      backgroundColor:
-        COLORS.white,
-
-      overflow:
-        'hidden',
-    },
-
-    brand: {
-      color:
-        COLORS.white,
-
-      fontFamily:
-        'Poppins_700Bold',
-    },
-
-    brandRed: {
-      color:
-        COLORS.redBright,
-    },
-
-    portal: {
-      color:
-        COLORS.redBright,
-
-      fontFamily:
-        'Inter_600SemiBold',
-
-      marginTop:
-        1,
-    },
-
-    // ========================================================
-    // ADMIN
-    // ========================================================
-
-    adminSection: {
-      flexDirection:
-        'row',
-
-      alignItems:
-        'center',
-
-      gap:
-        12,
-    },
-
-    notificationWrap: {
-      marginRight:
-        4,
-
-      position:
-        'relative',
-
-      width:
-        28,
-
-      alignItems:
-        'center',
-
-      justifyContent:
-        'center',
-    },
-
-    notificationBadge: {
-      position:
-        'absolute',
-
-      top:
-        -4,
-
-      right:
-        -6,
-
-      paddingHorizontal:
-        4,
-
-      backgroundColor:
-        COLORS.redBright,
-
-      alignItems:
-        'center',
-
-      justifyContent:
-        'center',
-    },
-
-    notificationBadgeText: {
-      color:
-        COLORS.white,
-
-      fontFamily:
-        'Inter_700Bold',
-    },
-
-    avatar: {
-      alignItems:
-        'center',
-
-      justifyContent:
-        'center',
-
-      backgroundColor:
-        '#ECECEC',
-    },
-
-    avatarText: {
-      color:
-        '#111111',
-
-      fontFamily:
-        'Poppins_600SemiBold',
-    },
-
-    adminInfo: {
-      minWidth:
-        90,
-    },
-
-    adminName: {
-      maxWidth:
-        180,
-
-      color:
-        COLORS.white,
-
-      fontFamily:
-        'Inter_600SemiBold',
-    },
-
-    adminRole: {
-      marginTop:
-        2,
-
-      color:
-        COLORS.muted,
-
-      fontFamily:
-        'Inter_400Regular',
-    },
-
-    // ========================================================
-    // TITLE
-    // ========================================================
-
     titleRow: {
       flexDirection:
         'row',
@@ -2846,10 +2444,6 @@ const styles =
       fontFamily:
         'Inter_600SemiBold',
     },
-
-    // ========================================================
-    // SUMMARY
-    // ========================================================
 
     summaryRow: {
       flexDirection:
@@ -2916,10 +2510,6 @@ const styles =
       fontFamily:
         'Poppins_700Bold',
     },
-
-    // ========================================================
-    // FILTERS
-    // ========================================================
 
     filterCard: {
       borderWidth:
@@ -3065,10 +2655,6 @@ const styles =
         COLORS.white,
     },
 
-    // ========================================================
-    // ERROR
-    // ========================================================
-
     errorCard: {
       flexDirection:
         'row',
@@ -3099,10 +2685,6 @@ const styles =
       fontFamily:
         'Inter_500Medium',
     },
-
-    // ========================================================
-    // TABLE
-    // ========================================================
 
     tableCard: {
       overflow:
@@ -3228,10 +2810,6 @@ const styles =
         'Inter_400Regular',
     },
 
-    // ========================================================
-    // STATUS
-    // ========================================================
-
     statusBadge: {
       alignSelf:
         'flex-start',
@@ -3292,10 +2870,6 @@ const styles =
         COLORS.redBright,
     },
 
-    // ========================================================
-    // LOADING / EMPTY
-    // ========================================================
-
     loading: {
       alignItems:
         'center',
@@ -3346,10 +2920,6 @@ const styles =
       fontFamily:
         'Inter_400Regular',
     },
-
-    // ========================================================
-    // PAGINATION
-    // ========================================================
 
     pagination: {
       flexDirection:
@@ -3402,10 +2972,6 @@ const styles =
       fontFamily:
         'Inter_600SemiBold',
     },
-
-    // ========================================================
-    // GENERIC
-    // ========================================================
 
     pressed: {
       opacity:

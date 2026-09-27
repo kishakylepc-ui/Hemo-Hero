@@ -1,4 +1,5 @@
 import {
+  type ComponentProps,
   useEffect,
   useMemo,
   useState,
@@ -6,7 +7,6 @@ import {
 
 import {
   ActivityIndicator,
-  Image,
   Platform,
   Pressable,
   ScrollView,
@@ -16,30 +16,22 @@ import {
   View,
 } from 'react-native';
 
-import {
-  MaterialIcons,
-} from '@expo/vector-icons';
-
-import {
-  LinearGradient,
-} from 'expo-linear-gradient';
-
-import {
-  router,
-} from 'expo-router';
-
-import {
-  StatusBar,
-} from 'expo-status-bar';
-
-import {
-  SafeAreaView,
-} from 'react-native-safe-area-context';
+import { MaterialIcons } from '@expo/vector-icons';
+import { LinearGradient } from 'expo-linear-gradient';
+import { router } from 'expo-router';
+import { StatusBar } from 'expo-status-bar';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 import AdminBottomNav from './AdminBottomNav';
+import AdminHeader from './AdminHeader';
 
 import {
+  getAdminActivityLogs,
+  getAdminBloodTypeDemand,
   getAdminDonorSummary,
+  type ActivityLog,
+  type AdminBloodTypeDemandItem,
+  type AdminBloodTypeDemandResponse,
   type AdminProfile,
   type DonorApplicationSummary,
 } from '../lib/api';
@@ -51,189 +43,159 @@ import {
 } from '../lib/session';
 
 // ============================================================
-// IPAD PRO
+// DESIGN SIZE
 // ============================================================
 
-const DESIGN_WIDTH =
-  1366;
-
-const DESIGN_HEIGHT =
-  1024;
+const DESIGN_WIDTH = 1366;
+const DESIGN_HEIGHT = 1024;
 
 // ============================================================
 // COLORS
-//
-// Matched to the Donor Applications module.
 // ============================================================
 
 const COLORS = {
-  outer:
-    '#02040A',
+  outer: '#02040A',
+  navy: '#050B19',
 
-  navy:
-    '#050B19',
+  card: '#091126',
+  cardLight: '#101A35',
 
-  card:
-    '#091126',
+  border: '#243554',
 
-  cardLight:
-    '#101A35',
+  red: '#DB0A0A',
+  redBright: '#EF3340',
 
-  border:
-    '#243554',
+  white: '#FFFFFF',
 
-  red:
-    '#DB0A0A',
+  muted: '#7F889F',
+  soft: '#B7C1D8',
 
-  redBright:
-    '#EF3340',
-
-  white:
-    '#FFFFFF',
-
-  muted:
-    '#7F889F',
-
-  soft:
-    '#B7C1D8',
-
-  green:
-    '#35C982',
+  green: '#35C982',
+  orange: '#F3A34A',
 };
 
 // ============================================================
-// SCREEN
+// DASHBOARD
 // ============================================================
 
 export default function AdminDashboardScreen() {
-  const {
-    width,
-    height,
-  } =
-    useWindowDimensions();
+  const { width, height } = useWindowDimensions();
 
   // ==========================================================
-  // RESPONSIVE TABLET FRAME
+  // RESPONSIVE IPAD FRAME
   // ==========================================================
 
-  const tablet =
-    useMemo(
-      () => {
-        if (
-          Platform.OS !==
-          'web'
-        ) {
-          return {
-            width,
-            height,
-
-            scale:
-              Math.min(
-                width /
-                  DESIGN_WIDTH,
-
-                height /
-                  DESIGN_HEIGHT
-              ),
-          };
-        }
-
-        const padding =
-          24;
-
-        const availableWidth =
-          Math.max(
-            width -
-              padding * 2,
-
-            320
-          );
-
-        const availableHeight =
-          Math.max(
-            height -
-              padding * 2,
-
-            320
-          );
-
-        const scale =
-          Math.min(
-            availableWidth /
-              DESIGN_WIDTH,
-
-            availableHeight /
-              DESIGN_HEIGHT,
-
-            1
-          );
-
-        return {
-          width:
-            DESIGN_WIDTH *
-            scale,
-
-          height:
-            DESIGN_HEIGHT *
-            scale,
-
-          scale,
-        };
-      },
-      [
+  const tablet = useMemo(() => {
+    if (Platform.OS !== 'web') {
+      return {
         width,
         height,
-      ]
+
+        scale: Math.min(
+          width / DESIGN_WIDTH,
+          height / DESIGN_HEIGHT
+        ),
+      };
+    }
+
+    const padding = 24;
+
+    const availableWidth = Math.max(
+      width - padding * 2,
+      320
     );
 
-  const s =
-    Math.max(
-      tablet.scale,
-      0.68
+    const availableHeight = Math.max(
+      height - padding * 2,
+      320
     );
+
+    const scale = Math.min(
+      availableWidth / DESIGN_WIDTH,
+      availableHeight / DESIGN_HEIGHT,
+      1
+    );
+
+    return {
+      width: DESIGN_WIDTH * scale,
+      height: DESIGN_HEIGHT * scale,
+      scale,
+    };
+  }, [width, height]);
+
+  // ==========================================================
+  // SCALE
+  //
+  // s  = layout / dimensions
+  // fs = readable font scale
+  // ==========================================================
+
+  const s = Math.max(
+    tablet.scale,
+    0.68
+  );
+
+  const fs = Math.max(
+    tablet.scale,
+    0.9
+  );
+
+  const headerFs = Math.max(
+    tablet.scale,
+    0.92
+  );
 
   // ==========================================================
   // STATE
   // ==========================================================
 
-  const [
-    profile,
-    setProfile,
-  ] =
+  const [profile, setProfile] =
     useState<AdminProfile | null>(
       null
     );
 
-  const [
-    summary,
-    setSummary,
-  ] =
+  const [summary, setSummary] =
     useState<DonorApplicationSummary | null>(
       null
     );
 
+  const [bloodDemand, setBloodDemand] =
+    useState<AdminBloodTypeDemandResponse | null>(
+      null
+    );
+
   const [
-    loading,
-    setLoading,
-  ] =
+    bloodDemandError,
+    setBloodDemandError,
+  ] = useState('');
+
+  const [
+    recentActivities,
+    setRecentActivities,
+  ] = useState<ActivityLog[]>([]);
+
+  const [
+    recentActivityError,
+    setRecentActivityError,
+  ] = useState('');
+
+  const [loading, setLoading] =
     useState(true);
 
   // ==========================================================
   // LOAD DASHBOARD
   // ==========================================================
 
-  useEffect(
-    () => {
-      loadDashboard();
-    },
-    []
-  );
+  useEffect(() => {
+    loadDashboard();
+  }, []);
 
   async function loadDashboard() {
     try {
-      setLoading(
-        true
-      );
+      setLoading(true);
+
+      setBloodDemandError('');
+      setRecentActivityError('');
 
       const token =
         await getAdminAccessToken();
@@ -242,83 +204,158 @@ export default function AdminDashboardScreen() {
         await getAdminProfile();
 
       // ------------------------------------------------------
-      // PROTECT ADMIN DASHBOARD
+      // ADMIN PROTECTION
       // ------------------------------------------------------
 
       if (
         !token ||
-        savedProfile?.role !==
-          'admin'
+        savedProfile?.role !== 'admin'
       ) {
         await clearAdminSession();
 
-        router.replace(
-          '/'
-        );
+        router.replace('/');
 
         return;
       }
 
-      setProfile(
-        savedProfile
-      );
+      setProfile(savedProfile);
 
       // ------------------------------------------------------
-      // LOAD DASHBOARD SUMMARY
+      // APPLICATION SUMMARY
       // ------------------------------------------------------
 
-      const result =
-        await getAdminDonorSummary(
-          token
+      try {
+        const result =
+          await getAdminDonorSummary(
+            token
+          );
+
+        setSummary(
+          result.summary
+        );
+      } catch (error) {
+        console.log(
+          'ADMIN DASHBOARD SUMMARY ERROR:',
+          error
         );
 
-      setSummary(
-        result.summary
-      );
-    } catch (
-      error
-    ) {
+        setSummary(null);
+      }
+
+      // ------------------------------------------------------
+      // BLOOD TYPE DEMAND
+      // ------------------------------------------------------
+
+      try {
+        const result =
+          await getAdminBloodTypeDemand(
+            token
+          );
+
+        setBloodDemand(
+          result
+        );
+      } catch (error) {
+        console.log(
+          'ADMIN BLOOD DEMAND ERROR:',
+          error
+        );
+
+        setBloodDemand(null);
+
+        setBloodDemandError(
+          error instanceof Error
+            ? error.message
+            : 'Unable to load blood type demand.'
+        );
+      }
+
+      // ------------------------------------------------------
+      // RECENT ACTIVITY
+      // ------------------------------------------------------
+
+      try {
+        const result =
+          await getAdminActivityLogs(
+            token,
+            {
+              page: 1,
+              limit: 6,
+            }
+          );
+
+        const latestActivities =
+          (result.logs || [])
+            .slice()
+            .sort(
+              (a, b) =>
+                new Date(
+                  b.created_at
+                ).getTime() -
+                new Date(
+                  a.created_at
+                ).getTime()
+            )
+            .slice(0, 4);
+
+        setRecentActivities(
+          latestActivities
+        );
+      } catch (error) {
+        console.log(
+          'ADMIN DASHBOARD ACTIVITY ERROR:',
+          error
+        );
+
+        setRecentActivities([]);
+
+        setRecentActivityError(
+          error instanceof Error
+            ? error.message
+            : 'Unable to load recent activity.'
+        );
+      }
+    } catch (error) {
       console.log(
         'ADMIN DASHBOARD ERROR:',
         error
       );
     } finally {
-      setLoading(
-        false
-      );
+      setLoading(false);
     }
   }
 
   // ==========================================================
-  // ADMIN NAME
+  // BLOOD DEMAND DISPLAY
   // ==========================================================
 
-  const adminName =
-    [
-      profile?.first_name,
-      profile?.last_name,
-    ]
-      .filter(Boolean)
-      .join(' ')
-      .trim() ||
-    profile?.email ||
-    'Administrator';
+  const visibleBloodDemand =
+    (
+      bloodDemand?.demand ||
+      []
+    )
+      .filter(
+        item =>
+          item.request_count > 0 ||
+          item.units_needed > 0
+      )
+      .slice(0, 4);
 
-  const adminInitial =
-    adminName
-      .charAt(0)
-      .toUpperCase();
+  const highestUnits =
+    Math.max(
+      ...visibleBloodDemand.map(
+        item =>
+          item.units_needed
+      ),
+      1
+    );
 
   // ==========================================================
   // UI
   // ==========================================================
 
   return (
-    <View
-      style={
-        styles.outer
-      }
-    >
+    <View style={styles.outer}>
       <View
         style={[
           styles.ipadCanvas,
@@ -331,18 +368,11 @@ export default function AdminDashboardScreen() {
               tablet.height,
           },
 
-          Platform.OS !==
-            'web' &&
+          Platform.OS !== 'web' &&
             styles.nativeCanvas,
         ]}
       >
-        <StatusBar
-          style="light"
-        />
-
-        {/* ====================================================
-            SAME BACKGROUND PALETTE AS APPLICATIONS
-        ==================================================== */}
+        <StatusBar style="light" />
 
         <LinearGradient
           colors={[
@@ -350,277 +380,28 @@ export default function AdminDashboardScreen() {
             '#050B19',
             '#030814',
           ]}
-          style={
-            styles.gradient
-          }
+          style={styles.gradient}
         >
           <SafeAreaView
-            style={
-              styles.safeArea
-            }
+            style={styles.safeArea}
           >
             {/* ==================================================
                 HEADER
             ================================================== */}
 
-            <View
-              style={[
-                styles.header,
-
-                {
-                  height:
-                    96 * s,
-
-                  paddingHorizontal:
-                    48 * s,
-                },
-              ]}
-            >
-              {/* ================================================
-                  BRAND
-              ================================================ */}
-
-              <Pressable
-                style={
-                  styles.brandArea
-                }
-                onPress={() =>
-                  router.replace(
-                    '/dashboard'
-                  )
-                }
-              >
-                <View
-                  style={[
-                    styles.logoCircle,
-
-                    {
-                      width:
-                        52 * s,
-
-                      height:
-                        52 * s,
-
-                      borderRadius:
-                        26 * s,
-                    },
-                  ]}
-                >
-                  <Image
-                    source={require('../assets/images/hemo-hero-logo.png')}
-                    style={{
-                      width:
-                        46 * s,
-
-                      height:
-                        46 * s,
-                    }}
-                    resizeMode="contain"
-                  />
-                </View>
-
-                <View>
-                  <Text
-                    style={[
-                      styles.brand,
-
-                      {
-                        fontSize:
-                          27 * s,
-                      },
-                    ]}
-                  >
-                    <Text
-                      style={
-                        styles.brandRed
-                      }
-                    >
-                      Hemo-
-                    </Text>
-
-                    Hero
-                  </Text>
-
-                  <Text
-                    style={[
-                      styles.portal,
-
-                      {
-                        fontSize:
-                          9 * s,
-
-                        letterSpacing:
-                          1.6 * s,
-                      },
-                    ]}
-                  >
-                    ADMIN PORTAL
-                  </Text>
-                </View>
-              </Pressable>
-
-              {/* ================================================
-                  ADMIN AREA
-              ================================================ */}
-
-              <View
-                style={
-                  styles.adminSection
-                }
-              >
-                {/* ==============================================
-                    NOTIFICATION
-                ============================================== */}
-
-                <Pressable
-                  onPress={() => {
-                    console.log(
-                      'Admin notifications'
-                    );
-                  }}
-                  style={({ pressed }) => [
-                    styles.notificationWrap,
-
-                    pressed &&
-                      styles.headerButtonPressed,
-                  ]}
-                >
-                  <MaterialIcons
-                    name="notifications-none"
-                    size={
-                      24 * s
-                    }
-                    color={
-                      COLORS.white
-                    }
-                  />
-
-                  <View
-                    style={[
-                      styles.notificationBadge,
-
-                      {
-                        minWidth:
-                          18 * s,
-
-                        height:
-                          18 * s,
-
-                        borderRadius:
-                          9 * s,
-                      },
-                    ]}
-                  >
-                    <Text
-                      style={[
-                        styles.notificationBadgeText,
-
-                        {
-                          fontSize:
-                            9 * s,
-                        },
-                      ]}
-                    >
-                      !
-                    </Text>
-                  </View>
-                </Pressable>
-
-                {/* ==============================================
-                    ADMIN AVATAR
-                ============================================== */}
-
-                <View
-                  style={[
-                    styles.avatar,
-
-                    {
-                      width:
-                        48 * s,
-
-                      height:
-                        48 * s,
-
-                      borderRadius:
-                        24 * s,
-                    },
-                  ]}
-                >
-                  <Text
-                    style={[
-                      styles.avatarText,
-
-                      {
-                        fontSize:
-                          15 * s,
-                      },
-                    ]}
-                  >
-                    {
-                      adminInitial
-                    }
-                  </Text>
-                </View>
-
-                {/* ==============================================
-                    ADMIN INFORMATION
-                ============================================== */}
-
-                <Pressable
-                  onPress={() =>
-                    router.push(
-                      '/settings'
-                    )
-                  }
-                  style={({ pressed }) => [
-                    styles.adminInfoButton,
-
-                    pressed &&
-                      styles.adminInfoPressed,
-                  ]}
-                >
-                  <Text
-                    numberOfLines={
-                      1
-                    }
-                    style={[
-                      styles.adminName,
-
-                      {
-                        fontSize:
-                          12 * s,
-                      },
-                    ]}
-                  >
-                    {
-                      adminName
-                    }
-                  </Text>
-
-                  <Text
-                    style={[
-                      styles.adminRole,
-
-                      {
-                        fontSize:
-                          10 * s,
-                      },
-                    ]}
-                  >
-                    Admin
-                  </Text>
-                </Pressable>
-              </View>
-            </View>
+            <AdminHeader
+              profile={profile}
+              scale={s}
+              fontScale={headerFs}
+              notificationCount={0}
+            />
 
             {/* ==================================================
                 CONTENT
             ================================================== */}
 
             <ScrollView
-              style={
-                styles.scroll
-              }
+              style={styles.scroll}
               contentContainerStyle={[
                 styles.content,
 
@@ -640,7 +421,7 @@ export default function AdminDashboardScreen() {
               }
             >
               {/* ================================================
-                  PAGE TITLE
+                  TITLE
               ================================================ */}
 
               <View
@@ -660,10 +441,10 @@ export default function AdminDashboardScreen() {
 
                       {
                         fontSize:
-                          32 * s,
+                          30 * fs,
 
                         lineHeight:
-                          40 * s,
+                          38 * fs,
                       },
                     ]}
                   >
@@ -676,7 +457,10 @@ export default function AdminDashboardScreen() {
 
                       {
                         fontSize:
-                          13 * s,
+                          14 * fs,
+
+                        lineHeight:
+                          21 * fs,
 
                         marginTop:
                           4 * s,
@@ -687,13 +471,12 @@ export default function AdminDashboardScreen() {
                   </Text>
                 </View>
 
-                {/* ==============================================
-                    REFRESH
-                ============================================== */}
+                {/* REFRESH */}
 
                 <Pressable
-                  disabled={
-                    loading
+                  disabled={loading}
+                  onPress={
+                    loadDashboard
                   }
                   style={({ pressed }) => [
                     styles.refreshButton,
@@ -718,9 +501,6 @@ export default function AdminDashboardScreen() {
                     loading &&
                       styles.refreshDisabled,
                   ]}
-                  onPress={
-                    loadDashboard
-                  }
                 >
                   {loading ? (
                     <ActivityIndicator
@@ -747,7 +527,7 @@ export default function AdminDashboardScreen() {
 
                           {
                             fontSize:
-                              11 * s,
+                              13 * fs,
                           },
                         ]}
                       >
@@ -800,9 +580,8 @@ export default function AdminDashboardScreen() {
                     ]}
                   >
                     <StatCard
-                      scale={
-                        s
-                      }
+                      scale={s}
+                      fontScale={fs}
                       icon="assignment"
                       title="TOTAL APPLICATIONS"
                       value={
@@ -812,9 +591,8 @@ export default function AdminDashboardScreen() {
                     />
 
                     <StatCard
-                      scale={
-                        s
-                      }
+                      scale={s}
+                      fontScale={fs}
                       icon="verified"
                       title="VERIFIED DONORS"
                       value={
@@ -825,9 +603,8 @@ export default function AdminDashboardScreen() {
                     />
 
                     <StatCard
-                      scale={
-                        s
-                      }
+                      scale={s}
+                      fontScale={fs}
                       icon="pending-actions"
                       title="PENDING APPLICATIONS"
                       value={
@@ -843,9 +620,8 @@ export default function AdminDashboardScreen() {
                     />
 
                     <StatCard
-                      scale={
-                        s
-                      }
+                      scale={s}
+                      fontScale={fs}
                       icon="cancel"
                       title="REJECTED"
                       value={
@@ -865,7 +641,7 @@ export default function AdminDashboardScreen() {
 
                       {
                         minHeight:
-                          110 * s,
+                          112 * s,
 
                         paddingHorizontal:
                           24 * s,
@@ -919,7 +695,7 @@ export default function AdminDashboardScreen() {
 
                           {
                             fontSize:
-                              18 * s,
+                              18 * fs,
                           },
                         ]}
                       >
@@ -932,10 +708,13 @@ export default function AdminDashboardScreen() {
 
                           {
                             fontSize:
-                              12 * s,
+                              14 * fs,
+
+                            lineHeight:
+                              21 * fs,
 
                             marginTop:
-                              4 * s,
+                              3 * s,
                           },
                         ]}
                       >
@@ -951,6 +730,11 @@ export default function AdminDashboardScreen() {
                     </View>
 
                     <Pressable
+                      onPress={() =>
+                        router.push(
+                          '/applications'
+                        )
+                      }
                       style={({ pressed }) => [
                         styles.reviewButton,
 
@@ -968,11 +752,6 @@ export default function AdminDashboardScreen() {
                         pressed &&
                           styles.reviewPressed,
                       ]}
-                      onPress={() =>
-                        router.push(
-                          '/applications'
-                        )
-                      }
                     >
                       <Text
                         style={[
@@ -980,7 +759,7 @@ export default function AdminDashboardScreen() {
 
                           {
                             fontSize:
-                              12 * s,
+                              13 * fs,
                           },
                         ]}
                       >
@@ -1013,60 +792,367 @@ export default function AdminDashboardScreen() {
 
                         {
                           minHeight:
-                            285 * s,
+                            335 * s,
 
                           borderRadius:
                             14 * s,
 
                           padding:
-                            27 * s,
+                            22 * s,
                         },
                       ]}
                     >
-                      <MaterialIcons
-                        name="bloodtype"
-                        size={
-                          40 * s
+                      {/* HEADER */}
+
+                      <View
+                        style={
+                          styles.demandHeader
                         }
-                        color={
-                          COLORS.redBright
-                        }
-                      />
-
-                      <Text
-                        style={[
-                          styles.cardTitle,
-
-                          {
-                            fontSize:
-                              19 * s,
-
-                            marginTop:
-                              15 * s,
-                          },
-                        ]}
                       >
-                        Blood Type Demand
-                      </Text>
+                        <View
+                          style={
+                            styles.demandHeading
+                          }
+                        >
+                          <View
+                            style={[
+                              styles.demandHeaderIcon,
 
-                      <Text
-                        style={[
-                          styles.cardDescription,
+                              {
+                                width:
+                                  44 * s,
 
-                          {
-                            fontSize:
-                              12 * s,
+                                height:
+                                  44 * s,
 
-                            lineHeight:
-                              19 * s,
+                                borderRadius:
+                                  11 * s,
+                              },
+                            ]}
+                          >
+                            <MaterialIcons
+                              name="bloodtype"
+                              size={
+                                24 * s
+                              }
+                              color={
+                                COLORS.redBright
+                              }
+                            />
+                          </View>
 
-                            marginTop:
-                              7 * s,
-                          },
-                        ]}
-                      >
-                        Live blood-request analytics will be connected here.
-                      </Text>
+                          <View
+                            style={
+                              styles.demandHeadingText
+                            }
+                          >
+                            <Text
+                              style={[
+                                styles.cardTitle,
+
+                                {
+                                  fontSize:
+                                    18 * fs,
+                                },
+                              ]}
+                            >
+                              Blood Type Demand
+                            </Text>
+
+                            <Text
+                              style={[
+                                styles.cardDescription,
+
+                                {
+                                  fontSize:
+                                    13 * fs,
+
+                                  lineHeight:
+                                    18 * fs,
+
+                                  marginTop:
+                                    2 * s,
+                                },
+                              ]}
+                            >
+                              Current active blood requests
+                            </Text>
+                          </View>
+                        </View>
+
+                        {bloodDemand
+                          ?.highest_demand ? (
+                          <View
+                            style={[
+                              styles.highDemandBadge,
+
+                              {
+                                minHeight:
+                                  34 * s,
+
+                                borderRadius:
+                                  17 * s,
+
+                                paddingHorizontal:
+                                  11 * s,
+                              },
+                            ]}
+                          >
+                            <MaterialIcons
+                              name="priority-high"
+                              size={
+                                15 * s
+                              }
+                              color={
+                                COLORS.redBright
+                              }
+                            />
+
+                            <Text
+                              style={[
+                                styles.highDemandBadgeText,
+
+                                {
+                                  fontSize:
+                                    11 * fs,
+                                },
+                              ]}
+                            >
+                              {
+                                bloodDemand
+                                  .highest_demand
+                                  .blood_type
+                              }{' '}
+                              highest
+                            </Text>
+                          </View>
+                        ) : null}
+                      </View>
+
+                      {/* ERROR */}
+
+                      {bloodDemandError ? (
+                        <View
+                          style={
+                            styles.centerMessage
+                          }
+                        >
+                          <MaterialIcons
+                            name="error-outline"
+                            size={
+                              30 * s
+                            }
+                            color={
+                              COLORS.redBright
+                            }
+                          />
+
+                          <Text
+                            style={[
+                              styles.messageTitle,
+
+                              {
+                                fontSize:
+                                  14 * fs,
+
+                                marginTop:
+                                  9 * s,
+                              },
+                            ]}
+                          >
+                            Demand unavailable
+                          </Text>
+
+                          <Text
+                            style={[
+                              styles.messageText,
+
+                              {
+                                fontSize:
+                                  12 * fs,
+
+                                lineHeight:
+                                  18 * fs,
+
+                                marginTop:
+                                  3 * s,
+                              },
+                            ]}
+                          >
+                            Unable to load active blood request demand.
+                          </Text>
+                        </View>
+                      ) : !bloodDemand ||
+                        bloodDemand.summary
+                          .active_requests ===
+                          0 ? (
+                        /* EMPTY */
+
+                        <View
+                          style={
+                            styles.centerMessage
+                          }
+                        >
+                          <View
+                            style={[
+                              styles.emptyCircle,
+
+                              {
+                                width:
+                                  50 * s,
+
+                                height:
+                                  50 * s,
+
+                                borderRadius:
+                                  25 * s,
+                              },
+                            ]}
+                          >
+                            <MaterialIcons
+                              name="bloodtype"
+                              size={
+                                27 * s
+                              }
+                              color={
+                                COLORS.muted
+                              }
+                            />
+                          </View>
+
+                          <Text
+                            style={[
+                              styles.messageTitle,
+
+                              {
+                                fontSize:
+                                  14 * fs,
+
+                                marginTop:
+                                  10 * s,
+                              },
+                            ]}
+                          >
+                            No active blood requests
+                          </Text>
+
+                          <Text
+                            style={[
+                              styles.messageText,
+
+                              {
+                                fontSize:
+                                  12 * fs,
+
+                                lineHeight:
+                                  18 * fs,
+
+                                marginTop:
+                                  3 * s,
+                              },
+                            ]}
+                          >
+                            Demand information will appear when a request becomes active.
+                          </Text>
+                        </View>
+                      ) : (
+                        <>
+                          {/* SUMMARY */}
+
+                          <View
+                            style={[
+                              styles.demandSummary,
+
+                              {
+                                gap:
+                                  8 * s,
+
+                                marginTop:
+                                  14 * s,
+                              },
+                            ]}
+                          >
+                            <DemandMiniStat
+                              scale={s}
+                              fontScale={fs}
+                              value={
+                                bloodDemand
+                                  .summary
+                                  .active_requests
+                              }
+                              label="Active"
+                              icon="assignment"
+                            />
+
+                            <DemandMiniStat
+                              scale={s}
+                              fontScale={fs}
+                              value={
+                                bloodDemand
+                                  .summary
+                                  .units_needed
+                              }
+                              label="Units"
+                              icon="water-drop"
+                            />
+
+                            <DemandMiniStat
+                              scale={s}
+                              fontScale={fs}
+                              value={
+                                bloodDemand
+                                  .summary
+                                  .urgent_requests
+                              }
+                              label="Urgent"
+                              icon="priority-high"
+                              urgent
+                            />
+                          </View>
+
+                          {/* DEMAND LIST */}
+
+                          <View
+                            style={[
+                              styles.demandList,
+
+                              {
+                                marginTop:
+                                  12 * s,
+                              },
+                            ]}
+                          >
+                            {visibleBloodDemand.map(
+                              (
+                                item,
+                                index
+                              ) => (
+                                <BloodDemandRow
+                                  key={
+                                    item.blood_type
+                                  }
+                                  item={
+                                    item
+                                  }
+                                  highestUnits={
+                                    highestUnits
+                                  }
+                                  scale={s}
+                                  fontScale={fs}
+                                  highlight={
+                                    index === 0
+                                  }
+                                  last={
+                                    index ===
+                                    visibleBloodDemand.length -
+                                      1
+                                  }
+                                />
+                              )
+                            )}
+                          </View>
+                        </>
+                      )}
                     </View>
 
                     {/* ==========================================
@@ -1079,60 +1165,299 @@ export default function AdminDashboardScreen() {
 
                         {
                           minHeight:
-                            285 * s,
+                            335 * s,
 
                           borderRadius:
                             14 * s,
 
                           padding:
-                            27 * s,
+                            22 * s,
                         },
                       ]}
                     >
-                      <MaterialIcons
-                        name="history"
-                        size={
-                          40 * s
+                      {/* HEADER */}
+
+                      <View
+                        style={
+                          styles.activityCardHeader
                         }
-                        color={
-                          COLORS.redBright
-                        }
-                      />
-
-                      <Text
-                        style={[
-                          styles.cardTitle,
-
-                          {
-                            fontSize:
-                              19 * s,
-
-                            marginTop:
-                              15 * s,
-                          },
-                        ]}
                       >
-                        Recent Activity
-                      </Text>
+                        <View
+                          style={
+                            styles.activityHeading
+                          }
+                        >
+                          <View
+                            style={[
+                              styles.activityHeaderIcon,
 
-                      <Text
-                        style={[
-                          styles.cardDescription,
+                              {
+                                width:
+                                  44 * s,
 
-                          {
-                            fontSize:
-                              12 * s,
+                                height:
+                                  44 * s,
 
-                            lineHeight:
-                              19 * s,
+                                borderRadius:
+                                  11 * s,
+                              },
+                            ]}
+                          >
+                            <MaterialIcons
+                              name="history"
+                              size={
+                                24 * s
+                              }
+                              color={
+                                COLORS.redBright
+                              }
+                            />
+                          </View>
 
-                            marginTop:
-                              7 * s,
-                          },
-                        ]}
-                      >
-                        Recent administrator and system activity will appear here.
-                      </Text>
+                          <View
+                            style={
+                              styles.activityHeadingText
+                            }
+                          >
+                            <Text
+                              style={[
+                                styles.cardTitle,
+
+                                {
+                                  fontSize:
+                                    18 * fs,
+                                },
+                              ]}
+                            >
+                              Recent Activity
+                            </Text>
+
+                            <Text
+                              numberOfLines={1}
+                              style={[
+                                styles.cardDescription,
+
+                                {
+                                  fontSize:
+                                    13 * fs,
+
+                                  lineHeight:
+                                    18 * fs,
+
+                                  marginTop:
+                                    2 * s,
+                                },
+                              ]}
+                            >
+                              Latest administrator and system events
+                            </Text>
+                          </View>
+                        </View>
+
+                        <Pressable
+                          onPress={() =>
+                            router.push(
+                              '/activity-logs'
+                            )
+                          }
+                          style={({ pressed }) => [
+                            styles.viewAllButton,
+
+                            {
+                              height:
+                                38 * s,
+
+                              borderRadius:
+                                8 * s,
+
+                              paddingHorizontal:
+                                12 * s,
+                            },
+
+                            pressed &&
+                              styles.viewAllPressed,
+                          ]}
+                        >
+                          <Text
+                            style={[
+                              styles.viewAllText,
+
+                              {
+                                fontSize:
+                                  12 * fs,
+                              },
+                            ]}
+                          >
+                            View All
+                          </Text>
+
+                          <MaterialIcons
+                            name="chevron-right"
+                            size={
+                              18 * s
+                            }
+                            color={
+                              COLORS.soft
+                            }
+                          />
+                        </Pressable>
+                      </View>
+
+                      {/* ERROR */}
+
+                      {recentActivityError ? (
+                        <View
+                          style={
+                            styles.centerMessage
+                          }
+                        >
+                          <MaterialIcons
+                            name="error-outline"
+                            size={
+                              30 * s
+                            }
+                            color={
+                              COLORS.redBright
+                            }
+                          />
+
+                          <Text
+                            style={[
+                              styles.messageTitle,
+
+                              {
+                                fontSize:
+                                  14 * fs,
+
+                                marginTop:
+                                  9 * s,
+                              },
+                            ]}
+                          >
+                            Activity unavailable
+                          </Text>
+
+                          <Text
+                            style={[
+                              styles.messageText,
+
+                              {
+                                fontSize:
+                                  12 * fs,
+
+                                marginTop:
+                                  3 * s,
+                              },
+                            ]}
+                          >
+                            Unable to load recent activity.
+                          </Text>
+                        </View>
+                      ) : recentActivities.length ===
+                        0 ? (
+                        /* EMPTY */
+
+                        <View
+                          style={
+                            styles.centerMessage
+                          }
+                        >
+                          <View
+                            style={[
+                              styles.emptyCircle,
+
+                              {
+                                width:
+                                  50 * s,
+
+                                height:
+                                  50 * s,
+
+                                borderRadius:
+                                  25 * s,
+                              },
+                            ]}
+                          >
+                            <MaterialIcons
+                              name="history"
+                              size={
+                                27 * s
+                              }
+                              color={
+                                COLORS.muted
+                              }
+                            />
+                          </View>
+
+                          <Text
+                            style={[
+                              styles.messageTitle,
+
+                              {
+                                fontSize:
+                                  14 * fs,
+
+                                marginTop:
+                                  10 * s,
+                              },
+                            ]}
+                          >
+                            No recent activity
+                          </Text>
+
+                          <Text
+                            style={[
+                              styles.messageText,
+
+                              {
+                                fontSize:
+                                  12 * fs,
+
+                                marginTop:
+                                  3 * s,
+                              },
+                            ]}
+                          >
+                            New system events will appear here.
+                          </Text>
+                        </View>
+                      ) : (
+                        /* ACTIVITY LIST */
+
+                        <View
+                          style={[
+                            styles.activityList,
+
+                            {
+                              marginTop:
+                                12 * s,
+                            },
+                          ]}
+                        >
+                          {recentActivities.map(
+                            (
+                              activity,
+                              index
+                            ) => (
+                              <DashboardActivityRow
+                                key={
+                                  activity.id
+                                }
+                                activity={
+                                  activity
+                                }
+                                scale={s}
+                                fontScale={fs}
+                                last={
+                                  index ===
+                                  recentActivities.length -
+                                    1
+                                }
+                              />
+                            )
+                          )}
+                        </View>
+                      )}
                     </View>
                   </View>
                 </>
@@ -1140,7 +1465,7 @@ export default function AdminDashboardScreen() {
             </ScrollView>
 
             {/* ==================================================
-                SHARED ADMIN BOTTOM NAV
+                BOTTOM NAV
             ================================================== */}
 
             <AdminBottomNav
@@ -1159,6 +1484,7 @@ export default function AdminDashboardScreen() {
 
 function StatCard({
   scale,
+  fontScale,
   icon,
   title,
   value,
@@ -1167,9 +1493,10 @@ function StatCard({
   onPress,
 }: {
   scale: number;
+  fontScale: number;
 
   icon:
-    React.ComponentProps<
+    ComponentProps<
       typeof MaterialIcons
     >['name'];
 
@@ -1183,104 +1510,95 @@ function StatCard({
 
   onPress?: () => void;
 }) {
-  const content =
-    (
-      <>
+  const content = (
+    <>
+      <View
+        style={
+          styles.statTop
+        }
+      >
         <View
-          style={
-            styles.statTop
-          }
+          style={[
+            styles.statIcon,
+
+            {
+              width:
+                48 * scale,
+
+              height:
+                48 * scale,
+
+              borderRadius:
+                12 * scale,
+            },
+          ]}
         >
-          <View
-            style={[
-              styles.statIcon,
-
-              {
-                width:
-                  48 * scale,
-
-                height:
-                  48 * scale,
-
-                borderRadius:
-                  12 * scale,
-              },
-            ]}
-          >
-            <MaterialIcons
-              name={
-                icon
-              }
-              size={
-                26 * scale
-              }
-              color={
-                alert
-                  ? COLORS.redBright
-                  : positive
-                    ? COLORS.green
-                    : COLORS.soft
-              }
-            />
-          </View>
-
-          {onPress ? (
-            <MaterialIcons
-              name="chevron-right"
-              size={
-                23 * scale
-              }
-              color={
-                COLORS.muted
-              }
-            />
-          ) : null}
+          <MaterialIcons
+            name={icon}
+            size={
+              26 * scale
+            }
+            color={
+              alert
+                ? COLORS.redBright
+                : positive
+                  ? COLORS.green
+                  : COLORS.soft
+            }
+          />
         </View>
 
-        <Text
-          style={[
-            styles.statTitle,
+        {onPress ? (
+          <MaterialIcons
+            name="chevron-right"
+            size={
+              23 * scale
+            }
+            color={
+              COLORS.muted
+            }
+          />
+        ) : null}
+      </View>
 
-            {
-              fontSize:
-                10 * scale,
+      <Text
+        style={[
+          styles.statTitle,
 
-              marginTop:
-                17 * scale,
-            },
-          ]}
-        >
           {
-            title
-          }
-        </Text>
+            fontSize:
+              12 * fontScale,
 
-        <Text
-          style={[
-            styles.statValue,
+            marginTop:
+              15 * scale,
+          },
+        ]}
+      >
+        {title}
+      </Text>
 
-            {
-              fontSize:
-                32 * scale,
+      <Text
+        style={[
+          styles.statValue,
 
-              marginTop:
-                4 * scale,
-            },
-
-            alert &&
-              styles.statValueAlert,
-          ]}
-        >
           {
-            value
-          }
-        </Text>
-      </>
-    );
+            fontSize:
+              30 * fontScale,
 
-  if (
-    onPress
-  ) {
+            marginTop:
+              3 * scale,
+          },
+
+          alert &&
+            styles.statValueAlert,
+        ]}
+      >
+        {value}
+      </Text>
+    </>
+  );
+
+  if (onPress) {
     return (
       <Pressable
         onPress={
@@ -1307,9 +1625,7 @@ function StatCard({
             styles.statCardPressed,
         ]}
       >
-        {
-          content
-        }
+        {content}
       </Pressable>
     );
   }
@@ -1334,10 +1650,701 @@ function StatCard({
           styles.statCardAlert,
       ]}
     >
-      {
-        content
-      }
+      {content}
     </View>
+  );
+}
+
+// ============================================================
+// DEMAND MINI STAT
+// ============================================================
+
+function DemandMiniStat({
+  scale,
+  fontScale,
+  value,
+  label,
+  icon,
+  urgent = false,
+}: {
+  scale: number;
+  fontScale: number;
+
+  value: number;
+
+  label: string;
+
+  icon:
+    ComponentProps<
+      typeof MaterialIcons
+    >['name'];
+
+  urgent?: boolean;
+}) {
+  return (
+    <View
+      style={[
+        styles.demandMiniStat,
+
+        {
+          minHeight:
+            58 * scale,
+
+          borderRadius:
+            10 * scale,
+
+          paddingHorizontal:
+            10 * scale,
+        },
+
+        urgent &&
+          styles.demandMiniStatUrgent,
+      ]}
+    >
+      <MaterialIcons
+        name={icon}
+        size={
+          18 * scale
+        }
+        color={
+          urgent
+            ? COLORS.redBright
+            : COLORS.soft
+        }
+      />
+
+      <View
+        style={{
+          marginLeft:
+            7 * scale,
+        }}
+      >
+        <Text
+          style={[
+            styles.demandMiniValue,
+
+            {
+              fontSize:
+                17 * fontScale,
+            },
+          ]}
+        >
+          {value}
+        </Text>
+
+        <Text
+          style={[
+            styles.demandMiniLabel,
+
+            {
+              fontSize:
+                11 * fontScale,
+            },
+          ]}
+        >
+          {label}
+        </Text>
+      </View>
+    </View>
+  );
+}
+
+// ============================================================
+// BLOOD DEMAND ROW
+// ============================================================
+
+function BloodDemandRow({
+  item,
+  highestUnits,
+  scale,
+  fontScale,
+  highlight,
+  last,
+}: {
+  item:
+    AdminBloodTypeDemandItem;
+
+  highestUnits:
+    number;
+
+  scale:
+    number;
+
+  fontScale:
+    number;
+
+  highlight:
+    boolean;
+
+  last:
+    boolean;
+}) {
+  const progress =
+    Math.max(
+      8,
+      Math.min(
+        100,
+        (
+          item.units_needed /
+          highestUnits
+        ) *
+          100
+      )
+    );
+
+  return (
+    <View
+      style={[
+        styles.demandRow,
+
+        {
+          minHeight:
+            49 * scale,
+
+          paddingVertical:
+            6 * scale,
+        },
+
+        last &&
+          styles.noBottomBorder,
+      ]}
+    >
+      <View
+        style={[
+          styles.bloodTypeCircle,
+
+          {
+            width:
+              36 * scale,
+
+            height:
+              36 * scale,
+
+            borderRadius:
+              18 * scale,
+          },
+
+          highlight &&
+            styles.bloodTypeCircleHighlight,
+        ]}
+      >
+        <Text
+          style={[
+            styles.bloodTypeText,
+
+            {
+              fontSize:
+                13 * fontScale,
+            },
+
+            highlight &&
+              styles.bloodTypeTextHighlight,
+          ]}
+        >
+          {item.blood_type}
+        </Text>
+      </View>
+
+      <View
+        style={[
+          styles.demandRowBody,
+
+          {
+            marginLeft:
+              10 * scale,
+          },
+        ]}
+      >
+        <View
+          style={
+            styles.demandRowTop
+          }
+        >
+          <Text
+            style={[
+              styles.demandRowLabel,
+
+              {
+                fontSize:
+                  13 * fontScale,
+              },
+            ]}
+          >
+            {item.units_needed}{' '}
+            {item.units_needed === 1
+              ? 'unit'
+              : 'units'}{' '}
+            needed
+          </Text>
+
+          <Text
+            style={[
+              styles.demandRowMeta,
+
+              {
+                fontSize:
+                  11 * fontScale,
+              },
+            ]}
+          >
+            {item.request_count}{' '}
+            {item.request_count === 1
+              ? 'request'
+              : 'requests'}
+          </Text>
+        </View>
+
+        <View
+          style={[
+            styles.demandProgressTrack,
+
+            {
+              height:
+                5 * scale,
+
+              borderRadius:
+                3 * scale,
+
+              marginTop:
+                5 * scale,
+            },
+          ]}
+        >
+          <View
+            style={[
+              styles.demandProgressFill,
+
+              {
+                width:
+                  `${progress}%`,
+
+                borderRadius:
+                  3 * scale,
+              },
+
+              highlight &&
+                styles.demandProgressHighlight,
+            ]}
+          />
+        </View>
+      </View>
+
+      {item.urgent_requests >
+      0 ? (
+        <View
+          style={[
+            styles.urgentCount,
+
+            {
+              marginLeft:
+                8 * scale,
+
+              paddingHorizontal:
+                8 * scale,
+
+              minHeight:
+                24 * scale,
+
+              borderRadius:
+                12 * scale,
+            },
+          ]}
+        >
+          <Text
+            style={[
+              styles.urgentCountText,
+
+              {
+                fontSize:
+                  11 * fontScale,
+              },
+            ]}
+          >
+            {item.urgent_requests}{' '}
+            urgent
+          </Text>
+        </View>
+      ) : null}
+    </View>
+  );
+}
+
+// ============================================================
+// ACTIVITY ROW
+// ============================================================
+
+function DashboardActivityRow({
+  activity,
+  scale,
+  fontScale,
+  last,
+}: {
+  activity:
+    ActivityLog;
+
+  scale:
+    number;
+
+  fontScale:
+    number;
+
+  last:
+    boolean;
+}) {
+  const action =
+    formatActivityAction(
+      activity.action
+    );
+
+  const time =
+    formatActivityDate(
+      activity.created_at
+    );
+
+  return (
+    <Pressable
+      onPress={() =>
+        router.push(
+          '/activity-logs'
+        )
+      }
+      style={({ pressed }) => [
+        styles.activityRow,
+
+        {
+          minHeight:
+            54 * scale,
+
+          paddingVertical:
+            7 * scale,
+        },
+
+        last &&
+          styles.noBottomBorder,
+
+        pressed &&
+          styles.activityRowPressed,
+      ]}
+    >
+      <View
+        style={[
+          styles.activityRowIcon,
+
+          {
+            width:
+              35 * scale,
+
+            height:
+              35 * scale,
+
+            borderRadius:
+              9 * scale,
+
+            marginRight:
+              10 * scale,
+          },
+
+          !activity.success &&
+            styles.activityRowIconFailed,
+        ]}
+      >
+        <MaterialIcons
+          name={
+            getActivityIcon(
+              activity.action
+            )
+          }
+          size={
+            18 * scale
+          }
+          color={
+            activity.success
+              ? COLORS.soft
+              : COLORS.redBright
+          }
+        />
+      </View>
+
+      <View
+        style={
+          styles.activityRowBody
+        }
+      >
+        <Text
+          numberOfLines={1}
+          style={[
+            styles.activityRowTitle,
+
+            {
+              fontSize:
+                13 * fontScale,
+            },
+          ]}
+        >
+          {action}
+        </Text>
+
+        <Text
+          numberOfLines={1}
+          style={[
+            styles.activityRowMeta,
+
+            {
+              fontSize:
+                11.5 * fontScale,
+
+              lineHeight:
+                16 * fontScale,
+
+              marginTop:
+                1 * scale,
+            },
+          ]}
+        >
+          {activity.user_email ||
+            activity.user_role ||
+            'System activity'}
+
+          {activity.module
+            ? ` • ${activity.module}`
+            : ''}
+        </Text>
+      </View>
+
+      <View
+        style={
+          styles.activityRowRight
+        }
+      >
+        <Text
+          numberOfLines={1}
+          style={[
+            styles.activityTime,
+
+            {
+              fontSize:
+                11 * fontScale,
+            },
+          ]}
+        >
+          {time}
+        </Text>
+
+        <View
+          style={[
+            styles.activityStatusDot,
+
+            {
+              width:
+                7 * scale,
+
+              height:
+                7 * scale,
+
+              borderRadius:
+                4 * scale,
+
+              marginTop:
+                5 * scale,
+            },
+
+            activity.success
+              ? styles.activityStatusSuccess
+              : styles.activityStatusFailed,
+          ]}
+        />
+      </View>
+    </Pressable>
+  );
+}
+
+// ============================================================
+// FORMAT ACTIVITY ACTION
+// ============================================================
+
+function formatActivityAction(
+  action?: string | null
+) {
+  if (!action) {
+    return 'Activity';
+  }
+
+  return String(action)
+    .toLowerCase()
+    .split('_')
+    .map(
+      word =>
+        word
+          .charAt(0)
+          .toUpperCase() +
+        word.slice(1)
+    )
+    .join(' ');
+}
+
+// ============================================================
+// ACTIVITY ICON
+// ============================================================
+
+function getActivityIcon(
+  action?: string | null
+):
+  ComponentProps<
+    typeof MaterialIcons
+  >['name'] {
+  const normalized =
+    String(
+      action || ''
+    ).toUpperCase();
+
+  if (
+    normalized.includes(
+      'LOGIN'
+    )
+  ) {
+    return 'login';
+  }
+
+  if (
+    normalized.includes(
+      'LOGOUT'
+    )
+  ) {
+    return 'logout';
+  }
+
+  if (
+    normalized.includes(
+      'PASSWORD'
+    ) ||
+    normalized.includes(
+      'EMAIL'
+    )
+  ) {
+    return 'lock';
+  }
+
+  if (
+    normalized.includes(
+      'APPROVE'
+    )
+  ) {
+    return 'check-circle';
+  }
+
+  if (
+    normalized.includes(
+      'REJECT'
+    ) ||
+    normalized.includes(
+      'FAIL'
+    )
+  ) {
+    return 'cancel';
+  }
+
+  if (
+    normalized.includes(
+      'UPDATE'
+    ) ||
+    normalized.includes(
+      'EDIT'
+    )
+  ) {
+    return 'edit';
+  }
+
+  if (
+    normalized.includes(
+      'CREATE'
+    )
+  ) {
+    return 'add-circle-outline';
+  }
+
+  if (
+    normalized.includes(
+      'DELETE'
+    )
+  ) {
+    return 'delete-outline';
+  }
+
+  if (
+    normalized.includes(
+      'PROFILE'
+    ) ||
+    normalized.includes(
+      'USER'
+    ) ||
+    normalized.includes(
+      'ACCOUNT'
+    )
+  ) {
+    return 'person';
+  }
+
+  return 'history';
+}
+
+// ============================================================
+// FORMAT ACTIVITY DATE
+// ============================================================
+
+function formatActivityDate(
+  value?: string | null
+) {
+  if (!value) {
+    return '—';
+  }
+
+  const date =
+    new Date(value);
+
+  if (
+    Number.isNaN(
+      date.getTime()
+    )
+  ) {
+    return '—';
+  }
+
+  const now =
+    new Date();
+
+  const sameDay =
+    date.getFullYear() ===
+      now.getFullYear() &&
+    date.getMonth() ===
+      now.getMonth() &&
+    date.getDate() ===
+      now.getDate();
+
+  if (sameDay) {
+    return date.toLocaleTimeString(
+      'en-PH',
+      {
+        hour:
+          'numeric',
+
+        minute:
+          '2-digit',
+
+        hour12:
+          true,
+      }
+    );
+  }
+
+  return date.toLocaleDateString(
+    'en-PH',
+    {
+      month:
+        'short',
+
+      day:
+        'numeric',
+    }
   );
 }
 
@@ -1352,8 +2359,7 @@ const styles =
     // ========================================================
 
     outer: {
-      flex:
-        1,
+      flex: 1,
 
       alignItems:
         'center',
@@ -1374,7 +2380,7 @@ const styles =
 
       borderRadius:
         Platform.OS ===
-          'web'
+        'web'
           ? 24
           : 0,
     },
@@ -1388,13 +2394,11 @@ const styles =
     },
 
     gradient: {
-      flex:
-        1,
+      flex: 1,
     },
 
     safeArea: {
-      flex:
-        1,
+      flex: 1,
     },
 
     // ========================================================
@@ -1436,11 +2440,11 @@ const styles =
       justifyContent:
         'center',
 
-      backgroundColor:
-        COLORS.white,
-
       overflow:
         'hidden',
+
+      backgroundColor:
+        COLORS.white,
     },
 
     brand: {
@@ -1457,14 +2461,14 @@ const styles =
     },
 
     portal: {
+      marginTop:
+        1,
+
       color:
         COLORS.redBright,
 
       fontFamily:
         'Inter_600SemiBold',
-
-      marginTop:
-        1,
     },
 
     // ========================================================
@@ -1483,14 +2487,14 @@ const styles =
     },
 
     notificationWrap: {
-      marginRight:
-        4,
-
       position:
         'relative',
 
       width:
-        28,
+        30,
+
+      marginRight:
+        4,
 
       alignItems:
         'center',
@@ -1512,14 +2516,14 @@ const styles =
       paddingHorizontal:
         4,
 
-      backgroundColor:
-        COLORS.redBright,
-
       alignItems:
         'center',
 
       justifyContent:
         'center',
+
+      backgroundColor:
+        COLORS.redBright,
     },
 
     notificationBadgeText: {
@@ -1556,7 +2560,7 @@ const styles =
 
     adminInfoButton: {
       minWidth:
-        90,
+        100,
     },
 
     adminInfoPressed: {
@@ -1574,7 +2578,7 @@ const styles =
 
     adminRole: {
       marginTop:
-        2,
+        1,
 
       color:
         COLORS.muted,
@@ -1588,13 +2592,11 @@ const styles =
     // ========================================================
 
     scroll: {
-      flex:
-        1,
+      flex: 1,
     },
 
     content: {
-      flexGrow:
-        1,
+      flexGrow: 1,
     },
 
     // ========================================================
@@ -1690,7 +2692,7 @@ const styles =
     },
 
     // ========================================================
-    // STATS
+    // STAT CARDS
     // ========================================================
 
     statRow: {
@@ -1699,8 +2701,7 @@ const styles =
     },
 
     statCard: {
-      flex:
-        1,
+      flex: 1,
 
       borderWidth:
         1,
@@ -1762,7 +2763,7 @@ const styles =
         'Inter_600SemiBold',
 
       letterSpacing:
-        0.5,
+        0.3,
     },
 
     statValue: {
@@ -1779,7 +2780,7 @@ const styles =
     },
 
     // ========================================================
-    // ATTENTION
+    // NEEDS ATTENTION
     // ========================================================
 
     attention: {
@@ -1811,8 +2812,7 @@ const styles =
     },
 
     attentionBody: {
-      flex:
-        1,
+      flex: 1,
     },
 
     attentionTitle: {
@@ -1870,16 +2870,15 @@ const styles =
       flexDirection:
         'row',
 
-      flex:
-        1,
+      alignItems:
+        'stretch',
     },
 
     largeCard: {
-      flex:
-        1,
+      flex: 1,
 
       justifyContent:
-        'center',
+        'flex-start',
 
       borderWidth:
         1,
@@ -1902,6 +2901,516 @@ const styles =
     cardDescription: {
       color:
         COLORS.muted,
+
+      fontFamily:
+        'Inter_400Regular',
+    },
+
+    // ========================================================
+    // BLOOD DEMAND HEADER
+    // ========================================================
+
+    demandHeader: {
+      flexDirection:
+        'row',
+
+      alignItems:
+        'center',
+
+      justifyContent:
+        'space-between',
+    },
+
+    demandHeading: {
+      flex: 1,
+
+      minWidth: 0,
+
+      flexDirection:
+        'row',
+
+      alignItems:
+        'center',
+    },
+
+    demandHeadingText: {
+      flex: 1,
+
+      minWidth: 0,
+
+      marginLeft: 11,
+    },
+
+    demandHeaderIcon: {
+      alignItems:
+        'center',
+
+      justifyContent:
+        'center',
+
+      backgroundColor:
+        'rgba(239,51,64,0.10)',
+    },
+
+    highDemandBadge: {
+      flexDirection:
+        'row',
+
+      alignItems:
+        'center',
+
+      justifyContent:
+        'center',
+
+      gap: 3,
+
+      marginLeft: 8,
+
+      borderWidth: 1,
+
+      borderColor:
+        'rgba(239,51,64,0.36)',
+
+      backgroundColor:
+        'rgba(239,51,64,0.10)',
+    },
+
+    highDemandBadgeText: {
+      color:
+        COLORS.redBright,
+
+      fontFamily:
+        'Inter_600SemiBold',
+    },
+
+    // ========================================================
+    // BLOOD DEMAND SUMMARY
+    // ========================================================
+
+    demandSummary: {
+      flexDirection:
+        'row',
+    },
+
+    demandMiniStat: {
+      flex: 1,
+
+      flexDirection:
+        'row',
+
+      alignItems:
+        'center',
+
+      borderWidth:
+        1,
+
+      borderColor:
+        COLORS.border,
+
+      backgroundColor:
+        COLORS.cardLight,
+    },
+
+    demandMiniStatUrgent: {
+      borderColor:
+        'rgba(239,51,64,0.34)',
+
+      backgroundColor:
+        'rgba(239,51,64,0.08)',
+    },
+
+    demandMiniValue: {
+      color:
+        COLORS.white,
+
+      fontFamily:
+        'Poppins_600SemiBold',
+    },
+
+    demandMiniLabel: {
+      marginTop:
+        -1,
+
+      color:
+        COLORS.muted,
+
+      fontFamily:
+        'Inter_500Medium',
+    },
+
+    // ========================================================
+    // BLOOD DEMAND ROW
+    // ========================================================
+
+    demandList: {
+      flex: 1,
+    },
+
+    demandRow: {
+      flexDirection:
+        'row',
+
+      alignItems:
+        'center',
+
+      borderBottomWidth:
+        1,
+
+      borderBottomColor:
+        'rgba(36,53,84,0.58)',
+    },
+
+    bloodTypeCircle: {
+      alignItems:
+        'center',
+
+      justifyContent:
+        'center',
+
+      borderWidth:
+        1,
+
+      borderColor:
+        COLORS.border,
+
+      backgroundColor:
+        COLORS.cardLight,
+    },
+
+    bloodTypeCircleHighlight: {
+      borderColor:
+        'rgba(239,51,64,0.50)',
+
+      backgroundColor:
+        'rgba(239,51,64,0.12)',
+    },
+
+    bloodTypeText: {
+      color:
+        COLORS.soft,
+
+      fontFamily:
+        'Poppins_600SemiBold',
+    },
+
+    bloodTypeTextHighlight: {
+      color:
+        COLORS.redBright,
+    },
+
+    demandRowBody: {
+      flex: 1,
+
+      minWidth: 0,
+    },
+
+    demandRowTop: {
+      flexDirection:
+        'row',
+
+      alignItems:
+        'center',
+
+      justifyContent:
+        'space-between',
+    },
+
+    demandRowLabel: {
+      color:
+        COLORS.white,
+
+      fontFamily:
+        'Inter_600SemiBold',
+    },
+
+    demandRowMeta: {
+      color:
+        COLORS.muted,
+
+      fontFamily:
+        'Inter_400Regular',
+    },
+
+    demandProgressTrack: {
+      overflow:
+        'hidden',
+
+      width:
+        '100%',
+
+      backgroundColor:
+        '#17233D',
+    },
+
+    demandProgressFill: {
+      height:
+        '100%',
+
+      backgroundColor:
+        '#6E7E9C',
+    },
+
+    demandProgressHighlight: {
+      backgroundColor:
+        COLORS.redBright,
+    },
+
+    urgentCount: {
+      alignItems:
+        'center',
+
+      justifyContent:
+        'center',
+
+      borderWidth:
+        1,
+
+      borderColor:
+        'rgba(243,163,74,0.38)',
+
+      backgroundColor:
+        'rgba(243,163,74,0.10)',
+    },
+
+    urgentCountText: {
+      color:
+        COLORS.orange,
+
+      fontFamily:
+        'Inter_600SemiBold',
+    },
+
+    // ========================================================
+    // ACTIVITY
+    // ========================================================
+
+    activityCardHeader: {
+      flexDirection:
+        'row',
+
+      alignItems:
+        'center',
+
+      justifyContent:
+        'space-between',
+    },
+
+    activityHeading: {
+      flex: 1,
+
+      minWidth: 0,
+
+      flexDirection:
+        'row',
+
+      alignItems:
+        'center',
+    },
+
+    activityHeaderIcon: {
+      alignItems:
+        'center',
+
+      justifyContent:
+        'center',
+
+      marginRight: 11,
+
+      backgroundColor:
+        'rgba(239,51,64,0.10)',
+    },
+
+    activityHeadingText: {
+      flex: 1,
+
+      minWidth: 0,
+    },
+
+    viewAllButton: {
+      flexDirection:
+        'row',
+
+      alignItems:
+        'center',
+
+      justifyContent:
+        'center',
+
+      marginLeft: 10,
+
+      borderWidth: 1,
+
+      borderColor:
+        COLORS.border,
+
+      backgroundColor:
+        COLORS.cardLight,
+    },
+
+    viewAllPressed: {
+      opacity:
+        0.72,
+
+      transform: [
+        {
+          scale:
+            0.98,
+        },
+      ],
+    },
+
+    viewAllText: {
+      marginRight: 2,
+
+      color:
+        COLORS.soft,
+
+      fontFamily:
+        'Inter_600SemiBold',
+    },
+
+    activityList: {
+      flex: 1,
+    },
+
+    activityRow: {
+      flexDirection:
+        'row',
+
+      alignItems:
+        'center',
+
+      borderBottomWidth:
+        1,
+
+      borderBottomColor:
+        'rgba(36,53,84,0.58)',
+    },
+
+    noBottomBorder: {
+      borderBottomWidth: 0,
+    },
+
+    activityRowPressed: {
+      opacity: 0.7,
+    },
+
+    activityRowIcon: {
+      alignItems:
+        'center',
+
+      justifyContent:
+        'center',
+
+      backgroundColor:
+        COLORS.cardLight,
+    },
+
+    activityRowIconFailed: {
+      backgroundColor:
+        'rgba(239,51,64,0.10)',
+    },
+
+    activityRowBody: {
+      flex: 1,
+
+      minWidth: 0,
+
+      paddingRight: 8,
+    },
+
+    activityRowTitle: {
+      color:
+        COLORS.white,
+
+      fontFamily:
+        'Inter_600SemiBold',
+    },
+
+    activityRowMeta: {
+      color:
+        COLORS.muted,
+
+      fontFamily:
+        'Inter_400Regular',
+    },
+
+    activityRowRight: {
+      width: 78,
+
+      alignItems:
+        'flex-end',
+
+      justifyContent:
+        'center',
+    },
+
+    activityTime: {
+      color:
+        COLORS.muted,
+
+      fontFamily:
+        'Inter_400Regular',
+    },
+
+    activityStatusDot: {},
+
+    activityStatusSuccess: {
+      backgroundColor:
+        COLORS.green,
+    },
+
+    activityStatusFailed: {
+      backgroundColor:
+        COLORS.redBright,
+    },
+
+    // ========================================================
+    // EMPTY / ERROR STATES
+    // ========================================================
+
+    centerMessage: {
+      flex: 1,
+
+      alignItems:
+        'center',
+
+      justifyContent:
+        'center',
+
+      paddingHorizontal: 18,
+    },
+
+    emptyCircle: {
+      alignItems:
+        'center',
+
+      justifyContent:
+        'center',
+
+      backgroundColor:
+        COLORS.cardLight,
+    },
+
+    messageTitle: {
+      color:
+        COLORS.white,
+
+      textAlign:
+        'center',
+
+      fontFamily:
+        'Poppins_600SemiBold',
+    },
+
+    messageText: {
+      maxWidth: 300,
+
+      color:
+        COLORS.muted,
+
+      textAlign:
+        'center',
 
       fontFamily:
         'Inter_400Regular',

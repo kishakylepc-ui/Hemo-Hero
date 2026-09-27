@@ -15,6 +15,15 @@ const {
   );
 
 const {
+  getAdminBloodRequests,
+  getAdminBloodTypeDemand,
+  getAdminBloodRequestById,
+} =
+  require(
+    '../controllers/adminBloodRequestController'
+  );
+
+const {
   respondToBloodRequest,
   getMyDonorResponse,
   withdrawDonorResponse,
@@ -79,12 +88,72 @@ router.use(
 // ============================================================
 // COORDINATION INBOX
 //
-// Inbox belongs before parameterized routes.
+// Must stay above parameterized /:id routes.
 // ============================================================
 
 router.get(
   '/coordination/inbox',
   getCoordinationInbox
+);
+
+// ============================================================
+// ADMIN BLOOD REQUESTS
+//
+// ADMIN ONLY
+//
+// GET /api/requests/admin
+//
+// Supports:
+// - status
+// - blood_type
+// - urgency
+// - search
+// - page
+// - limit
+//
+// Admin authorization is checked inside the controller.
+//
+// IMPORTANT:
+// These routes MUST remain above /:id routes.
+// ============================================================
+
+router.get(
+  '/admin',
+  getAdminBloodRequests
+);
+
+// ============================================================
+// ADMIN BLOOD TYPE DEMAND
+//
+// GET /api/requests/admin/demand
+//
+// Used by the Admin Dashboard.
+// Must remain ABOVE /admin/:id.
+// ============================================================
+
+router.get(
+  '/admin/demand',
+  getAdminBloodTypeDemand
+);
+
+// ============================================================
+// ADMIN BLOOD REQUEST DETAILS
+//
+// GET /api/requests/admin/:id
+//
+// Returns:
+// - blood request
+// - requester information
+// - donor responses
+// - donor information
+// - response summary
+//
+// Must remain above general /:id routes.
+// ============================================================
+
+router.get(
+  '/admin/:id',
+  getAdminBloodRequestById
 );
 
 // ============================================================
@@ -130,6 +199,8 @@ router.get(
 
 // ============================================================
 // SAFE DONOR VIEW
+//
+// GET /api/requests/:id/donor-view
 // ============================================================
 
 router.get(
@@ -139,6 +210,8 @@ router.get(
 
 // ============================================================
 // REQUEST OWNER - INVITE DONOR
+//
+// POST /api/requests/:id/invitations
 // ============================================================
 
 router.post(
@@ -166,6 +239,8 @@ router.post(
 
 // ============================================================
 // DONOR RESPONSE
+//
+// POST /api/requests/:id/respond
 // ============================================================
 
 router.post(
@@ -195,12 +270,20 @@ router.post(
 
 // ============================================================
 // CURRENT DONOR RESPONSE
+//
+// GET /api/requests/:id/my-response
 // ============================================================
 
 router.get(
   '/:id/my-response',
   getMyDonorResponse
 );
+
+// ============================================================
+// WITHDRAW DONOR RESPONSE
+//
+// PATCH /api/requests/:id/response/withdraw
+// ============================================================
 
 router.patch(
   '/:id/response/withdraw',
@@ -226,7 +309,9 @@ router.patch(
 );
 
 // ============================================================
-// REQUEST OWNER - RESPONSES
+// REQUEST OWNER - GET RESPONSES
+//
+// GET /api/requests/:id/responses
 // ============================================================
 
 router.get(
@@ -236,6 +321,8 @@ router.get(
 
 // ============================================================
 // REQUEST OWNER - ACCEPT DONOR RESPONSE
+//
+// PATCH /api/requests/:id/responses/:responseId/accept
 // ============================================================
 
 router.patch(
@@ -263,6 +350,8 @@ router.patch(
 
 // ============================================================
 // REQUEST OWNER - REJECT DONOR RESPONSE
+//
+// PATCH /api/requests/:id/responses/:responseId/reject
 // ============================================================
 
 router.patch(
@@ -291,7 +380,7 @@ router.patch(
 // ============================================================
 // DONATION COORDINATION
 //
-// Accessible ONLY by:
+// Accessible only by:
 // - request owner
 // - accepted donor
 // ============================================================
@@ -308,6 +397,8 @@ router.get(
 
 // ============================================================
 // SEND COORDINATION MESSAGE
+//
+// POST /api/requests/:id/responses/:responseId/messages
 // ============================================================
 
 router.post(
@@ -335,6 +426,8 @@ router.post(
 
 // ============================================================
 // SET COORDINATION SCHEDULE
+//
+// PUT /api/requests/:id/responses/:responseId/schedule
 // ============================================================
 
 router.put(
@@ -362,6 +455,8 @@ router.put(
 
 // ============================================================
 // REQUEST OWNER - FULFILL
+//
+// PATCH /api/requests/:id/fulfill
 // ============================================================
 
 router.patch(
@@ -389,6 +484,8 @@ router.patch(
 
 // ============================================================
 // CANCEL OWN REQUEST
+//
+// PATCH /api/requests/:id/cancel
 // ============================================================
 
 router.patch(
@@ -417,7 +514,9 @@ router.patch(
 // ============================================================
 // OWNER DETAILS
 //
-// KEEP LAST.
+// GET /api/requests/:id
+//
+// KEEP THIS LAST.
 // ============================================================
 
 router.get(

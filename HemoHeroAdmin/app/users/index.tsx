@@ -1,4 +1,5 @@
 import {
+  type ComponentProps,
   useCallback,
   useEffect,
   useMemo,
@@ -7,7 +8,6 @@ import {
 
 import {
   ActivityIndicator,
-  Image,
   Modal,
   Platform,
   Pressable,
@@ -41,6 +41,7 @@ import {
 } from 'react-native-safe-area-context';
 
 import AdminBottomNav from '../AdminBottomNav';
+import AdminHeader from '../AdminHeader';
 
 import {
   activateAdminUser,
@@ -60,10 +61,6 @@ import {
   getAdminProfile,
 } from '../../lib/session';
 
-// ============================================================
-// IPAD PRO LANDSCAPE
-// ============================================================
-
 const DESIGN_WIDTH =
   1366;
 
@@ -72,10 +69,6 @@ const DESIGN_HEIGHT =
 
 const PAGE_LIMIT =
   12;
-
-// ============================================================
-// COLORS
-// ============================================================
 
 const COLORS = {
   outer:
@@ -124,20 +117,12 @@ const COLORS = {
     'rgba(0,0,0,0.76)',
 };
 
-// ============================================================
-// SCREEN
-// ============================================================
-
 export default function AdminUsersScreen() {
   const {
     width,
     height,
   } =
     useWindowDimensions();
-
-  // ==========================================================
-  // RESPONSIVE TABLET FRAME
-  // ==========================================================
 
   const tablet =
     useMemo(
@@ -215,9 +200,11 @@ export default function AdminUsersScreen() {
       0.68
     );
 
-  // ==========================================================
-  // STATE
-  // ==========================================================
+  const fs =
+    Math.max(
+      tablet.scale,
+      0.92
+    );
 
   const [
     profile,
@@ -355,10 +342,6 @@ export default function AdminUsersScreen() {
     useState(
       false
     );
-
-  // ==========================================================
-  // LOAD USERS
-  // ==========================================================
 
   useEffect(
     () => {
@@ -503,10 +486,6 @@ export default function AdminUsersScreen() {
     }
   }
 
-  // ==========================================================
-  // SEARCH
-  // ==========================================================
-
   function submitSearch() {
     setSuccessMessage(
       ''
@@ -537,12 +516,9 @@ export default function AdminUsersScreen() {
     );
   }
 
-  // ==========================================================
-  // STATUS FILTER
-  // ==========================================================
-
   function changeStatusFilter(
-    status: AdminUserStatusFilter
+    status:
+      AdminUserStatusFilter
   ) {
     setSuccessMessage(
       ''
@@ -557,48 +533,18 @@ export default function AdminUsersScreen() {
     );
   }
 
-  // ==========================================================
-  // ADMIN DISPLAY
-  // ==========================================================
-
-  const adminName =
-    [
-      profile?.first_name,
-      profile?.last_name,
-    ]
-      .filter(
-        Boolean
-      )
-      .join(' ')
-      .trim() ||
-    profile?.email ||
-    'Administrator';
-
-  const adminInitial =
-    adminName
-      .charAt(
-        0
-      )
-      .toUpperCase();
-
-  // ==========================================================
-  // OPEN USER DETAILS
-  // ==========================================================
-
   function openUserDetails(
-    userId: string
+    userId:
+      string
   ) {
     router.push(
       `/users/${userId}` as any
     );
   }
 
-  // ==========================================================
-  // ACCOUNT ACTION
-  // ==========================================================
-
   function openAccountAction(
-    user: AdminManagedUser
+    user:
+      AdminManagedUser
   ) {
     if (
       processingAction
@@ -742,10 +688,6 @@ export default function AdminUsersScreen() {
     }
   }
 
-  // ==========================================================
-  // UI
-  // ==========================================================
-
   return (
     <View
       style={
@@ -788,226 +730,20 @@ export default function AdminUsersScreen() {
               styles.safeArea
             }
           >
-            {/* ==================================================
-                HEADER
-            ================================================== */}
-
-            <View
-              style={[
-                styles.header,
-
-                {
-                  height:
-                    96 * s,
-
-                  paddingHorizontal:
-                    48 * s,
-                },
-              ]}
-            >
-              <Pressable
-                style={({ pressed }) => [
-                  styles.brandArea,
-
-                  pressed &&
-                    styles.pressed,
-                ]}
-                onPress={() =>
-                  router.replace(
-                    '/dashboard'
-                  )
-                }
-              >
-                <View
-                  style={[
-                    styles.logoCircle,
-
-                    {
-                      width:
-                        52 * s,
-
-                      height:
-                        52 * s,
-
-                      borderRadius:
-                        26 * s,
-                    },
-                  ]}
-                >
-                  <Image
-                    source={require('../../assets/images/hemo-hero-logo.png')}
-                    style={{
-                      width:
-                        46 * s,
-
-                      height:
-                        46 * s,
-                    }}
-                    resizeMode="contain"
-                  />
-                </View>
-
-                <View>
-                  <Text
-                    style={[
-                      styles.brand,
-
-                      {
-                        fontSize:
-                          27 * s,
-                      },
-                    ]}
-                  >
-                    <Text
-                      style={
-                        styles.brandRed
-                      }
-                    >
-                      Hemo-
-                    </Text>
-
-                    Hero
-                  </Text>
-
-                  <Text
-                    style={[
-                      styles.portal,
-
-                      {
-                        fontSize:
-                          9 * s,
-
-                        letterSpacing:
-                          1.6 * s,
-                      },
-                    ]}
-                  >
-                    ADMIN PORTAL
-                  </Text>
-                </View>
-              </Pressable>
-
-              <View
-                style={
-                  styles.adminSection
-                }
-              >
-                <View
-                  style={
-                    styles.notificationWrap
-                  }
-                >
-                  <MaterialIcons
-                    name="notifications-none"
-                    size={
-                      24 * s
-                    }
-                    color={
-                      COLORS.white
-                    }
-                  />
-
-                  <View
-                    style={[
-                      styles.notificationBadge,
-
-                      {
-                        minWidth:
-                          18 * s,
-
-                        height:
-                          18 * s,
-
-                        borderRadius:
-                          9 * s,
-                      },
-                    ]}
-                  >
-                    <Text
-                      style={[
-                        styles.notificationBadgeText,
-
-                        {
-                          fontSize:
-                            9 * s,
-                        },
-                      ]}
-                    >
-                      3
-                    </Text>
-                  </View>
-                </View>
-
-                <View
-                  style={[
-                    styles.avatar,
-
-                    {
-                      width:
-                        48 * s,
-
-                      height:
-                        48 * s,
-
-                      borderRadius:
-                        24 * s,
-                    },
-                  ]}
-                >
-                  <Text
-                    style={[
-                      styles.avatarText,
-
-                      {
-                        fontSize:
-                          15 * s,
-                      },
-                    ]}
-                  >
-                    {
-                      adminInitial
-                    }
-                  </Text>
-                </View>
-
-                <View>
-                  <Text
-                    numberOfLines={
-                      1
-                    }
-                    style={[
-                      styles.adminName,
-
-                      {
-                        fontSize:
-                          12 * s,
-                      },
-                    ]}
-                  >
-                    {
-                      adminName
-                    }
-                  </Text>
-
-                  <Text
-                    style={[
-                      styles.adminRole,
-
-                      {
-                        fontSize:
-                          10 * s,
-                      },
-                    ]}
-                  >
-                    Admin
-                  </Text>
-                </View>
-              </View>
-            </View>
-
-            {/* ==================================================
-                CONTENT
-            ================================================== */}
+            <AdminHeader
+              profile={
+                profile
+              }
+              scale={
+                s
+              }
+              fontScale={
+                fs
+              }
+              notificationCount={
+                0
+              }
+            />
 
             <ScrollView
               style={
@@ -1031,10 +767,6 @@ export default function AdminUsersScreen() {
                 false
               }
             >
-              {/* ==================================================
-                  TITLE
-              ================================================== */}
-
               <View
                 style={[
                   styles.titleRow,
@@ -1052,10 +784,10 @@ export default function AdminUsersScreen() {
 
                       {
                         fontSize:
-                          32 * s,
+                          30 * fs,
 
                         lineHeight:
-                          40 * s,
+                          38 * fs,
                       },
                     ]}
                   >
@@ -1068,7 +800,7 @@ export default function AdminUsersScreen() {
 
                       {
                         fontSize:
-                          13 * s,
+                          14 * fs,
 
                         marginTop:
                           4 * s,
@@ -1078,10 +810,6 @@ export default function AdminUsersScreen() {
                     View and manage registered Hemo-Hero user accounts.
                   </Text>
                 </View>
-
-                {/* ==============================================
-                    TITLE ACTIONS
-                ============================================== */}
 
                 <View
                   style={[
@@ -1093,17 +821,15 @@ export default function AdminUsersScreen() {
                     },
                   ]}
                 >
-                  {/* ============================================
-                      CREATE USER
-                  ============================================ */}
-
                   <Pressable
                     onPress={() =>
                       router.push(
                         '/users/create' as any
                       )
                     }
-                    style={({ pressed }) => [
+                    style={({
+                      pressed,
+                    }) => [
                       styles.createUserButton,
 
                       {
@@ -1140,17 +866,13 @@ export default function AdminUsersScreen() {
 
                         {
                           fontSize:
-                            11 * s,
+                            13 * fs,
                         },
                       ]}
                     >
                       Create User
                     </Text>
                   </Pressable>
-
-                  {/* ============================================
-                      REFRESH
-                  ============================================ */}
 
                   <Pressable
                     disabled={
@@ -1161,7 +883,9 @@ export default function AdminUsersScreen() {
                         true
                       )
                     }
-                    style={({ pressed }) => [
+                    style={({
+                      pressed,
+                    }) => [
                       styles.refreshButton,
 
                       {
@@ -1210,7 +934,7 @@ export default function AdminUsersScreen() {
 
                             {
                               fontSize:
-                                11 * s,
+                                13 * fs,
                             },
                           ]}
                         >
@@ -1221,10 +945,6 @@ export default function AdminUsersScreen() {
                   </Pressable>
                 </View>
               </View>
-
-              {/* ==================================================
-                  SUMMARY
-              ================================================== */}
 
               <View
                 style={[
@@ -1281,10 +1001,6 @@ export default function AdminUsersScreen() {
                   }
                 />
               </View>
-
-              {/* ==================================================
-                  SEARCH + FILTER
-              ================================================== */}
 
               <View
                 style={[
@@ -1361,7 +1077,7 @@ export default function AdminUsersScreen() {
 
                         {
                           fontSize:
-                            11 * s,
+                            13 * fs,
                         },
                       ]}
                     />
@@ -1389,7 +1105,9 @@ export default function AdminUsersScreen() {
                     onPress={
                       submitSearch
                     }
-                    style={({ pressed }) => [
+                    style={({
+                      pressed,
+                    }) => [
                       styles.searchButton,
 
                       {
@@ -1413,7 +1131,7 @@ export default function AdminUsersScreen() {
 
                         {
                           fontSize:
-                            11 * s,
+                            13 * fs,
                         },
                       ]}
                     >
@@ -1438,7 +1156,7 @@ export default function AdminUsersScreen() {
 
                       {
                         fontSize:
-                          9 * s,
+                          11 * fs,
 
                         marginRight:
                           10 * s,
@@ -1498,10 +1216,6 @@ export default function AdminUsersScreen() {
                 </View>
               </View>
 
-              {/* ==================================================
-                  SUCCESS
-              ================================================== */}
-
               {successMessage ? (
                 <View
                   style={[
@@ -1535,7 +1249,7 @@ export default function AdminUsersScreen() {
 
                       {
                         fontSize:
-                          11 * s,
+                          12 * fs,
                       },
                     ]}
                   >
@@ -1545,10 +1259,6 @@ export default function AdminUsersScreen() {
                   </Text>
                 </View>
               ) : null}
-
-              {/* ==================================================
-                  ERROR
-              ================================================== */}
 
               {errorMessage ? (
                 <View
@@ -1583,7 +1293,7 @@ export default function AdminUsersScreen() {
 
                       {
                         fontSize:
-                          11 * s,
+                          12 * fs,
                       },
                     ]}
                   >
@@ -1593,10 +1303,6 @@ export default function AdminUsersScreen() {
                   </Text>
                 </View>
               ) : null}
-
-              {/* ==================================================
-                  USER TABLE
-              ================================================== */}
 
               <View
                 style={[
@@ -1608,10 +1314,6 @@ export default function AdminUsersScreen() {
                   },
                 ]}
               >
-                {/* ==============================================
-                    TABLE HEADER
-                ============================================== */}
-
                 <View
                   style={[
                     styles.tableHeader,
@@ -1632,7 +1334,7 @@ export default function AdminUsersScreen() {
 
                       {
                         fontSize:
-                          9 * s,
+                          11 * fs,
                       },
                     ]}
                   >
@@ -1646,7 +1348,7 @@ export default function AdminUsersScreen() {
 
                       {
                         fontSize:
-                          9 * s,
+                          11 * fs,
                       },
                     ]}
                   >
@@ -1660,7 +1362,7 @@ export default function AdminUsersScreen() {
 
                       {
                         fontSize:
-                          9 * s,
+                          11 * fs,
                       },
                     ]}
                   >
@@ -1674,7 +1376,7 @@ export default function AdminUsersScreen() {
 
                       {
                         fontSize:
-                          9 * s,
+                          11 * fs,
                       },
                     ]}
                   >
@@ -1688,7 +1390,7 @@ export default function AdminUsersScreen() {
 
                       {
                         fontSize:
-                          9 * s,
+                          11 * fs,
                       },
                     ]}
                   >
@@ -1702,17 +1404,13 @@ export default function AdminUsersScreen() {
 
                       {
                         fontSize:
-                          9 * s,
+                          11 * fs,
                       },
                     ]}
                   >
                     ACTION
                   </Text>
                 </View>
-
-                {/* ==============================================
-                    LOADING
-                ============================================== */}
 
                 {loading ? (
                   <View
@@ -1738,7 +1436,7 @@ export default function AdminUsersScreen() {
 
                         {
                           fontSize:
-                            11 * s,
+                            13 * fs,
 
                           marginTop:
                             12 * s,
@@ -1793,7 +1491,7 @@ export default function AdminUsersScreen() {
 
                         {
                           fontSize:
-                            17 * s,
+                            18 * fs,
 
                           marginTop:
                             14 * s,
@@ -1809,7 +1507,7 @@ export default function AdminUsersScreen() {
 
                         {
                           fontSize:
-                            11 * s,
+                            13 * fs,
 
                           marginTop:
                             5 * s,
@@ -1848,10 +1546,6 @@ export default function AdminUsersScreen() {
                 )}
               </View>
 
-              {/* ==================================================
-                  PAGINATION
-              ================================================== */}
-
               {!loading &&
               pagination.total >
                 0 ? (
@@ -1871,7 +1565,7 @@ export default function AdminUsersScreen() {
 
                       {
                         fontSize:
-                          10 * s,
+                          11.5 * fs,
                       },
                     ]}
                   >
@@ -1918,7 +1612,9 @@ export default function AdminUsersScreen() {
                             )
                         )
                       }
-                      style={({ pressed }) => [
+                      style={({
+                        pressed,
+                      }) => [
                         styles.pageButton,
 
                         {
@@ -1956,7 +1652,7 @@ export default function AdminUsersScreen() {
 
                           {
                             fontSize:
-                              10 * s,
+                              12 * fs,
                           },
                         ]}
                       >
@@ -1978,7 +1674,9 @@ export default function AdminUsersScreen() {
                             1
                         )
                       }
-                      style={({ pressed }) => [
+                      style={({
+                        pressed,
+                      }) => [
                         styles.pageButton,
 
                         {
@@ -2010,7 +1708,7 @@ export default function AdminUsersScreen() {
 
                           {
                             fontSize:
-                              10 * s,
+                              12 * fs,
                           },
                         ]}
                       >
@@ -2032,19 +1730,11 @@ export default function AdminUsersScreen() {
               ) : null}
             </ScrollView>
 
-            {/* ==================================================
-                BOTTOM NAV
-            ================================================== */}
-
             <AdminBottomNav
               activeTab="users"
             />
           </SafeAreaView>
         </LinearGradient>
-
-        {/* ====================================================
-            ACTIVATE / DEACTIVATE CONFIRMATION
-        ==================================================== */}
 
         <Modal
           visible={
@@ -2133,7 +1823,7 @@ export default function AdminUsersScreen() {
 
                   {
                     fontSize:
-                      21 * s,
+                      20 * fs,
 
                     marginTop:
                       18 * s,
@@ -2151,10 +1841,10 @@ export default function AdminUsersScreen() {
 
                   {
                     fontSize:
-                      12 * s,
+                      14 * fs,
 
                     lineHeight:
-                      20 * s,
+                      22 * fs,
 
                     marginTop:
                       9 * s,
@@ -2189,7 +1879,7 @@ export default function AdminUsersScreen() {
 
                       {
                         fontSize:
-                          12 * s,
+                          13 * fs,
                       },
                     ]}
                   >
@@ -2206,7 +1896,7 @@ export default function AdminUsersScreen() {
 
                       {
                         fontSize:
-                          10 * s,
+                          12 * fs,
 
                         marginTop:
                           3 * s,
@@ -2239,7 +1929,9 @@ export default function AdminUsersScreen() {
                   onPress={
                     closeAccountAction
                   }
-                  style={({ pressed }) => [
+                  style={({
+                    pressed,
+                  }) => [
                     styles.cancelButton,
 
                     {
@@ -2260,7 +1952,7 @@ export default function AdminUsersScreen() {
 
                       {
                         fontSize:
-                          11 * s,
+                          13 * fs,
                       },
                     ]}
                   >
@@ -2275,7 +1967,9 @@ export default function AdminUsersScreen() {
                   onPress={
                     confirmAccountAction
                   }
-                  style={({ pressed }) => [
+                  style={({
+                    pressed,
+                  }) => [
                     styles.confirmButton,
 
                     !selectedUser?.is_active &&
@@ -2310,7 +2004,7 @@ export default function AdminUsersScreen() {
 
                         {
                           fontSize:
-                            11 * s,
+                            13 * fs,
                         },
                       ]}
                     >
@@ -2329,10 +2023,6 @@ export default function AdminUsersScreen() {
   );
 }
 
-// ============================================================
-// SUMMARY CARD
-// ============================================================
-
 function SummaryCard({
   scale,
   title,
@@ -2340,19 +2030,29 @@ function SummaryCard({
   icon,
   color,
 }: {
-  scale: number;
+  scale:
+    number;
 
-  title: string;
+  title:
+    string;
 
-  value: number;
+  value:
+    number;
 
   icon:
-    React.ComponentProps<
+    ComponentProps<
       typeof MaterialIcons
     >['name'];
 
-  color: string;
+  color:
+    string;
 }) {
+  const fontScale =
+    Math.max(
+      scale,
+      0.92
+    );
+
   return (
     <View
       style={[
@@ -2410,7 +2110,7 @@ function SummaryCard({
 
             {
               fontSize:
-                9 * scale,
+                11 * fontScale,
             },
           ]}
         >
@@ -2425,7 +2125,7 @@ function SummaryCard({
 
             {
               fontSize:
-                28 * scale,
+                28 * fontScale,
             },
           ]}
         >
@@ -2438,30 +2138,38 @@ function SummaryCard({
   );
 }
 
-// ============================================================
-// FILTER CHIP
-// ============================================================
-
 function FilterChip({
   scale,
   label,
   selected,
   onPress,
 }: {
-  scale: number;
+  scale:
+    number;
 
-  label: string;
+  label:
+    string;
 
-  selected: boolean;
+  selected:
+    boolean;
 
-  onPress: () => void;
+  onPress:
+    () => void;
 }) {
+  const fontScale =
+    Math.max(
+      scale,
+      0.92
+    );
+
   return (
     <Pressable
       onPress={
         onPress
       }
-      style={({ pressed }) => [
+      style={({
+        pressed,
+      }) => [
         styles.filterChip,
 
         {
@@ -2488,7 +2196,7 @@ function FilterChip({
 
           {
             fontSize:
-              9 * scale,
+              12 * fontScale,
           },
 
           selected &&
@@ -2503,24 +2211,30 @@ function FilterChip({
   );
 }
 
-// ============================================================
-// USER ROW
-// ============================================================
-
 function UserRow({
   user,
   scale,
   onOpen,
   onAction,
 }: {
-  user: AdminManagedUser;
+  user:
+    AdminManagedUser;
 
-  scale: number;
+  scale:
+    number;
 
-  onOpen: () => void;
+  onOpen:
+    () => void;
 
-  onAction: () => void;
+  onAction:
+    () => void;
 }) {
+  const fontScale =
+    Math.max(
+      scale,
+      0.92
+    );
+
   const name =
     getUserDisplayName(
       user
@@ -2541,7 +2255,9 @@ function UserRow({
       onPress={
         onOpen
       }
-      style={({ pressed }) => [
+      style={({
+        pressed,
+      }) => [
         styles.tableRow,
 
         {
@@ -2559,10 +2275,6 @@ function UserRow({
           styles.tableRowPressed,
       ]}
     >
-      {/* ======================================================
-          USER
-      ====================================================== */}
-
       <View
         style={[
           styles.colUser,
@@ -2594,7 +2306,7 @@ function UserRow({
 
               {
                 fontSize:
-                  10 * scale,
+                  12 * fontScale,
               },
             ]}
           >
@@ -2618,7 +2330,7 @@ function UserRow({
 
               {
                 fontSize:
-                  10 * scale,
+                  12.5 * fontScale,
               },
             ]}
           >
@@ -2636,7 +2348,7 @@ function UserRow({
 
               {
                 fontSize:
-                  9 * scale,
+                  11.5 * fontScale,
 
                 marginTop:
                   2 * scale,
@@ -2648,10 +2360,6 @@ function UserRow({
           </Text>
         </View>
       </View>
-
-      {/* ======================================================
-          CONTACT
-      ====================================================== */}
 
       <View
         style={
@@ -2667,7 +2375,7 @@ function UserRow({
 
             {
               fontSize:
-                10 * scale,
+                12.5 * fontScale,
             },
           ]}
         >
@@ -2684,7 +2392,7 @@ function UserRow({
 
             {
               fontSize:
-                9 * scale,
+                11.5 * fontScale,
 
               marginTop:
                 2 * scale,
@@ -2698,10 +2406,6 @@ function UserRow({
           }
         </Text>
       </View>
-
-      {/* ======================================================
-          DONOR
-      ====================================================== */}
 
       <View
         style={
@@ -2737,7 +2441,7 @@ function UserRow({
 
               {
                 fontSize:
-                  9 * scale,
+                  11.5 * fontScale,
               },
 
               user.donor?.status ===
@@ -2761,7 +2465,7 @@ function UserRow({
 
               {
                 fontSize:
-                  8 * scale,
+                  11 * fontScale,
 
                 marginTop:
                   3 * scale,
@@ -2776,10 +2480,6 @@ function UserRow({
         ) : null}
       </View>
 
-      {/* ======================================================
-          JOINED
-      ====================================================== */}
-
       <View
         style={
           styles.colJoined
@@ -2791,7 +2491,7 @@ function UserRow({
 
             {
               fontSize:
-                10 * scale,
+                12.5 * fontScale,
             },
           ]}
         >
@@ -2802,10 +2502,6 @@ function UserRow({
           }
         </Text>
       </View>
-
-      {/* ======================================================
-          ACCOUNT
-      ====================================================== */}
 
       <View
         style={
@@ -2859,7 +2555,7 @@ function UserRow({
 
               {
                 fontSize:
-                  9 * scale,
+                  11.5 * fontScale,
               },
 
               user.is_active
@@ -2874,22 +2570,22 @@ function UserRow({
         </View>
       </View>
 
-      {/* ======================================================
-          ACTION
-      ====================================================== */}
-
       <View
         style={
           styles.colAction
         }
       >
         <Pressable
-          onPress={event => {
-            event.stopPropagation();
+          onPress={
+            event => {
+              event.stopPropagation();
 
-            onAction();
-          }}
-          style={({ pressed }) => [
+              onAction();
+            }
+          }
+          style={({
+            pressed,
+          }) => [
             styles.actionButton,
 
             {
@@ -2920,7 +2616,7 @@ function UserRow({
 
               {
                 fontSize:
-                  9 * scale,
+                  11.5 * fontScale,
               },
 
               user.is_active
@@ -2952,12 +2648,9 @@ function UserRow({
   );
 }
 
-// ============================================================
-// HELPERS
-// ============================================================
-
 function getUserDisplayName(
-  user: AdminManagedUser
+  user:
+    AdminManagedUser
 ) {
   if (
     user.full_name
@@ -2991,7 +2684,8 @@ function getUserDisplayName(
 }
 
 function getInitials(
-  user: AdminManagedUser
+  user:
+    AdminManagedUser
 ) {
   const first =
     user.first_name
@@ -3030,7 +2724,8 @@ function getInitials(
 }
 
 function formatLocation(
-  user: AdminManagedUser
+  user:
+    AdminManagedUser
 ) {
   return (
     [
@@ -3046,7 +2741,8 @@ function formatLocation(
 }
 
 function getDonorLabel(
-  user: AdminManagedUser
+  user:
+    AdminManagedUser
 ) {
   if (
     !user.donor
@@ -3058,7 +2754,8 @@ function getDonorLabel(
     String(
       user.donor.status ||
       ''
-    ).toLowerCase();
+    )
+      .toLowerCase();
 
   if (
     status ===
@@ -3092,7 +2789,9 @@ function getDonorLabel(
 }
 
 function formatDate(
-  value?: string | null
+  value?:
+    string |
+    null
 ) {
   if (
     !value
@@ -3113,24 +2812,21 @@ function formatDate(
     return '—';
   }
 
-  return date.toLocaleDateString(
-    'en-PH',
-    {
-      month:
-        'short',
+  return date
+    .toLocaleDateString(
+      'en-PH',
+      {
+        month:
+          'short',
 
-      day:
-        'numeric',
+        day:
+          'numeric',
 
-      year:
-        'numeric',
-    }
-  );
+        year:
+          'numeric',
+      }
+    );
 }
-
-// ============================================================
-// STYLES
-// ============================================================
 
 const styles =
   StyleSheet.create({
@@ -3189,180 +2885,6 @@ const styles =
       flexGrow:
         1,
     },
-
-    // ========================================================
-    // HEADER
-    // ========================================================
-
-    header: {
-      flexDirection:
-        'row',
-
-      alignItems:
-        'center',
-
-      justifyContent:
-        'space-between',
-
-      borderBottomWidth:
-        1,
-
-      borderBottomColor:
-        COLORS.border,
-    },
-
-    brandArea: {
-      flexDirection:
-        'row',
-
-      alignItems:
-        'center',
-
-      gap:
-        14,
-    },
-
-    logoCircle: {
-      alignItems:
-        'center',
-
-      justifyContent:
-        'center',
-
-      backgroundColor:
-        COLORS.white,
-
-      overflow:
-        'hidden',
-    },
-
-    brand: {
-      color:
-        COLORS.white,
-
-      fontFamily:
-        'Poppins_700Bold',
-    },
-
-    brandRed: {
-      color:
-        COLORS.redBright,
-    },
-
-    portal: {
-      color:
-        COLORS.redBright,
-
-      fontFamily:
-        'Inter_600SemiBold',
-
-      marginTop:
-        1,
-    },
-
-    adminSection: {
-      flexDirection:
-        'row',
-
-      alignItems:
-        'center',
-
-      gap:
-        12,
-    },
-
-    notificationWrap: {
-      marginRight:
-        4,
-
-      position:
-        'relative',
-
-      width:
-        28,
-
-      alignItems:
-        'center',
-
-      justifyContent:
-        'center',
-    },
-
-    notificationBadge: {
-      position:
-        'absolute',
-
-      top:
-        -4,
-
-      right:
-        -6,
-
-      paddingHorizontal:
-        4,
-
-      backgroundColor:
-        COLORS.redBright,
-
-      alignItems:
-        'center',
-
-      justifyContent:
-        'center',
-    },
-
-    notificationBadgeText: {
-      color:
-        COLORS.white,
-
-      fontFamily:
-        'Inter_700Bold',
-    },
-
-    avatar: {
-      alignItems:
-        'center',
-
-      justifyContent:
-        'center',
-
-      backgroundColor:
-        '#ECECEC',
-    },
-
-    avatarText: {
-      color:
-        '#111111',
-
-      fontFamily:
-        'Poppins_600SemiBold',
-    },
-
-    adminName: {
-      maxWidth:
-        180,
-
-      color:
-        COLORS.white,
-
-      fontFamily:
-        'Inter_600SemiBold',
-    },
-
-    adminRole: {
-      marginTop:
-        2,
-
-      color:
-        COLORS.muted,
-
-      fontFamily:
-        'Inter_400Regular',
-    },
-
-    // ========================================================
-    // TITLE
-    // ========================================================
 
     titleRow: {
       flexDirection:
@@ -3449,10 +2971,6 @@ const styles =
         'Inter_600SemiBold',
     },
 
-    // ========================================================
-    // SUMMARY
-    // ========================================================
-
     summaryRow: {
       flexDirection:
         'row',
@@ -3518,10 +3036,6 @@ const styles =
       fontFamily:
         'Poppins_700Bold',
     },
-
-    // ========================================================
-    // FILTER
-    // ========================================================
 
     filterCard: {
       borderWidth:
@@ -3667,10 +3181,6 @@ const styles =
         COLORS.white,
     },
 
-    // ========================================================
-    // MESSAGES
-    // ========================================================
-
     successCard: {
       flexDirection:
         'row',
@@ -3732,10 +3242,6 @@ const styles =
       fontFamily:
         'Inter_500Medium',
     },
-
-    // ========================================================
-    // TABLE
-    // ========================================================
 
     tableCard: {
       overflow:
@@ -3891,10 +3397,6 @@ const styles =
         'Inter_400Regular',
     },
 
-    // ========================================================
-    // DONOR
-    // ========================================================
-
     donorBadge: {
       alignSelf:
         'flex-start',
@@ -3952,10 +3454,6 @@ const styles =
       color:
         COLORS.muted,
     },
-
-    // ========================================================
-    // ACCOUNT STATUS
-    // ========================================================
 
     accountBadge: {
       alignSelf:
@@ -4017,10 +3515,6 @@ const styles =
         COLORS.redBright,
     },
 
-    // ========================================================
-    // ACTION
-    // ========================================================
-
     actionButton: {
       alignItems:
         'center',
@@ -4062,10 +3556,6 @@ const styles =
       color:
         COLORS.green,
     },
-
-    // ========================================================
-    // LOADING / EMPTY
-    // ========================================================
 
     loadingArea: {
       alignItems:
@@ -4124,10 +3614,6 @@ const styles =
         'center',
     },
 
-    // ========================================================
-    // PAGINATION
-    // ========================================================
-
     pagination: {
       flexDirection:
         'row',
@@ -4179,10 +3665,6 @@ const styles =
       fontFamily:
         'Inter_600SemiBold',
     },
-
-    // ========================================================
-    // MODAL
-    // ========================================================
 
     modalOverlay: {
       flex:
@@ -4379,10 +3861,6 @@ const styles =
       fontFamily:
         'Inter_600SemiBold',
     },
-
-    // ========================================================
-    // GENERIC
-    // ========================================================
 
     pressed: {
       opacity:

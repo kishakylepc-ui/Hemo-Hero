@@ -11,7 +11,7 @@ export const API_URL =
   RAW_API_URL.replace(/\/+$/, '');
 
 // ============================================================
-// TYPES
+// GENERAL AUTH TYPES
 // ============================================================
 
 export type AdminProfile = {
@@ -247,6 +247,249 @@ export type ActivityLogResponse = {
 };
 
 // ============================================================
+// BLOOD TYPE DEMAND TYPES
+// ============================================================
+
+export type AdminBloodTypeDemandItem = {
+  blood_type: string;
+
+  request_count: number;
+
+  units_needed: number;
+
+  urgent_requests: number;
+
+  scheduled_requests: number;
+};
+
+export type AdminBloodTypeDemandSummary = {
+  active_requests: number;
+
+  units_needed: number;
+
+  urgent_requests: number;
+
+  scheduled_requests: number;
+};
+
+export type AdminBloodTypeDemandResponse = {
+  summary:
+    AdminBloodTypeDemandSummary;
+
+  highest_demand:
+    AdminBloodTypeDemandItem | null;
+
+  demand:
+    AdminBloodTypeDemandItem[];
+};
+
+// ============================================================
+// ADMIN BLOOD REQUEST TYPES
+// ============================================================
+
+export type AdminBloodRequestStatus =
+  | 'active'
+  | 'fulfilled'
+  | 'cancelled';
+
+export type AdminBloodRequestUrgency =
+  | 'urgent'
+  | 'needed';
+
+export type AdminBloodRequestUser = {
+  id: string;
+
+  email?: string | null;
+
+  first_name?: string | null;
+
+  middle_name?: string | null;
+
+  last_name?: string | null;
+
+  suffix?: string | null;
+
+  full_name?: string | null;
+
+  phone?: string | null;
+
+  gender?: string | null;
+
+  date_of_birth?: string | null;
+
+  barangay?: string | null;
+
+  city?: string | null;
+
+  province?: string | null;
+
+  blood_type?: string | null;
+
+  profile_photo_url?: string | null;
+
+  role?: string | null;
+
+  is_active?: boolean;
+};
+
+export type AdminBloodRequest = {
+  id: string;
+
+  requester_id: string;
+
+  blood_type: string;
+
+  units_needed: number;
+
+  facility_source?: string | null;
+
+  facility_id?: string | null;
+
+  facility_name: string;
+
+  facility_type?: string | null;
+
+  facility_address?: string | null;
+
+  facility_latitude?: number | null;
+
+  facility_longitude?: number | null;
+
+  urgency:
+    AdminBloodRequestUrgency;
+
+  needed_date?: string | null;
+
+  needed_time?: string | null;
+
+  message?: string | null;
+
+  status:
+    AdminBloodRequestStatus;
+
+  created_at?: string | null;
+
+  updated_at?: string | null;
+
+  requester?:
+    AdminBloodRequestUser | null;
+};
+
+export type AdminBloodRequestSummary = {
+  total: number;
+
+  active: number;
+
+  fulfilled: number;
+
+  cancelled: number;
+
+  urgent_active: number;
+
+  scheduled_active: number;
+
+  active_units_needed: number;
+};
+
+export type AdminBloodRequestPagination = {
+  page: number;
+
+  limit: number;
+
+  total: number;
+
+  total_pages: number;
+};
+
+export type AdminBloodRequestFilters = {
+  page?: number;
+
+  limit?: number;
+
+  status?:
+    | 'all'
+    | AdminBloodRequestStatus;
+
+  blood_type?: string;
+
+  urgency?:
+    | 'all'
+    | AdminBloodRequestUrgency;
+
+  search?: string;
+};
+
+export type AdminBloodRequestsResponse = {
+  summary:
+    AdminBloodRequestSummary;
+
+  requests:
+    AdminBloodRequest[];
+
+  pagination:
+    AdminBloodRequestPagination;
+
+  filters?: {
+    status?: string | null;
+
+    blood_type?: string | null;
+
+    urgency?: string | null;
+
+    search?: string | null;
+  };
+};
+
+// ============================================================
+// ADMIN DONOR RESPONSE TYPES
+// ============================================================
+
+export type AdminBloodRequestDonorResponse = {
+  id: string;
+
+  request_id: string;
+
+  donor_id: string;
+
+  status: string;
+
+  message?: string | null;
+
+  created_at?: string | null;
+
+  updated_at?: string | null;
+
+  donor?:
+    AdminBloodRequestUser | null;
+
+  [key: string]:
+    unknown;
+};
+
+export type AdminBloodRequestResponseSummary = {
+  total: number;
+
+  pending: number;
+
+  accepted: number;
+
+  rejected: number;
+
+  withdrawn: number;
+};
+
+export type AdminBloodRequestDetailResponse = {
+  request:
+    AdminBloodRequest;
+
+  response_summary:
+    AdminBloodRequestResponseSummary;
+
+  responses:
+    AdminBloodRequestDonorResponse[];
+};
+
+// ============================================================
 // ADMIN USER MANAGEMENT TYPES
 // ============================================================
 
@@ -311,7 +554,8 @@ export type AdminManagedUser = {
 
   updated_at?: string | null;
 
-  donor?: AdminManagedUserDonor | null;
+  donor?:
+    AdminManagedUserDonor | null;
 };
 
 export type AdminUserPagination = {
@@ -336,24 +580,28 @@ export type AdminUserFilters = {
 
   search?: string;
 
-  status?: AdminUserStatusFilter;
+  status?:
+    AdminUserStatusFilter;
 };
 
 export type AdminUsersResponse = {
-  users: AdminManagedUser[];
+  users:
+    AdminManagedUser[];
 
   pagination:
     AdminUserPagination;
 };
 
 export type AdminUserDetailResponse = {
-  user: AdminManagedUser;
+  user:
+    AdminManagedUser;
 };
 
 export type AdminUserActionResponse = {
   message: string;
 
-  user: AdminManagedUser;
+  user:
+    AdminManagedUser;
 };
 
 // ============================================================
@@ -555,7 +803,8 @@ export async function requestAdminPasswordReset(
 export async function getAdminDonorSummary(
   token: string
 ): Promise<{
-  summary: DonorApplicationSummary;
+  summary:
+    DonorApplicationSummary;
 }> {
   const response =
     await fetch(
@@ -581,7 +830,8 @@ export async function getAdminDonorApplications(
   token: string,
   status?: string
 ): Promise<{
-  applications: DonorApplication[];
+  applications:
+    DonorApplication[];
 }> {
   const query =
     status &&
@@ -616,11 +866,14 @@ export async function getAdminDonorApplicationById(
   token: string,
   applicationId: string
 ): Promise<{
-  application: DonorApplication;
+  application:
+    DonorApplication;
 }> {
   const response =
     await fetch(
-      `${API_URL}/api/admin/donor-applications/${applicationId}`,
+      `${API_URL}/api/admin/donor-applications/${encodeURIComponent(
+        applicationId
+      )}`,
       {
         headers: {
           Authorization:
@@ -645,7 +898,9 @@ export async function approveDonorApplication(
 ) {
   const response =
     await fetch(
-      `${API_URL}/api/admin/donor-applications/${applicationId}/approve`,
+      `${API_URL}/api/admin/donor-applications/${encodeURIComponent(
+        applicationId
+      )}/approve`,
       {
         method:
           'POST',
@@ -684,7 +939,9 @@ export async function rejectDonorApplication(
 ) {
   const response =
     await fetch(
-      `${API_URL}/api/admin/donor-applications/${applicationId}/reject`,
+      `${API_URL}/api/admin/donor-applications/${encodeURIComponent(
+        applicationId
+      )}/reject`,
       {
         method:
           'POST',
@@ -712,8 +969,6 @@ export async function rejectDonorApplication(
 
 // ============================================================
 // ACTIVITY LOG SUMMARY
-//
-// ADMIN ONLY
 // ============================================================
 
 export async function getAdminActivityLogSummary(
@@ -737,13 +992,12 @@ export async function getAdminActivityLogSummary(
 
 // ============================================================
 // GET ACTIVITY LOGS
-//
-// ADMIN ONLY
 // ============================================================
 
 export async function getAdminActivityLogs(
   token: string,
-  filters: ActivityLogFilters = {}
+  filters:
+    ActivityLogFilters = {}
 ): Promise<ActivityLogResponse> {
   const params =
     new URLSearchParams();
@@ -839,15 +1093,196 @@ export async function getAdminActivityLogs(
 }
 
 // ============================================================
-// ADMIN USER SUMMARY
+// BLOOD TYPE DEMAND
 //
-// GET /api/admin/users/summary
+// GET /api/requests/admin/demand
+// ============================================================
+
+export async function getAdminBloodTypeDemand(
+  token: string
+): Promise<AdminBloodTypeDemandResponse> {
+  const response =
+    await fetch(
+      `${API_URL}/api/requests/admin/demand`,
+      {
+        headers: {
+          Authorization:
+            `Bearer ${token}`,
+        },
+      }
+    );
+
+  return parseResponse(
+    response
+  );
+}
+
+// ============================================================
+// ADMIN BLOOD REQUESTS
+//
+// GET /api/requests/admin
+// ============================================================
+
+export async function getAdminBloodRequests(
+  token: string,
+  filters:
+    AdminBloodRequestFilters = {}
+): Promise<AdminBloodRequestsResponse> {
+  const params =
+    new URLSearchParams();
+
+  // ----------------------------------------------------------
+  // PAGE
+  // ----------------------------------------------------------
+
+  if (
+    filters.page !==
+    undefined
+  ) {
+    params.set(
+      'page',
+      String(
+        filters.page
+      )
+    );
+  }
+
+  // ----------------------------------------------------------
+  // LIMIT
+  // ----------------------------------------------------------
+
+  if (
+    filters.limit !==
+    undefined
+  ) {
+    params.set(
+      'limit',
+      String(
+        filters.limit
+      )
+    );
+  }
+
+  // ----------------------------------------------------------
+  // STATUS
+  // ----------------------------------------------------------
+
+  if (
+    filters.status &&
+    filters.status !==
+      'all'
+  ) {
+    params.set(
+      'status',
+      filters.status
+    );
+  }
+
+  // ----------------------------------------------------------
+  // BLOOD TYPE
+  // ----------------------------------------------------------
+
+  if (
+    filters.blood_type &&
+    filters.blood_type !==
+      'all'
+  ) {
+    params.set(
+      'blood_type',
+      filters.blood_type
+    );
+  }
+
+  // ----------------------------------------------------------
+  // URGENCY
+  // ----------------------------------------------------------
+
+  if (
+    filters.urgency &&
+    filters.urgency !==
+      'all'
+  ) {
+    params.set(
+      'urgency',
+      filters.urgency
+    );
+  }
+
+  // ----------------------------------------------------------
+  // SEARCH
+  // ----------------------------------------------------------
+
+  if (
+    filters.search
+      ?.trim()
+  ) {
+    params.set(
+      'search',
+      filters.search.trim()
+    );
+  }
+
+  const queryString =
+    params.toString();
+
+  const url =
+    queryString
+      ? `${API_URL}/api/requests/admin?${queryString}`
+      : `${API_URL}/api/requests/admin`;
+
+  const response =
+    await fetch(
+      url,
+      {
+        headers: {
+          Authorization:
+            `Bearer ${token}`,
+        },
+      }
+    );
+
+  return parseResponse(
+    response
+  );
+}
+
+// ============================================================
+// ADMIN BLOOD REQUEST DETAILS
+//
+// GET /api/requests/admin/:id
+// ============================================================
+
+export async function getAdminBloodRequestById(
+  token: string,
+  requestId: string
+): Promise<AdminBloodRequestDetailResponse> {
+  const response =
+    await fetch(
+      `${API_URL}/api/requests/admin/${encodeURIComponent(
+        requestId
+      )}`,
+      {
+        headers: {
+          Authorization:
+            `Bearer ${token}`,
+        },
+      }
+    );
+
+  return parseResponse(
+    response
+  );
+}
+
+// ============================================================
+// ADMIN USER SUMMARY
 // ============================================================
 
 export async function getAdminUserSummary(
   token: string
 ): Promise<{
-  summary: AdminUserSummary;
+  summary:
+    AdminUserSummary;
 }> {
   const response =
     await fetch(
@@ -867,13 +1302,12 @@ export async function getAdminUserSummary(
 
 // ============================================================
 // GET ADMIN USERS
-//
-// GET /api/admin/users
 // ============================================================
 
 export async function getAdminUsers(
   token: string,
-  filters: AdminUserFilters = {}
+  filters:
+    AdminUserFilters = {}
 ): Promise<AdminUsersResponse> {
   const params =
     new URLSearchParams();
@@ -949,8 +1383,6 @@ export async function getAdminUsers(
 
 // ============================================================
 // GET ADMIN USER DETAILS
-//
-// GET /api/admin/users/:id
 // ============================================================
 
 export async function getAdminUserById(
@@ -977,13 +1409,12 @@ export async function getAdminUserById(
 
 // ============================================================
 // CREATE ADMIN USER
-//
-// POST /api/admin/users
 // ============================================================
 
 export async function createAdminUser(
   token: string,
-  input: AdminCreateUserInput
+  input:
+    AdminCreateUserInput
 ): Promise<AdminUserActionResponse> {
   const response =
     await fetch(
@@ -1069,14 +1500,13 @@ export async function createAdminUser(
 
 // ============================================================
 // UPDATE ADMIN USER
-//
-// PATCH /api/admin/users/:id
 // ============================================================
 
 export async function updateAdminUser(
   token: string,
   userId: string,
-  input: AdminUpdateUserInput
+  input:
+    AdminUpdateUserInput
 ): Promise<AdminUserActionResponse> {
   const response =
     await fetch(
@@ -1109,8 +1539,6 @@ export async function updateAdminUser(
 
 // ============================================================
 // DEACTIVATE USER
-//
-// PATCH /api/admin/users/:id/deactivate
 // ============================================================
 
 export async function deactivateAdminUser(
@@ -1143,8 +1571,6 @@ export async function deactivateAdminUser(
 
 // ============================================================
 // ACTIVATE USER
-//
-// PATCH /api/admin/users/:id/activate
 // ============================================================
 
 export async function activateAdminUser(
@@ -1177,8 +1603,6 @@ export async function activateAdminUser(
 
 // ============================================================
 // PERMANENTLY DELETE USER
-//
-// DELETE /api/admin/users/:id
 // ============================================================
 
 export async function deleteAdminUser(
