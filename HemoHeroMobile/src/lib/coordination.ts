@@ -237,6 +237,58 @@ export async function saveCoordinationSchedule(
 }
 
 // ============================================================
+// SUBMIT FEEDBACK / REPORT
+//
+// The server derives who is being reported from this
+// conversation. The client never sends a user id.
+// ============================================================
+
+export type CoordinationSupportKind =
+  | 'feedback'
+  | 'report';
+
+export async function submitCoordinationSupport(
+  token: string,
+  requestId: string,
+  responseId: string,
+  input: {
+    kind: CoordinationSupportKind;
+    reason?: string;
+    details: string;
+  }
+): Promise<{
+  message: string;
+  report: {
+    id: string;
+    kind: CoordinationSupportKind;
+    reason: string | null;
+    status: string;
+    created_at: string;
+  };
+}> {
+  const response = await fetch(
+    `${API_URL}/api/requests/${requestId}/responses/${responseId}/reports`,
+    {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${token}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        kind: input.kind,
+        reason:
+          input.kind === 'report'
+            ? input.reason || null
+            : null,
+        details: input.details.trim(),
+      }),
+    }
+  );
+
+  return parseResponse(response);
+}
+
+// ============================================================
 // GET COORDINATION INBOX
 // ============================================================
 

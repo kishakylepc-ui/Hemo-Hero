@@ -55,6 +55,7 @@ import {
   getCoordinationSession,
   saveCoordinationSchedule,
   sendCoordinationMessage,
+  submitCoordinationSupport,
 } from '../../../../lib/coordination';
 
 import type {
@@ -92,44 +93,6 @@ const COLORS = {
 
   green: '#2E7D32',
   greenLight: '#EAF7EF',
-};
-
-// ============================================================
-// SUPPORT TYPES
-// ============================================================
-
-/**
- * Connect this callback to your authenticated backend before
- * enabling submission.
- *
- * Resolve only after the server has saved the feedback/report.
- * The server must derive the reported person from this
- * authorized conversation.
- */
-
-export type ConversationSupportSubmission = {
-  kind:
-    | 'feedback'
-    | 'report';
-
-  requestId:
-    string;
-
-  responseId:
-    string;
-
-  reason?:
-    string;
-
-  details:
-    string;
-};
-
-export type DonationCoordinationScreenProps = {
-  onSubmitSupport?: (
-    submission:
-      ConversationSupportSubmission
-  ) => Promise<void>;
 };
 
 // ============================================================
@@ -184,9 +147,7 @@ const REPORT_REASONS = [
 // SCREEN
 // ============================================================
 
-export default function DonationCoordinationScreen({
-  onSubmitSupport,
-}: DonationCoordinationScreenProps = {}) {
+export default function DonationCoordinationScreen() {
   // ==========================================================
   // SUPPORT
   // ==========================================================
@@ -2170,8 +2131,7 @@ export default function DonationCoordinationScreen({
 
   const canSubmitSupport =
     Boolean(
-      onSubmitSupport &&
-        requestId &&
+      requestId &&
         responseId
     ) &&
     !supportSending &&
@@ -2198,7 +2158,6 @@ export default function DonationCoordinationScreen({
 
   async function handleSubmitSupport() {
     if (
-      !onSubmitSupport ||
       !requestId ||
       !responseId ||
       !canSubmitSupport ||
@@ -2222,32 +2181,46 @@ export default function DonationCoordinationScreen({
 
       setSupportError('');
 
-      await onSubmitSupport({
-        kind,
+      const token =
+        await getAccessToken();
 
+      if (!token) {
+        router.replace(
+          '/'
+        );
+
+        return;
+      }
+
+      // Server derives the reported person from this
+      // conversation - no user id is sent.
+      await submitCoordinationSupport(
+        token,
         requestId,
-
         responseId,
+        {
+          kind,
 
-        ...(
-          kind ===
-          'report'
-            ? {
-                reason:
-                  reportReason,
-              }
-            : {}
-        ),
-
-        details:
-          (
+          ...(
             kind ===
             'report'
-              ? reportText
-              : feedbackText
-          )
-            .trim(),
-      });
+              ? {
+                  reason:
+                    reportReason,
+                }
+              : {}
+          ),
+
+          details:
+            (
+              kind ===
+              'report'
+                ? reportText
+                : feedbackText
+            )
+              .trim(),
+        }
+      );
 
       setSubmittedSupportKind(
         kind
@@ -3966,33 +3939,6 @@ export default function DonationCoordinationScreen({
                         }
                         /1000
                       </Text>
-
-                      {!onSubmitSupport ? (
-                        <View
-                          style={
-                            styles.supportAvailability
-                          }
-                        >
-                          <MaterialIcons
-                            name="info-outline"
-                            size={18}
-                            color={
-                              COLORS.muted
-                            }
-                          />
-
-                          <Text
-                            style={
-                              styles.supportAvailabilityText
-                            }
-                          >
-                            {supportView ===
-                            'report'
-                              ? 'Report submission is not available yet.'
-                              : 'Feedback submission is not available yet.'}
-                          </Text>
-                        </View>
-                      ) : null}
 
                       {supportError ? (
                         <Text

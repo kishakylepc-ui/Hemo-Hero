@@ -37,6 +37,9 @@ const adminActivityLogRoutes =
 const adminUserRoutes =
   require('./routes/adminUserRoutes');
 
+const adminReportRoutes =
+  require('./routes/adminReportRoutes');
+
 const notificationRoutes =
   require('./routes/notificationRoutes');
 
@@ -196,6 +199,22 @@ app.use(
 );
 
 // ============================================================
+// ADMIN ISSUES (USER FEEDBACK / REPORTS)
+//
+// GET   /api/admin/reports
+// GET   /api/admin/reports/summary
+// GET   /api/admin/reports/:id
+// PATCH /api/admin/reports/:id
+//
+// ADMIN ONLY
+// ============================================================
+
+app.use(
+  '/api/admin/reports',
+  adminReportRoutes
+);
+
+// ============================================================
 // NOTIFICATIONS
 //
 // GET   /api/notifications
@@ -295,6 +314,10 @@ app.listen(
 
     console.log(
       `Admin User Summary: http://localhost:${PORT}/api/admin/users/summary`
+    );
+
+    console.log(
+      `Admin Issues: http://localhost:${PORT}/api/admin/reports`
     );
 
     console.log(

@@ -54,6 +54,13 @@ const {
   );
 
 const {
+  submitConversationReport,
+} =
+  require(
+    '../controllers/userReportController'
+  );
+
+const {
   requireAuth,
 } =
   require(
@@ -451,6 +458,50 @@ router.put(
   }),
 
   setCoordinationSchedule
+);
+
+// ============================================================
+// COORDINATION FEEDBACK / REPORT
+//
+// POST /api/requests/:id/responses/:responseId/reports
+//
+// Accessible only by the request owner or accepted donor.
+// The reported person is derived by the server.
+//
+// Only kind/reason are logged - never the free-text details.
+// ============================================================
+
+router.post(
+  '/:id/responses/:responseId/reports',
+
+  activityLog({
+    action:
+      'SUBMIT_USER_REPORT',
+
+    module:
+      'Coordination',
+
+    successDescription:
+      'User submitted coordination feedback or a report.',
+
+    failureDescription:
+      'Coordination feedback/report submission failed.',
+
+    entityType:
+      'user_report',
+
+    metadata: ({ req }) => ({
+      kind:
+        req.body?.kind ||
+        null,
+
+      reason:
+        req.body?.reason ||
+        null,
+    }),
+  }),
+
+  submitConversationReport
 );
 
 // ============================================================
