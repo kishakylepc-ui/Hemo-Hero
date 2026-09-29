@@ -3,6 +3,7 @@ import {
   type ReactNode,
   useCallback,
   useMemo,
+  useRef,
   useState,
 } from 'react';
 
@@ -42,6 +43,8 @@ import {
 } from 'react-native-safe-area-context';
 
 import AdminHeader from '../../AdminHeader';
+
+import { FadeInView } from '../../../components/AdminMotion';
 
 import {
   getAdminUserById,
@@ -378,9 +381,32 @@ export default function AdminEditUserScreen() {
   // LOAD USER
   // ==========================================================
 
+  // Tracks which user the form was filled from. The form is
+  // loaded ONCE per user so unsaved edits are not overwritten
+  // when the screen regains focus (e.g. after the bell panel).
+  const loadedUserId =
+    useRef<string | null>(null);
+
+  const scrollRef =
+    useRef<ScrollView>(null);
+
+  function scrollToTop() {
+    scrollRef.current?.scrollTo({
+      y: 0,
+      animated: true,
+    });
+  }
+
   useFocusEffect(
     useCallback(
       () => {
+        if (
+          loadedUserId.current ===
+          id
+        ) {
+          return;
+        }
+
         loadUser();
       },
       [
@@ -506,6 +532,9 @@ export default function AdminEditUserScreen() {
         loadedUser.province ||
         ''
       );
+
+      loadedUserId.current =
+        id;
     } catch (
       error
     ) {
@@ -618,6 +647,8 @@ export default function AdminEditUserScreen() {
       setErrorMessage(
         validationError
       );
+
+      scrollToTop();
 
       return;
     }
@@ -755,6 +786,8 @@ export default function AdminEditUserScreen() {
         result.user.province ||
         ''
       );
+
+      scrollToTop();
     } catch (
       error
     ) {
@@ -769,6 +802,8 @@ export default function AdminEditUserScreen() {
           ? error.message
           : 'Unable to update user account.'
       );
+
+      scrollToTop();
     } finally {
       setSaving(
         false
@@ -872,9 +907,6 @@ export default function AdminEditUserScreen() {
               fontScale={
                 fs
               }
-              notificationCount={
-                0
-              }
             />
 
             {/* ==================================================
@@ -893,6 +925,9 @@ export default function AdminEditUserScreen() {
               }
             >
               <ScrollView
+                ref={
+                  scrollRef
+                }
                 style={
                   styles.scroll
                 }
@@ -1252,6 +1287,7 @@ export default function AdminEditUserScreen() {
                         ACCOUNT INFORMATION
                     ========================================== */}
 
+                    <FadeInView delay={40}>
                     <FormSection
                       scale={
                         s
@@ -1339,6 +1375,7 @@ export default function AdminEditUserScreen() {
                         </View>
                       </View>
                     </FormSection>
+                    </FadeInView>
 
                     <View
                       style={{
@@ -1351,6 +1388,7 @@ export default function AdminEditUserScreen() {
                         PERSONAL INFORMATION
                     ========================================== */}
 
+                    <FadeInView delay={90}>
                     <FormSection
                       scale={
                         s
@@ -1671,6 +1709,7 @@ export default function AdminEditUserScreen() {
                         </View>
                       </View>
                     </FormSection>
+                    </FadeInView>
 
                     <View
                       style={{
@@ -1683,6 +1722,7 @@ export default function AdminEditUserScreen() {
                         LOCATION
                     ========================================== */}
 
+                    <FadeInView delay={140}>
                     <FormSection
                       scale={
                         s
@@ -1789,6 +1829,7 @@ export default function AdminEditUserScreen() {
                         </View>
                       </View>
                     </FormSection>
+                    </FadeInView>
 
                     {/* ==========================================
                         ACTIONS

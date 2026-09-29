@@ -34,6 +34,8 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import AdminHeader from '../AdminHeader';
 
+import { FadeInView } from '../../components/AdminMotion';
+
 import {
   approveDonorApplication,
   getAdminDonorApplicationById,
@@ -258,12 +260,6 @@ export default function ApplicationReviewScreen() {
   const fs =
     Math.max(
       tablet.scale,
-      0.9
-    );
-
-  const headerFs =
-    Math.max(
-      tablet.scale,
       0.92
     );
 
@@ -453,6 +449,33 @@ export default function ApplicationReviewScreen() {
       )
       .join('') ||
     'A';
+
+  // ==========================================================
+  // WAITING TIME (pending only)
+  // ==========================================================
+
+  const submittedTime =
+    new Date(
+      application?.submitted_at ||
+        application?.created_at ||
+        ''
+    ).getTime();
+
+  const waitingDays =
+    application?.status ===
+      'pending' &&
+    !Number.isNaN(
+      submittedTime
+    )
+      ? Math.max(
+          0,
+          Math.floor(
+            (Date.now() -
+              submittedTime) /
+              (24 * 60 * 60 * 1000)
+          )
+        )
+      : null;
 
   // ==========================================================
   // CUSTOM ACTION MODAL
@@ -857,8 +880,7 @@ export default function ApplicationReviewScreen() {
             <AdminHeader
               profile={profile}
               scale={s}
-              fontScale={headerFs}
-              notificationCount={0}
+              fontScale={fs}
             />
 
             {/* ==================================================
@@ -1049,6 +1071,7 @@ export default function ApplicationReviewScreen() {
                     APPLICANT SUMMARY
                 ================================================== */}
 
+                <FadeInView>
                 <View
                   style={[
                     styles.profileCard,
@@ -1160,6 +1183,25 @@ export default function ApplicationReviewScreen() {
                           application.submitted_at ||
                             application.created_at
                         )}
+
+                        {waitingDays !== null ? (
+                          <Text
+                            style={
+                              waitingDays >= 3
+                                ? styles.waitingLong
+                                : styles.waitingText
+                            }
+                          >
+                            {'  •  '}
+                            {waitingDays === 0
+                              ? 'Submitted today'
+                              : `Waiting ${waitingDays} ${
+                                  waitingDays === 1
+                                    ? 'day'
+                                    : 'days'
+                                }`}
+                          </Text>
+                        ) : null}
                       </Text>
                     </View>
                   </View>
@@ -1169,6 +1211,59 @@ export default function ApplicationReviewScreen() {
                       styles.profileBadges
                     }
                   >
+                    <Pressable
+                      onPress={() =>
+                        router.push(
+                          `/users/${application.user_id}` as any
+                        )
+                      }
+                      style={({
+                        pressed,
+                      }) => [
+                        styles.viewUserButton,
+
+                        {
+                          height:
+                            38 * s,
+
+                          borderRadius:
+                            8 * s,
+
+                          paddingHorizontal:
+                            13 * s,
+
+                          gap:
+                            6 * s,
+                        },
+
+                        pressed &&
+                          styles.buttonPressed,
+                      ]}
+                    >
+                      <MaterialIcons
+                        name="person-search"
+                        size={
+                          17 * s
+                        }
+                        color={
+                          COLORS.soft
+                        }
+                      />
+
+                      <Text
+                        style={[
+                          styles.viewUserText,
+
+                          {
+                            fontSize:
+                              12.5 * fs,
+                          },
+                        ]}
+                      >
+                        View User Account
+                      </Text>
+                    </Pressable>
+
                     <BloodBadge
                       value={
                         application.blood_type
@@ -1186,6 +1281,7 @@ export default function ApplicationReviewScreen() {
                     />
                   </View>
                 </View>
+                </FadeInView>
 
                 {/* ==================================================
                     MAIN GRID
@@ -1205,7 +1301,8 @@ export default function ApplicationReviewScreen() {
                       LEFT COLUMN
                   ================================================== */}
 
-                  <View
+                  <FadeInView
+                    delay={60}
                     style={
                       styles.leftColumn
                     }
@@ -1400,13 +1497,14 @@ export default function ApplicationReviewScreen() {
                         />
                       </InfoGrid>
                     </SectionCard>
-                  </View>
+                  </FadeInView>
 
                   {/* ==================================================
                       RIGHT COLUMN
                   ================================================== */}
 
-                  <View
+                  <FadeInView
+                    delay={120}
                     style={
                       styles.rightColumn
                     }
@@ -1898,7 +1996,7 @@ export default function ApplicationReviewScreen() {
                         </View>
                       )}
                     </SectionCard>
-                  </View>
+                  </FadeInView>
                 </View>
               </ScrollView>
             ) : null}
@@ -1977,7 +2075,7 @@ function ActionModal({
       >
         <Pressable
           style={
-            StyleSheet.absoluteFillObject
+            StyleSheet.absoluteFill
           }
           onPress={
             onClose
@@ -3140,6 +3238,50 @@ const styles =
 
       fontFamily:
         'Inter_400Regular',
+    },
+
+    waitingText: {
+      color:
+        COLORS.orange,
+
+      fontFamily:
+        'Inter_600SemiBold',
+    },
+
+    waitingLong: {
+      color:
+        COLORS.redBright,
+
+      fontFamily:
+        'Inter_600SemiBold',
+    },
+
+    viewUserButton: {
+      flexDirection:
+        'row',
+
+      alignItems:
+        'center',
+
+      justifyContent:
+        'center',
+
+      borderWidth:
+        1,
+
+      borderColor:
+        COLORS.border,
+
+      backgroundColor:
+        COLORS.cardLight,
+    },
+
+    viewUserText: {
+      color:
+        COLORS.soft,
+
+      fontFamily:
+        'Inter_600SemiBold',
     },
 
     profileBadges: {

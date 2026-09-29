@@ -101,6 +101,23 @@ export async function getAdminProfile():
 }
 
 // ============================================================
+// UPDATE STORED PROFILE
+//
+// Used after the admin edits their own profile in Settings so
+// the shared AdminHeader shows the new name on every screen.
+// The access token is not changed.
+// ============================================================
+
+export async function updateStoredAdminProfile(
+  profile: AdminProfile
+) {
+  await AsyncStorage.setItem(
+    PROFILE_KEY,
+    JSON.stringify(profile)
+  );
+}
+
+// ============================================================
 // REMEMBER ME
 // ============================================================
 

@@ -1,46 +1,34 @@
 import {
+  type ComponentProps,
   useCallback,
-  useEffect,
   useMemo,
+  useRef,
   useState,
 } from 'react';
 
 import {
   ActivityIndicator,
-  Image,
   Platform,
   Pressable,
   RefreshControl,
   ScrollView,
   StyleSheet,
   Text,
+  TextInput,
   useWindowDimensions,
   View,
 } from 'react-native';
 
-import {
-  MaterialIcons,
-} from '@expo/vector-icons';
-
-import {
-  LinearGradient,
-} from 'expo-linear-gradient';
-
-import {
-  router,
-  useFocusEffect,
-} from 'expo-router';
-
-import {
-  StatusBar,
-} from 'expo-status-bar';
-
-import {
-  SafeAreaView,
-} from 'react-native-safe-area-context';
+import { MaterialIcons } from '@expo/vector-icons';
+import { LinearGradient } from 'expo-linear-gradient';
+import { router, useFocusEffect } from 'expo-router';
+import { StatusBar } from 'expo-status-bar';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 import AdminBottomNav from '../AdminBottomNav';
 import AdminHeader from '../AdminHeader';
+
+import { FadeInView } from '../../components/AdminMotion';
 
 import {
   getAdminDonorApplications,
@@ -60,56 +48,42 @@ import {
 // IPAD PRO LANDSCAPE
 // ============================================================
 
-const DESIGN_WIDTH =
-  1366;
+const DESIGN_WIDTH = 1366;
+const DESIGN_HEIGHT = 1024;
 
-const DESIGN_HEIGHT =
-  1024;
+const DAY_MS = 24 * 60 * 60 * 1000;
 
 // ============================================================
 // COLORS
 // ============================================================
 
 const COLORS = {
-  outer:
-    '#02040A',
+  outer: '#02040A',
+  navy: '#050B19',
 
-  navy:
-    '#050B19',
+  card: '#091126',
+  cardLight: '#101A35',
 
-  card:
-    '#091126',
+  border: '#243554',
 
-  cardLight:
-    '#101A35',
+  red: '#DB0A0A',
+  redBright: '#EF3340',
 
-  border:
-    '#243554',
+  white: '#FFFFFF',
 
-  red:
-    '#DB0A0A',
+  muted: '#7F889F',
+  soft: '#B7C1D8',
 
-  redBright:
-    '#EF3340',
+  green: '#35C982',
+  orange: '#F3A34A',
 
-  white:
-    '#FFFFFF',
-
-  muted:
-    '#7F889F',
-
-  soft:
-    '#B7C1D8',
-
-  green:
-    '#35C982',
-
-  orange:
-    '#F3A34A',
-
-  rowBorder:
-    'rgba(36,53,84,0.78)',
+  rowBorder: 'rgba(36,53,84,0.78)',
 };
+
+type IconName =
+  ComponentProps<
+    typeof MaterialIcons
+  >['name'];
 
 // ============================================================
 // FILTER TYPE
@@ -127,199 +101,102 @@ type ApplicationFilter =
 // ============================================================
 
 export default function ApplicationsScreen() {
-  const {
-    width,
-    height,
-  } =
-    useWindowDimensions();
+  const { width, height } = useWindowDimensions();
 
   // ==========================================================
   // IPAD PRO CANVAS
   // ==========================================================
 
-  const tablet =
-    useMemo(
-      () => {
-        if (
-          Platform.OS !==
-          'web'
-        ) {
-          return {
-            width,
-            height,
-
-            scale:
-              Math.min(
-                width /
-                  DESIGN_WIDTH,
-
-                height /
-                  DESIGN_HEIGHT
-              ),
-          };
-        }
-
-        const padding =
-          24;
-
-        const availableWidth =
-          Math.max(
-            width -
-              padding * 2,
-
-            320
-          );
-
-        const availableHeight =
-          Math.max(
-            height -
-              padding * 2,
-
-            320
-          );
-
-        const scale =
-          Math.min(
-            availableWidth /
-              DESIGN_WIDTH,
-
-            availableHeight /
-              DESIGN_HEIGHT,
-
-            1
-          );
-
-        return {
-          width:
-            DESIGN_WIDTH *
-            scale,
-
-          height:
-            DESIGN_HEIGHT *
-            scale,
-
-          scale,
-        };
-      },
-      [
+  const tablet = useMemo(() => {
+    if (Platform.OS !== 'web') {
+      return {
         width,
         height,
-      ]
+
+        scale: Math.min(
+          width / DESIGN_WIDTH,
+          height / DESIGN_HEIGHT
+        ),
+      };
+    }
+
+    const padding = 24;
+
+    const availableWidth = Math.max(
+      width - padding * 2,
+      320
     );
 
-  const s =
-    Math.max(
-      tablet.scale,
-      0.68
+    const availableHeight = Math.max(
+      height - padding * 2,
+      320
     );
 
-  const fs =
-  Math.max(
-    tablet.scale,
-    0.92
-  );
+    const scale = Math.min(
+      availableWidth / DESIGN_WIDTH,
+      availableHeight / DESIGN_HEIGHT,
+      1
+    );
+
+    return {
+      width: DESIGN_WIDTH * scale,
+      height: DESIGN_HEIGHT * scale,
+      scale,
+    };
+  }, [width, height]);
+
+  const s = Math.max(tablet.scale, 0.68);
+  const fs = Math.max(tablet.scale, 0.92);
 
   // ==========================================================
   // STATE
   // ==========================================================
 
-  const [
-    profile,
-    setProfile,
-  ] =
-    useState<AdminProfile | null>(
-      null
-    );
+  const [profile, setProfile] =
+    useState<AdminProfile | null>(null);
 
-  const [
-    applications,
-    setApplications,
-  ] =
-    useState<DonorApplication[]>(
-      []
-    );
+  const [applications, setApplications] =
+    useState<DonorApplication[]>([]);
 
-  const [
-    summary,
-    setSummary,
-  ] =
-    useState<DonorApplicationSummary | null>(
-      null
-    );
+  const [summary, setSummary] =
+    useState<DonorApplicationSummary | null>(null);
 
-  const [
-    filter,
-    setFilter,
-  ] =
-    useState<ApplicationFilter>(
-      'pending'
-    );
+  const [filter, setFilter] =
+    useState<ApplicationFilter>('pending');
 
-  const [
-    loading,
-    setLoading,
-  ] =
-    useState(true);
+  const [search, setSearch] = useState('');
 
-  const [
-    refreshing,
-    setRefreshing,
-  ] =
-    useState(false);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
 
-  const [
-    error,
-    setError,
-  ] =
-    useState('');
+  const [error, setError] = useState('');
+
+  // After the first successful load, reloads keep the table
+  // visible instead of flashing a full spinner.
+  const hasLoadedOnce = useRef(false);
 
   // ==========================================================
   // LOAD
+  //
+  // useFocusEffect alone covers both the first load and filter
+  // changes (it re-runs when `filter` changes while focused).
   // ==========================================================
 
-  useEffect(
-    () => {
-      loadApplications(
-        false
-      );
-    },
-    [
-      filter,
-    ]
-  );
-
   useFocusEffect(
-    useCallback(
-      () => {
-        loadApplications(
-          false
-        );
-      },
-      [
-        filter,
-      ]
-    )
+    useCallback(() => {
+      loadApplications();
+    }, [filter])
   );
 
-  async function loadApplications(
-    isRefresh: boolean
-  ) {
+  async function loadApplications() {
     try {
-      if (
-        isRefresh
-      ) {
-        setRefreshing(
-          true
-        );
+      if (hasLoadedOnce.current) {
+        setRefreshing(true);
       } else {
-        setLoading(
-          true
-        );
+        setLoading(true);
       }
 
-      setError(
-        ''
-      );
+      setError('');
 
       const token =
         await getAdminAccessToken();
@@ -329,89 +206,68 @@ export default function ApplicationsScreen() {
 
       if (
         !token ||
-        storedProfile?.role !==
-          'admin'
+        storedProfile?.role !== 'admin'
       ) {
         await clearAdminSession();
 
-        router.replace(
-          '/'
-        );
+        router.replace('/');
 
         return;
       }
 
-      setProfile(
-        storedProfile
-      );
+      setProfile(storedProfile);
 
       const [
         applicationResult,
         summaryResult,
-      ] =
-        await Promise.all([
-          getAdminDonorApplications(
-            token,
+      ] = await Promise.all([
+        getAdminDonorApplications(
+          token,
+          filter === 'all'
+            ? undefined
+            : filter
+        ),
 
-            filter ===
-              'all'
-              ? undefined
-              : filter
-          ),
-
-          getAdminDonorSummary(
-            token
-          ),
-        ]);
-
-      console.log(
-        'ADMIN APPLICATIONS RESPONSE:',
-        applicationResult
-      );
+        getAdminDonorSummary(token),
+      ]);
 
       setApplications(
-        applicationResult
-          ?.applications ||
+        applicationResult?.applications ||
           []
       );
 
       setSummary(
-        summaryResult
-          ?.summary ||
+        summaryResult?.summary ||
           null
       );
-    } catch (
-      loadError
-    ) {
+
+      hasLoadedOnce.current = true;
+    } catch (loadError) {
       console.log(
         'ADMIN APPLICATIONS ERROR:',
         loadError
       );
 
       setError(
-        loadError instanceof
-          Error
+        loadError instanceof Error
           ? loadError.message
           : 'Unable to load donor applications.'
       );
     } finally {
-      setLoading(
-        false
-      );
-
-      setRefreshing(
-        false
-      );
+      setLoading(false);
+      setRefreshing(false);
     }
   }
 
-  // ==========================================================
-  // ADMIN NAME
-  // ==========================================================
+  function changeFilter(
+    next: ApplicationFilter
+  ) {
+    if (next === filter) {
+      return;
+    }
 
-  // ==========================================================
-  // OPEN APPLICATION
-  // ==========================================================
+    setFilter(next);
+  }
 
   function openApplication(
     applicationId: string
@@ -422,35 +278,70 @@ export default function ApplicationsScreen() {
   }
 
   // ==========================================================
+  // SEARCH + ORDER
+  //
+  // Search runs on the loaded list (name, email, blood type).
+  // Pending applications are shown oldest first so the
+  // longest-waiting applicant is reviewed first.
+  // ==========================================================
+
+  const visibleApplications = useMemo(() => {
+    const query =
+      search.trim().toLowerCase();
+
+    const filtered = query
+      ? applications.filter(application => {
+          const user =
+            getApplicant(application);
+
+          return [
+            getApplicantName(application),
+            user?.email,
+            application.blood_type,
+          ].some(value =>
+            String(value || '')
+              .toLowerCase()
+              .includes(query)
+          );
+        })
+      : applications;
+
+    if (filter !== 'pending') {
+      return filtered;
+    }
+
+    return filtered
+      .slice()
+      .sort(
+        (a, b) =>
+          getSubmittedTime(a) -
+          getSubmittedTime(b)
+      );
+  }, [applications, search, filter]);
+
+  const pendingCount =
+    summary?.pending ?? 0;
+
+  // ==========================================================
   // UI
   // ==========================================================
 
   return (
-    <View
-      style={
-        styles.outer
-      }
-    >
+    <View style={styles.outer}>
       <View
         style={[
           styles.ipadCanvas,
 
           {
-            width:
-              tablet.width,
-
-            height:
-              tablet.height,
+            width: tablet.width,
+            height: tablet.height,
           },
 
-          Platform.OS !==
-            'web' &&
+          Platform.OS !== 'web' &&
             styles.nativeCanvas,
         ]}
       >
-        <StatusBar
-          style="light"
-        />
+        <StatusBar style="light" />
 
         <LinearGradient
           colors={[
@@ -458,527 +349,416 @@ export default function ApplicationsScreen() {
             '#050B19',
             '#030814',
           ]}
-          style={
-            styles.gradient
-          }
+          style={styles.gradient}
         >
-          <SafeAreaView
-            style={
-              styles.safeArea
-            }
-          >
-            {/* ============================================== */}
-{/* HEADER */}
-{/* ============================================== */}
-
-<AdminHeader
-  profile={profile}
-  scale={s}
-  fontScale={fs}
-  notificationCount={0}
-/>
-
-            {/* ============================================== */}
-            {/* CONTENT */}
-            {/* ============================================== */}
+          <SafeAreaView style={styles.safeArea}>
+            <AdminHeader
+              profile={profile}
+              scale={s}
+              fontScale={fs}
+            />
 
             <ScrollView
-              style={
-                styles.scroll
-              }
+              style={styles.scroll}
               refreshControl={
                 <RefreshControl
-                  refreshing={
-                    refreshing
-                  }
-                  onRefresh={() =>
-                    loadApplications(
-                      true
-                    )
-                  }
-                  tintColor={
-                    COLORS.redBright
-                  }
+                  refreshing={refreshing}
+                  onRefresh={loadApplications}
+                  tintColor={COLORS.redBright}
                 />
               }
               contentContainerStyle={[
                 styles.content,
 
                 {
-                  paddingHorizontal:
-                    48 * s,
-
-                  paddingVertical:
-                    32 * s,
+                  paddingHorizontal: 48 * s,
+                  paddingVertical: 32 * s,
                 },
               ]}
-              showsVerticalScrollIndicator={
-                false
-              }
+              showsVerticalScrollIndicator={false}
             >
-              {/* TITLE */}
+              {/* ================================================
+                  TITLE
+              ================================================ */}
 
-              <View
-                style={{
-                  marginBottom:
-                    24 * s,
-                }}
-              >
-                <Text
-                  style={[
-                    styles.title,
-
-                    {
-                      fontSize:
-                        32 * s,
-
-                      lineHeight:
-                        40 * s,
-                    },
-                  ]}
-                >
-                  Donor Applications
-                </Text>
-
-                <Text
-                  style={[
-                    styles.subtitle,
-
-                    {
-                      fontSize:
-                        13 * s,
-
-                      marginTop:
-                        4 * s,
-                    },
-                  ]}
-                >
-                  Review and verify donor registrations and identity documents.
-                </Text>
-              </View>
-
-              {/* ============================================== */}
-              {/* FILTERS */}
-              {/* ============================================== */}
-
-              <View
-                style={[
-                  styles.filters,
-
-                  {
-                    gap:
-                      10 * s,
-
-                    marginBottom:
-                      24 * s,
-                  },
-                ]}
-              >
-                <FilterButton
-                  scale={
-                    s
-                  }
-                  label="All"
-                  count={
-                    summary?.total ??
-                    0
-                  }
-                  active={
-                    filter ===
-                    'all'
-                  }
-                  onPress={() =>
-                    setFilter(
-                      'all'
-                    )
-                  }
-                />
-
-                <FilterButton
-                  scale={
-                    s
-                  }
-                  label="Pending"
-                  count={
-                    summary?.pending ??
-                    0
-                  }
-                  active={
-                    filter ===
-                    'pending'
-                  }
-                  alert
-                  onPress={() =>
-                    setFilter(
-                      'pending'
-                    )
-                  }
-                />
-
-                <FilterButton
-                  scale={
-                    s
-                  }
-                  label="Approved"
-                  count={
-                    summary?.approved ??
-                    0
-                  }
-                  active={
-                    filter ===
-                    'approved'
-                  }
-                  positive
-                  onPress={() =>
-                    setFilter(
-                      'approved'
-                    )
-                  }
-                />
-
-                <FilterButton
-                  scale={
-                    s
-                  }
-                  label="Rejected"
-                  count={
-                    summary?.rejected ??
-                    0
-                  }
-                  active={
-                    filter ===
-                    'rejected'
-                  }
-                  onPress={() =>
-                    setFilter(
-                      'rejected'
-                    )
-                  }
-                />
-
-                <FilterButton
-                  scale={
-                    s
-                  }
-                  label="Withdrawn"
-                  count={
-                    summary?.withdrawn ??
-                    0
-                  }
-                  active={
-                    filter ===
-                    'withdrawn'
-                  }
-                  onPress={() =>
-                    setFilter(
-                      'withdrawn'
-                    )
-                  }
-                />
-              </View>
-
-              {/* ============================================== */}
-              {/* APPLICATION TABLE */}
-              {/* ============================================== */}
-
-              <View
-                style={[
-                  styles.listCard,
-
-                  {
-                    borderRadius:
-                      14 * s,
-                  },
-                ]}
-              >
-                {/* TABLE HEADER */}
-
+              <FadeInView>
                 <View
                   style={[
-                    styles.tableHeader,
+                    styles.titleRow,
 
                     {
-                      minHeight:
-                        56 * s,
-
-                      paddingHorizontal:
-                        22 * s,
+                      marginBottom: 24 * s,
                     },
                   ]}
                 >
-                  <Text
-                    style={[
-                      styles.headerApplicant,
-                      styles.tableHeaderText,
-
-                      {
-                        fontSize:
-                          11 * s,
-                      },
-                    ]}
-                  >
-                    Donor
-                  </Text>
-
-                  <Text
-                    style={[
-                      styles.headerBlood,
-                      styles.tableHeaderText,
-
-                      {
-                        fontSize:
-                          11 * s,
-                      },
-                    ]}
-                  >
-                    Blood Type
-                  </Text>
-
-                  <Text
-                    style={[
-                      styles.headerAvailability,
-                      styles.tableHeaderText,
-
-                      {
-                        fontSize:
-                          11 * s,
-                      },
-                    ]}
-                  >
-                    Availability
-                  </Text>
-
-                  <Text
-                    style={[
-                      styles.headerRadius,
-                      styles.tableHeaderText,
-
-                      {
-                        fontSize:
-                          11 * s,
-                      },
-                    ]}
-                  >
-                    Radius
-                  </Text>
-
-                  <Text
-                    style={[
-                      styles.headerSubmitted,
-                      styles.tableHeaderText,
-
-                      {
-                        fontSize:
-                          11 * s,
-                      },
-                    ]}
-                  >
-                    Submitted
-                  </Text>
-
-                  <Text
-                    style={[
-                      styles.headerStatus,
-                      styles.tableHeaderText,
-
-                      {
-                        fontSize:
-                          11 * s,
-                      },
-                    ]}
-                  >
-                    Status
-                  </Text>
-
-                  <View
-                    style={
-                      styles.headerAction
-                    }
-                  />
-                </View>
-
-                {/* LOADING */}
-
-                {loading ? (
-                  <View
-                    style={[
-                      styles.loadingArea,
-
-                      {
-                        minHeight:
-                          360 * s,
-                      },
-                    ]}
-                  >
-                    <ActivityIndicator
-                      size="large"
-                      color={
-                        COLORS.redBright
-                      }
-                    />
-
+                  <View style={styles.flexFill}>
                     <Text
                       style={[
-                        styles.loadingText,
+                        styles.title,
 
                         {
-                          fontSize:
-                            12 * s,
-
-                          marginTop:
-                            14 * s,
+                          fontSize: 30 * fs,
+                          lineHeight: 38 * fs,
                         },
                       ]}
                     >
-                      Loading donor applications...
+                      Donor Applications
+                    </Text>
+
+                    <Text
+                      style={[
+                        styles.subtitle,
+
+                        {
+                          fontSize: 13.5 * fs,
+                          marginTop: 4 * s,
+                        },
+                      ]}
+                    >
+                      Review and verify donor registrations and identity documents.
+                      {pendingCount > 0
+                        ? `  ${pendingCount} ${
+                            pendingCount === 1
+                              ? 'application is'
+                              : 'applications are'
+                          } waiting for review.`
+                        : ''}
                     </Text>
                   </View>
-                ) : error ? (
-                  <View
-                    style={[
-                      styles.emptyArea,
+
+                  <Pressable
+                    disabled={loading || refreshing}
+                    onPress={loadApplications}
+                    style={({ pressed }) => [
+                      styles.refreshButton,
 
                       {
-                        minHeight:
-                          360 * s,
+                        height: 44 * s,
+                        minWidth: 116 * s,
+                        paddingHorizontal: 16 * s,
+                        borderRadius: 10 * s,
+                        gap: 8 * s,
                       },
+
+                      pressed &&
+                        styles.pressed,
+
+                      (loading || refreshing) &&
+                        styles.disabled,
                     ]}
                   >
-                    <MaterialIcons
-                      name="error-outline"
-                      size={
-                        42 * s
-                      }
-                      color={
-                        COLORS.redBright
-                      }
-                    />
-
-                    <Text
-                      style={[
-                        styles.emptyTitle,
-
-                        {
-                          fontSize:
-                            18 * s,
-
-                          marginTop:
-                            14 * s,
-                        },
-                      ]}
-                    >
-                      Unable to Load Applications
-                    </Text>
-
-                    <Text
-                      style={[
-                        styles.emptyText,
-
-                        {
-                          fontSize:
-                            12 * s,
-
-                          marginTop:
-                            6 * s,
-                        },
-                      ]}
-                    >
-                      {
-                        error
-                      }
-                    </Text>
-                  </View>
-                ) : applications.length ===
-                  0 ? (
-                  <View
-                    style={[
-                      styles.emptyArea,
-
-                      {
-                        minHeight:
-                          360 * s,
-                      },
-                    ]}
-                  >
-                    <MaterialIcons
-                      name="assignment-turned-in"
-                      size={
-                        46 * s
-                      }
-                      color={
-                        COLORS.muted
-                      }
-                    />
-
-                    <Text
-                      style={[
-                        styles.emptyTitle,
-
-                        {
-                          fontSize:
-                            18 * s,
-
-                          marginTop:
-                            14 * s,
-                        },
-                      ]}
-                    >
-                      No Applications Found
-                    </Text>
-
-                    <Text
-                      style={[
-                        styles.emptyText,
-
-                        {
-                          fontSize:
-                            12 * s,
-
-                          marginTop:
-                            6 * s,
-                        },
-                      ]}
-                    >
-                      There are no{' '}
-                      {filter ===
-                      'all'
-                        ? ''
-                        : filter}{' '}
-                      donor applications right now.
-                    </Text>
-                  </View>
-                ) : (
-                  applications.map(
-                    application => (
-                      <ApplicationRow
-                        key={
-                          application.id
-                        }
-                        application={
-                          application
-                        }
-                        scale={
-                          s
-                        }
-                        onPress={() =>
-                          openApplication(
-                            application.id
-                          )
-                        }
+                    {refreshing ? (
+                      <ActivityIndicator
+                        size="small"
+                        color={COLORS.white}
                       />
+                    ) : (
+                      <>
+                        <MaterialIcons
+                          name="refresh"
+                          size={20 * s}
+                          color={COLORS.white}
+                        />
+
+                        <Text
+                          style={[
+                            styles.refreshText,
+
+                            {
+                              fontSize: 13 * fs,
+                            },
+                          ]}
+                        >
+                          Refresh
+                        </Text>
+                      </>
+                    )}
+                  </Pressable>
+                </View>
+              </FadeInView>
+
+              {/* ================================================
+                  FILTERS + SEARCH
+              ================================================ */}
+
+              <FadeInView delay={50}>
+                <View
+                  style={[
+                    styles.toolbar,
+
+                    {
+                      gap: 10 * s,
+                      marginBottom: 24 * s,
+                    },
+                  ]}
+                >
+                  <View
+                    style={[
+                      styles.filters,
+
+                      {
+                        gap: 10 * s,
+                      },
+                    ]}
+                  >
+                    <FilterButton
+                      scale={s}
+                      fontScale={fs}
+                      label="All"
+                      count={summary?.total ?? 0}
+                      active={filter === 'all'}
+                      onPress={() =>
+                        changeFilter('all')
+                      }
+                    />
+
+                    <FilterButton
+                      scale={s}
+                      fontScale={fs}
+                      label="Pending"
+                      count={summary?.pending ?? 0}
+                      active={filter === 'pending'}
+                      alert
+                      onPress={() =>
+                        changeFilter('pending')
+                      }
+                    />
+
+                    <FilterButton
+                      scale={s}
+                      fontScale={fs}
+                      label="Approved"
+                      count={summary?.approved ?? 0}
+                      active={filter === 'approved'}
+                      positive
+                      onPress={() =>
+                        changeFilter('approved')
+                      }
+                    />
+
+                    <FilterButton
+                      scale={s}
+                      fontScale={fs}
+                      label="Rejected"
+                      count={summary?.rejected ?? 0}
+                      active={filter === 'rejected'}
+                      onPress={() =>
+                        changeFilter('rejected')
+                      }
+                    />
+
+                    <FilterButton
+                      scale={s}
+                      fontScale={fs}
+                      label="Withdrawn"
+                      count={summary?.withdrawn ?? 0}
+                      active={filter === 'withdrawn'}
+                      onPress={() =>
+                        changeFilter('withdrawn')
+                      }
+                    />
+                  </View>
+
+                  <View
+                    style={[
+                      styles.searchInputContainer,
+
+                      {
+                        height: 44 * s,
+                        borderRadius: 10 * s,
+                        paddingHorizontal: 14 * s,
+                        gap: 9 * s,
+                      },
+                    ]}
+                  >
+                    <MaterialIcons
+                      name="search"
+                      size={20 * s}
+                      color={COLORS.muted}
+                    />
+
+                    <TextInput
+                      value={search}
+                      onChangeText={setSearch}
+                      placeholder="Search name, email, or blood type"
+                      placeholderTextColor={COLORS.muted}
+                      autoCapitalize="none"
+                      autoCorrect={false}
+                      style={[
+                        styles.searchInput,
+
+                        {
+                          fontSize: 13 * fs,
+                        },
+                      ]}
+                    />
+
+                    {search ? (
+                      <Pressable
+                        onPress={() =>
+                          setSearch('')
+                        }
+                        hitSlop={8}
+                      >
+                        <MaterialIcons
+                          name="close"
+                          size={19 * s}
+                          color={COLORS.muted}
+                        />
+                      </Pressable>
+                    ) : null}
+                  </View>
+                </View>
+              </FadeInView>
+
+              {/* ================================================
+                  APPLICATION TABLE
+              ================================================ */}
+
+              <FadeInView delay={100}>
+                <View
+                  style={[
+                    styles.listCard,
+
+                    {
+                      borderRadius: 14 * s,
+                    },
+                  ]}
+                >
+                  <View
+                    style={[
+                      styles.tableHeader,
+
+                      {
+                        minHeight: 56 * s,
+                        paddingHorizontal: 22 * s,
+                      },
+                    ]}
+                  >
+                    {(
+                      [
+                        ['Donor', styles.colApplicant],
+                        ['Blood Type', styles.colBlood],
+                        ['Donor History', styles.colHistory],
+                        ['Availability', styles.colAvailability],
+                        ['Radius', styles.colRadius],
+                        ['Submitted', styles.colSubmitted],
+                        ['Status', styles.colStatus],
+                      ] as [string, object][]
+                    ).map(([label, colStyle]) => (
+                      <Text
+                        key={label}
+                        style={[
+                          styles.tableHeaderText,
+                          colStyle,
+
+                          {
+                            fontSize: 11.5 * fs,
+                          },
+                        ]}
+                      >
+                        {label}
+                      </Text>
+                    ))}
+
+                    <View style={styles.colAction} />
+                  </View>
+
+                  {loading ? (
+                    <TableMessage
+                      scale={s}
+                      fontScale={fs}
+                      loading
+                      title=""
+                      text="Loading donor applications..."
+                    />
+                  ) : error ? (
+                    <TableMessage
+                      scale={s}
+                      fontScale={fs}
+                      icon="error-outline"
+                      iconColor={COLORS.redBright}
+                      title="Unable to Load Applications"
+                      text={error}
+                      actionLabel="Try Again"
+                      onAction={loadApplications}
+                    />
+                  ) : visibleApplications.length === 0 ? (
+                    <TableMessage
+                      scale={s}
+                      fontScale={fs}
+                      icon={
+                        search
+                          ? 'search-off'
+                          : 'assignment-turned-in'
+                      }
+                      title={
+                        search
+                          ? 'No Matching Applications'
+                          : 'No Applications Found'
+                      }
+                      text={
+                        search
+                          ? 'Try a different name, email, or blood type.'
+                          : filter === 'all'
+                            ? 'There are no donor applications yet.'
+                            : `There are no ${filter} donor applications right now.`
+                      }
+                    />
+                  ) : (
+                    visibleApplications.map(
+                      (application, index) => (
+                        <FadeInView
+                          key={application.id}
+                          delay={Math.min(index, 8) * 30}
+                          offset={6}
+                        >
+                          <ApplicationRow
+                            application={application}
+                            scale={s}
+                            fontScale={fs}
+                            last={
+                              index ===
+                              visibleApplications.length - 1
+                            }
+                            onPress={() =>
+                              openApplication(
+                                application.id
+                              )
+                            }
+                          />
+                        </FadeInView>
+                      )
                     )
-                  )
-                )}
-              </View>
+                  )}
+                </View>
+              </FadeInView>
+
+              {!loading &&
+              !error &&
+              visibleApplications.length > 0 ? (
+                <Text
+                  style={[
+                    styles.cellMuted,
+
+                    {
+                      fontSize: 12 * fs,
+                      marginTop: 14 * s,
+                    },
+                  ]}
+                >
+                  Showing {visibleApplications.length}{' '}
+                  {visibleApplications.length === 1
+                    ? 'application'
+                    : 'applications'}
+                  {filter === 'pending'
+                    ? ' • oldest first'
+                    : ''}
+                </Text>
+              ) : null}
             </ScrollView>
 
-            {/* ============================================== */}
-            {/* SHARED ADMIN BOTTOM NAVIGATION */}
-            {/* ============================================== */}
-
-            <AdminBottomNav
-              activeTab="applications"
-            />
+            <AdminBottomNav activeTab="applications" />
           </SafeAreaView>
         </LinearGradient>
       </View>
@@ -992,6 +772,7 @@ export default function ApplicationsScreen() {
 
 function FilterButton({
   scale,
+  fontScale,
   label,
   count,
   active,
@@ -1000,43 +781,32 @@ function FilterButton({
   onPress,
 }: {
   scale: number;
-
+  fontScale: number;
   label: string;
-
   count: number;
-
   active: boolean;
-
   alert?: boolean;
-
   positive?: boolean;
-
   onPress: () => void;
 }) {
   return (
     <Pressable
-      onPress={
-        onPress
-      }
-      style={[
+      onPress={onPress}
+      style={({ pressed }) => [
         styles.filterButton,
 
         {
-          height:
-            44 * scale,
-
-          paddingHorizontal:
-            16 * scale,
-
-          borderRadius:
-            10 * scale,
-
-          gap:
-            8 * scale,
+          height: 44 * scale,
+          paddingHorizontal: 16 * scale,
+          borderRadius: 10 * scale,
+          gap: 8 * scale,
         },
 
         active &&
           styles.filterButtonActive,
+
+        pressed &&
+          styles.pressed,
       ]}
     >
       <Text
@@ -1044,17 +814,14 @@ function FilterButton({
           styles.filterText,
 
           {
-            fontSize:
-              11 * scale,
+            fontSize: 12.5 * fontScale,
           },
 
           active &&
             styles.filterTextActive,
         ]}
       >
-        {
-          label
-        }
+        {label}
       </Text>
 
       <View
@@ -1062,20 +829,14 @@ function FilterButton({
           styles.filterCount,
 
           {
-            minWidth:
-              24 * scale,
-
-            height:
-              24 * scale,
-
-            borderRadius:
-              12 * scale,
-
-            paddingHorizontal:
-              6 * scale,
+            minWidth: 24 * scale,
+            height: 24 * scale,
+            borderRadius: 12 * scale,
+            paddingHorizontal: 6 * scale,
           },
 
           alert &&
+            count > 0 &&
             styles.filterCountAlert,
 
           positive &&
@@ -1087,17 +848,126 @@ function FilterButton({
             styles.filterCountText,
 
             {
-              fontSize:
-                10 * scale,
+              fontSize: 11 * fontScale,
             },
           ]}
         >
-          {
-            count
-          }
+          {count}
         </Text>
       </View>
     </Pressable>
+  );
+}
+
+// ============================================================
+// TABLE MESSAGE (loading / error / empty)
+// ============================================================
+
+function TableMessage({
+  scale,
+  fontScale,
+  loading = false,
+  icon,
+  iconColor = COLORS.muted,
+  title,
+  text,
+  actionLabel,
+  onAction,
+}: {
+  scale: number;
+  fontScale: number;
+  loading?: boolean;
+  icon?: IconName;
+  iconColor?: string;
+  title: string;
+  text: string;
+  actionLabel?: string;
+  onAction?: () => void;
+}) {
+  return (
+    <View
+      style={[
+        styles.centerArea,
+
+        {
+          minHeight: 360 * scale,
+          paddingHorizontal: 30 * scale,
+        },
+      ]}
+    >
+      {loading ? (
+        <ActivityIndicator
+          size="large"
+          color={COLORS.redBright}
+        />
+      ) : icon ? (
+        <MaterialIcons
+          name={icon}
+          size={46 * scale}
+          color={iconColor}
+        />
+      ) : null}
+
+      {title ? (
+        <Text
+          style={[
+            styles.emptyTitle,
+
+            {
+              fontSize: 18 * fontScale,
+              marginTop: 14 * scale,
+            },
+          ]}
+        >
+          {title}
+        </Text>
+      ) : null}
+
+      <Text
+        style={[
+          styles.cellMuted,
+          styles.centerText,
+
+          {
+            fontSize: 13 * fontScale,
+            marginTop: (title ? 6 : 14) * scale,
+          },
+        ]}
+      >
+        {text}
+      </Text>
+
+      {actionLabel && onAction ? (
+        <Pressable
+          onPress={onAction}
+          style={({ pressed }) => [
+            styles.primaryButton,
+
+            {
+              height: 42 * scale,
+              paddingHorizontal: 20 * scale,
+              borderRadius: 9 * scale,
+              marginTop: 18 * scale,
+            },
+
+            pressed &&
+              styles.pressed,
+          ]}
+        >
+          <Text
+            style={[
+              styles.primaryButtonText,
+
+              {
+                fontSize: 13 * fontScale,
+              },
+            ]}
+          >
+            {actionLabel}
+          </Text>
+        </Pressable>
+      ) : null}
+    </View>
   );
 }
 
@@ -1108,156 +978,155 @@ function FilterButton({
 function ApplicationRow({
   application,
   scale,
+  fontScale,
+  last,
   onPress,
 }: {
   application: DonorApplication;
-
   scale: number;
-
+  fontScale: number;
+  last: boolean;
   onPress: () => void;
 }) {
-  const rawApplication =
-    application as any;
-
   const user =
-    application.user ||
-    rawApplication.profile ||
-    rawApplication.applicant ||
-    null;
+    getApplicant(application);
 
-  const fullName =
-    [
-      user?.first_name,
-      user?.middle_name,
-      user?.last_name,
-      user?.suffix,
-    ]
-      .filter(
-        Boolean
-      )
-      .join(' ')
-      .replace(
-        /\s+/g,
-        ' '
-      )
-      .trim();
+  const available =
+    application.availability_status ===
+    'available';
 
-  const displayName =
-    fullName ||
-    'Applicant';
-
-  const displayEmail =
-    user?.email ||
-    'Email unavailable';
-
-  const submitted =
-    formatDate(
-      application.submitted_at ||
-        application.created_at
-    );
+  const waitingDays =
+    application.status === 'pending'
+      ? getWaitingDays(application)
+      : null;
 
   return (
     <Pressable
-      onPress={
-        onPress
-      }
+      onPress={onPress}
       style={({ pressed }) => [
         styles.applicationRow,
 
         {
-          minHeight:
-            92 * scale,
-
-          paddingHorizontal:
-            22 * scale,
+          minHeight: 88 * scale,
+          paddingHorizontal: 22 * scale,
+          paddingVertical: 12 * scale,
         },
+
+        last &&
+          styles.noBorder,
 
         pressed &&
           styles.rowPressed,
       ]}
     >
+      {/* DONOR */}
+
       <View
-        style={
-          styles.applicantColumn
-        }
+        style={[
+          styles.colApplicant,
+
+          {
+            paddingRight: 12 * scale,
+          },
+        ]}
       >
+        <Text
+          numberOfLines={1}
+          style={[
+            styles.nameText,
+
+            {
+              fontSize: 13.5 * fontScale,
+            },
+          ]}
+        >
+          {getApplicantName(application)}
+        </Text>
+
+        <Text
+          numberOfLines={1}
+          style={[
+            styles.cellMuted,
+
+            {
+              fontSize: 11.5 * fontScale,
+              marginTop: 4 * scale,
+            },
+          ]}
+        >
+          {user?.email ||
+            'Email unavailable'}
+        </Text>
+      </View>
+
+      {/* BLOOD TYPE */}
+
+      <View style={styles.colBlood}>
         <View
-          style={
-            styles.nameArea
-          }
+          style={[
+            styles.bloodPill,
+
+            {
+              minWidth: 46 * scale,
+              height: 30 * scale,
+              borderRadius: 6 * scale,
+              paddingHorizontal: 11 * scale,
+            },
+          ]}
         >
           <Text
-            numberOfLines={
-              1
-            }
             style={[
-              styles.applicantName,
+              styles.bloodPillText,
 
               {
-                fontSize:
-                  13 * scale,
+                fontSize: 12 * fontScale,
               },
             ]}
           >
-            {
-              displayName
-            }
-          </Text>
-
-          <Text
-            numberOfLines={
-              1
-            }
-            style={[
-              styles.applicantEmail,
-
-              {
-                fontSize:
-                  10 * scale,
-
-                marginTop:
-                  4 * scale,
-              },
-            ]}
-          >
-            {
-              displayEmail
-            }
+            {application.blood_type}
           </Text>
         </View>
       </View>
 
-      <View
-        style={
-          styles.bloodColumn
-        }
-      >
-        <BloodTypeBadge
-          value={
-            application.blood_type
-          }
-          scale={
-            scale
-          }
-        />
+      {/* DONOR HISTORY */}
+
+      <View style={styles.colHistory}>
+        <Text
+          style={[
+            styles.cellText,
+
+            {
+              fontSize: 12.5 * fontScale,
+            },
+          ]}
+        >
+          {application.has_donated_before
+            ? 'Repeat donor'
+            : 'First-time'}
+        </Text>
       </View>
 
-      <View
-        style={
-          styles.availabilityColumn
-        }
-      >
+      {/* AVAILABILITY */}
+
+      <View style={styles.colAvailability}>
         <View
-          style={
-            styles.inlineValue
-          }
+          style={[
+            styles.inlineValue,
+
+            {
+              gap: 7 * scale,
+            },
+          ]}
         >
           <View
             style={[
-              styles.dot,
+              {
+                width: 8 * scale,
+                height: 8 * scale,
+                borderRadius: 4 * scale,
+              },
 
-              application.availability_status ===
-              'available'
+              available
                 ? styles.greenDot
                 : styles.grayDot,
             ]}
@@ -1268,141 +1137,94 @@ function ApplicationRow({
               styles.cellText,
 
               {
-                fontSize:
-                  11 * scale,
+                fontSize: 12.5 * fontScale,
               },
             ]}
           >
-            {application.availability_status ===
-            'available'
+            {available
               ? 'Available'
               : 'Unavailable'}
           </Text>
         </View>
       </View>
 
-      <View
-        style={
-          styles.radiusColumn
-        }
-      >
+      {/* RADIUS */}
+
+      <View style={styles.colRadius}>
         <Text
           style={[
             styles.cellText,
 
             {
-              fontSize:
-                11 * scale,
+              fontSize: 12.5 * fontScale,
             },
           ]}
         >
-          {application.travel_radius_km}{' '}
-          km
+          {application.travel_radius_km} km
         </Text>
       </View>
 
-      <View
-        style={
-          styles.submittedColumn
-        }
-      >
+      {/* SUBMITTED */}
+
+      <View style={styles.colSubmitted}>
         <Text
           style={[
-            styles.cellMuted,
+            styles.cellText,
 
             {
-              fontSize:
-                11 * scale,
+              fontSize: 12.5 * fontScale,
             },
           ]}
         >
-          {
-            submitted
-          }
+          {formatDate(
+            application.submitted_at ||
+              application.created_at
+          )}
         </Text>
+
+        {waitingDays !== null ? (
+          <Text
+            style={[
+              styles.waitingText,
+
+              {
+                fontSize: 11.5 * fontScale,
+                marginTop: 3 * scale,
+              },
+
+              waitingDays >= 3 &&
+                styles.waitingLong,
+            ]}
+          >
+            {waitingDays === 0
+              ? 'Submitted today'
+              : `Waiting ${waitingDays} ${
+                  waitingDays === 1
+                    ? 'day'
+                    : 'days'
+                }`}
+          </Text>
+        ) : null}
       </View>
 
-      <View
-        style={
-          styles.statusColumn
-        }
-      >
+      {/* STATUS */}
+
+      <View style={styles.colStatus}>
         <StatusBadge
-          status={
-            application.status
-          }
-          scale={
-            scale
-          }
+          status={application.status}
+          scale={scale}
+          fontScale={fontScale}
         />
       </View>
 
-      <View
-        style={
-          styles.actionColumn
-        }
-      >
+      <View style={styles.colAction}>
         <MaterialIcons
           name="chevron-right"
-          size={
-            22 * scale
-          }
-          color={
-            COLORS.white
-          }
+          size={22 * scale}
+          color={COLORS.white}
         />
       </View>
     </Pressable>
-  );
-}
-
-// ============================================================
-// BLOOD TYPE BADGE
-// ============================================================
-
-function BloodTypeBadge({
-  value,
-  scale,
-}: {
-  value: string;
-
-  scale: number;
-}) {
-  return (
-    <View
-      style={[
-        styles.bloodPill,
-
-        {
-          minWidth:
-            44 * scale,
-
-          height:
-            30 * scale,
-
-          borderRadius:
-            6 * scale,
-
-          paddingHorizontal:
-            11 * scale,
-        },
-      ]}
-    >
-      <Text
-        style={[
-          styles.bloodPillText,
-
-          {
-            fontSize:
-              11 * scale,
-          },
-        ]}
-      >
-        {
-          value
-        }
-      </Text>
-    </View>
   );
 }
 
@@ -1413,15 +1235,14 @@ function BloodTypeBadge({
 function StatusBadge({
   status,
   scale,
+  fontScale,
 }: {
   status: string;
-
   scale: number;
+  fontScale: number;
 }) {
   const normalized =
-    String(
-      status
-    ).toLowerCase();
+    String(status).toLowerCase();
 
   return (
     <View
@@ -1429,33 +1250,22 @@ function StatusBadge({
         styles.statusPill,
 
         {
-          minWidth:
-            96 * scale,
-
-          height:
-            32 * scale,
-
-          borderRadius:
-            6 * scale,
-
-          paddingHorizontal:
-            12 * scale,
+          minWidth: 96 * scale,
+          height: 32 * scale,
+          borderRadius: 6 * scale,
+          paddingHorizontal: 12 * scale,
         },
 
-        normalized ===
-          'pending' &&
+        normalized === 'pending' &&
           styles.pendingPill,
 
-        normalized ===
-          'approved' &&
+        normalized === 'approved' &&
           styles.approvedPill,
 
-        normalized ===
-          'rejected' &&
+        normalized === 'rejected' &&
           styles.rejectedPill,
 
-        normalized ===
-          'withdrawn' &&
+        normalized === 'withdrawn' &&
           styles.withdrawnPill,
       ]}
     >
@@ -1464,32 +1274,24 @@ function StatusBadge({
           styles.statusPillText,
 
           {
-            fontSize:
-              11 * scale,
+            fontSize: 12 * fontScale,
           },
 
-          normalized ===
-            'pending' &&
+          normalized === 'pending' &&
             styles.pendingPillText,
 
-          normalized ===
-            'approved' &&
+          normalized === 'approved' &&
             styles.approvedPillText,
 
-          normalized ===
-            'rejected' &&
+          normalized === 'rejected' &&
             styles.rejectedPillText,
 
-          normalized ===
-            'withdrawn' &&
+          normalized === 'withdrawn' &&
             styles.withdrawnPillText,
         ]}
       >
-        {
-          statusLabel(
-            normalized
-          )
-        }
+        {normalized.charAt(0).toUpperCase() +
+          normalized.slice(1)}
       </Text>
     </View>
   );
@@ -1499,62 +1301,94 @@ function StatusBadge({
 // HELPERS
 // ============================================================
 
-function statusLabel(
-  value: string
+// Some older API responses used `profile` or `applicant`
+// instead of `user`; keep supporting them.
+function getApplicant(
+  application: DonorApplication
 ) {
-  if (
-    !value
-  ) {
-    return '';
-  }
+  const raw =
+    application as any;
 
   return (
-    value
-      .charAt(
-        0
-      )
-      .toUpperCase() +
-    value.slice(
-      1
+    application.user ||
+    raw.profile ||
+    raw.applicant ||
+    null
+  );
+}
+
+function getApplicantName(
+  application: DonorApplication
+) {
+  const user =
+    getApplicant(application);
+
+  return (
+    [
+      user?.first_name,
+      user?.middle_name,
+      user?.last_name,
+      user?.suffix,
+    ]
+      .filter(Boolean)
+      .join(' ')
+      .replace(/\s+/g, ' ')
+      .trim() ||
+    'Applicant'
+  );
+}
+
+function getSubmittedTime(
+  application: DonorApplication
+) {
+  const time = new Date(
+    application.submitted_at ||
+      application.created_at ||
+      ''
+  ).getTime();
+
+  return Number.isNaN(time)
+    ? 0
+    : time;
+}
+
+function getWaitingDays(
+  application: DonorApplication
+) {
+  const time =
+    getSubmittedTime(application);
+
+  if (!time) {
+    return null;
+  }
+
+  return Math.max(
+    0,
+    Math.floor(
+      (Date.now() - time) / DAY_MS
     )
   );
 }
 
 function formatDate(
-  value?:
-    | string
-    | null
+  value?: string | null
 ) {
-  if (
-    !value
-  ) {
+  if (!value) {
     return '—';
   }
 
-  const date =
-    new Date(
-      value
-    );
+  const date = new Date(value);
 
-  if (
-    Number.isNaN(
-      date.getTime()
-    )
-  ) {
+  if (Number.isNaN(date.getTime())) {
     return value;
   }
 
   return date.toLocaleDateString(
     undefined,
     {
-      month:
-        'short',
-
-      day:
-        'numeric',
-
-      year:
-        'numeric',
+      month: 'short',
+      day: 'numeric',
+      year: 'numeric',
     }
   );
 }
@@ -1563,693 +1397,360 @@ function formatDate(
 // STYLES
 // ============================================================
 
-const styles =
-  StyleSheet.create({
-    outer: {
-      flex:
-        1,
-
-      alignItems:
-        'center',
-
-      justifyContent:
-        'center',
-
-      backgroundColor:
-        COLORS.outer,
-    },
-
-    ipadCanvas: {
-      overflow:
-        'hidden',
-
-      backgroundColor:
-        COLORS.navy,
-
-      borderRadius:
-        Platform.OS ===
-          'web'
-          ? 24
-          : 0,
-    },
-
-    nativeCanvas: {
-      width:
-        '100%',
-
-      height:
-        '100%',
-    },
-
-    gradient: {
-      flex:
-        1,
-    },
-
-    safeArea: {
-      flex:
-        1,
-    },
-
-    header: {
-      flexDirection:
-        'row',
-
-      alignItems:
-        'center',
-
-      justifyContent:
-        'space-between',
-
-      borderBottomWidth:
-        1,
-
-      borderBottomColor:
-        COLORS.border,
-    },
-
-    brandArea: {
-      flexDirection:
-        'row',
-
-      alignItems:
-        'center',
-
-      gap:
-        14,
-    },
-
-    logoCircle: {
-      alignItems:
-        'center',
-
-      justifyContent:
-        'center',
-
-      backgroundColor:
-        COLORS.white,
-
-      overflow:
-        'hidden',
-    },
-
-    brand: {
-      color:
-        COLORS.white,
-
-      fontFamily:
-        'Poppins_700Bold',
-    },
-
-    brandRed: {
-      color:
-        COLORS.redBright,
-    },
-
-    portal: {
-      color:
-        COLORS.redBright,
-
-      fontFamily:
-        'Inter_600SemiBold',
-
-      marginTop:
-        1,
-    },
-
-    adminSection: {
-      flexDirection:
-        'row',
-
-      alignItems:
-        'center',
-
-      gap:
-        12,
-    },
-
-    notificationWrap: {
-      marginRight:
-        4,
-
-      position:
-        'relative',
-
-      width:
-        28,
-
-      alignItems:
-        'center',
-
-      justifyContent:
-        'center',
-    },
-
-    notificationBadge: {
-      position:
-        'absolute',
-
-      top:
-        -4,
-
-      right:
-        -6,
-
-      backgroundColor:
-        COLORS.redBright,
-
-      alignItems:
-        'center',
-
-      justifyContent:
-        'center',
-    },
-
-    notificationBadgeText: {
-      color:
-        COLORS.white,
-
-      fontFamily:
-        'Inter_700Bold',
-    },
-
-    avatar: {
-      alignItems:
-        'center',
-
-      justifyContent:
-        'center',
-
-      backgroundColor:
-        '#ECECEC',
-    },
-
-    avatarText: {
-      color:
-        '#111111',
-
-      fontFamily:
-        'Poppins_600SemiBold',
-    },
-
-    adminName: {
-      color:
-        COLORS.white,
-
-      fontFamily:
-        'Inter_600SemiBold',
-    },
-
-    adminRole: {
-      marginTop:
-        2,
-
-      color:
-        COLORS.muted,
-
-      fontFamily:
-        'Inter_400Regular',
-    },
-
-    scroll: {
-      flex:
-        1,
-    },
-
-    content: {
-      flexGrow:
-        1,
-    },
-
-    title: {
-      color:
-        COLORS.white,
-
-      fontFamily:
-        'Poppins_700Bold',
-    },
-
-    subtitle: {
-      color:
-        COLORS.muted,
-
-      fontFamily:
-        'Inter_400Regular',
-    },
-
-    // ========================================================
-    // FILTERS
-    // ========================================================
-
-    filters: {
-      flexDirection:
-        'row',
-
-      alignItems:
-        'center',
-
-      flexWrap:
-        'wrap',
-    },
-
-    filterButton: {
-      flexDirection:
-        'row',
-
-      alignItems:
-        'center',
-
-      justifyContent:
-        'center',
-
-      borderWidth:
-        1,
-
-      borderColor:
-        COLORS.border,
-
-      backgroundColor:
-        COLORS.card,
-    },
-
-    filterButtonActive: {
-      borderColor:
-        COLORS.redBright,
-
-      backgroundColor:
-        'rgba(219,10,10,0.15)',
-    },
-
-    filterText: {
-      color:
-        COLORS.soft,
-
-      fontFamily:
-        'Inter_600SemiBold',
-    },
-
-    filterTextActive: {
-      color:
-        COLORS.white,
-    },
-
-    filterCount: {
-      alignItems:
-        'center',
-
-      justifyContent:
-        'center',
-
-      backgroundColor:
-        COLORS.cardLight,
-    },
-
-    filterCountAlert: {
-      backgroundColor:
-        'rgba(239,51,64,0.22)',
-    },
-
-    filterCountPositive: {
-      backgroundColor:
-        'rgba(53,201,130,0.18)',
-    },
-
-    filterCountText: {
-      color:
-        COLORS.white,
-
-      fontFamily:
-        'Inter_700Bold',
-    },
-
-    // ========================================================
-    // TABLE
-    // ========================================================
-
-    listCard: {
-      overflow:
-        'hidden',
-
-      borderWidth:
-        1,
-
-      borderColor:
-        COLORS.border,
-
-      backgroundColor:
-        COLORS.card,
-    },
-
-    tableHeader: {
-      flexDirection:
-        'row',
-
-      alignItems:
-        'center',
-
-      borderBottomWidth:
-        1,
-
-      borderBottomColor:
-        COLORS.border,
-
-      backgroundColor:
-        'rgba(12,20,40,0.94)',
-    },
-
-    tableHeaderText: {
-      color:
-        COLORS.white,
-
-      fontFamily:
-        'Inter_600SemiBold',
-    },
-
-    headerApplicant: {
-      flex:
-        2.4,
-    },
-
-    headerBlood: {
-      flex:
-        1,
-    },
-
-    headerAvailability: {
-      flex:
-        1.1,
-    },
-
-    headerRadius: {
-      flex:
-        0.8,
-    },
-
-    headerSubmitted: {
-      flex:
-        1,
-    },
-
-    headerStatus: {
-      flex:
-        1,
-    },
-
-    headerAction: {
-      width:
-        40,
-    },
-
-    applicationRow: {
-      flexDirection:
-        'row',
-
-      alignItems:
-        'center',
-
-      borderBottomWidth:
-        1,
-
-      borderBottomColor:
-        COLORS.rowBorder,
-
-      backgroundColor:
-        'transparent',
-    },
-
-    rowPressed: {
-      backgroundColor:
-        'rgba(255,255,255,0.02)',
-    },
-
-    applicantColumn: {
-      flex:
-        2.4,
-
-      minWidth:
-        0,
-
-      flexDirection:
-        'row',
-
-      alignItems:
-        'center',
-    },
-
-    nameArea: {
-      flex:
-        1,
-
-      minWidth:
-        0,
-    },
-
-    applicantName: {
-      color:
-        COLORS.white,
-
-      fontFamily:
-        'Poppins_600SemiBold',
-    },
-
-    applicantEmail: {
-      color:
-        COLORS.muted,
-
-      fontFamily:
-        'Inter_400Regular',
-    },
-
-    bloodColumn: {
-      flex:
-        1,
-
-      alignItems:
-        'flex-start',
-    },
-
-    bloodPill: {
-      alignItems:
-        'center',
-
-      justifyContent:
-        'center',
-
-      borderWidth:
-        1,
-
-      borderColor:
-        '#C21319',
-
-      backgroundColor:
-        'rgba(194,19,25,0.10)',
-    },
-
-    bloodPillText: {
-      color:
-        COLORS.redBright,
-
-      fontFamily:
-        'Poppins_600SemiBold',
-    },
-
-    availabilityColumn: {
-      flex:
-        1.1,
-    },
-
-    inlineValue: {
-      flexDirection:
-        'row',
-
-      alignItems:
-        'center',
-
-      gap:
-        7,
-    },
-
-    dot: {
-      width:
-        7,
-
-      height:
-        7,
-
-      borderRadius:
-        4,
-    },
-
-    greenDot: {
-      backgroundColor:
-        COLORS.green,
-    },
-
-    grayDot: {
-      backgroundColor:
-        COLORS.muted,
-    },
-
-    radiusColumn: {
-      flex:
-        0.8,
-    },
-
-    submittedColumn: {
-      flex:
-        1,
-    },
-
-    statusColumn: {
-      flex:
-        1,
-
-      alignItems:
-        'flex-start',
-    },
-
-    actionColumn: {
-      width:
-        40,
-
-      alignItems:
-        'center',
-
-      justifyContent:
-        'center',
-    },
-
-    cellText: {
-      color:
-        COLORS.soft,
-
-      fontFamily:
-        'Inter_500Medium',
-    },
-
-    cellMuted: {
-      color:
-        COLORS.muted,
-
-      fontFamily:
-        'Inter_400Regular',
-    },
-
-    // ========================================================
-    // STATUS
-    // ========================================================
-
-    statusPill: {
-      alignItems:
-        'center',
-
-      justifyContent:
-        'center',
-
-      borderWidth:
-        1,
-    },
-
-    pendingPill: {
-      borderColor:
-        '#C96C1E',
-
-      backgroundColor:
-        'rgba(201,108,30,0.14)',
-    },
-
-    approvedPill: {
-      borderColor:
-        'rgba(53,201,130,0.45)',
-
-      backgroundColor:
-        'rgba(53,201,130,0.12)',
-    },
-
-    rejectedPill: {
-      borderColor:
-        'rgba(239,51,64,0.45)',
-
-      backgroundColor:
-        'rgba(239,51,64,0.12)',
-    },
-
-    withdrawnPill: {
-      borderColor:
-        'rgba(144,155,183,0.40)',
-
-      backgroundColor:
-        'rgba(144,155,183,0.08)',
-    },
-
-    statusPillText: {
-      fontFamily:
-        'Inter_600SemiBold',
-    },
-
-    pendingPillText: {
-      color:
-        COLORS.orange,
-    },
-
-    approvedPillText: {
-      color:
-        COLORS.green,
-    },
-
-    rejectedPillText: {
-      color:
-        COLORS.redBright,
-    },
-
-    withdrawnPillText: {
-      color:
-        COLORS.muted,
-    },
-
-    loadingArea: {
-      alignItems:
-        'center',
-
-      justifyContent:
-        'center',
-    },
-
-    loadingText: {
-      color:
-        COLORS.muted,
-
-      fontFamily:
-        'Inter_400Regular',
-    },
-
-    emptyArea: {
-      paddingHorizontal:
-        30,
-
-      alignItems:
-        'center',
-
-      justifyContent:
-        'center',
-    },
-
-    emptyTitle: {
-      color:
-        COLORS.white,
-
-      fontFamily:
-        'Poppins_600SemiBold',
-    },
-
-    emptyText: {
-      color:
-        COLORS.muted,
-
-      fontFamily:
-        'Inter_400Regular',
-
-      textAlign:
-        'center',
-    },
-  });
+const styles = StyleSheet.create({
+  outer: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: COLORS.outer,
+  },
+
+  ipadCanvas: {
+    overflow: 'hidden',
+    backgroundColor: COLORS.navy,
+    borderRadius:
+      Platform.OS === 'web'
+        ? 24
+        : 0,
+  },
+
+  nativeCanvas: {
+    width: '100%',
+    height: '100%',
+  },
+
+  gradient: {
+    flex: 1,
+  },
+
+  safeArea: {
+    flex: 1,
+  },
+
+  scroll: {
+    flex: 1,
+  },
+
+  content: {
+    flexGrow: 1,
+  },
+
+  flexFill: {
+    flex: 1,
+    minWidth: 0,
+  },
+
+  // TITLE
+
+  titleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+
+  title: {
+    color: COLORS.white,
+    fontFamily: 'Poppins_700Bold',
+  },
+
+  subtitle: {
+    color: COLORS.muted,
+    fontFamily: 'Inter_400Regular',
+  },
+
+  refreshButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginLeft: 16,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    backgroundColor: COLORS.card,
+  },
+
+  refreshText: {
+    color: COLORS.white,
+    fontFamily: 'Inter_600SemiBold',
+  },
+
+  // FILTERS + SEARCH
+
+  toolbar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flexWrap: 'wrap',
+  },
+
+  filters: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flexWrap: 'wrap',
+  },
+
+  filterButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    backgroundColor: COLORS.card,
+  },
+
+  filterButtonActive: {
+    borderColor: COLORS.redBright,
+    backgroundColor: 'rgba(219,10,10,0.15)',
+  },
+
+  filterText: {
+    color: COLORS.soft,
+    fontFamily: 'Inter_600SemiBold',
+  },
+
+  filterTextActive: {
+    color: COLORS.white,
+  },
+
+  filterCount: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: COLORS.cardLight,
+  },
+
+  filterCountAlert: {
+    backgroundColor: 'rgba(239,51,64,0.22)',
+  },
+
+  filterCountPositive: {
+    backgroundColor: 'rgba(53,201,130,0.18)',
+  },
+
+  filterCountText: {
+    color: COLORS.white,
+    fontFamily: 'Inter_700Bold',
+  },
+
+  searchInputContainer: {
+    flex: 1,
+    minWidth: 260,
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    backgroundColor: COLORS.card,
+  },
+
+  searchInput: {
+    flex: 1,
+    height: '100%',
+    paddingVertical: 0,
+    color: COLORS.white,
+    fontFamily: 'Inter_400Regular',
+    outlineStyle: 'none',
+  } as any,
+
+  // TABLE
+
+  listCard: {
+    overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    backgroundColor: COLORS.card,
+  },
+
+  tableHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.border,
+    backgroundColor: 'rgba(12,20,40,0.94)',
+  },
+
+  tableHeaderText: {
+    color: COLORS.soft,
+    fontFamily: 'Inter_600SemiBold',
+  },
+
+  applicationRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.rowBorder,
+  },
+
+  rowPressed: {
+    backgroundColor: 'rgba(255,255,255,0.03)',
+  },
+
+  noBorder: {
+    borderBottomWidth: 0,
+  },
+
+  colApplicant: {
+    width: '24%',
+  },
+
+  colBlood: {
+    width: '10%',
+  },
+
+  colHistory: {
+    width: '12%',
+  },
+
+  colAvailability: {
+    width: '13%',
+  },
+
+  colRadius: {
+    width: '8%',
+  },
+
+  colSubmitted: {
+    width: '15%',
+  },
+
+  colStatus: {
+    width: '14%',
+  },
+
+  colAction: {
+    width: '4%',
+    alignItems: 'flex-end',
+  },
+
+  nameText: {
+    color: COLORS.white,
+    fontFamily: 'Inter_600SemiBold',
+  },
+
+  cellText: {
+    color: COLORS.soft,
+    fontFamily: 'Inter_500Medium',
+  },
+
+  cellMuted: {
+    color: COLORS.muted,
+    fontFamily: 'Inter_400Regular',
+  },
+
+  waitingText: {
+    color: COLORS.orange,
+    fontFamily: 'Inter_500Medium',
+  },
+
+  waitingLong: {
+    color: COLORS.redBright,
+  },
+
+  inlineValue: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+
+  greenDot: {
+    backgroundColor: COLORS.green,
+  },
+
+  grayDot: {
+    backgroundColor: COLORS.muted,
+  },
+
+  bloodPill: {
+    alignSelf: 'flex-start',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: '#C21319',
+    backgroundColor: 'rgba(194,19,25,0.11)',
+  },
+
+  bloodPillText: {
+    color: COLORS.redBright,
+    fontFamily: 'Poppins_600SemiBold',
+  },
+
+  statusPill: {
+    alignSelf: 'flex-start',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+  },
+
+  statusPillText: {
+    fontFamily: 'Inter_600SemiBold',
+  },
+
+  pendingPill: {
+    borderColor: 'rgba(243,163,74,0.55)',
+    backgroundColor: 'rgba(243,163,74,0.12)',
+  },
+
+  pendingPillText: {
+    color: COLORS.orange,
+  },
+
+  approvedPill: {
+    borderColor: 'rgba(53,201,130,0.50)',
+    backgroundColor: 'rgba(53,201,130,0.12)',
+  },
+
+  approvedPillText: {
+    color: COLORS.green,
+  },
+
+  rejectedPill: {
+    borderColor: 'rgba(239,51,64,0.50)',
+    backgroundColor: 'rgba(239,51,64,0.12)',
+  },
+
+  rejectedPillText: {
+    color: COLORS.redBright,
+  },
+
+  withdrawnPill: {
+    borderColor: 'rgba(127,136,159,0.45)',
+    backgroundColor: 'rgba(127,136,159,0.10)',
+  },
+
+  withdrawnPillText: {
+    color: COLORS.muted,
+  },
+
+  // STATES
+
+  centerArea: {
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  centerText: {
+    textAlign: 'center',
+  },
+
+  emptyTitle: {
+    color: COLORS.white,
+    fontFamily: 'Poppins_600SemiBold',
+  },
+
+  primaryButton: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: COLORS.red,
+  },
+
+  primaryButtonText: {
+    color: COLORS.white,
+    fontFamily: 'Inter_600SemiBold',
+  },
+
+  // INTERACTION
+
+  pressed: {
+    opacity: 0.78,
+    transform: [{ scale: 0.985 }],
+  },
+
+  disabled: {
+    opacity: 0.42,
+  },
+});

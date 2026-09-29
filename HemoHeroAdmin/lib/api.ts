@@ -3,6 +3,10 @@
 // API CLIENT
 // ============================================================
 
+import { router } from 'expo-router';
+
+import { clearAdminSession } from './session';
+
 const RAW_API_URL =
   process.env.EXPO_PUBLIC_API_URL ||
   'http://localhost:5000';
@@ -677,6 +681,283 @@ export type AdminDeleteUserResponse = {
 };
 
 // ============================================================
+// ADMIN NOTIFICATION TYPES
+//
+// Admins use the shared /api/notifications routes. The server
+// only returns the signed-in admin's own notifications.
+// ============================================================
+
+export type AdminNotification = {
+  id: string;
+
+  user_id: string;
+
+  // e.g. admin_donor_application, admin_user_report,
+  // admin_urgent_blood_request
+  type: string;
+
+  title: string;
+
+  message: string;
+
+  data?: {
+    // Admin Portal screen to open, e.g. '/issues/<id>'
+    route?: string;
+
+    [key: string]: unknown;
+  } | null;
+
+  is_read: boolean;
+
+  read_at?: string | null;
+
+  created_at: string;
+};
+
+export type AdminNotificationsResponse = {
+  count: number;
+
+  unread_count: number;
+
+  notifications:
+    AdminNotification[];
+};
+
+// ============================================================
+// ADMIN ISSUE (USER REPORT) TYPES
+// ============================================================
+
+export type AdminReportKind =
+  | 'feedback'
+  | 'report';
+
+export type AdminReportStatus =
+  | 'open'
+  | 'in_review'
+  | 'resolved'
+  | 'dismissed';
+
+export type AdminReportUser = {
+  id: string;
+
+  email?: string | null;
+
+  first_name?: string | null;
+
+  middle_name?: string | null;
+
+  last_name?: string | null;
+
+  suffix?: string | null;
+
+  full_name?: string | null;
+
+  phone?: string | null;
+
+  city?: string | null;
+
+  province?: string | null;
+
+  blood_type?: string | null;
+
+  profile_photo_url?: string | null;
+
+  role?: string | null;
+
+  is_active?: boolean;
+};
+
+export type AdminReportRequest = {
+  id: string;
+
+  requester_id?: string | null;
+
+  blood_type: string;
+
+  units_needed: number;
+
+  facility_name: string;
+
+  urgency?: string | null;
+
+  status: string;
+
+  created_at?: string | null;
+};
+
+export type AdminReport = {
+  id: string;
+
+  kind:
+    AdminReportKind;
+
+  reporter_id?: string | null;
+
+  reported_user_id?: string | null;
+
+  reporter_email?: string | null;
+
+  reported_user_email?: string | null;
+
+  request_id?: string | null;
+
+  response_id?: string | null;
+
+  reason?: string | null;
+
+  details?: string | null;
+
+  status:
+    AdminReportStatus;
+
+  admin_note?: string | null;
+
+  reviewed_by?: string | null;
+
+  reviewed_at?: string | null;
+
+  created_at: string;
+
+  updated_at?: string | null;
+
+  reporter?:
+    AdminReportUser | null;
+
+  reported_user?:
+    AdminReportUser | null;
+
+  reviewer?:
+    AdminReportUser | null;
+
+  // Only returned by the details endpoint.
+  request?:
+    AdminReportRequest | null;
+
+  reported_user_report_count?:
+    number;
+};
+
+export type AdminReportSummary = {
+  total: number;
+
+  open: number;
+
+  in_review: number;
+
+  resolved: number;
+
+  dismissed: number;
+
+  reports: number;
+
+  feedback: number;
+
+  unresolved_reports: number;
+};
+
+export type AdminReportPagination = {
+  page: number;
+
+  limit: number;
+
+  total: number;
+
+  total_pages: number;
+};
+
+export type AdminReportFilters = {
+  page?: number;
+
+  limit?: number;
+
+  status?:
+    | 'all'
+    | AdminReportStatus;
+
+  kind?:
+    | 'all'
+    | AdminReportKind;
+
+  search?: string;
+
+  // Issues filed by OR about this user.
+  user_id?: string;
+};
+
+export type AdminReportsResponse = {
+  summary:
+    AdminReportSummary;
+
+  reports:
+    AdminReport[];
+
+  pagination:
+    AdminReportPagination;
+
+  filters?: {
+    status?: string | null;
+
+    kind?: string | null;
+
+    search?: string | null;
+  };
+};
+
+export type AdminUpdateReportInput = {
+  status?:
+    AdminReportStatus;
+
+  admin_note?: string | null;
+};
+
+// ============================================================
+// SESSION EXPIRY
+//
+// Error codes the server (authMiddleware.js) returns when the
+// stored admin session can no longer be used. When one of these
+// arrives from an authenticated request, the local session is
+// cleared and the admin is sent back to the login screen.
+// ============================================================
+
+const SESSION_ENDED_CODES = [
+  'AUTH_HEADER_MISSING',
+  'AUTH_HEADER_INVALID',
+  'AUTH_TOKEN_MISSING',
+  'AUTH_TOKEN_INVALID',
+  'AUTH_REQUIRED',
+  'USER_PROFILE_NOT_FOUND',
+  'ACCOUNT_DEACTIVATED',
+  'ADMIN_REQUIRED',
+];
+
+// Prevents several failing requests from redirecting at once.
+let handlingSessionEnd = false;
+
+async function handleSessionEnded() {
+  if (handlingSessionEnd) {
+    return;
+  }
+
+  handlingSessionEnd = true;
+
+  try {
+    await clearAdminSession();
+
+    router.replace('/');
+  } catch (error) {
+    console.log(
+      'SESSION END REDIRECT ERROR:',
+      error
+    );
+  } finally {
+    // Allow future sessions to be handled again.
+    setTimeout(() => {
+      handlingSessionEnd = false;
+    }, 1500);
+  }
+}
+
+// ============================================================
 // RESPONSE HELPER
 // ============================================================
 
@@ -692,6 +973,27 @@ async function parseResponse(
   } catch {
     data =
       null;
+  }
+
+  // The login request is excluded: a failed sign-in must show
+  // its own message, not redirect.
+  if (
+    (response.status === 401 ||
+      response.status === 403) &&
+    SESSION_ENDED_CODES.includes(
+      data?.code
+    ) &&
+    !String(
+      response.url || ''
+    ).includes(
+      '/api/auth/login'
+    )
+  ) {
+    void handleSessionEnded();
+
+    throw new Error(
+      'Your session has ended. Please sign in again.'
+    );
   }
 
   if (
@@ -788,6 +1090,214 @@ export async function requestAdminPasswordReset(
             email:
               email.trim(),
           }),
+      }
+    );
+
+  return parseResponse(
+    response
+  );
+}
+
+// ============================================================
+// ADMIN OWN ACCOUNT (SETTINGS)
+//
+// Uses the shared /api/auth/me account routes.
+// The server identifies the account from the token.
+// ============================================================
+
+export type AdminAccountUpdateInput = {
+  first_name?: string;
+
+  middle_name?: string | null;
+
+  last_name?: string;
+
+  suffix?: string | null;
+
+  phone?: string | null;
+};
+
+export type AdminReloginResponse = {
+  message: string;
+
+  // Password/email changes end the current session.
+  requires_relogin: boolean;
+
+  email?: string;
+};
+
+// GET /api/auth/me
+
+export async function getAdminAccount(
+  token: string
+): Promise<{
+  user:
+    AdminManagedUser;
+}> {
+  const response =
+    await fetch(
+      `${API_URL}/api/auth/me`,
+      {
+        headers: {
+          Authorization:
+            `Bearer ${token}`,
+        },
+      }
+    );
+
+  return parseResponse(
+    response
+  );
+}
+
+// PATCH /api/auth/me
+
+export async function updateAdminAccount(
+  token: string,
+  input:
+    AdminAccountUpdateInput
+): Promise<{
+  message: string;
+
+  user:
+    AdminManagedUser;
+}> {
+  const response =
+    await fetch(
+      `${API_URL}/api/auth/me`,
+      {
+        method:
+          'PATCH',
+
+        headers: {
+          Authorization:
+            `Bearer ${token}`,
+
+          'Content-Type':
+            'application/json',
+        },
+
+        body:
+          JSON.stringify(
+            input
+          ),
+      }
+    );
+
+  return parseResponse(
+    response
+  );
+}
+
+// PATCH /api/auth/me/password
+
+export async function changeAdminPassword(
+  token: string,
+  input: {
+    current_password: string;
+
+    new_password: string;
+
+    confirm_password: string;
+  }
+): Promise<AdminReloginResponse> {
+  const response =
+    await fetch(
+      `${API_URL}/api/auth/me/password`,
+      {
+        method:
+          'PATCH',
+
+        headers: {
+          Authorization:
+            `Bearer ${token}`,
+
+          'Content-Type':
+            'application/json',
+        },
+
+        body:
+          JSON.stringify(
+            input
+          ),
+      }
+    );
+
+  return parseResponse(
+    response
+  );
+}
+
+// PATCH /api/auth/me/email
+
+export async function changeAdminEmail(
+  token: string,
+  input: {
+    current_password: string;
+
+    new_email: string;
+
+    confirm_email: string;
+  }
+): Promise<AdminReloginResponse> {
+  const response =
+    await fetch(
+      `${API_URL}/api/auth/me/email`,
+      {
+        method:
+          'PATCH',
+
+        headers: {
+          Authorization:
+            `Bearer ${token}`,
+
+          'Content-Type':
+            'application/json',
+        },
+
+        body:
+          JSON.stringify({
+            current_password:
+              input.current_password,
+
+            new_email:
+              input.new_email
+                .trim()
+                .toLowerCase(),
+
+            confirm_email:
+              input.confirm_email
+                .trim()
+                .toLowerCase(),
+          }),
+      }
+    );
+
+  return parseResponse(
+    response
+  );
+}
+
+// POST /api/auth/logout
+//
+// Revokes the Supabase session on the server.
+
+export async function logoutAdmin(
+  token: string
+): Promise<{
+  message: string;
+}> {
+  const response =
+    await fetch(
+      `${API_URL}/api/auth/logout`,
+      {
+        method:
+          'POST',
+
+        headers: {
+          Authorization:
+            `Bearer ${token}`,
+        },
       }
     );
 
@@ -1625,6 +2135,322 @@ export async function deleteAdminUser(
           'Content-Type':
             'application/json',
         },
+      }
+    );
+
+  return parseResponse(
+    response
+  );
+}
+
+// ============================================================
+// ADMIN NOTIFICATIONS
+//
+// GET   /api/notifications?limit=
+// GET   /api/notifications/unread-count
+// PATCH /api/notifications/:id/read
+// PATCH /api/notifications/read-all
+// ============================================================
+
+export async function getAdminNotifications(
+  token: string,
+  limit = 30
+): Promise<AdminNotificationsResponse> {
+  const response =
+    await fetch(
+      `${API_URL}/api/notifications?limit=${encodeURIComponent(
+        String(limit)
+      )}`,
+      {
+        headers: {
+          Authorization:
+            `Bearer ${token}`,
+        },
+      }
+    );
+
+  return parseResponse(
+    response
+  );
+}
+
+export async function getAdminUnreadNotificationCount(
+  token: string
+): Promise<{
+  unread_count: number;
+}> {
+  const response =
+    await fetch(
+      `${API_URL}/api/notifications/unread-count`,
+      {
+        headers: {
+          Authorization:
+            `Bearer ${token}`,
+        },
+      }
+    );
+
+  return parseResponse(
+    response
+  );
+}
+
+export async function markAdminNotificationRead(
+  token: string,
+  notificationId: string
+): Promise<{
+  message: string;
+
+  notification:
+    AdminNotification;
+}> {
+  const response =
+    await fetch(
+      `${API_URL}/api/notifications/${encodeURIComponent(
+        notificationId
+      )}/read`,
+      {
+        method:
+          'PATCH',
+
+        headers: {
+          Authorization:
+            `Bearer ${token}`,
+        },
+      }
+    );
+
+  return parseResponse(
+    response
+  );
+}
+
+export async function markAllAdminNotificationsRead(
+  token: string
+): Promise<{
+  message: string;
+
+  updated_count: number;
+}> {
+  const response =
+    await fetch(
+      `${API_URL}/api/notifications/read-all`,
+      {
+        method:
+          'PATCH',
+
+        headers: {
+          Authorization:
+            `Bearer ${token}`,
+        },
+      }
+    );
+
+  return parseResponse(
+    response
+  );
+}
+
+// ============================================================
+// ADMIN ISSUE SUMMARY
+//
+// GET /api/admin/reports/summary
+// ============================================================
+
+export async function getAdminReportSummary(
+  token: string
+): Promise<{
+  summary:
+    AdminReportSummary;
+}> {
+  const response =
+    await fetch(
+      `${API_URL}/api/admin/reports/summary`,
+      {
+        headers: {
+          Authorization:
+            `Bearer ${token}`,
+        },
+      }
+    );
+
+  return parseResponse(
+    response
+  );
+}
+
+// ============================================================
+// GET ADMIN ISSUES
+//
+// GET /api/admin/reports
+// ============================================================
+
+export async function getAdminReports(
+  token: string,
+  filters:
+    AdminReportFilters = {}
+): Promise<AdminReportsResponse> {
+  const params =
+    new URLSearchParams();
+
+  if (
+    filters.page !==
+    undefined
+  ) {
+    params.set(
+      'page',
+      String(
+        filters.page
+      )
+    );
+  }
+
+  if (
+    filters.limit !==
+    undefined
+  ) {
+    params.set(
+      'limit',
+      String(
+        filters.limit
+      )
+    );
+  }
+
+  if (
+    filters.status &&
+    filters.status !==
+      'all'
+  ) {
+    params.set(
+      'status',
+      filters.status
+    );
+  }
+
+  if (
+    filters.kind &&
+    filters.kind !==
+      'all'
+  ) {
+    params.set(
+      'kind',
+      filters.kind
+    );
+  }
+
+  if (
+    filters.search
+      ?.trim()
+  ) {
+    params.set(
+      'search',
+      filters.search.trim()
+    );
+  }
+
+  if (
+    filters.user_id
+  ) {
+    params.set(
+      'user_id',
+      filters.user_id
+    );
+  }
+
+  const queryString =
+    params.toString();
+
+  const url =
+    queryString
+      ? `${API_URL}/api/admin/reports?${queryString}`
+      : `${API_URL}/api/admin/reports`;
+
+  const response =
+    await fetch(
+      url,
+      {
+        headers: {
+          Authorization:
+            `Bearer ${token}`,
+        },
+      }
+    );
+
+  return parseResponse(
+    response
+  );
+}
+
+// ============================================================
+// GET ADMIN ISSUE DETAILS
+//
+// GET /api/admin/reports/:id
+// ============================================================
+
+export async function getAdminReportById(
+  token: string,
+  reportId: string
+): Promise<{
+  report:
+    AdminReport;
+}> {
+  const response =
+    await fetch(
+      `${API_URL}/api/admin/reports/${encodeURIComponent(
+        reportId
+      )}`,
+      {
+        headers: {
+          Authorization:
+            `Bearer ${token}`,
+        },
+      }
+    );
+
+  return parseResponse(
+    response
+  );
+}
+
+// ============================================================
+// UPDATE ADMIN ISSUE
+//
+// PATCH /api/admin/reports/:id
+// ============================================================
+
+export async function updateAdminReport(
+  token: string,
+  reportId: string,
+  input:
+    AdminUpdateReportInput
+): Promise<{
+  message: string;
+
+  report:
+    AdminReport;
+}> {
+  const response =
+    await fetch(
+      `${API_URL}/api/admin/reports/${encodeURIComponent(
+        reportId
+      )}`,
+      {
+        method:
+          'PATCH',
+
+        headers: {
+          Authorization:
+            `Bearer ${token}`,
+
+          'Content-Type':
+            'application/json',
+        },
+
+        body:
+          JSON.stringify(
+            input
+          ),
       }
     );
 

@@ -2,12 +2,12 @@ import {
   type ComponentProps,
   useCallback,
   useMemo,
+  useRef,
   useState,
 } from 'react';
 
 import {
   ActivityIndicator,
-  Image,
   Platform,
   Pressable,
   RefreshControl,
@@ -21,16 +21,14 @@ import {
 
 import { MaterialIcons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
-
-import {
-  router,
-  useFocusEffect,
-} from 'expo-router';
-
+import { router, useFocusEffect } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import AdminBottomNav from '../AdminBottomNav';
+import AdminHeader from '../AdminHeader';
+
+import { FadeInView } from '../../components/AdminMotion';
 
 import {
   getAdminBloodRequests,
@@ -50,6 +48,10 @@ import {
 
 // ============================================================
 // DESIGN
+//
+// Layout follows the Donor Applications list for a consistent
+// Admin UI. Uses the shared AdminHeader (real notification
+// badge) instead of a copied header.
 // ============================================================
 
 const DESIGN_WIDTH = 1366;
@@ -57,42 +59,37 @@ const DESIGN_HEIGHT = 1024;
 
 const PAGE_LIMIT = 10;
 
-// ============================================================
-// COLORS
-// ============================================================
-
 const COLORS = {
   outer: '#02040A',
-
   navy: '#050B19',
 
   card: '#091126',
-
   cardLight: '#101A35',
 
   border: '#243554',
 
-  rowBorder: 'rgba(36,53,84,0.72)',
-
   red: '#DB0A0A',
-
   redBright: '#EF3340',
 
   white: '#FFFFFF',
 
   muted: '#7F889F',
-
   soft: '#B7C1D8',
 
   green: '#35C982',
-
   orange: '#F3A34A',
-
   blue: '#4A8CFF',
+
+  rowBorder: 'rgba(36,53,84,0.78)',
 };
 
+type IconName =
+  ComponentProps<
+    typeof MaterialIcons
+  >['name'];
+
 // ============================================================
-// FILTER TYPES
+// FILTERS
 // ============================================================
 
 type StatusFilter =
@@ -103,44 +100,7 @@ type UrgencyFilter =
   | 'all'
   | AdminBloodRequestUrgency;
 
-type BloodTypeFilter =
-  | 'all'
-  | 'A+'
-  | 'A-'
-  | 'B+'
-  | 'B-'
-  | 'AB+'
-  | 'AB-'
-  | 'O+'
-  | 'O-';
-
-// ============================================================
-// FILTER OPTIONS
-// ============================================================
-
-const STATUS_OPTIONS: {
-  label: string;
-  value: StatusFilter;
-}[] = [
-  {
-    label: 'All',
-    value: 'all',
-  },
-  {
-    label: 'Active',
-    value: 'active',
-  },
-  {
-    label: 'Fulfilled',
-    value: 'fulfilled',
-  },
-  {
-    label: 'Cancelled',
-    value: 'cancelled',
-  },
-];
-
-const BLOOD_TYPE_OPTIONS: BloodTypeFilter[] = [
+const BLOOD_TYPES = [
   'all',
   'A+',
   'A-',
@@ -150,67 +110,34 @@ const BLOOD_TYPE_OPTIONS: BloodTypeFilter[] = [
   'AB-',
   'O+',
   'O-',
-];
+] as const;
 
-const URGENCY_OPTIONS: {
-  label: string;
-  value: UrgencyFilter;
-}[] = [
-  {
-    label: 'All',
-    value: 'all',
-  },
-  {
-    label: 'Urgent',
-    value: 'urgent',
-  },
-  {
-    label: 'Scheduled',
-    value: 'needed',
-  },
-];
+type BloodTypeFilter =
+  (typeof BLOOD_TYPES)[number];
 
-// ============================================================
-// DEFAULT DATA
-// ============================================================
+const DEFAULT_SUMMARY: AdminBloodRequestSummary = {
+  total: 0,
+  active: 0,
+  fulfilled: 0,
+  cancelled: 0,
+  urgent_active: 0,
+  scheduled_active: 0,
+  active_units_needed: 0,
+};
 
-const DEFAULT_SUMMARY:
-  AdminBloodRequestSummary = {
-    total: 0,
-
-    active: 0,
-
-    fulfilled: 0,
-
-    cancelled: 0,
-
-    urgent_active: 0,
-
-    scheduled_active: 0,
-
-    active_units_needed: 0,
-  };
-
-const DEFAULT_PAGINATION:
-  AdminBloodRequestPagination = {
-    page: 1,
-
-    limit: PAGE_LIMIT,
-
-    total: 0,
-
-    total_pages: 0,
-  };
+const DEFAULT_PAGINATION: AdminBloodRequestPagination = {
+  page: 1,
+  limit: PAGE_LIMIT,
+  total: 0,
+  total_pages: 0,
+};
 
 // ============================================================
 // SCREEN
 // ============================================================
 
 export default function AdminBloodRequestsScreen() {
-  const {
-    width,
-    height,
-  } = useWindowDimensions();
+  const { width, height } = useWindowDimensions();
 
   // ==========================================================
   // RESPONSIVE IPAD CANVAS
@@ -249,232 +176,139 @@ export default function AdminBloodRequestsScreen() {
 
     return {
       width: DESIGN_WIDTH * scale,
-
       height: DESIGN_HEIGHT * scale,
-
       scale,
     };
   }, [width, height]);
 
-  // ==========================================================
-  // SCALE
-  //
-  // s  = layout
-  // fs = readable iPad-style text
-  // ==========================================================
-
-  const s = Math.max(
-    tablet.scale,
-    0.68
-  );
-
-  const fs = Math.max(
-    tablet.scale,
-    0.92
-  );
+  const s = Math.max(tablet.scale, 0.68);
+  const fs = Math.max(tablet.scale, 0.92);
 
   // ==========================================================
   // STATE
   // ==========================================================
 
-  const [
-    profile,
-    setProfile,
-  ] = useState<AdminProfile | null>(
-    null
-  );
+  const [profile, setProfile] =
+    useState<AdminProfile | null>(null);
 
-  const [
-    requests,
-    setRequests,
-  ] = useState<AdminBloodRequest[]>(
-    []
-  );
+  const [requests, setRequests] =
+    useState<AdminBloodRequest[]>([]);
 
-  const [
-    summary,
-    setSummary,
-  ] = useState<AdminBloodRequestSummary>(
-    DEFAULT_SUMMARY
-  );
+  const [summary, setSummary] =
+    useState<AdminBloodRequestSummary>(DEFAULT_SUMMARY);
 
-  const [
-    pagination,
-    setPagination,
-  ] = useState<AdminBloodRequestPagination>(
-    DEFAULT_PAGINATION
-  );
+  const [pagination, setPagination] =
+    useState<AdminBloodRequestPagination>(DEFAULT_PAGINATION);
 
-  const [
-    page,
-    setPage,
-  ] = useState(1);
+  const [page, setPage] = useState(1);
 
-  const [
-    statusFilter,
-    setStatusFilter,
-  ] = useState<StatusFilter>(
-    'all'
-  );
+  const [statusFilter, setStatusFilter] =
+    useState<StatusFilter>('all');
 
-  const [
-    bloodTypeFilter,
-    setBloodTypeFilter,
-  ] = useState<BloodTypeFilter>(
-    'all'
-  );
+  const [bloodTypeFilter, setBloodTypeFilter] =
+    useState<BloodTypeFilter>('all');
 
-  const [
-    urgencyFilter,
-    setUrgencyFilter,
-  ] = useState<UrgencyFilter>(
-    'all'
-  );
+  const [urgencyFilter, setUrgencyFilter] =
+    useState<UrgencyFilter>('all');
 
-  const [
-    searchDraft,
-    setSearchDraft,
-  ] = useState('');
+  const [searchDraft, setSearchDraft] = useState('');
+  const [search, setSearch] = useState('');
 
-  const [
-    search,
-    setSearch,
-  ] = useState('');
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
 
-  const [
-    loading,
-    setLoading,
-  ] = useState(true);
+  const [error, setError] = useState('');
 
-  const [
-    refreshing,
-    setRefreshing,
-  ] = useState(false);
-
-  const [
-    error,
-    setError,
-  ] = useState('');
+  const hasLoadedOnce = useRef(false);
 
   // ==========================================================
-  // LOAD REQUESTS
+  // LOAD
   // ==========================================================
 
-  const loadRequests = useCallback(
-    async (
-      options?: {
-        refresh?: boolean;
+  const loadRequests = useCallback(async () => {
+    try {
+      if (hasLoadedOnce.current) {
+        setRefreshing(true);
+      } else {
+        setLoading(true);
       }
-    ) => {
-      try {
-        if (
-          options?.refresh
-        ) {
-          setRefreshing(true);
-        } else {
-          setLoading(true);
-        }
 
-        setError('');
+      setError('');
 
-        const token =
-          await getAdminAccessToken();
+      const token =
+        await getAdminAccessToken();
 
-        const storedProfile =
-          await getAdminProfile();
+      const storedProfile =
+        await getAdminProfile();
 
-        // ----------------------------------------------------
-        // ADMIN PROTECTION
-        // ----------------------------------------------------
-
-        if (
-          !token ||
-          storedProfile?.role !== 'admin'
-        ) {
-          await clearAdminSession();
-
-          router.replace('/');
-
-          return;
-        }
-
-        setProfile(
-          storedProfile
-        );
-
-        // ----------------------------------------------------
-        // REQUESTS
-        // ----------------------------------------------------
-
-        const result =
-          await getAdminBloodRequests(
-            token,
-            {
-              page,
-
-              limit:
-                PAGE_LIMIT,
-
-              status:
-                statusFilter,
-
-              blood_type:
-                bloodTypeFilter,
-
-              urgency:
-                urgencyFilter,
-
-              search,
-            }
-          );
-
-        setRequests(
-          result.requests ||
-            []
-        );
-
-        setSummary(
-          result.summary ||
-            DEFAULT_SUMMARY
-        );
-
-        setPagination(
-          result.pagination ||
-            DEFAULT_PAGINATION
-        );
-      } catch (
-        loadError
+      if (
+        !token ||
+        storedProfile?.role !== 'admin'
       ) {
-        console.log(
-          'ADMIN BLOOD REQUESTS ERROR:',
-          loadError
-        );
+        await clearAdminSession();
 
-        setRequests([]);
+        router.replace('/');
 
-        setError(
-          loadError instanceof Error
-            ? loadError.message
-            : 'Unable to load blood requests.'
-        );
-      } finally {
-        setLoading(false);
-
-        setRefreshing(false);
+        return;
       }
-    },
-    [
-      page,
-      statusFilter,
-      bloodTypeFilter,
-      urgencyFilter,
-      search,
-    ]
-  );
 
-  // ==========================================================
-  // LOAD ON FOCUS / FILTER CHANGE
-  // ==========================================================
+      setProfile(storedProfile);
+
+      const result =
+        await getAdminBloodRequests(token, {
+          page,
+          limit: PAGE_LIMIT,
+          status: statusFilter,
+          blood_type: bloodTypeFilter,
+          urgency: urgencyFilter,
+          search,
+        });
+
+      setRequests(
+        result.requests ||
+          []
+      );
+
+      setSummary(
+        result.summary ||
+          DEFAULT_SUMMARY
+      );
+
+      setPagination(
+        result.pagination ||
+          DEFAULT_PAGINATION
+      );
+
+      if (
+        result.pagination &&
+        result.pagination.page !== page
+      ) {
+        setPage(result.pagination.page);
+      }
+
+      hasLoadedOnce.current = true;
+    } catch (loadError) {
+      console.log(
+        'ADMIN BLOOD REQUESTS ERROR:',
+        loadError
+      );
+
+      setError(
+        loadError instanceof Error
+          ? loadError.message
+          : 'Unable to load blood requests.'
+      );
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  }, [
+    page,
+    statusFilter,
+    bloodTypeFilter,
+    urgencyFilter,
+    search,
+  ]);
 
   useFocusEffect(
     useCallback(() => {
@@ -483,177 +317,76 @@ export default function AdminBloodRequestsScreen() {
   );
 
   // ==========================================================
-  // ADMIN DISPLAY
-  // ==========================================================
-
-  const adminName =
-    [
-      profile?.first_name,
-      profile?.last_name,
-    ]
-      .filter(Boolean)
-      .join(' ')
-      .trim() ||
-    profile?.email ||
-    'Administrator';
-
-  const adminInitial =
-    adminName
-      .charAt(0)
-      .toUpperCase();
-
-  // ==========================================================
-  // SEARCH
+  // FILTER HANDLERS
   // ==========================================================
 
   function handleSearch() {
-    const cleaned =
-      searchDraft.trim();
-
     setPage(1);
-
-    setSearch(
-      cleaned
-    );
+    setSearch(searchDraft.trim());
   }
 
   function clearSearch() {
     setSearchDraft('');
-
     setSearch('');
-
     setPage(1);
   }
 
-  // ==========================================================
-  // STATUS FILTER
-  // ==========================================================
-
-  function handleStatusFilter(
-    value:
-      StatusFilter
+  function changeStatus(
+    value: StatusFilter
   ) {
-    setStatusFilter(
-      value
-    );
-
     setPage(1);
+    setStatusFilter(value);
   }
 
-  // ==========================================================
-  // BLOOD TYPE FILTER
-  // ==========================================================
-
-  function handleBloodTypeFilter(
-    value:
-      BloodTypeFilter
+  function changeBloodType(
+    value: BloodTypeFilter
   ) {
-    setBloodTypeFilter(
-      value
-    );
-
     setPage(1);
+    setBloodTypeFilter(value);
   }
 
-  // ==========================================================
-  // URGENCY FILTER
-  // ==========================================================
-
-  function handleUrgencyFilter(
-    value:
-      UrgencyFilter
+  function changeUrgency(
+    value: UrgencyFilter
   ) {
-    setUrgencyFilter(
-      value
-    );
-
     setPage(1);
+    setUrgencyFilter(value);
   }
-
-  // ==========================================================
-  // RESET FILTERS
-  // ==========================================================
 
   function resetFilters() {
-    setStatusFilter(
-      'all'
-    );
-
-    setBloodTypeFilter(
-      'all'
-    );
-
-    setUrgencyFilter(
-      'all'
-    );
-
+    setStatusFilter('all');
+    setBloodTypeFilter('all');
+    setUrgencyFilter('all');
     setSearchDraft('');
-
     setSearch('');
-
     setPage(1);
   }
 
-  // ==========================================================
-  // PAGINATION
-  // ==========================================================
-
-  function goPrevious() {
-    if (
-      page <= 1
-    ) {
-      return;
-    }
-
-    setPage(
-      current =>
-        current - 1
-    );
-  }
-
-  function goNext() {
-    if (
-      page >=
-      pagination.total_pages
-    ) {
-      return;
-    }
-
-    setPage(
-      current =>
-        current + 1
-    );
-  }
+  const hasFilters =
+    statusFilter !== 'all' ||
+    bloodTypeFilter !== 'all' ||
+    urgencyFilter !== 'all' ||
+    Boolean(search);
 
   // ==========================================================
   // UI
   // ==========================================================
 
   return (
-    <View
-      style={
-        styles.outer
-      }
-    >
+    <View style={styles.outer}>
       <View
         style={[
           styles.ipadCanvas,
 
           {
-            width:
-              tablet.width,
-
-            height:
-              tablet.height,
+            width: tablet.width,
+            height: tablet.height,
           },
 
           Platform.OS !== 'web' &&
             styles.nativeCanvas,
         ]}
       >
-        <StatusBar
-          style="light"
-        />
+        <StatusBar style="light" />
 
         <LinearGradient
           colors={[
@@ -661,289 +394,56 @@ export default function AdminBloodRequestsScreen() {
             '#050B19',
             '#030814',
           ]}
-          style={
-            styles.gradient
-          }
+          style={styles.gradient}
         >
-          <SafeAreaView
-            style={
-              styles.safeArea
-            }
-          >
-            {/* ==================================================
-                HEADER
-            ================================================== */}
-
-            <View
-              style={[
-                styles.header,
-
-                {
-                  height:
-                    96 * s,
-
-                  paddingHorizontal:
-                    48 * s,
-                },
-              ]}
-            >
-              {/* BRAND */}
-
-              <Pressable
-                style={
-                  styles.brandArea
-                }
-                onPress={() =>
-                  router.replace(
-                    '/dashboard'
-                  )
-                }
-              >
-                <View
-                  style={[
-                    styles.logoCircle,
-
-                    {
-                      width:
-                        52 * s,
-
-                      height:
-                        52 * s,
-
-                      borderRadius:
-                        26 * s,
-                    },
-                  ]}
-                >
-                  <Image
-                    source={require('../../assets/images/hemo-hero-logo.png')}
-                    style={{
-                      width:
-                        46 * s,
-
-                      height:
-                        46 * s,
-                    }}
-                    resizeMode="contain"
-                  />
-                </View>
-
-                <View>
-                  <Text
-                    style={[
-                      styles.brand,
-
-                      {
-                        fontSize:
-                          26 * fs,
-                      },
-                    ]}
-                  >
-                    <Text
-                      style={
-                        styles.brandRed
-                      }
-                    >
-                      Hemo-
-                    </Text>
-
-                    Hero
-                  </Text>
-
-                  <Text
-                    style={[
-                      styles.portal,
-
-                      {
-                        fontSize:
-                          11 * fs,
-
-                        letterSpacing:
-                          1.5 * s,
-                      },
-                    ]}
-                  >
-                    ADMIN PORTAL
-                  </Text>
-                </View>
-              </Pressable>
-
-              {/* ADMIN */}
-
-              <View
-                style={
-                  styles.adminSection
-                }
-              >
-                <View
-                  style={[
-                    styles.adminAvatar,
-
-                    {
-                      width:
-                        48 * s,
-
-                      height:
-                        48 * s,
-
-                      borderRadius:
-                        24 * s,
-                    },
-                  ]}
-                >
-                  <Text
-                    style={[
-                      styles.adminAvatarText,
-
-                      {
-                        fontSize:
-                          16 * fs,
-                      },
-                    ]}
-                  >
-                    {
-                      adminInitial
-                    }
-                  </Text>
-                </View>
-
-                <View>
-                  <Text
-                    numberOfLines={
-                      1
-                    }
-                    style={[
-                      styles.adminName,
-
-                      {
-                        fontSize:
-                          14 * fs,
-                      },
-                    ]}
-                  >
-                    {
-                      adminName
-                    }
-                  </Text>
-
-                  <Text
-                    style={[
-                      styles.adminRole,
-
-                      {
-                        fontSize:
-                          12 * fs,
-                      },
-                    ]}
-                  >
-                    Administrator
-                  </Text>
-                </View>
-              </View>
-            </View>
-
-            {/* ==================================================
-                CONTENT
-            ================================================== */}
+          <SafeAreaView style={styles.safeArea}>
+            <AdminHeader
+              profile={profile}
+              scale={s}
+              fontScale={fs}
+            />
 
             <ScrollView
-              style={
-                styles.scroll
+              style={styles.scroll}
+              refreshControl={
+                <RefreshControl
+                  refreshing={refreshing}
+                  onRefresh={loadRequests}
+                  tintColor={COLORS.redBright}
+                />
               }
               contentContainerStyle={[
                 styles.content,
 
                 {
-                  paddingHorizontal:
-                    48 * s,
-
-                  paddingTop:
-                    30 * s,
-
-                  paddingBottom:
-                    38 * s,
+                  paddingHorizontal: 48 * s,
+                  paddingVertical: 32 * s,
                 },
               ]}
-              refreshControl={
-                <RefreshControl
-                  refreshing={
-                    refreshing
-                  }
-                  onRefresh={() =>
-                    loadRequests({
-                      refresh:
-                        true,
-                    })
-                  }
-                  tintColor={
-                    COLORS.redBright
-                  }
-                />
-              }
-              showsVerticalScrollIndicator={
-                false
-              }
+              showsVerticalScrollIndicator={false}
             >
-              {/* ==================================================
-                  PAGE TITLE
-              ================================================== */}
+              {/* ================================================
+                  TITLE
+              ================================================ */}
 
-              <View
-                style={[
-                  styles.pageHeader,
-
-                  {
-                    marginBottom:
-                      24 * s,
-                  },
-                ]}
-              >
+              <FadeInView>
                 <View
-                  style={
-                    styles.pageHeading
-                  }
+                  style={[
+                    styles.titleRow,
+
+                    {
+                      marginBottom: 24 * s,
+                    },
+                  ]}
                 >
-                  <View
-                    style={[
-                      styles.pageIcon,
-
-                      {
-                        width:
-                          48 * s,
-
-                        height:
-                          48 * s,
-
-                        borderRadius:
-                          12 * s,
-
-                        marginRight:
-                          13 * s,
-                      },
-                    ]}
-                  >
-                    <MaterialIcons
-                      name="bloodtype"
-                      size={
-                        27 * s
-                      }
-                      color={
-                        COLORS.redBright
-                      }
-                    />
-                  </View>
-
-                  <View>
+                  <View style={styles.flexFill}>
                     <Text
                       style={[
-                        styles.pageTitle,
+                        styles.title,
 
                         {
-                          fontSize:
-                            30 * fs,
-
-                          lineHeight:
-                            38 * fs,
+                          fontSize: 30 * fs,
+                          lineHeight: 38 * fs,
                         },
                       ]}
                     >
@@ -952,1087 +452,579 @@ export default function AdminBloodRequestsScreen() {
 
                     <Text
                       style={[
-                        styles.pageSubtitle,
+                        styles.subtitle,
 
                         {
-                          fontSize:
-                            14 * fs,
-
-                          lineHeight:
-                            21 * fs,
-
-                          marginTop:
-                            2 * s,
+                          fontSize: 13.5 * fs,
+                          marginTop: 4 * s,
                         },
                       ]}
                     >
-                      Monitor blood requests, demand, urgency, and fulfillment.
+                      Monitor blood requests submitted by Hemo-Hero users.
+                      {summary.active > 0
+                        ? `  ${summary.active_units_needed} ${
+                            summary.active_units_needed === 1
+                              ? 'unit'
+                              : 'units'
+                          } currently needed across ${summary.active} active ${
+                            summary.active === 1
+                              ? 'request'
+                              : 'requests'
+                          }.`
+                        : ''}
                     </Text>
+                  </View>
+
+                  <Pressable
+                    disabled={loading || refreshing}
+                    onPress={loadRequests}
+                    style={({ pressed }) => [
+                      styles.refreshButton,
+
+                      {
+                        height: 44 * s,
+                        minWidth: 116 * s,
+                        paddingHorizontal: 16 * s,
+                        borderRadius: 10 * s,
+                        gap: 8 * s,
+                      },
+
+                      pressed &&
+                        styles.pressed,
+
+                      (loading || refreshing) &&
+                        styles.disabled,
+                    ]}
+                  >
+                    {refreshing ? (
+                      <ActivityIndicator
+                        size="small"
+                        color={COLORS.white}
+                      />
+                    ) : (
+                      <>
+                        <MaterialIcons
+                          name="refresh"
+                          size={20 * s}
+                          color={COLORS.white}
+                        />
+
+                        <Text
+                          style={[
+                            styles.refreshText,
+
+                            {
+                              fontSize: 13 * fs,
+                            },
+                          ]}
+                        >
+                          Refresh
+                        </Text>
+                      </>
+                    )}
+                  </Pressable>
+                </View>
+              </FadeInView>
+
+              {/* ================================================
+                  STATUS FILTERS (with counts)
+              ================================================ */}
+
+              <FadeInView delay={50}>
+                <View
+                  style={[
+                    styles.wrapRow,
+
+                    {
+                      gap: 10 * s,
+                      marginBottom: 14 * s,
+                    },
+                  ]}
+                >
+                  <FilterButton
+                    scale={s}
+                    fontScale={fs}
+                    label="All"
+                    count={summary.total}
+                    active={statusFilter === 'all'}
+                    onPress={() =>
+                      changeStatus('all')
+                    }
+                  />
+
+                  <FilterButton
+                    scale={s}
+                    fontScale={fs}
+                    label="Active"
+                    count={summary.active}
+                    active={statusFilter === 'active'}
+                    tone="orange"
+                    onPress={() =>
+                      changeStatus('active')
+                    }
+                  />
+
+                  <FilterButton
+                    scale={s}
+                    fontScale={fs}
+                    label="Fulfilled"
+                    count={summary.fulfilled}
+                    active={statusFilter === 'fulfilled'}
+                    tone="green"
+                    onPress={() =>
+                      changeStatus('fulfilled')
+                    }
+                  />
+
+                  <FilterButton
+                    scale={s}
+                    fontScale={fs}
+                    label="Cancelled"
+                    count={summary.cancelled}
+                    active={statusFilter === 'cancelled'}
+                    onPress={() =>
+                      changeStatus('cancelled')
+                    }
+                  />
+
+                  <View
+                    style={[
+                      styles.activeInfo,
+
+                      {
+                        height: 44 * s,
+                        paddingHorizontal: 14 * s,
+                        borderRadius: 10 * s,
+                        gap: 12 * s,
+                      },
+                    ]}
+                  >
+                    <InfoChip
+                      scale={s}
+                      fontScale={fs}
+                      icon="priority-high"
+                      color={COLORS.redBright}
+                      text={`${summary.urgent_active} urgent active`}
+                    />
+
+                    <InfoChip
+                      scale={s}
+                      fontScale={fs}
+                      icon="event"
+                      color={COLORS.blue}
+                      text={`${summary.scheduled_active} scheduled active`}
+                    />
                   </View>
                 </View>
 
-                <Pressable
-                  disabled={
-                    loading
-                  }
-                  onPress={() =>
-                    loadRequests()
-                  }
-                  style={({
-                    pressed,
-                  }) => [
-                    styles.refreshButton,
-
-                    {
-                      height:
-                        46 * s,
-
-                      borderRadius:
-                        10 * s,
-
-                      paddingHorizontal:
-                        17 * s,
-
-                      gap:
-                        8 * s,
-                    },
-
-                    pressed &&
-                      styles.buttonPressed,
-
-                    loading &&
-                      styles.disabled,
-                  ]}
-                >
-                  {loading ? (
-                    <ActivityIndicator
-                      size="small"
-                      color={
-                        COLORS.white
-                      }
-                    />
-                  ) : (
-                    <>
-                      <MaterialIcons
-                        name="refresh"
-                        size={
-                          20 * s
-                        }
-                        color={
-                          COLORS.white
-                        }
-                      />
-
-                      <Text
-                        style={[
-                          styles.refreshButtonText,
-
-                          {
-                            fontSize:
-                              13 * fs,
-                          },
-                        ]}
-                      >
-                        Refresh
-                      </Text>
-                    </>
-                  )}
-                </Pressable>
-              </View>
-
-              {/* ==================================================
-                  SUMMARY
-              ================================================== */}
-
-              <View
-                style={[
-                  styles.summaryRow,
-
-                  {
-                    gap:
-                      14 * s,
-
-                    marginBottom:
-                      22 * s,
-                  },
-                ]}
-              >
-                <SummaryCard
-                  scale={s}
-                  fontScale={fs}
-                  icon="bloodtype"
-                  label="ACTIVE REQUESTS"
-                  value={
-                    summary.active
-                  }
-                  description={`${summary.active_units_needed} units currently needed`}
-                  accent="red"
-                />
-
-                <SummaryCard
-                  scale={s}
-                  fontScale={fs}
-                  icon="priority-high"
-                  label="URGENT"
-                  value={
-                    summary.urgent_active
-                  }
-                  description="Active urgent requests"
-                  accent="orange"
-                />
-
-                <SummaryCard
-                  scale={s}
-                  fontScale={fs}
-                  icon="event"
-                  label="SCHEDULED"
-                  value={
-                    summary.scheduled_active
-                  }
-                  description="Requests with planned dates"
-                  accent="blue"
-                />
-
-                <SummaryCard
-                  scale={s}
-                  fontScale={fs}
-                  icon="check-circle"
-                  label="FULFILLED"
-                  value={
-                    summary.fulfilled
-                  }
-                  description="Completed blood requests"
-                  accent="green"
-                />
-              </View>
-
-              {/* ==================================================
-                  FILTER CARD
-              ================================================== */}
-
-              <View
-                style={[
-                  styles.filterCard,
-
-                  {
-                    padding:
-                      18 * s,
-
-                    borderRadius:
-                      14 * s,
-
-                    marginBottom:
-                      18 * s,
-                  },
-                ]}
-              >
-                {/* SEARCH */}
+                {/* URGENCY + SEARCH */}
 
                 <View
                   style={[
-                    styles.searchRow,
+                    styles.wrapRow,
 
                     {
-                      gap:
-                        10 * s,
+                      gap: 12 * s,
+                      marginBottom: 12 * s,
                     },
                   ]}
                 >
+                  <Segment
+                    scale={s}
+                    fontScale={fs}
+                    value={urgencyFilter}
+                    options={[
+                      ['all', 'All Urgency'],
+                      ['urgent', 'Urgent'],
+                      ['needed', 'Scheduled'],
+                    ]}
+                    onChange={changeUrgency}
+                  />
+
                   <View
                     style={[
-                      styles.searchBox,
+                      styles.searchInputContainer,
 
                       {
-                        height:
-                          48 * s,
-
-                        borderRadius:
-                          10 * s,
-
-                        paddingHorizontal:
-                          14 * s,
+                        height: 44 * s,
+                        borderRadius: 10 * s,
+                        paddingHorizontal: 14 * s,
+                        gap: 9 * s,
                       },
                     ]}
                   >
                     <MaterialIcons
                       name="search"
-                      size={
-                        21 * s
-                      }
-                      color={
-                        COLORS.muted
-                      }
+                      size={20 * s}
+                      color={COLORS.muted}
                     />
 
                     <TextInput
-                      value={
-                        searchDraft
-                      }
-                      onChangeText={
-                        setSearchDraft
-                      }
-                      onSubmitEditing={
-                        handleSearch
-                      }
-                      placeholder="Search requester, email, facility, blood type, or request ID"
-                      placeholderTextColor={
-                        COLORS.muted
-                      }
+                      value={searchDraft}
+                      onChangeText={setSearchDraft}
+                      onSubmitEditing={handleSearch}
                       returnKeyType="search"
+                      placeholder="Search requester, email, facility, or blood type"
+                      placeholderTextColor={COLORS.muted}
+                      autoCapitalize="none"
+                      autoCorrect={false}
                       style={[
                         styles.searchInput,
 
                         {
-                          fontSize:
-                            14 * fs,
-
-                          marginLeft:
-                            9 * s,
+                          fontSize: 13 * fs,
                         },
                       ]}
                     />
 
                     {searchDraft ? (
                       <Pressable
-                        onPress={
-                          clearSearch
-                        }
-                        hitSlop={
-                          10
-                        }
+                        onPress={clearSearch}
+                        hitSlop={8}
                       >
                         <MaterialIcons
                           name="close"
-                          size={
-                            20 * s
-                          }
-                          color={
-                            COLORS.soft
-                          }
+                          size={19 * s}
+                          color={COLORS.muted}
                         />
                       </Pressable>
                     ) : null}
                   </View>
 
                   <Pressable
-                    onPress={
-                      handleSearch
-                    }
-                    style={({
-                      pressed,
-                    }) => [
-                      styles.searchButton,
+                    onPress={handleSearch}
+                    style={({ pressed }) => [
+                      styles.primaryButton,
 
                       {
-                        height:
-                          48 * s,
-
-                        borderRadius:
-                          10 * s,
-
-                        paddingHorizontal:
-                          18 * s,
+                        height: 44 * s,
+                        paddingHorizontal: 20 * s,
+                        borderRadius: 10 * s,
                       },
 
                       pressed &&
-                        styles.buttonPressed,
+                        styles.pressed,
                     ]}
                   >
                     <Text
                       style={[
-                        styles.searchButtonText,
+                        styles.primaryButtonText,
 
                         {
-                          fontSize:
-                            13 * fs,
+                          fontSize: 13 * fs,
                         },
                       ]}
                     >
                       Search
                     </Text>
                   </Pressable>
-
-                  <Pressable
-                    onPress={
-                      resetFilters
-                    }
-                    style={({
-                      pressed,
-                    }) => [
-                      styles.resetButton,
-
-                      {
-                        height:
-                          48 * s,
-
-                        borderRadius:
-                          10 * s,
-
-                        paddingHorizontal:
-                          16 * s,
-
-                        gap:
-                          6 * s,
-                      },
-
-                      pressed &&
-                        styles.buttonPressed,
-                    ]}
-                  >
-                    <MaterialIcons
-                      name="restart-alt"
-                      size={
-                        19 * s
-                      }
-                      color={
-                        COLORS.soft
-                      }
-                    />
-
-                    <Text
-                      style={[
-                        styles.resetButtonText,
-
-                        {
-                          fontSize:
-                            13 * fs,
-                        },
-                      ]}
-                    >
-                      Reset
-                    </Text>
-                  </Pressable>
                 </View>
-
-                {/* STATUS */}
-
-                <FilterSection
-                  scale={s}
-                  fontScale={fs}
-                  title="STATUS"
-                >
-                  {STATUS_OPTIONS.map(
-                    option => (
-                      <FilterChip
-                        key={
-                          option.value
-                        }
-                        scale={s}
-                        fontScale={fs}
-                        label={
-                          option.label
-                        }
-                        selected={
-                          statusFilter ===
-                          option.value
-                        }
-                        onPress={() =>
-                          handleStatusFilter(
-                            option.value
-                          )
-                        }
-                      />
-                    )
-                  )}
-                </FilterSection>
 
                 {/* BLOOD TYPE */}
 
-                <FilterSection
-                  scale={s}
-                  fontScale={fs}
-                  title="BLOOD TYPE"
-                >
-                  {BLOOD_TYPE_OPTIONS.map(
-                    bloodType => (
-                      <FilterChip
-                        key={
-                          bloodType
-                        }
-                        scale={s}
-                        fontScale={fs}
-                        label={
-                          bloodType ===
-                          'all'
-                            ? 'All'
-                            : bloodType
-                        }
-                        selected={
-                          bloodTypeFilter ===
-                          bloodType
-                        }
-                        onPress={() =>
-                          handleBloodTypeFilter(
-                            bloodType
-                          )
-                        }
-                        blood={
-                          bloodType !==
-                          'all'
-                        }
-                      />
-                    )
-                  )}
-                </FilterSection>
-
-                {/* URGENCY */}
-
-                <FilterSection
-                  scale={s}
-                  fontScale={fs}
-                  title="URGENCY"
-                  last
-                >
-                  {URGENCY_OPTIONS.map(
-                    option => (
-                      <FilterChip
-                        key={
-                          option.value
-                        }
-                        scale={s}
-                        fontScale={fs}
-                        label={
-                          option.label
-                        }
-                        selected={
-                          urgencyFilter ===
-                          option.value
-                        }
-                        onPress={() =>
-                          handleUrgencyFilter(
-                            option.value
-                          )
-                        }
-                      />
-                    )
-                  )}
-                </FilterSection>
-              </View>
-
-              {/* ==================================================
-                  RESULTS CARD
-              ================================================== */}
-
-              <View
-                style={[
-                  styles.resultsCard,
-
-                  {
-                    borderRadius:
-                      14 * s,
-                  },
-                ]}
-              >
-                {/* RESULTS HEADER */}
-
                 <View
                   style={[
-                    styles.resultsHeader,
+                    styles.wrapRow,
 
                     {
-                      minHeight:
-                        70 * s,
-
-                      paddingHorizontal:
-                        20 * s,
-
-                      paddingVertical:
-                        14 * s,
+                      alignItems: 'center',
+                      gap: 7 * s,
+                      marginBottom: 24 * s,
                     },
                   ]}
                 >
-                  <View>
-                    <Text
-                      style={[
-                        styles.resultsTitle,
+                  <Text
+                    style={[
+                      styles.filterLabel,
+
+                      {
+                        fontSize: 11 * fs,
+                        marginRight: 6 * s,
+                      },
+                    ]}
+                  >
+                    BLOOD TYPE
+                  </Text>
+
+                  {BLOOD_TYPES.map(type => (
+                    <Pressable
+                      key={type}
+                      onPress={() =>
+                        changeBloodType(type)
+                      }
+                      style={({ pressed }) => [
+                        styles.bloodChip,
 
                         {
-                          fontSize:
-                            17 * fs,
+                          height: 34 * s,
+                          minWidth: 44 * s,
+                          paddingHorizontal: 11 * s,
+                          borderRadius: 8 * s,
                         },
+
+                        bloodTypeFilter === type &&
+                          styles.bloodChipActive,
+
+                        pressed &&
+                          styles.pressed,
                       ]}
                     >
-                      Request Records
-                    </Text>
-
-                    <Text
-                      style={[
-                        styles.resultsSubtitle,
-
-                        {
-                          fontSize:
-                            12 * fs,
-
-                          marginTop:
-                            2 * s,
-                        },
-                      ]}
-                    >
-                      {pagination.total}{' '}
-                      {pagination.total ===
-                      1
-                        ? 'request'
-                        : 'requests'}{' '}
-                      found
-                    </Text>
-                  </View>
-
-                  {search ? (
-                    <View
-                      style={[
-                        styles.searchIndicator,
-
-                        {
-                          minHeight:
-                            32 * s,
-
-                          borderRadius:
-                            16 * s,
-
-                          paddingHorizontal:
-                            11 * s,
-                        },
-                      ]}
-                    >
-                      <MaterialIcons
-                        name="search"
-                        size={
-                          15 * s
-                        }
-                        color={
-                          COLORS.soft
-                        }
-                      />
-
                       <Text
-                        numberOfLines={
-                          1
-                        }
                         style={[
-                          styles.searchIndicatorText,
+                          styles.bloodChipText,
 
                           {
-                            fontSize:
-                              11 * fs,
-
-                            marginLeft:
-                              5 * s,
+                            fontSize: 12.5 * fs,
                           },
+
+                          bloodTypeFilter === type &&
+                            styles.bloodChipTextActive,
                         ]}
                       >
-                        {search}
+                        {type === 'all'
+                          ? 'All'
+                          : type}
                       </Text>
-                    </View>
-                  ) : null}
-                </View>
+                    </Pressable>
+                  ))}
 
-                {/* LOADING */}
-
-                {loading ? (
-                  <View
-                    style={[
-                      styles.stateContainer,
-
-                      {
-                        minHeight:
-                          300 * s,
-                      },
-                    ]}
-                  >
-                    <ActivityIndicator
-                      size="large"
-                      color={
-                        COLORS.redBright
-                      }
-                    />
-
-                    <Text
-                      style={[
-                        styles.stateText,
-
-                        {
-                          fontSize:
-                            14 * fs,
-
-                          marginTop:
-                            13 * s,
-                        },
-                      ]}
-                    >
-                      Loading blood requests...
-                    </Text>
-                  </View>
-                ) : error ? (
-                  /* ERROR */
-
-                  <View
-                    style={[
-                      styles.stateContainer,
-
-                      {
-                        minHeight:
-                          300 * s,
-                      },
-                    ]}
-                  >
-                    <MaterialIcons
-                      name="error-outline"
-                      size={
-                        42 * s
-                      }
-                      color={
-                        COLORS.redBright
-                      }
-                    />
-
-                    <Text
-                      style={[
-                        styles.errorTitle,
-
-                        {
-                          fontSize:
-                            17 * fs,
-
-                          marginTop:
-                            12 * s,
-                        },
-                      ]}
-                    >
-                      Unable to Load Requests
-                    </Text>
-
-                    <Text
-                      style={[
-                        styles.stateText,
-
-                        {
-                          fontSize:
-                            13 * fs,
-
-                          lineHeight:
-                            20 * fs,
-
-                          marginTop:
-                            5 * s,
-                        },
-                      ]}
-                    >
-                      {
-                        error
-                      }
-                    </Text>
-
+                  {hasFilters ? (
                     <Pressable
-                      onPress={() =>
-                        loadRequests()
-                      }
-                      style={({
-                        pressed,
-                      }) => [
-                        styles.retryButton,
+                      onPress={resetFilters}
+                      style={({ pressed }) => [
+                        styles.resetButton,
 
                         {
-                          height:
-                            44 * s,
-
-                          borderRadius:
-                            9 * s,
-
-                          paddingHorizontal:
-                            18 * s,
-
-                          marginTop:
-                            18 * s,
+                          height: 34 * s,
+                          paddingHorizontal: 12 * s,
+                          borderRadius: 8 * s,
+                          marginLeft: 6 * s,
+                          gap: 5 * s,
                         },
 
                         pressed &&
-                          styles.buttonPressed,
-                      ]}
-                    >
-                      <Text
-                        style={[
-                          styles.retryButtonText,
-
-                          {
-                            fontSize:
-                              13 * fs,
-                          },
-                        ]}
-                      >
-                        Try Again
-                      </Text>
-                    </Pressable>
-                  </View>
-                ) : requests.length ===
-                  0 ? (
-                  /* EMPTY */
-
-                  <View
-                    style={[
-                      styles.stateContainer,
-
-                      {
-                        minHeight:
-                          300 * s,
-                      },
-                    ]}
-                  >
-                    <View
-                      style={[
-                        styles.emptyIcon,
-
-                        {
-                          width:
-                            60 * s,
-
-                          height:
-                            60 * s,
-
-                          borderRadius:
-                            30 * s,
-                        },
+                          styles.pressed,
                       ]}
                     >
                       <MaterialIcons
-                        name="bloodtype"
-                        size={
-                          30 * s
-                        }
-                        color={
-                          COLORS.muted
-                        }
+                        name="filter-alt-off"
+                        size={16 * s}
+                        color={COLORS.soft}
                       />
-                    </View>
 
-                    <Text
-                      style={[
-                        styles.emptyTitle,
-
-                        {
-                          fontSize:
-                            17 * fs,
-
-                          marginTop:
-                            13 * s,
-                        },
-                      ]}
-                    >
-                      No blood requests found
-                    </Text>
-
-                    <Text
-                      style={[
-                        styles.stateText,
-
-                        {
-                          fontSize:
-                            13 * fs,
-
-                          lineHeight:
-                            20 * fs,
-
-                          marginTop:
-                            5 * s,
-                        },
-                      ]}
-                    >
-                      Try changing the filters or search terms.
-                    </Text>
-                  </View>
-                ) : (
-                  <>
-                    {/* ==========================================
-                        TABLE
-                    ========================================== */}
-
-                    <View
-                      style={
-                        styles.table
-                      }
-                    >
-                      {/* TABLE HEADER */}
-
-                      <View
-                        style={[
-                          styles.tableHeader,
-
-                          {
-                            minHeight:
-                              48 * s,
-
-                            paddingHorizontal:
-                              18 * s,
-                          },
-                        ]}
-                      >
-                        <TableHeaderCell
-                          fontScale={fs}
-                          flex={1.55}
-                          text="REQUESTER"
-                        />
-
-                        <TableHeaderCell
-                          fontScale={fs}
-                          flex={0.6}
-                          text="BLOOD"
-                        />
-
-                        <TableHeaderCell
-                          fontScale={fs}
-                          flex={0.55}
-                          text="UNITS"
-                        />
-
-                        <TableHeaderCell
-                          fontScale={fs}
-                          flex={1.45}
-                          text="FACILITY"
-                        />
-
-                        <TableHeaderCell
-                          fontScale={fs}
-                          flex={0.85}
-                          text="URGENCY"
-                        />
-
-                        <TableHeaderCell
-                          fontScale={fs}
-                          flex={0.85}
-                          text="STATUS"
-                        />
-
-                        <TableHeaderCell
-                          fontScale={fs}
-                          flex={1}
-                          text="CREATED"
-                        />
-
-                        <View
-                          style={{
-                            width:
-                              40 * s,
-                          }}
-                        />
-                      </View>
-
-                      {/* TABLE ROWS */}
-
-                      {requests.map(
-                        (
-                          request,
-                          index
-                        ) => (
-                          <RequestRow
-                            key={
-                              request.id
-                            }
-                            request={
-                              request
-                            }
-                            scale={s}
-                            fontScale={fs}
-                            last={
-                              index ===
-                              requests.length -
-                                1
-                            }
-                          />
-                        )
-                      )}
-                    </View>
-
-                    {/* ==========================================
-                        PAGINATION
-                    ========================================== */}
-
-                    <View
-                      style={[
-                        styles.pagination,
-
-                        {
-                          minHeight:
-                            68 * s,
-
-                          paddingHorizontal:
-                            18 * s,
-
-                          paddingVertical:
-                            12 * s,
-                        },
-                      ]}
-                    >
                       <Text
                         style={[
-                          styles.paginationText,
+                          styles.resetText,
 
                           {
-                            fontSize:
-                              12 * fs,
+                            fontSize: 12 * fs,
                           },
                         ]}
                       >
-                        Page{' '}
-                        {pagination.page}{' '}
-                        of{' '}
-                        {Math.max(
-                          pagination.total_pages,
-                          1
-                        )}
+                        Reset filters
                       </Text>
+                    </Pressable>
+                  ) : null}
+                </View>
+              </FadeInView>
 
-                      <View
+              {/* ================================================
+                  TABLE
+              ================================================ */}
+
+              <FadeInView delay={100}>
+                <View
+                  style={[
+                    styles.listCard,
+
+                    {
+                      borderRadius: 14 * s,
+                    },
+                  ]}
+                >
+                  <View
+                    style={[
+                      styles.tableHeader,
+
+                      {
+                        minHeight: 56 * s,
+                        paddingHorizontal: 22 * s,
+                      },
+                    ]}
+                  >
+                    {(
+                      [
+                        ['Requester', styles.colRequester],
+                        ['Blood', styles.colBlood],
+                        ['Units', styles.colUnits],
+                        ['Facility', styles.colFacility],
+                        ['Urgency', styles.colUrgency],
+                        ['Status', styles.colStatus],
+                        ['Created', styles.colCreated],
+                      ] as [string, object][]
+                    ).map(([label, colStyle]) => (
+                      <Text
+                        key={label}
                         style={[
-                          styles.paginationActions,
+                          styles.tableHeaderText,
+                          colStyle,
 
                           {
-                            gap:
-                              8 * s,
+                            fontSize: 11.5 * fs,
                           },
                         ]}
                       >
-                        <Pressable
-                          disabled={
-                            page <=
-                            1
+                        {label}
+                      </Text>
+                    ))}
+
+                    <View style={styles.colAction} />
+                  </View>
+
+                  {loading ? (
+                    <TableMessage
+                      scale={s}
+                      fontScale={fs}
+                      loading
+                      title=""
+                      text="Loading blood requests..."
+                    />
+                  ) : error && requests.length === 0 ? (
+                    <TableMessage
+                      scale={s}
+                      fontScale={fs}
+                      icon="error-outline"
+                      iconColor={COLORS.redBright}
+                      title="Unable to Load Requests"
+                      text={error}
+                      actionLabel="Try Again"
+                      onAction={loadRequests}
+                    />
+                  ) : requests.length === 0 ? (
+                    <TableMessage
+                      scale={s}
+                      fontScale={fs}
+                      icon={
+                        hasFilters
+                          ? 'search-off'
+                          : 'bloodtype'
+                      }
+                      title={
+                        hasFilters
+                          ? 'No Matching Requests'
+                          : 'No Blood Requests Yet'
+                      }
+                      text={
+                        hasFilters
+                          ? 'Try changing your search or filters.'
+                          : 'Blood requests created by users will appear here.'
+                      }
+                      actionLabel={
+                        hasFilters
+                          ? 'Reset Filters'
+                          : undefined
+                      }
+                      onAction={
+                        hasFilters
+                          ? resetFilters
+                          : undefined
+                      }
+                    />
+                  ) : (
+                    requests.map((request, index) => (
+                      <FadeInView
+                        key={request.id}
+                        delay={Math.min(index, 8) * 30}
+                        offset={6}
+                      >
+                        <RequestRow
+                          request={request}
+                          scale={s}
+                          fontScale={fs}
+                          last={
+                            index === requests.length - 1
                           }
-                          onPress={
-                            goPrevious
-                          }
-                          style={({
-                            pressed,
-                          }) => [
-                            styles.pageButton,
+                        />
+                      </FadeInView>
+                    ))
+                  )}
+                </View>
+              </FadeInView>
 
-                            {
-                              height:
-                                40 * s,
+              {/* ================================================
+                  PAGINATION
+              ================================================ */}
 
-                              minWidth:
-                                98 * s,
+              {!loading &&
+              pagination.total > 0 ? (
+                <View
+                  style={[
+                    styles.pagination,
 
-                              borderRadius:
-                                9 * s,
+                    {
+                      marginTop: 17 * s,
+                    },
+                  ]}
+                >
+                  <Text
+                    style={[
+                      styles.cellMuted,
 
-                              gap:
-                                5 * s,
-                            },
+                      {
+                        fontSize: 12 * fs,
+                      },
+                    ]}
+                  >
+                    Page {pagination.page} of{' '}
+                    {Math.max(pagination.total_pages, 1)} •{' '}
+                    {pagination.total}{' '}
+                    {pagination.total === 1
+                      ? 'request'
+                      : 'requests'}
+                  </Text>
 
-                            page <=
-                              1 &&
-                              styles.disabled,
+                  <View
+                    style={[
+                      styles.row,
 
-                            pressed &&
-                              page >
-                                1 &&
-                              styles.buttonPressed,
-                          ]}
-                        >
-                          <MaterialIcons
-                            name="chevron-left"
-                            size={
-                              19 * s
-                            }
-                            color={
-                              COLORS.soft
-                            }
-                          />
+                      {
+                        gap: 8 * s,
+                      },
+                    ]}
+                  >
+                    <PageButton
+                      scale={s}
+                      fontScale={fs}
+                      label="Previous"
+                      icon="chevron-left"
+                      disabled={page <= 1}
+                      onPress={() =>
+                        setPage(current =>
+                          Math.max(current - 1, 1)
+                        )
+                      }
+                    />
 
-                          <Text
-                            style={[
-                              styles.pageButtonText,
-
-                              {
-                                fontSize:
-                                  12 * fs,
-                              },
-                            ]}
-                          >
-                            Previous
-                          </Text>
-                        </Pressable>
-
-                        <Pressable
-                          disabled={
-                            pagination.total_pages ===
-                              0 ||
-                            page >=
-                              pagination.total_pages
-                          }
-                          onPress={
-                            goNext
-                          }
-                          style={({
-                            pressed,
-                          }) => [
-                            styles.pageButton,
-
-                            {
-                              height:
-                                40 * s,
-
-                              minWidth:
-                                82 * s,
-
-                              borderRadius:
-                                9 * s,
-
-                              gap:
-                                5 * s,
-                            },
-
-                            (
-                              pagination.total_pages ===
-                                0 ||
-                              page >=
-                                pagination.total_pages
-                            ) &&
-                              styles.disabled,
-
-                            pressed &&
-                              pagination.total_pages >
-                                0 &&
-                              page <
-                                pagination.total_pages &&
-                              styles.buttonPressed,
-                          ]}
-                        >
-                          <Text
-                            style={[
-                              styles.pageButtonText,
-
-                              {
-                                fontSize:
-                                  12 * fs,
-                              },
-                            ]}
-                          >
-                            Next
-                          </Text>
-
-                          <MaterialIcons
-                            name="chevron-right"
-                            size={
-                              19 * s
-                            }
-                            color={
-                              COLORS.soft
-                            }
-                          />
-                        </Pressable>
-                      </View>
-                    </View>
-                  </>
-                )}
-              </View>
+                    <PageButton
+                      scale={s}
+                      fontScale={fs}
+                      label="Next"
+                      icon="chevron-right"
+                      iconRight
+                      disabled={
+                        pagination.total_pages === 0 ||
+                        page >= pagination.total_pages
+                      }
+                      onPress={() =>
+                        setPage(current => current + 1)
+                      }
+                    />
+                  </View>
+                </View>
+              ) : null}
             </ScrollView>
 
-            {/* ==================================================
-                BOTTOM NAV
-            ================================================== */}
-
-            <AdminBottomNav
-              activeTab="requests"
-            />
+            <AdminBottomNav activeTab="requests" />
           </SafeAreaView>
         </LinearGradient>
       </View>
@@ -2041,369 +1033,389 @@ export default function AdminBloodRequestsScreen() {
 }
 
 // ============================================================
-// SUMMARY CARD
+// FILTER BUTTON
 // ============================================================
 
-function SummaryCard({
-  scale,
-  fontScale,
-  icon,
-  label,
-  value,
-  description,
-  accent,
-}: {
-  scale: number;
-
-  fontScale: number;
-
-  icon:
-    ComponentProps<
-      typeof MaterialIcons
-    >['name'];
-
-  label: string;
-
-  value: number;
-
-  description: string;
-
-  accent:
-    | 'red'
-    | 'orange'
-    | 'green'
-    | 'blue';
-}) {
-  const accentColor =
-    accent === 'orange'
-      ? COLORS.orange
-      : accent === 'green'
-        ? COLORS.green
-        : accent === 'blue'
-          ? COLORS.blue
-          : COLORS.redBright;
-
-  return (
-    <View
-      style={[
-        styles.summaryCard,
-
-        {
-          minHeight:
-            148 * scale,
-
-          borderRadius:
-            14 * scale,
-
-          padding:
-            18 * scale,
-        },
-      ]}
-    >
-      <View
-        style={
-          styles.summaryTop
-        }
-      >
-        <View
-          style={[
-            styles.summaryIcon,
-
-            {
-              width:
-                44 * scale,
-
-              height:
-                44 * scale,
-
-              borderRadius:
-                11 * scale,
-            },
-          ]}
-        >
-          <MaterialIcons
-            name={
-              icon
-            }
-            size={
-              23 * scale
-            }
-            color={
-              accentColor
-            }
-          />
-        </View>
-
-        <Text
-          style={[
-            styles.summaryValue,
-
-            {
-              fontSize:
-                29 * fontScale,
-            },
-          ]}
-        >
-          {
-            value
-          }
-        </Text>
-      </View>
-
-      <Text
-        style={[
-          styles.summaryLabel,
-
-          {
-            fontSize:
-              12 * fontScale,
-
-            marginTop:
-              12 * scale,
-          },
-        ]}
-      >
-        {
-          label
-        }
-      </Text>
-
-      <Text
-        numberOfLines={
-          1
-        }
-        style={[
-          styles.summaryDescription,
-
-          {
-            fontSize:
-              12 * fontScale,
-
-            marginTop:
-              3 * scale,
-          },
-        ]}
-      >
-        {
-          description
-        }
-      </Text>
-    </View>
-  );
-}
-
-// ============================================================
-// FILTER SECTION
-// ============================================================
-
-function FilterSection({
-  scale,
-  fontScale,
-  title,
-  children,
-  last = false,
-}: {
-  scale: number;
-
-  fontScale: number;
-
-  title: string;
-
-  children:
-    React.ReactNode;
-
-  last?: boolean;
-}) {
-  return (
-    <View
-      style={[
-        styles.filterSection,
-
-        {
-          marginTop:
-            15 * scale,
-
-          paddingBottom:
-            last
-              ? 0
-              : 14 * scale,
-        },
-
-        !last &&
-          styles.filterSectionBorder,
-      ]}
-    >
-      <Text
-        style={[
-          styles.filterLabel,
-
-          {
-            fontSize:
-              11 * fontScale,
-
-            marginBottom:
-              8 * scale,
-          },
-        ]}
-      >
-        {
-          title
-        }
-      </Text>
-
-      <ScrollView
-        horizontal
-        showsHorizontalScrollIndicator={
-          false
-        }
-        contentContainerStyle={[
-          styles.filterChipRow,
-
-          {
-            gap:
-              7 * scale,
-          },
-        ]}
-      >
-        {
-          children
-        }
-      </ScrollView>
-    </View>
-  );
-}
-
-// ============================================================
-// FILTER CHIP
-// ============================================================
-
-function FilterChip({
+function FilterButton({
   scale,
   fontScale,
   label,
-  selected,
+  count,
+  active,
+  tone,
   onPress,
-  blood = false,
 }: {
   scale: number;
-
   fontScale: number;
-
   label: string;
-
-  selected: boolean;
-
-  onPress:
-    () => void;
-
-  blood?: boolean;
+  count: number;
+  active: boolean;
+  tone?: 'orange' | 'green';
+  onPress: () => void;
 }) {
   return (
     <Pressable
-      onPress={
-        onPress
-      }
-      style={({
-        pressed,
-      }) => [
-        styles.filterChip,
+      onPress={onPress}
+      style={({ pressed }) => [
+        styles.filterButton,
 
         {
-          minHeight:
-            36 * scale,
-
-          borderRadius:
-            18 * scale,
-
-          paddingHorizontal:
-            blood
-              ? 14 * scale
-              : 15 * scale,
+          height: 44 * scale,
+          paddingHorizontal: 16 * scale,
+          borderRadius: 10 * scale,
+          gap: 8 * scale,
         },
 
-        selected &&
-          styles.filterChipSelected,
+        active &&
+          styles.filterButtonActive,
 
         pressed &&
-          styles.buttonPressed,
+          styles.pressed,
       ]}
     >
-      {blood ? (
-        <MaterialIcons
-          name="bloodtype"
-          size={
-            15 * scale
-          }
-          color={
-            selected
-              ? COLORS.redBright
-              : COLORS.muted
-          }
-        />
-      ) : null}
-
       <Text
         style={[
-          styles.filterChipText,
+          styles.filterText,
 
           {
-            fontSize:
-              12 * fontScale,
-
-            marginLeft:
-              blood
-                ? 4 * scale
-                : 0,
+            fontSize: 12.5 * fontScale,
           },
 
-          selected &&
-            styles.filterChipTextSelected,
+          active &&
+            styles.filterTextActive,
         ]}
       >
-        {
-          label
-        }
+        {label}
       </Text>
+
+      <View
+        style={[
+          styles.filterCount,
+
+          {
+            minWidth: 24 * scale,
+            height: 24 * scale,
+            borderRadius: 12 * scale,
+            paddingHorizontal: 6 * scale,
+          },
+
+          tone === 'orange' &&
+            count > 0 &&
+            styles.filterCountOrange,
+
+          tone === 'green' &&
+            styles.filterCountGreen,
+        ]}
+      >
+        <Text
+          style={[
+            styles.filterCountText,
+
+            {
+              fontSize: 11 * fontScale,
+            },
+          ]}
+        >
+          {count}
+        </Text>
+      </View>
     </Pressable>
   );
 }
 
-// ============================================================
-// TABLE HEADER
-// ============================================================
-
-function TableHeaderCell({
+function InfoChip({
+  scale,
   fontScale,
-  flex,
+  icon,
+  color,
   text,
 }: {
+  scale: number;
   fontScale: number;
-
-  flex: number;
-
+  icon: IconName;
+  color: string;
   text: string;
 }) {
   return (
     <View
-      style={{
-        flex,
-      }}
+      style={[
+        styles.row,
+
+        {
+          alignItems: 'center',
+          gap: 5 * scale,
+        },
+      ]}
     >
+      <MaterialIcons
+        name={icon}
+        size={16 * scale}
+        color={color}
+      />
+
       <Text
         style={[
-          styles.tableHeaderText,
+          styles.cellText,
 
           {
-            fontSize:
-              11 * fontScale,
+            fontSize: 12.5 * fontScale,
           },
         ]}
       >
-        {
-          text
-        }
+        {text}
       </Text>
     </View>
+  );
+}
+
+// ============================================================
+// SEGMENT
+// ============================================================
+
+function Segment<T extends string>({
+  scale,
+  fontScale,
+  value,
+  options,
+  onChange,
+}: {
+  scale: number;
+  fontScale: number;
+  value: T;
+  options: [T, string][];
+  onChange: (value: T) => void;
+}) {
+  return (
+    <View
+      style={[
+        styles.segment,
+
+        {
+          height: 44 * scale,
+          borderRadius: 10 * scale,
+          padding: 4 * scale,
+          gap: 4 * scale,
+        },
+      ]}
+    >
+      {options.map(([optionValue, label]) => (
+        <Pressable
+          key={optionValue}
+          onPress={() =>
+            onChange(optionValue)
+          }
+          style={({ pressed }) => [
+            styles.segmentItem,
+
+            {
+              paddingHorizontal: 14 * scale,
+              borderRadius: 7 * scale,
+            },
+
+            value === optionValue &&
+              styles.segmentItemActive,
+
+            pressed &&
+              styles.pressed,
+          ]}
+        >
+          <Text
+            style={[
+              styles.segmentText,
+
+              {
+                fontSize: 12.5 * fontScale,
+              },
+
+              value === optionValue &&
+                styles.segmentTextActive,
+            ]}
+          >
+            {label}
+          </Text>
+        </Pressable>
+      ))}
+    </View>
+  );
+}
+
+// ============================================================
+// TABLE MESSAGE
+// ============================================================
+
+function TableMessage({
+  scale,
+  fontScale,
+  loading = false,
+  icon,
+  iconColor = COLORS.muted,
+  title,
+  text,
+  actionLabel,
+  onAction,
+}: {
+  scale: number;
+  fontScale: number;
+  loading?: boolean;
+  icon?: IconName;
+  iconColor?: string;
+  title: string;
+  text: string;
+  actionLabel?: string;
+  onAction?: () => void;
+}) {
+  return (
+    <View
+      style={[
+        styles.centerArea,
+
+        {
+          minHeight: 360 * scale,
+          paddingHorizontal: 30 * scale,
+        },
+      ]}
+    >
+      {loading ? (
+        <ActivityIndicator
+          size="large"
+          color={COLORS.redBright}
+        />
+      ) : icon ? (
+        <MaterialIcons
+          name={icon}
+          size={46 * scale}
+          color={iconColor}
+        />
+      ) : null}
+
+      {title ? (
+        <Text
+          style={[
+            styles.emptyTitle,
+
+            {
+              fontSize: 18 * fontScale,
+              marginTop: 14 * scale,
+            },
+          ]}
+        >
+          {title}
+        </Text>
+      ) : null}
+
+      <Text
+        style={[
+          styles.cellMuted,
+          styles.centerText,
+
+          {
+            fontSize: 13 * fontScale,
+            marginTop: (title ? 6 : 14) * scale,
+          },
+        ]}
+      >
+        {text}
+      </Text>
+
+      {actionLabel && onAction ? (
+        <Pressable
+          onPress={onAction}
+          style={({ pressed }) => [
+            styles.primaryButton,
+
+            {
+              height: 42 * scale,
+              paddingHorizontal: 20 * scale,
+              borderRadius: 9 * scale,
+              marginTop: 18 * scale,
+            },
+
+            pressed &&
+              styles.pressed,
+          ]}
+        >
+          <Text
+            style={[
+              styles.primaryButtonText,
+
+              {
+                fontSize: 13 * fontScale,
+              },
+            ]}
+          >
+            {actionLabel}
+          </Text>
+        </Pressable>
+      ) : null}
+    </View>
+  );
+}
+
+// ============================================================
+// PAGE BUTTON
+// ============================================================
+
+function PageButton({
+  scale,
+  fontScale,
+  label,
+  icon,
+  iconRight = false,
+  disabled,
+  onPress,
+}: {
+  scale: number;
+  fontScale: number;
+  label: string;
+  icon: IconName;
+  iconRight?: boolean;
+  disabled: boolean;
+  onPress: () => void;
+}) {
+  const iconNode = (
+    <MaterialIcons
+      name={icon}
+      size={19 * scale}
+      color={COLORS.white}
+    />
+  );
+
+  return (
+    <Pressable
+      disabled={disabled}
+      onPress={onPress}
+      style={({ pressed }) => [
+        styles.pageButton,
+
+        {
+          height: 40 * scale,
+          paddingHorizontal: 14 * scale,
+          borderRadius: 9 * scale,
+        },
+
+        pressed &&
+          styles.pressed,
+
+        disabled &&
+          styles.disabled,
+      ]}
+    >
+      {!iconRight ? iconNode : null}
+
+      <Text
+        style={[
+          styles.pageButtonText,
+
+          {
+            fontSize: 12.5 * fontScale,
+          },
+        ]}
+      >
+        {label}
+      </Text>
+
+      {iconRight ? iconNode : null}
+    </Pressable>
   );
 }
 
@@ -2417,141 +1429,113 @@ function RequestRow({
   fontScale,
   last,
 }: {
-  request:
-    AdminBloodRequest;
-
+  request: AdminBloodRequest;
   scale: number;
-
   fontScale: number;
-
   last: boolean;
 }) {
   const requesterName =
-    getRequesterName(
-      request
-    );
+    getRequesterName(request);
+
+  const urgent =
+    request.urgency === 'urgent';
+
+  const status =
+    getStatusStyle(request.status);
+
+  const neededBy =
+    !urgent &&
+    request.status === 'active'
+      ? formatNeededBy(request)
+      : '';
 
   return (
     <Pressable
       onPress={() =>
         router.push(
-          `/requests/${request.id}`
+          `/requests/${request.id}` as any
         )
       }
-      style={({
-        pressed,
-      }) => [
-        styles.requestRow,
+      style={({ pressed }) => [
+        styles.tableRow,
 
         {
-          minHeight:
-            72 * scale,
-
-          paddingHorizontal:
-            18 * scale,
-
-          paddingVertical:
-            10 * scale,
+          minHeight: 84 * scale,
+          paddingHorizontal: 22 * scale,
+          paddingVertical: 12 * scale,
         },
 
         last &&
-          styles.noBottomBorder,
+          styles.noBorder,
 
         pressed &&
-          styles.requestRowPressed,
+          styles.rowPressed,
       ]}
     >
       {/* REQUESTER */}
 
       <View
         style={[
-          styles.requesterCell,
+          styles.colRequester,
+          styles.row,
 
           {
-            flex:
-              1.55,
-
-            paddingRight:
-              10 * scale,
+            alignItems: 'center',
+            paddingRight: 10 * scale,
           },
         ]}
       >
         <View
           style={[
-            styles.requesterAvatar,
+            styles.avatar,
 
             {
-              width:
-                38 * scale,
-
-              height:
-                38 * scale,
-
-              borderRadius:
-                19 * scale,
-
-              marginRight:
-                9 * scale,
+              width: 40 * scale,
+              height: 40 * scale,
+              borderRadius: 20 * scale,
+              marginRight: 11 * scale,
             },
           ]}
         >
           <Text
             style={[
-              styles.requesterAvatarText,
+              styles.avatarText,
 
               {
-                fontSize:
-                  13 * fontScale,
+                fontSize: 13 * fontScale,
               },
             ]}
           >
-            {requesterName
-              .charAt(0)
-              .toUpperCase()}
+            {requesterName.charAt(0).toUpperCase()}
           </Text>
         </View>
 
-        <View
-          style={
-            styles.requesterInfo
-          }
-        >
+        <View style={styles.flexFill}>
           <Text
-            numberOfLines={
-              1
-            }
+            numberOfLines={1}
             style={[
-              styles.primaryCellText,
+              styles.nameText,
 
               {
-                fontSize:
-                  13 * fontScale,
+                fontSize: 13.5 * fontScale,
               },
             ]}
           >
-            {
-              requesterName
-            }
+            {requesterName}
           </Text>
 
           <Text
-            numberOfLines={
-              1
-            }
+            numberOfLines={1}
             style={[
-              styles.secondaryCellText,
+              styles.cellMuted,
 
               {
-                fontSize:
-                  11.5 * fontScale,
-
-                marginTop:
-                  2 * scale,
+                fontSize: 11.5 * fontScale,
+                marginTop: 3 * scale,
               },
             ]}
           >
-            {request.requester
-              ?.email ||
+            {request.requester?.email ||
               'Email unavailable'}
           </Text>
         </View>
@@ -2559,86 +1543,58 @@ function RequestRow({
 
       {/* BLOOD */}
 
-      <View
-        style={{
-          flex:
-            0.6,
-        }}
-      >
+      <View style={styles.colBlood}>
         <View
           style={[
-            styles.bloodBadge,
+            styles.bloodPill,
 
             {
-              minWidth:
-                46 * scale,
-
-              height:
-                34 * scale,
-
-              borderRadius:
-                8 * scale,
-
-              paddingHorizontal:
-                9 * scale,
+              minWidth: 46 * scale,
+              height: 30 * scale,
+              borderRadius: 6 * scale,
+              paddingHorizontal: 10 * scale,
             },
           ]}
         >
           <Text
             style={[
-              styles.bloodBadgeText,
+              styles.bloodPillText,
 
               {
-                fontSize:
-                  13 * fontScale,
+                fontSize: 12 * fontScale,
               },
             ]}
           >
-            {
-              request.blood_type
-            }
+            {request.blood_type}
           </Text>
         </View>
       </View>
 
       {/* UNITS */}
 
-      <View
-        style={{
-          flex:
-            0.55,
-        }}
-      >
+      <View style={styles.colUnits}>
         <Text
           style={[
-            styles.primaryCellText,
+            styles.nameText,
 
             {
-              fontSize:
-                13 * fontScale,
+              fontSize: 14 * fontScale,
             },
           ]}
         >
-          {
-            request.units_needed
-          }
+          {request.units_needed}
         </Text>
 
         <Text
           style={[
-            styles.secondaryCellText,
+            styles.cellMuted,
 
             {
-              fontSize:
-                11 * fontScale,
-
-              marginTop:
-                2 * scale,
+              fontSize: 11.5 * fontScale,
             },
           ]}
         >
-          {request.units_needed ===
-          1
+          {request.units_needed === 1
             ? 'unit'
             : 'units'}
         </Text>
@@ -2647,24 +1603,21 @@ function RequestRow({
       {/* FACILITY */}
 
       <View
-        style={{
-          flex:
-            1.45,
+        style={[
+          styles.colFacility,
 
-          paddingRight:
-            12 * scale,
-        }}
+          {
+            paddingRight: 12 * scale,
+          },
+        ]}
       >
         <Text
-          numberOfLines={
-            1
-          }
+          numberOfLines={1}
           style={[
-            styles.primaryCellText,
+            styles.cellText,
 
             {
-              fontSize:
-                13 * fontScale,
+              fontSize: 12.5 * fontScale,
             },
           ]}
         >
@@ -2673,132 +1626,155 @@ function RequestRow({
         </Text>
 
         <Text
-          numberOfLines={
-            1
-          }
+          numberOfLines={1}
           style={[
-            styles.secondaryCellText,
+            styles.cellMuted,
 
             {
-              fontSize:
-                11.5 * fontScale,
-
-              marginTop:
-                2 * scale,
+              fontSize: 11.5 * fontScale,
+              marginTop: 3 * scale,
             },
           ]}
         >
           {request.facility_address ||
-            formatFacilityType(
-              request.facility_type
-            )}
+            formatValue(request.facility_type)}
         </Text>
       </View>
 
       {/* URGENCY */}
 
-      <View
-        style={{
-          flex:
-            0.85,
-        }}
-      >
-        <UrgencyBadge
-          urgency={
-            request.urgency
-          }
-          scale={
-            scale
-          }
-          fontScale={
-            fontScale
-          }
-        />
+      <View style={styles.colUrgency}>
+        <View
+          style={[
+            styles.pill,
+
+            {
+              height: 30 * scale,
+              paddingHorizontal: 9 * scale,
+              borderRadius: 6 * scale,
+              gap: 4 * scale,
+            },
+
+            urgent
+              ? styles.urgentPill
+              : styles.scheduledPill,
+          ]}
+        >
+          <MaterialIcons
+            name={
+              urgent
+                ? 'priority-high'
+                : 'event'
+            }
+            size={14 * scale}
+            color={
+              urgent
+                ? COLORS.redBright
+                : COLORS.blue
+            }
+          />
+
+          <Text
+            style={[
+              styles.pillText,
+
+              {
+                fontSize: 12 * fontScale,
+                color: urgent
+                  ? COLORS.redBright
+                  : COLORS.blue,
+              },
+            ]}
+          >
+            {urgent
+              ? 'Urgent'
+              : 'Scheduled'}
+          </Text>
+        </View>
+
+        {neededBy ? (
+          <Text
+            numberOfLines={1}
+            style={[
+              styles.cellMuted,
+
+              {
+                fontSize: 11 * fontScale,
+                marginTop: 4 * scale,
+              },
+            ]}
+          >
+            Needed {neededBy}
+          </Text>
+        ) : null}
       </View>
 
       {/* STATUS */}
 
-      <View
-        style={{
-          flex:
-            0.85,
-        }}
-      >
-        <RequestStatusBadge
-          status={
-            request.status
-          }
-          scale={
-            scale
-          }
-          fontScale={
-            fontScale
-          }
-        />
+      <View style={styles.colStatus}>
+        <View
+          style={[
+            styles.pill,
+
+            {
+              minWidth: 92 * scale,
+              height: 32 * scale,
+              paddingHorizontal: 12 * scale,
+              borderRadius: 6 * scale,
+              borderColor: status.border,
+              backgroundColor: status.background,
+            },
+          ]}
+        >
+          <Text
+            style={[
+              styles.pillText,
+
+              {
+                fontSize: 12 * fontScale,
+                color: status.color,
+              },
+            ]}
+          >
+            {status.label}
+          </Text>
+        </View>
       </View>
 
       {/* CREATED */}
 
-      <View
-        style={{
-          flex:
-            1,
-        }}
-      >
+      <View style={styles.colCreated}>
         <Text
           style={[
-            styles.primaryCellText,
+            styles.cellText,
 
             {
-              fontSize:
-                12.5 * fontScale,
+              fontSize: 12.5 * fontScale,
             },
           ]}
         >
-          {formatDate(
-            request.created_at
-          )}
+          {formatDate(request.created_at)}
         </Text>
 
         <Text
           style={[
-            styles.secondaryCellText,
+            styles.cellMuted,
 
             {
-              fontSize:
-                11 * fontScale,
-
-              marginTop:
-                2 * scale,
+              fontSize: 11.5 * fontScale,
+              marginTop: 3 * scale,
             },
           ]}
         >
-          {formatTime(
-            request.created_at
-          )}
+          {formatTime(request.created_at)}
         </Text>
       </View>
 
-      {/* ACTION */}
-
-      <View
-        style={[
-          styles.actionCell,
-
-          {
-            width:
-              40 * scale,
-          },
-        ]}
-      >
+      <View style={styles.colAction}>
         <MaterialIcons
           name="chevron-right"
-          size={
-            23 * scale
-          }
-          color={
-            COLORS.muted
-          }
+          size={22 * scale}
+          color={COLORS.white}
         />
       </View>
     </Pressable>
@@ -2806,187 +1782,17 @@ function RequestRow({
 }
 
 // ============================================================
-// URGENCY BADGE
-// ============================================================
-
-function UrgencyBadge({
-  urgency,
-  scale,
-  fontScale,
-}: {
-  urgency:
-    AdminBloodRequestUrgency;
-
-  scale:
-    number;
-
-  fontScale:
-    number;
-}) {
-  const urgent =
-    urgency ===
-    'urgent';
-
-  return (
-    <View
-      style={[
-        styles.smallBadge,
-
-        {
-          minHeight:
-            32 * scale,
-
-          borderRadius:
-            16 * scale,
-
-          paddingHorizontal:
-            9 * scale,
-        },
-
-        urgent
-          ? styles.urgencyUrgent
-          : styles.urgencyNeeded,
-      ]}
-    >
-      <MaterialIcons
-        name={
-          urgent
-            ? 'priority-high'
-            : 'event'
-        }
-        size={
-          14 * scale
-        }
-        color={
-          urgent
-            ? COLORS.orange
-            : COLORS.blue
-        }
-      />
-
-      <Text
-        style={[
-          styles.smallBadgeText,
-
-          {
-            fontSize:
-              11 * fontScale,
-
-            marginLeft:
-              3 * scale,
-          },
-
-          urgent
-            ? styles.urgencyUrgentText
-            : styles.urgencyNeededText,
-        ]}
-      >
-        {urgent
-          ? 'Urgent'
-          : 'Scheduled'}
-      </Text>
-    </View>
-  );
-}
-
-// ============================================================
-// STATUS BADGE
-// ============================================================
-
-function RequestStatusBadge({
-  status,
-  scale,
-  fontScale,
-}: {
-  status:
-    AdminBloodRequestStatus;
-
-  scale:
-    number;
-
-  fontScale:
-    number;
-}) {
-  return (
-    <View
-      style={[
-        styles.smallBadge,
-
-        {
-          minHeight:
-            32 * scale,
-
-          borderRadius:
-            16 * scale,
-
-          paddingHorizontal:
-            10 * scale,
-        },
-
-        status ===
-          'active' &&
-          styles.statusActive,
-
-        status ===
-          'fulfilled' &&
-          styles.statusFulfilled,
-
-        status ===
-          'cancelled' &&
-          styles.statusCancelled,
-      ]}
-    >
-      <Text
-        style={[
-          styles.smallBadgeText,
-
-          {
-            fontSize:
-              11 * fontScale,
-          },
-
-          status ===
-            'active' &&
-            styles.statusActiveText,
-
-          status ===
-            'fulfilled' &&
-            styles.statusFulfilledText,
-
-          status ===
-            'cancelled' &&
-            styles.statusCancelledText,
-        ]}
-      >
-        {
-          formatValue(
-            status
-          )
-        }
-      </Text>
-    </View>
-  );
-}
-
-// ============================================================
-// REQUESTER NAME
+// HELPERS
 // ============================================================
 
 function getRequesterName(
-  request:
-    AdminBloodRequest
+  request: AdminBloodRequest
 ) {
   const requester =
     request.requester;
 
-  if (
-    requester?.full_name
-      ?.trim()
-  ) {
-    return requester.full_name.trim();
-  }
-
-  const name =
+  return (
+    requester?.full_name?.trim() ||
     [
       requester?.first_name,
       requester?.middle_name,
@@ -2995,39 +1801,85 @@ function getRequesterName(
     ]
       .filter(Boolean)
       .join(' ')
-      .replace(
-        /\s+/g,
-        ' '
-      )
-      .trim();
-
-  return (
-    name ||
+      .replace(/\s+/g, ' ')
+      .trim() ||
     requester?.email ||
-    'Unknown Requester'
+    'Unknown requester'
   );
 }
 
-// ============================================================
-// FORMAT VALUE
-// ============================================================
+function getStatusStyle(
+  status: AdminBloodRequestStatus
+) {
+  switch (status) {
+    case 'active':
+      return {
+        label: 'Active',
+        color: COLORS.orange,
+        border: 'rgba(243,163,74,0.55)',
+        background: 'rgba(243,163,74,0.12)',
+      };
+
+    case 'fulfilled':
+      return {
+        label: 'Fulfilled',
+        color: COLORS.green,
+        border: 'rgba(53,201,130,0.50)',
+        background: 'rgba(53,201,130,0.12)',
+      };
+
+    default:
+      return {
+        label: 'Cancelled',
+        color: COLORS.muted,
+        border: 'rgba(127,136,159,0.45)',
+        background: 'rgba(127,136,159,0.10)',
+      };
+  }
+}
+
+function formatNeededBy(
+  request: AdminBloodRequest
+) {
+  if (!request.needed_date) {
+    return '';
+  }
+
+  const match =
+    request.needed_date.match(
+      /^(\d{4})-(\d{2})-(\d{2})/
+    );
+
+  const date = match
+    ? new Date(
+        Number(match[1]),
+        Number(match[2]) - 1,
+        Number(match[3])
+      )
+    : new Date(request.needed_date);
+
+  if (Number.isNaN(date.getTime())) {
+    return '';
+  }
+
+  return date.toLocaleDateString(
+    undefined,
+    {
+      month: 'short',
+      day: 'numeric',
+    }
+  );
+}
 
 function formatValue(
-  value?:
-    | string
-    | null
+  value?: string | null
 ) {
-  if (
-    !value
-  ) {
+  if (!value) {
     return '—';
   }
 
   return value
-    .replace(
-      /_/g,
-      ' '
-    )
+    .replace(/[_-]/g, ' ')
     .replace(
       /\b\w/g,
       character =>
@@ -3035,115 +1887,47 @@ function formatValue(
     );
 }
 
-// ============================================================
-// FACILITY TYPE
-// ============================================================
-
-function formatFacilityType(
-  value?:
-    | string
-    | null
-) {
-  if (
-    !value
-  ) {
-    return 'Address unavailable';
-  }
-
-  if (
-    value ===
-    'manual'
-  ) {
-    return 'Manually entered facility';
-  }
-
-  return formatValue(
-    value
-  );
-}
-
-// ============================================================
-// DATE
-// ============================================================
-
 function formatDate(
-  value?:
-    | string
-    | null
+  value?: string | null
 ) {
-  if (
-    !value
-  ) {
+  if (!value) {
     return '—';
   }
 
-  const date =
-    new Date(
-      value
-    );
+  const date = new Date(value);
 
-  if (
-    Number.isNaN(
-      date.getTime()
-    )
-  ) {
+  if (Number.isNaN(date.getTime())) {
     return '—';
   }
 
   return date.toLocaleDateString(
-    'en-PH',
+    undefined,
     {
-      month:
-        'short',
-
-      day:
-        'numeric',
-
-      year:
-        'numeric',
+      month: 'short',
+      day: 'numeric',
+      year: 'numeric',
     }
   );
 }
 
-// ============================================================
-// TIME
-// ============================================================
-
 function formatTime(
-  value?:
-    | string
-    | null
+  value?: string | null
 ) {
-  if (
-    !value
-  ) {
-    return '—';
+  if (!value) {
+    return '';
   }
 
-  const date =
-    new Date(
-      value
-    );
+  const date = new Date(value);
 
-  if (
-    Number.isNaN(
-      date.getTime()
-    )
-  ) {
-    return '—';
+  if (Number.isNaN(date.getTime())) {
+    return '';
   }
 
   return date.toLocaleTimeString(
-    'en-PH',
+    undefined,
     {
-      hour:
-        'numeric',
-
-      minute:
-        '2-digit',
-
-      hour12:
-        true,
+      hour: 'numeric',
+      minute: '2-digit',
     }
   );
 }
@@ -3152,967 +1936,423 @@ function formatTime(
 // STYLES
 // ============================================================
 
-const styles =
-  StyleSheet.create({
-    // ========================================================
-    // PAGE
-    // ========================================================
-
-    outer: {
-      flex: 1,
-
-      alignItems:
-        'center',
-
-      justifyContent:
-        'center',
-
-      backgroundColor:
-        COLORS.outer,
-    },
-
-    ipadCanvas: {
-      overflow:
-        'hidden',
-
-      backgroundColor:
-        COLORS.navy,
-
-      borderRadius:
-        Platform.OS ===
-        'web'
-          ? 24
-          : 0,
-    },
-
-    nativeCanvas: {
-      width:
-        '100%',
-
-      height:
-        '100%',
-    },
-
-    gradient: {
-      flex: 1,
-    },
-
-    safeArea: {
-      flex: 1,
-    },
-
-    scroll: {
-      flex: 1,
-    },
-
-    content: {
-      flexGrow: 1,
-    },
-
-    // ========================================================
-    // HEADER
-    // ========================================================
-
-    header: {
-      flexDirection:
-        'row',
-
-      alignItems:
-        'center',
-
-      justifyContent:
-        'space-between',
-
-      borderBottomWidth:
-        1,
-
-      borderBottomColor:
-        COLORS.border,
-    },
-
-    brandArea: {
-      flexDirection:
-        'row',
-
-      alignItems:
-        'center',
-
-      gap: 14,
-    },
-
-    logoCircle: {
-      alignItems:
-        'center',
-
-      justifyContent:
-        'center',
-
-      overflow:
-        'hidden',
-
-      backgroundColor:
-        COLORS.white,
-    },
-
-    brand: {
-      color:
-        COLORS.white,
-
-      fontFamily:
-        'Poppins_700Bold',
-    },
-
-    brandRed: {
-      color:
-        COLORS.redBright,
-    },
-
-    portal: {
-      color:
-        COLORS.redBright,
-
-      fontFamily:
-        'Inter_600SemiBold',
-
-      marginTop: 1,
-    },
-
-    adminSection: {
-      flexDirection:
-        'row',
-
-      alignItems:
-        'center',
-
-      gap: 11,
-    },
-
-    adminAvatar: {
-      alignItems:
-        'center',
-
-      justifyContent:
-        'center',
-
-      backgroundColor:
-        COLORS.cardLight,
-
-      borderWidth: 1,
-
-      borderColor:
-        COLORS.border,
-    },
-
-    adminAvatarText: {
-      color:
-        COLORS.white,
-
-      fontFamily:
-        'Poppins_600SemiBold',
-    },
-
-    adminName: {
-      maxWidth: 170,
-
-      color:
-        COLORS.white,
-
-      fontFamily:
-        'Inter_600SemiBold',
-    },
-
-    adminRole: {
-      color:
-        COLORS.muted,
-
-      fontFamily:
-        'Inter_400Regular',
-
-      marginTop: 2,
-    },
-
-    // ========================================================
-    // PAGE HEADER
-    // ========================================================
-
-    pageHeader: {
-      flexDirection:
-        'row',
-
-      alignItems:
-        'center',
-
-      justifyContent:
-        'space-between',
-    },
-
-    pageHeading: {
-      flexDirection:
-        'row',
-
-      alignItems:
-        'center',
-    },
-
-    pageIcon: {
-      alignItems:
-        'center',
-
-      justifyContent:
-        'center',
-
-      backgroundColor:
-        'rgba(239,51,64,0.10)',
-    },
-
-    pageTitle: {
-      color:
-        COLORS.white,
-
-      fontFamily:
-        'Poppins_700Bold',
-    },
-
-    pageSubtitle: {
-      color:
-        COLORS.muted,
-
-      fontFamily:
-        'Inter_400Regular',
-    },
-
-    refreshButton: {
-      flexDirection:
-        'row',
-
-      alignItems:
-        'center',
-
-      justifyContent:
-        'center',
-
-      borderWidth: 1,
-
-      borderColor:
-        COLORS.border,
-
-      backgroundColor:
-        COLORS.card,
-    },
-
-    refreshButtonText: {
-      color:
-        COLORS.white,
-
-      fontFamily:
-        'Inter_600SemiBold',
-    },
-
-    // ========================================================
-    // SUMMARY
-    // ========================================================
-
-    summaryRow: {
-      flexDirection:
-        'row',
-    },
-
-    summaryCard: {
-      flex: 1,
-
-      borderWidth: 1,
-
-      borderColor:
-        COLORS.border,
-
-      backgroundColor:
-        COLORS.card,
-    },
-
-    summaryTop: {
-      flexDirection:
-        'row',
-
-      alignItems:
-        'center',
-
-      justifyContent:
-        'space-between',
-    },
-
-    summaryIcon: {
-      alignItems:
-        'center',
-
-      justifyContent:
-        'center',
-
-      backgroundColor:
-        COLORS.cardLight,
-    },
-
-    summaryValue: {
-      color:
-        COLORS.white,
-
-      fontFamily:
-        'Poppins_700Bold',
-    },
-
-    summaryLabel: {
-      color:
-        COLORS.soft,
-
-      fontFamily:
-        'Inter_600SemiBold',
-
-      letterSpacing:
-        0.3,
-    },
-
-    summaryDescription: {
-      color:
-        COLORS.muted,
-
-      fontFamily:
-        'Inter_400Regular',
-    },
-
-    // ========================================================
-    // FILTERS
-    // ========================================================
-
-    filterCard: {
-      borderWidth: 1,
-
-      borderColor:
-        COLORS.border,
-
-      backgroundColor:
-        COLORS.card,
-    },
-
-    searchRow: {
-      flexDirection:
-        'row',
-
-      alignItems:
-        'center',
-    },
-
-    searchBox: {
-      flex: 1,
-
-      flexDirection:
-        'row',
-
-      alignItems:
-        'center',
-
-      borderWidth: 1,
-
-      borderColor:
-        COLORS.border,
-
-      backgroundColor:
-        COLORS.cardLight,
-    },
-
-    searchInput: {
-      flex: 1,
-
-      height:
-        '100%',
-
-      padding: 0,
-
-      color:
-        COLORS.white,
-
-      fontFamily:
-        'Inter_400Regular',
-
-      outlineStyle:
-        'none',
-    } as any,
-
-    searchButton: {
-      alignItems:
-        'center',
-
-      justifyContent:
-        'center',
-
-      backgroundColor:
-        COLORS.red,
-    },
-
-    searchButtonText: {
-      color:
-        COLORS.white,
-
-      fontFamily:
-        'Inter_600SemiBold',
-    },
-
-    resetButton: {
-      flexDirection:
-        'row',
-
-      alignItems:
-        'center',
-
-      justifyContent:
-        'center',
-
-      borderWidth: 1,
-
-      borderColor:
-        COLORS.border,
-
-      backgroundColor:
-        COLORS.cardLight,
-    },
-
-    resetButtonText: {
-      color:
-        COLORS.soft,
-
-      fontFamily:
-        'Inter_600SemiBold',
-    },
-
-    filterSection: {},
-
-    filterSectionBorder: {
-      borderBottomWidth: 1,
-
-      borderBottomColor:
-        COLORS.rowBorder,
-    },
-
-    filterLabel: {
-      color:
-        COLORS.muted,
-
-      fontFamily:
-        'Inter_600SemiBold',
-
-      letterSpacing:
-        0.5,
-    },
-
-    filterChipRow: {
-      alignItems:
-        'center',
-    },
-
-    filterChip: {
-      flexDirection:
-        'row',
-
-      alignItems:
-        'center',
-
-      justifyContent:
-        'center',
-
-      borderWidth: 1,
-
-      borderColor:
-        COLORS.border,
-
-      backgroundColor:
-        COLORS.cardLight,
-    },
-
-    filterChipSelected: {
-      borderColor:
-        'rgba(239,51,64,0.65)',
-
-      backgroundColor:
-        'rgba(239,51,64,0.12)',
-    },
-
-    filterChipText: {
-      color:
-        COLORS.soft,
-
-      fontFamily:
-        'Inter_500Medium',
-    },
-
-    filterChipTextSelected: {
-      color:
-        COLORS.redBright,
-
-      fontFamily:
-        'Inter_600SemiBold',
-    },
-
-    // ========================================================
-    // RESULTS
-    // ========================================================
-
-    resultsCard: {
-      overflow:
-        'hidden',
-
-      borderWidth: 1,
-
-      borderColor:
-        COLORS.border,
-
-      backgroundColor:
-        COLORS.card,
-    },
-
-    resultsHeader: {
-      flexDirection:
-        'row',
-
-      alignItems:
-        'center',
-
-      justifyContent:
-        'space-between',
-
-      borderBottomWidth: 1,
-
-      borderBottomColor:
-        COLORS.border,
-    },
-
-    resultsTitle: {
-      color:
-        COLORS.white,
-
-      fontFamily:
-        'Poppins_600SemiBold',
-    },
-
-    resultsSubtitle: {
-      color:
-        COLORS.muted,
-
-      fontFamily:
-        'Inter_400Regular',
-    },
-
-    searchIndicator: {
-      maxWidth: 270,
-
-      flexDirection:
-        'row',
-
-      alignItems:
-        'center',
-
-      borderWidth: 1,
-
-      borderColor:
-        COLORS.border,
-
-      backgroundColor:
-        COLORS.cardLight,
-    },
-
-    searchIndicatorText: {
-      flexShrink: 1,
-
-      color:
-        COLORS.soft,
-
-      fontFamily:
-        'Inter_500Medium',
-    },
-
-    // ========================================================
-    // STATE
-    // ========================================================
-
-    stateContainer: {
-      alignItems:
-        'center',
-
-      justifyContent:
-        'center',
-
-      paddingHorizontal:
-        24,
-    },
-
-    stateText: {
-      maxWidth: 450,
-
-      color:
-        COLORS.muted,
-
-      textAlign:
-        'center',
-
-      fontFamily:
-        'Inter_400Regular',
-    },
-
-    errorTitle: {
-      color:
-        COLORS.white,
-
-      fontFamily:
-        'Poppins_600SemiBold',
-    },
-
-    emptyIcon: {
-      alignItems:
-        'center',
-
-      justifyContent:
-        'center',
-
-      backgroundColor:
-        COLORS.cardLight,
-    },
-
-    emptyTitle: {
-      color:
-        COLORS.white,
-
-      fontFamily:
-        'Poppins_600SemiBold',
-    },
-
-    retryButton: {
-      alignItems:
-        'center',
-
-      justifyContent:
-        'center',
-
-      backgroundColor:
-        COLORS.red,
-    },
-
-    retryButtonText: {
-      color:
-        COLORS.white,
-
-      fontFamily:
-        'Inter_600SemiBold',
-    },
-
-    // ========================================================
-    // TABLE
-    // ========================================================
-
-    table: {
-      width:
-        '100%',
-    },
-
-    tableHeader: {
-      flexDirection:
-        'row',
-
-      alignItems:
-        'center',
-
-      backgroundColor:
-        '#0C1730',
-
-      borderBottomWidth: 1,
-
-      borderBottomColor:
-        COLORS.border,
-    },
-
-    tableHeaderText: {
-      color:
-        COLORS.muted,
-
-      fontFamily:
-        'Inter_600SemiBold',
-
-      letterSpacing:
-        0.4,
-    },
-
-    requestRow: {
-      flexDirection:
-        'row',
-
-      alignItems:
-        'center',
-
-      borderBottomWidth: 1,
-
-      borderBottomColor:
-        COLORS.rowBorder,
-    },
-
-    requestRowPressed: {
-      backgroundColor:
-        '#0E1A34',
-    },
-
-    noBottomBorder: {
-      borderBottomWidth: 0,
-    },
-
-    requesterCell: {
-      flexDirection:
-        'row',
-
-      alignItems:
-        'center',
-    },
-
-    requesterAvatar: {
-      alignItems:
-        'center',
-
-      justifyContent:
-        'center',
-
-      borderWidth: 1,
-
-      borderColor:
-        COLORS.border,
-
-      backgroundColor:
-        COLORS.cardLight,
-    },
-
-    requesterAvatarText: {
-      color:
-        COLORS.white,
-
-      fontFamily:
-        'Poppins_600SemiBold',
-    },
-
-    requesterInfo: {
-      flex: 1,
-
-      minWidth: 0,
-    },
-
-    primaryCellText: {
-      color:
-        COLORS.soft,
-
-      fontFamily:
-        'Inter_600SemiBold',
-    },
-
-    secondaryCellText: {
-      color:
-        COLORS.muted,
-
-      fontFamily:
-        'Inter_400Regular',
-    },
-
-    bloodBadge: {
-      alignSelf:
-        'flex-start',
-
-      alignItems:
-        'center',
-
-      justifyContent:
-        'center',
-
-      borderWidth: 1,
-
-      borderColor:
-        'rgba(239,51,64,0.48)',
-
-      backgroundColor:
-        'rgba(239,51,64,0.10)',
-    },
-
-    bloodBadgeText: {
-      color:
-        COLORS.redBright,
-
-      fontFamily:
-        'Poppins_600SemiBold',
-    },
-
-    smallBadge: {
-      alignSelf:
-        'flex-start',
-
-      flexDirection:
-        'row',
-
-      alignItems:
-        'center',
-
-      justifyContent:
-        'center',
-
-      borderWidth: 1,
-    },
-
-    smallBadgeText: {
-      fontFamily:
-        'Inter_600SemiBold',
-    },
-
-    urgencyUrgent: {
-      borderColor:
-        'rgba(243,163,74,0.45)',
-
-      backgroundColor:
-        'rgba(243,163,74,0.10)',
-    },
-
-    urgencyUrgentText: {
-      color:
-        COLORS.orange,
-    },
-
-    urgencyNeeded: {
-      borderColor:
-        'rgba(74,140,255,0.42)',
-
-      backgroundColor:
-        'rgba(74,140,255,0.10)',
-    },
-
-    urgencyNeededText: {
-      color:
-        COLORS.blue,
-    },
-
-    statusActive: {
-      borderColor:
-        'rgba(239,51,64,0.45)',
-
-      backgroundColor:
-        'rgba(239,51,64,0.10)',
-    },
-
-    statusActiveText: {
-      color:
-        COLORS.redBright,
-    },
-
-    statusFulfilled: {
-      borderColor:
-        'rgba(53,201,130,0.45)',
-
-      backgroundColor:
-        'rgba(53,201,130,0.10)',
-    },
-
-    statusFulfilledText: {
-      color:
-        COLORS.green,
-    },
-
-    statusCancelled: {
-      borderColor:
-        'rgba(127,136,159,0.45)',
-
-      backgroundColor:
-        'rgba(127,136,159,0.10)',
-    },
-
-    statusCancelledText: {
-      color:
-        COLORS.muted,
-    },
-
-    actionCell: {
-      alignItems:
-        'flex-end',
-
-      justifyContent:
-        'center',
-    },
-
-    // ========================================================
-    // PAGINATION
-    // ========================================================
-
-    pagination: {
-      flexDirection:
-        'row',
-
-      alignItems:
-        'center',
-
-      justifyContent:
-        'space-between',
-
-      borderTopWidth: 1,
-
-      borderTopColor:
-        COLORS.border,
-    },
-
-    paginationText: {
-      color:
-        COLORS.muted,
-
-      fontFamily:
-        'Inter_400Regular',
-    },
-
-    paginationActions: {
-      flexDirection:
-        'row',
-
-      alignItems:
-        'center',
-    },
-
-    pageButton: {
-      flexDirection:
-        'row',
-
-      alignItems:
-        'center',
-
-      justifyContent:
-        'center',
-
-      borderWidth: 1,
-
-      borderColor:
-        COLORS.border,
-
-      backgroundColor:
-        COLORS.cardLight,
-    },
-
-    pageButtonText: {
-      color:
-        COLORS.soft,
-
-      fontFamily:
-        'Inter_600SemiBold',
-    },
-
-    // ========================================================
-    // SHARED
-    // ========================================================
-
-    buttonPressed: {
-      opacity: 0.78,
-
-      transform: [
-        {
-          scale:
-            0.985,
-        },
-      ],
-    },
-
-    disabled: {
-      opacity: 0.45,
-    },
-  });
+const styles = StyleSheet.create({
+  outer: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: COLORS.outer,
+  },
+
+  ipadCanvas: {
+    overflow: 'hidden',
+    backgroundColor: COLORS.navy,
+    borderRadius:
+      Platform.OS === 'web'
+        ? 24
+        : 0,
+  },
+
+  nativeCanvas: {
+    width: '100%',
+    height: '100%',
+  },
+
+  gradient: {
+    flex: 1,
+  },
+
+  safeArea: {
+    flex: 1,
+  },
+
+  scroll: {
+    flex: 1,
+  },
+
+  content: {
+    flexGrow: 1,
+  },
+
+  row: {
+    flexDirection: 'row',
+  },
+
+  wrapRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flexWrap: 'wrap',
+  },
+
+  flexFill: {
+    flex: 1,
+    minWidth: 0,
+  },
+
+  // TITLE
+
+  titleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+
+  title: {
+    color: COLORS.white,
+    fontFamily: 'Poppins_700Bold',
+  },
+
+  subtitle: {
+    color: COLORS.muted,
+    fontFamily: 'Inter_400Regular',
+  },
+
+  refreshButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginLeft: 16,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    backgroundColor: COLORS.card,
+  },
+
+  refreshText: {
+    color: COLORS.white,
+    fontFamily: 'Inter_600SemiBold',
+  },
+
+  primaryButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: COLORS.red,
+  },
+
+  primaryButtonText: {
+    color: COLORS.white,
+    fontFamily: 'Inter_600SemiBold',
+  },
+
+  // FILTERS
+
+  filterButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    backgroundColor: COLORS.card,
+  },
+
+  filterButtonActive: {
+    borderColor: COLORS.redBright,
+    backgroundColor: 'rgba(219,10,10,0.15)',
+  },
+
+  filterText: {
+    color: COLORS.soft,
+    fontFamily: 'Inter_600SemiBold',
+  },
+
+  filterTextActive: {
+    color: COLORS.white,
+  },
+
+  filterCount: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: COLORS.cardLight,
+  },
+
+  filterCountOrange: {
+    backgroundColor: 'rgba(243,163,74,0.22)',
+  },
+
+  filterCountGreen: {
+    backgroundColor: 'rgba(53,201,130,0.18)',
+  },
+
+  filterCountText: {
+    color: COLORS.white,
+    fontFamily: 'Inter_700Bold',
+  },
+
+  activeInfo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    backgroundColor: 'rgba(16,26,53,0.55)',
+  },
+
+  filterLabel: {
+    color: COLORS.muted,
+    fontFamily: 'Inter_700Bold',
+    letterSpacing: 0.6,
+  },
+
+  segment: {
+    flexDirection: 'row',
+    alignItems: 'stretch',
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    backgroundColor: COLORS.card,
+  },
+
+  segmentItem: {
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  segmentItemActive: {
+    backgroundColor: COLORS.cardLight,
+  },
+
+  segmentText: {
+    color: COLORS.muted,
+    fontFamily: 'Inter_600SemiBold',
+  },
+
+  segmentTextActive: {
+    color: COLORS.white,
+  },
+
+  searchInputContainer: {
+    flex: 1,
+    minWidth: 260,
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    backgroundColor: COLORS.card,
+  },
+
+  searchInput: {
+    flex: 1,
+    height: '100%',
+    paddingVertical: 0,
+    color: COLORS.white,
+    fontFamily: 'Inter_400Regular',
+    outlineStyle: 'none',
+  } as any,
+
+  bloodChip: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    backgroundColor: COLORS.card,
+  },
+
+  bloodChipActive: {
+    borderColor: COLORS.redBright,
+    backgroundColor: 'rgba(219,10,10,0.15)',
+  },
+
+  bloodChipText: {
+    color: COLORS.soft,
+    fontFamily: 'Poppins_600SemiBold',
+  },
+
+  bloodChipTextActive: {
+    color: COLORS.white,
+  },
+
+  resetButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    backgroundColor: COLORS.cardLight,
+  },
+
+  resetText: {
+    color: COLORS.soft,
+    fontFamily: 'Inter_600SemiBold',
+  },
+
+  // TABLE
+
+  listCard: {
+    overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    backgroundColor: COLORS.card,
+  },
+
+  tableHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.border,
+    backgroundColor: 'rgba(12,20,40,0.94)',
+  },
+
+  tableHeaderText: {
+    color: COLORS.soft,
+    fontFamily: 'Inter_600SemiBold',
+  },
+
+  tableRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.rowBorder,
+  },
+
+  rowPressed: {
+    backgroundColor: 'rgba(255,255,255,0.03)',
+  },
+
+  noBorder: {
+    borderBottomWidth: 0,
+  },
+
+  colRequester: {
+    width: '22%',
+  },
+
+  colBlood: {
+    width: '8%',
+  },
+
+  colUnits: {
+    width: '7%',
+  },
+
+  colFacility: {
+    width: '21%',
+  },
+
+  colUrgency: {
+    width: '13%',
+  },
+
+  colStatus: {
+    width: '12%',
+  },
+
+  colCreated: {
+    width: '13%',
+  },
+
+  colAction: {
+    width: '4%',
+    alignItems: 'flex-end',
+  },
+
+  avatar: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    backgroundColor: COLORS.cardLight,
+  },
+
+  avatarText: {
+    color: COLORS.white,
+    fontFamily: 'Poppins_600SemiBold',
+  },
+
+  nameText: {
+    color: COLORS.white,
+    fontFamily: 'Inter_600SemiBold',
+  },
+
+  cellText: {
+    color: COLORS.soft,
+    fontFamily: 'Inter_500Medium',
+  },
+
+  cellMuted: {
+    color: COLORS.muted,
+    fontFamily: 'Inter_400Regular',
+  },
+
+  bloodPill: {
+    alignSelf: 'flex-start',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: '#C21319',
+    backgroundColor: 'rgba(194,19,25,0.11)',
+  },
+
+  bloodPillText: {
+    color: COLORS.redBright,
+    fontFamily: 'Poppins_600SemiBold',
+  },
+
+  pill: {
+    alignSelf: 'flex-start',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+  },
+
+  pillText: {
+    fontFamily: 'Inter_600SemiBold',
+  },
+
+  urgentPill: {
+    borderColor: 'rgba(239,51,64,0.45)',
+    backgroundColor: 'rgba(239,51,64,0.10)',
+  },
+
+  scheduledPill: {
+    borderColor: 'rgba(74,140,255,0.45)',
+    backgroundColor: 'rgba(74,140,255,0.10)',
+  },
+
+  // STATES
+
+  centerArea: {
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  centerText: {
+    textAlign: 'center',
+  },
+
+  emptyTitle: {
+    color: COLORS.white,
+    fontFamily: 'Poppins_600SemiBold',
+  },
+
+  // PAGINATION
+
+  pagination: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+
+  pageButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    backgroundColor: COLORS.card,
+  },
+
+  pageButtonText: {
+    color: COLORS.white,
+    fontFamily: 'Inter_600SemiBold',
+  },
+
+  // INTERACTION
+
+  pressed: {
+    opacity: 0.78,
+    transform: [{ scale: 0.985 }],
+  },
+
+  disabled: {
+    opacity: 0.42,
+  },
+});
