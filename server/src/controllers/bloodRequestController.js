@@ -3,7 +3,8 @@ const {
 } = require('../config/supabase');
 
 const {
-  createNotifications
+  createNotifications,
+  notifyAdmins
 } = require(
   '../services/notificationService'
 );
@@ -609,6 +610,43 @@ async function createBloodRequest(
       'blood_request',
       createdRequest.id
     );
+
+    // --------------------------------------------------------
+    // ADMIN NOTIFICATION (urgent requests only)
+    //
+    // Fire-and-forget: notifyAdmins never throws.
+    // --------------------------------------------------------
+
+    if (
+      createdRequest.urgency ===
+      'urgent'
+    ) {
+      void notifyAdmins({
+        type:
+          'admin_urgent_blood_request',
+
+        title:
+          'Urgent blood request',
+
+        message:
+          `${createdRequest.units_needed} ${
+            Number(createdRequest.units_needed) === 1
+              ? 'unit'
+              : 'units'
+          } of ${createdRequest.blood_type} needed urgently at ${
+            createdRequest.facility_name ||
+            'a facility'
+          }.`,
+
+        data: {
+          request_id:
+            createdRequest.id,
+
+          route:
+            `/requests/${createdRequest.id}`
+        }
+      });
+    }
 
     return res
       .status(201)

@@ -258,10 +258,95 @@ async function createNotifications(
 }
 
 // ============================================================
+// NOTIFY ALL ADMINS
+//
+// Creates one notification row for every ACTIVE admin account.
+// Admins then read them through the normal /api/notifications
+// routes (each admin only sees their own rows).
+//
+// Like the functions above, failure never throws - the main
+// action (e.g. submitting an application) must still succeed.
+//
+// data.route tells the Admin Portal which screen to open,
+// e.g. '/applications/<id>' or '/issues/<id>'.
+// ============================================================
+
+async function notifyAdmins({
+  type,
+  title,
+  message,
+  data = {}
+}) {
+  try {
+    const {
+      data:
+        admins,
+      error
+    } =
+      await supabaseAdmin
+        .from(
+          'users'
+        )
+        .select(
+          'id'
+        )
+        .eq(
+          'role',
+          'admin'
+        )
+        .eq(
+          'is_active',
+          true
+        );
+
+    if (error) {
+      console.error(
+        'NOTIFY ADMINS LOOKUP ERROR:',
+        error
+      );
+
+      return [];
+    }
+
+    if (
+      !admins ||
+      admins.length === 0
+    ) {
+      return [];
+    }
+
+    return createNotifications(
+      admins.map(
+        admin => ({
+          userId:
+            admin.id,
+
+          type,
+
+          title,
+
+          message,
+
+          data
+        })
+      )
+    );
+  } catch (error) {
+    console.error(
+      'NOTIFY ADMINS ERROR:',
+      error
+    );
+
+    return [];
+  }
+}
+
+// ============================================================
 // EXPORTS
 // ============================================================
 
 module.exports = {
   createNotification,
-  createNotifications
+  createNotifications,
+  notifyAdmins
 };

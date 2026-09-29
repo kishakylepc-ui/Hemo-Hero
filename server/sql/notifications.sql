@@ -106,7 +106,13 @@ CHECK (
 
     -- Donation coordination
     'coordination_message',
-    'coordination_schedule'
+    'coordination_schedule',
+
+    -- Admin portal
+    -- (see database/migrations/20260929_admin_notifications.sql)
+    'admin_donor_application',
+    'admin_user_report',
+    'admin_urgent_blood_request'
   )
 );
 

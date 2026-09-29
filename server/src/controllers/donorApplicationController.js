@@ -14,6 +14,55 @@ const {
   '../middleware/activityLogMiddleware'
 );
 
+const {
+  notifyAdmins
+} = require(
+  '../services/notificationService'
+);
+
+// ============================================================
+// ADMIN NOTIFICATION
+//
+// Tells every admin a donor application is waiting for review.
+// Fire-and-forget: notifyAdmins never throws, and the applicant
+// should not wait for admin notifications to be written.
+// ============================================================
+
+function notifyAdminsOfApplication(
+  req,
+  application
+) {
+  const applicantName =
+    [
+      req.dbUser?.first_name,
+      req.dbUser?.last_name
+    ]
+      .filter(Boolean)
+      .join(' ')
+      .trim() ||
+    req.dbUser?.email ||
+    'A user';
+
+  void notifyAdmins({
+    type:
+      'admin_donor_application',
+
+    title:
+      'New donor application',
+
+    message:
+      `${applicantName} (${application.blood_type}) submitted a donor application for review.`,
+
+    data: {
+      application_id:
+        application.id,
+
+      route:
+        `/applications/${application.id}`
+    }
+  });
+}
+
 // ============================================================
 // CONSTANTS
 // ============================================================
@@ -2105,6 +2154,11 @@ async function submitDonorApplication(
         updatedApplication.id
       );
 
+      notifyAdminsOfApplication(
+        req,
+        updatedApplication
+      );
+
       return res
         .status(200)
         .json({
@@ -2160,6 +2214,11 @@ async function submitDonorApplication(
       res,
       'donor_application',
       createdApplication.id
+    );
+
+    notifyAdminsOfApplication(
+      req,
+      createdApplication
     );
 
     return res
