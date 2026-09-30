@@ -1438,6 +1438,20 @@ function getNotificationVisual(
         tint: 'rgba(239,51,64,0.12)',
       };
 
+    case 'admin_donation_recorded':
+      return {
+        icon: 'volunteer-activism',
+        color: COLORS.green,
+        tint: 'rgba(53,201,130,0.12)',
+      };
+
+    case 'admin_donation_flagged':
+      return {
+        icon: 'flag',
+        color: COLORS.orange,
+        tint: 'rgba(243,163,74,0.12)',
+      };
+
     default:
       return {
         icon: 'notifications',
@@ -1460,6 +1474,10 @@ function getFallbackRoute(
 
     case 'admin_urgent_blood_request':
       return '/requests';
+
+    case 'admin_donation_recorded':
+    case 'admin_donation_flagged':
+      return '/donations';
 
     default:
       return null;

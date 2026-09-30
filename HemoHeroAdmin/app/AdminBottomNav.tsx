@@ -22,6 +22,7 @@ export type AdminTab =
   | 'applications'
   | 'users'
   | 'requests'
+  | 'donations'
   | 'analytics'
   | 'issues'
   | 'activityLogs'
@@ -124,6 +125,20 @@ const NAV_ITEMS: {
 
     route:
       '/requests',
+  },
+
+  {
+    key:
+      'donations',
+
+    label:
+      'Donations',
+
+    icon:
+      'volunteer-activism',
+
+    route:
+      '/donations',
   },
 
   {

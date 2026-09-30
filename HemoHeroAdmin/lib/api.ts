@@ -2458,3 +2458,472 @@ export async function updateAdminReport(
     response
   );
 }
+
+// ============================================================
+// ADMIN DONATIONS (TRANSACTION RECORDS)
+//
+// Every donation the requester confirms is recorded here.
+// It completes automatically unless a check flags it; admins
+// only review flagged records ('needs_review').
+// ============================================================
+
+export type AdminDonationStatus =
+  | 'completed'
+  | 'needs_review'
+  | 'rejected';
+
+export type AdminDonationFeedback = {
+  from_role:
+    | 'donor'
+    | 'requester';
+
+  from_name?: string | null;
+
+  rating: number;
+
+  comment?: string | null;
+
+  created_at: string;
+
+  updated_at?: string | null;
+};
+
+export type AdminDonation = {
+  id: string;
+
+  request_id?: string | null;
+
+  response_id?: string | null;
+
+  donor_id?: string | null;
+
+  requester_id?: string | null;
+
+  // Snapshots saved when the donation was confirmed.
+  donor_name?: string | null;
+
+  requester_name?: string | null;
+
+  blood_type: string;
+
+  facility_name?: string | null;
+
+  units_donated: number;
+
+  donated_at: string;
+
+  requester_note?: string | null;
+
+  status:
+    AdminDonationStatus;
+
+  // Why the record was flagged, e.g. 'donor_disputed'.
+  review_reasons?: string[];
+
+  // Plain-language reasons (details endpoint only).
+  review_reason_labels?: string[];
+
+  // Donor's own report that the record is wrong.
+  dispute_note?: string | null;
+
+  disputed_at?: string | null;
+
+  // Admin's review note, or the reason when rejected.
+  admin_note?: string | null;
+
+  // Admin who reviewed a flagged record, and when.
+  verified_by?: string | null;
+
+  verified_at?: string | null;
+
+  created_at: string;
+
+  updated_at?: string | null;
+
+  // Current accounts + feedback (list endpoint only).
+  donor?:
+    | AdminReportUser
+    | null;
+
+  requester?:
+    | AdminReportUser
+    | null;
+
+  feedback_count?: number;
+
+  average_rating?: number | null;
+};
+
+export type AdminDonationSummary = {
+  total: number;
+
+  completed: number;
+
+  needs_review: number;
+
+  rejected: number;
+
+  completed_units: number;
+
+  feedback_count: number;
+
+  average_rating: number | null;
+};
+
+export type AdminDonationFilters = {
+  page?: number;
+
+  limit?: number;
+
+  status?:
+    | 'all'
+    | AdminDonationStatus;
+
+  search?: string;
+};
+
+export type AdminDonationsResponse = {
+  summary:
+    AdminDonationSummary;
+
+  donations:
+    AdminDonation[];
+
+  pagination:
+    AdminReportPagination;
+};
+
+export type AdminDonationTimelineStep = {
+  key: string;
+
+  label: string;
+
+  actor: string;
+
+  at?: string | null;
+
+  done: boolean;
+};
+
+export type AdminDonationDetail = {
+  donation:
+    AdminDonation;
+
+  request: {
+    id: string;
+
+    requester_id?: string | null;
+
+    blood_type: string;
+
+    units_needed: number;
+
+    facility_name: string;
+
+    facility_address?: string | null;
+
+    urgency?: string | null;
+
+    needed_date?: string | null;
+
+    needed_time?: string | null;
+
+    message?: string | null;
+
+    status: string;
+
+    created_at?: string | null;
+
+    fulfilled_at?: string | null;
+  } | null;
+
+  response: {
+    id: string;
+
+    status: string;
+
+    message?: string | null;
+
+    created_at?: string | null;
+
+    updated_at?: string | null;
+  } | null;
+
+  schedule: {
+    id: string;
+
+    scheduled_at: string;
+
+    note?: string | null;
+  } | null;
+
+  donor:
+    | AdminReportUser
+    | null;
+
+  donor_application: {
+    status?: string | null;
+
+    blood_type?: string | null;
+
+    has_donated_before?: boolean | null;
+
+    last_donation_date?: string | null;
+
+    last_donation_month?: number | null;
+
+    last_donation_year?: number | null;
+
+    availability_status?: string | null;
+  } | null;
+
+  requester:
+    | AdminReportUser
+    | null;
+
+  // Admin who reviewed a flagged record.
+  reviewer: {
+    id: string;
+
+    name?: string | null;
+  } | null;
+
+  // Both sides' feedback on this transaction.
+  feedback:
+    AdminDonationFeedback[];
+
+  // Every donation on the same request (partial fulfilment).
+  request_donations: {
+    id: string;
+
+    donor_name?: string | null;
+
+    units_donated: number;
+
+    donated_at: string;
+
+    status:
+      AdminDonationStatus;
+  }[];
+
+  timeline:
+    AdminDonationTimelineStep[];
+};
+
+// ============================================================
+// GET ADMIN DONATIONS
+//
+// GET /api/admin/donations
+// ============================================================
+
+export async function getAdminDonations(
+  token: string,
+  filters:
+    AdminDonationFilters = {}
+): Promise<AdminDonationsResponse> {
+  const params =
+    new URLSearchParams();
+
+  if (
+    filters.page !==
+    undefined
+  ) {
+    params.set(
+      'page',
+      String(
+        filters.page
+      )
+    );
+  }
+
+  if (
+    filters.limit !==
+    undefined
+  ) {
+    params.set(
+      'limit',
+      String(
+        filters.limit
+      )
+    );
+  }
+
+  if (
+    filters.status &&
+    filters.status !==
+      'all'
+  ) {
+    params.set(
+      'status',
+      filters.status
+    );
+  }
+
+  if (
+    filters.search
+      ?.trim()
+  ) {
+    params.set(
+      'search',
+      filters.search.trim()
+    );
+  }
+
+  const queryString =
+    params.toString();
+
+  const response =
+    await fetch(
+      queryString
+        ? `${API_URL}/api/admin/donations?${queryString}`
+        : `${API_URL}/api/admin/donations`,
+      {
+        headers: {
+          Authorization:
+            `Bearer ${token}`,
+        },
+      }
+    );
+
+  return parseResponse(
+    response
+  );
+}
+
+// ============================================================
+// GET ADMIN DONATION SUMMARY
+//
+// GET /api/admin/donations/summary
+// ============================================================
+
+export async function getAdminDonationSummary(
+  token: string
+): Promise<{
+  summary:
+    AdminDonationSummary;
+}> {
+  const response =
+    await fetch(
+      `${API_URL}/api/admin/donations/summary`,
+      {
+        headers: {
+          Authorization:
+            `Bearer ${token}`,
+        },
+      }
+    );
+
+  return parseResponse(
+    response
+  );
+}
+
+// ============================================================
+// GET ADMIN DONATION DETAILS
+//
+// GET /api/admin/donations/:id
+// ============================================================
+
+export async function getAdminDonationById(
+  token: string,
+  donationId: string
+): Promise<AdminDonationDetail> {
+  const response =
+    await fetch(
+      `${API_URL}/api/admin/donations/${encodeURIComponent(
+        donationId
+      )}`,
+      {
+        headers: {
+          Authorization:
+            `Bearer ${token}`,
+        },
+      }
+    );
+
+  return parseResponse(
+    response
+  );
+}
+
+// ============================================================
+// REVIEW DONATION RECORD
+//
+// PATCH /api/admin/donations/:id/approve  { admin_note? }
+//   flagged record -> completed
+// PATCH /api/admin/donations/:id/reject   { admin_note }
+//   completed or flagged record -> rejected
+// ============================================================
+
+async function decideAdminDonation(
+  token: string,
+  donationId: string,
+  decision:
+    | 'approve'
+    | 'reject',
+  adminNote:
+    | string
+    | null
+): Promise<{
+  message: string;
+
+  donation:
+    AdminDonation;
+}> {
+  const response =
+    await fetch(
+      `${API_URL}/api/admin/donations/${encodeURIComponent(
+        donationId
+      )}/${decision}`,
+      {
+        method:
+          'PATCH',
+
+        headers: {
+          Authorization:
+            `Bearer ${token}`,
+
+          'Content-Type':
+            'application/json',
+        },
+
+        body:
+          JSON.stringify({
+            admin_note:
+              adminNote,
+          }),
+      }
+    );
+
+  return parseResponse(
+    response
+  );
+}
+
+export function approveAdminDonation(
+  token: string,
+  donationId: string,
+  adminNote:
+    | string
+    | null = null
+) {
+  return decideAdminDonation(
+    token,
+    donationId,
+    'approve',
+    adminNote
+  );
+}
+
+export function rejectAdminDonation(
+  token: string,
+  donationId: string,
+  adminNote: string
+) {
+  return decideAdminDonation(
+    token,
+    donationId,
+    'reject',
+    adminNote
+  );
+}

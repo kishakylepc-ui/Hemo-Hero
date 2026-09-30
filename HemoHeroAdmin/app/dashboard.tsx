@@ -33,11 +33,13 @@ import {
   getAdminActivityLogs,
   getAdminBloodTypeDemand,
   getAdminDonorSummary,
+  getAdminDonationSummary,
   getAdminReportSummary,
   getAdminUserSummary,
   type ActivityLog,
   type AdminBloodTypeDemandItem,
   type AdminBloodTypeDemandResponse,
+  type AdminDonationSummary,
   type AdminProfile,
   type AdminReportSummary,
   type AdminUserSummary,
@@ -94,6 +96,7 @@ type SectionErrors = {
   applications: string;
   users: string;
   issues: string;
+  donations: string;
   demand: string;
   activity: string;
 };
@@ -102,6 +105,7 @@ const EMPTY_ERRORS: SectionErrors = {
   applications: '',
   users: '',
   issues: '',
+  donations: '',
   demand: '',
   activity: '',
 };
@@ -174,6 +178,9 @@ export default function AdminDashboardScreen() {
   const [issueSummary, setIssueSummary] =
     useState<AdminReportSummary | null>(null);
 
+  const [donationSummary, setDonationSummary] =
+    useState<AdminDonationSummary | null>(null);
+
   const [bloodDemand, setBloodDemand] =
     useState<AdminBloodTypeDemandResponse | null>(null);
 
@@ -234,12 +241,14 @@ export default function AdminDashboardScreen() {
         applicationsResult,
         usersResult,
         issuesResult,
+        donationsResult,
         demandResult,
         activityResult,
       ] = await Promise.allSettled([
         getAdminDonorSummary(token),
         getAdminUserSummary(token),
         getAdminReportSummary(token),
+        getAdminDonationSummary(token),
         getAdminBloodTypeDemand(token),
         getAdminActivityLogs(token, {
           page: 1,
@@ -281,6 +290,17 @@ export default function AdminDashboardScreen() {
         nextErrors.issues = getErrorMessage(
           issuesResult.reason,
           'Unable to load issues.'
+        );
+      }
+
+      if (donationsResult.status === 'fulfilled') {
+        setDonationSummary(
+          donationsResult.value.summary
+        );
+      } else {
+        nextErrors.donations = getErrorMessage(
+          donationsResult.reason,
+          'Unable to load donations.'
         );
       }
 
@@ -344,6 +364,11 @@ export default function AdminDashboardScreen() {
 
   const urgentRequests =
     bloodDemand?.summary.urgent_requests ?? 0;
+
+  // Donations are recorded automatically; only flagged
+  // records need an admin.
+  const donationsToReview =
+    donationSummary?.needs_review ?? 0;
 
   const visibleBloodDemand =
     (bloodDemand?.demand || [])
@@ -615,6 +640,25 @@ export default function AdminDashboardScreen() {
                         actionLabel="View Requests"
                         onPress={() =>
                           router.push('/requests')
+                        }
+                      />
+
+                      <AttentionCard
+                        scale={s}
+                        fontScale={fs}
+                        icon="volunteer-activism"
+                        title="Donations to Review"
+                        value={donationsToReview}
+                        error={errors.donations}
+                        activeText={
+                          donationsToReview === 1
+                            ? 'Flagged donation record'
+                            : 'Flagged donation records'
+                        }
+                        clearText={`${donationSummary?.completed ?? 0} donations recorded automatically`}
+                        actionLabel="View Donations"
+                        onPress={() =>
+                          router.push('/donations' as any)
                         }
                       />
                     </View>
