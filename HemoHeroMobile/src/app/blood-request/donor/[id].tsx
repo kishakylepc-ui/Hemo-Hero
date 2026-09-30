@@ -65,6 +65,40 @@ import {
   getMyDonorInvitations,
 } from '../../../lib/donorInvitations';
 
+import type {
+  DonorInvitation,
+} from '../../../lib/donorInvitations';
+
+import {
+  getCompatibleDonorTypes,
+  isBloodType,
+} from '../../../lib/bloodCompatibility';
+
+import {
+  disputeDonation,
+  getFeedbackFrom,
+  getRequestDonations,
+  submitDonationFeedback,
+} from '../../../lib/donations';
+
+import {
+  FadeInView,
+} from '../../../components/Motion';
+
+import DonationFeedbackModal from '../../../components/DonationFeedbackModal';
+
+// One-tap phrases for rating the requester.
+const REQUESTER_FEEDBACK_NOTES = [
+  'Clear instructions',
+  'Easy to coordinate with',
+  'Very thankful',
+  'Smooth donation',
+];
+
+import type {
+  BloodDonation,
+} from '../../../lib/donations';
+
 import {
   getAccessToken,
 } from '../../../lib/session';
@@ -105,52 +139,18 @@ const COLORS = {
 
 // ============================================================
 // INVITATION TYPE
+//
+// Same shape the API returns (lib/donorInvitations).
 // ============================================================
 
-type InvitationStatus =
-  | 'pending'
-  | 'accepted'
-  | 'declined'
-  | 'cancelled';
-
-type DonorInvitationRecord = {
-  id: string;
-  request_id: string;
-  requester_id: string;
-  donor_id: string;
-  status: InvitationStatus;
-
-  message?: string | null;
-  responded_at?: string | null;
-  created_at?: string | null;
-  updated_at?: string | null;
-
-  requester?: {
-    id?: string;
-    first_name?: string | null;
-    last_name?: string | null;
-    full_name?: string | null;
-    city?: string | null;
-    province?: string | null;
-  } | null;
-
-  request?: {
-    id: string;
-    status: string;
-    blood_type: string;
-    units_needed: number;
-    facility_name: string;
-    facility_type?: string | null;
-    facility_address?: string | null;
-    urgency: string;
-    needed_date?: string | null;
-    needed_time?: string | null;
-    message?: string | null;
-  } | null;
-};
+type DonorInvitationRecord =
+  DonorInvitation;
 
 // ============================================================
 // BLOOD TYPE
+//
+// Same rule as the server: the donor's verified blood type
+// must be red-cell compatible with the requested type.
 // ============================================================
 
 function normalizeBloodType(
@@ -161,7 +161,7 @@ function normalizeBloodType(
     .toUpperCase();
 }
 
-function bloodTypesMatchExactly(
+function isCompatibleDonor(
   requestBloodType?: string | null,
   donorBloodType?: string | null
 ) {
@@ -176,16 +176,39 @@ function bloodTypesMatchExactly(
     );
 
   if (
-    !requestType ||
-    !donorType
+    !isBloodType(
+      requestType
+    ) ||
+    !isBloodType(
+      donorType
+    )
   ) {
     return false;
   }
 
-  return (
-    requestType ===
+  return getCompatibleDonorTypes(
+    requestType
+  ).includes(
     donorType
   );
+}
+
+// e.g. "O-, O+, A-, A+" for an A+ request.
+function getCompatibleDonorLabel(
+  requestBloodType?: string | null
+) {
+  const requestType =
+    normalizeBloodType(
+      requestBloodType
+    );
+
+  return isBloodType(
+    requestType
+  )
+    ? getCompatibleDonorTypes(
+        requestType
+      ).join(', ')
+    : 'not available';
 }
 
 // ============================================================
@@ -290,6 +313,25 @@ export default function DonorBloodRequestScreen() {
   ] =
     useState<
       DonorInvitationRecord | null
+    >(null);
+
+  // Donation the requester confirmed for this donor's
+  // accepted offer (the transaction record).
+  const [
+    myDonation,
+    setMyDonation,
+  ] =
+    useState<
+      BloodDonation | null
+    >(null);
+
+  // Open dialog: rate the transaction or report a problem.
+  const [
+    donationDialog,
+    setDonationDialog,
+  ] =
+    useState<
+      'feedback' | 'dispute' | null
     >(null);
 
   const [
@@ -444,6 +486,50 @@ export default function DonorBloodRequestScreen() {
           setDonorApplication(
             currentApplication
           );
+
+          // Donation record for an accepted offer. A failure only
+          // hides the donation status.
+          if (
+            currentResponse?.status ===
+            'accepted'
+          ) {
+            try {
+              const donationData =
+                await getRequestDonations(
+                  token,
+                  requestId
+                );
+
+              const ownDonations =
+                (
+                  donationData.donations ||
+                  []
+                ).filter(
+                  donation =>
+                    donation.response_id ===
+                    currentResponse.id
+                );
+
+              setMyDonation(
+                ownDonations.find(
+                  donation =>
+                    donation.status !==
+                    'rejected'
+                ) ||
+                  ownDonations[0] ||
+                  null
+              );
+            } catch (donationError) {
+              console.log(
+                'DONOR DONATION STATUS ERROR:',
+                donationError
+              );
+
+              setMyDonation(null);
+            }
+          } else {
+            setMyDonation(null);
+          }
 
           if (
             currentResponse?.message
@@ -723,7 +809,7 @@ export default function DonorBloodRequestScreen() {
         'unable'
       ) ||
       value.includes(
-        'does not match'
+        'not compatible'
       ) ||
       value.includes(
         'required'
@@ -791,10 +877,10 @@ export default function DonorBloodRequestScreen() {
   }
 
   // ==========================================================
-  // BLOOD MATCH
+  // BLOOD TYPE COMPATIBILITY
   // ==========================================================
 
-  function hasExactBloodTypeMatch() {
+  function hasCompatibleBloodType() {
     if (
       !request ||
       !donorApplication
@@ -802,10 +888,393 @@ export default function DonorBloodRequestScreen() {
       return false;
     }
 
-    return bloodTypesMatchExactly(
+    return isCompatibleDonor(
       request.blood_type,
       donorApplication
         .blood_type
+    );
+  }
+
+  // ==========================================================
+  // DONATION STATUS
+  //
+  // Where this donor's donation stands in the transaction:
+  // waiting to donate -> confirmed by requester -> verified.
+  // ==========================================================
+
+  function renderDonationStatus() {
+    if (
+      donorResponse?.status !==
+      'accepted'
+    ) {
+      return null;
+    }
+
+    const status =
+      myDonation?.status ||
+      null;
+
+    const bags =
+      myDonation
+        ? `${myDonation.units_donated} ${
+            Number(
+              myDonation.units_donated
+            ) === 1
+              ? 'bag'
+              : 'bags'
+          }`
+        : '';
+
+    const donatedOn =
+      myDonation
+        ? new Date(
+            myDonation.donated_at
+          ).toLocaleDateString(
+            'en-US',
+            {
+              month: 'short',
+              day: 'numeric',
+              year: 'numeric',
+            }
+          )
+        : '';
+
+    const nextEligible =
+      myDonation?.next_eligible_at
+        ? new Date(
+            myDonation.next_eligible_at
+          ).toLocaleDateString(
+            'en-US',
+            {
+              month: 'short',
+              day: 'numeric',
+              year: 'numeric',
+            }
+          )
+        : '';
+
+    const appearance =
+      status === 'completed'
+        ? {
+            icon: 'task-alt' as const,
+            color: COLORS.green,
+            background: COLORS.greenLight,
+            title: 'Donation recorded — thank you, hero!',
+            text: `The requester confirmed your donation of ${bags} on ${donatedOn}. It is now on your donation record${
+              nextEligible
+                ? `, and you can donate again from ${nextEligible}`
+                : ''
+            }.`,
+          }
+        : status === 'needs_review'
+          ? {
+              icon: 'hourglass-top' as const,
+              color: COLORS.orange,
+              background: COLORS.orangeLight,
+              title: 'Under a quick review',
+              text: myDonation?.dispute_note
+                ? `You reported: “${myDonation.dispute_note}” Hemo-Hero will review the record and let you know.`
+                : `The requester confirmed your donation of ${bags} on ${donatedOn}. Hemo-Hero will take a quick look before adding it to your record.`,
+            }
+          : status === 'rejected'
+            ? {
+                icon: 'error-outline' as const,
+                color: COLORS.redButton,
+                background: COLORS.pink,
+                title: 'Donation record not accepted',
+                text: myDonation?.admin_note
+                  ? `Hemo-Hero did not accept this record: ${myDonation.admin_note}`
+                  : 'Hemo-Hero did not accept this record. The requester can confirm it again.',
+              }
+            : {
+                icon: 'bloodtype' as const,
+                color: COLORS.redButton,
+                background: COLORS.pink,
+                title: 'After you donate',
+                text: 'Once you have donated at the facility, the requester confirms it and it is added to your donation record.',
+              };
+
+    const requesterFeedback =
+      getFeedbackFrom(
+        myDonation,
+        'requester'
+      );
+
+    const myFeedback =
+      getFeedbackFrom(
+        myDonation,
+        'donor'
+      );
+
+    const canGiveFeedback =
+      status === 'completed' ||
+      status === 'needs_review';
+
+    return (
+      <>
+        <FadeInView
+          key={
+            status ||
+            'waiting'
+          }
+          offset={6}
+          style={[
+            styles.donationStatusCard,
+
+            {
+              backgroundColor:
+                appearance.background,
+            },
+          ]}
+        >
+          <MaterialIcons
+            name={
+              appearance.icon
+            }
+            size={21}
+            color={
+              appearance.color
+            }
+          />
+
+          <View
+            style={
+              styles.donationStatusCopy
+            }
+          >
+            <Text
+              style={[
+                styles.donationStatusTitle,
+
+                {
+                  color:
+                    appearance.color,
+                },
+              ]}
+            >
+              {appearance.title}
+            </Text>
+
+            <Text
+              style={
+                styles.donationStatusText
+              }
+            >
+              {appearance.text}
+            </Text>
+          </View>
+        </FadeInView>
+
+        {/* What the requester said about the donation */}
+        {requesterFeedback ? (
+          <View
+            style={
+              styles.feedbackReceived
+            }
+          >
+            <View
+              style={
+                styles.feedbackHeader
+              }
+            >
+              <Text
+                style={
+                  styles.feedbackLabel
+                }
+              >
+                Requester&apos;s feedback
+              </Text>
+
+              <StarRow
+                rating={
+                  requesterFeedback.rating
+                }
+              />
+            </View>
+
+            {requesterFeedback.comment ? (
+              <Text
+                style={
+                  styles.feedbackComment
+                }
+              >
+                “{requesterFeedback.comment}”
+              </Text>
+            ) : null}
+          </View>
+        ) : null}
+
+        {canGiveFeedback ? (
+          myFeedback ? (
+            <TouchableOpacity
+              style={
+                styles.feedbackGiven
+              }
+              activeOpacity={0.8}
+              onPress={() =>
+                setDonationDialog(
+                  'feedback'
+                )
+              }
+            >
+              <Text
+                style={
+                  styles.feedbackLabel
+                }
+              >
+                Your rating
+              </Text>
+
+              <StarRow
+                rating={
+                  myFeedback.rating
+                }
+              />
+
+              <MaterialIcons
+                name="edit"
+                size={15}
+                color={
+                  COLORS.lightMuted
+                }
+              />
+            </TouchableOpacity>
+          ) : (
+            <TouchableOpacity
+              style={
+                styles.rateButton
+              }
+              activeOpacity={0.85}
+              onPress={() =>
+                setDonationDialog(
+                  'feedback'
+                )
+              }
+            >
+              <MaterialIcons
+                name="star-outline"
+                size={18}
+                color={
+                  COLORS.orange
+                }
+              />
+
+              <Text
+                style={
+                  styles.rateButtonText
+                }
+              >
+                Rate Your Experience
+              </Text>
+            </TouchableOpacity>
+          )
+        ) : null}
+
+        {/* Only a recorded donation can be disputed */}
+        {status === 'completed' ? (
+          <TouchableOpacity
+            style={
+              styles.reportLink
+            }
+            activeOpacity={0.7}
+            onPress={() =>
+              setDonationDialog(
+                'dispute'
+              )
+            }
+          >
+            <MaterialIcons
+              name="flag"
+              size={15}
+              color={
+                COLORS.muted
+              }
+            />
+
+            <Text
+              style={
+                styles.reportLinkText
+              }
+            >
+              Something wrong with this record?{' '}
+              <Text
+                style={
+                  styles.reportLinkStrong
+                }
+              >
+                Report a problem
+              </Text>
+            </Text>
+          </TouchableOpacity>
+        ) : null}
+      </>
+    );
+  }
+
+  // ==========================================================
+  // DONATION FEEDBACK / REPORT
+  // ==========================================================
+
+  async function submitDonationDialog(value: {
+    rating: number;
+    comment: string;
+  }) {
+    const mode =
+      donationDialog;
+
+    if (
+      !requestId ||
+      !myDonation ||
+      !mode
+    ) {
+      return;
+    }
+
+    const token =
+      await getAccessToken();
+
+    if (!token) {
+      router.replace('/');
+
+      return;
+    }
+
+    // Errors are shown inside the dialog.
+    if (mode === 'feedback') {
+      await submitDonationFeedback(
+        token,
+        requestId,
+        myDonation.id,
+        {
+          rating:
+            value.rating,
+
+          comment:
+            value.comment ||
+            null,
+        }
+      );
+    } else {
+      await disputeDonation(
+        token,
+        requestId,
+        myDonation.id,
+        value.comment
+      );
+    }
+
+    setDonationDialog(null);
+
+    await loadData();
+
+    showMessage(
+      mode === 'feedback'
+        ? 'Feedback Sent'
+        : 'Problem Reported',
+
+      mode === 'feedback'
+        ? 'Thank you! The requester will see your feedback.'
+        : 'Thanks for letting us know. Hemo-Hero will review this record and notify you.'
     );
   }
 
@@ -1245,15 +1714,15 @@ export default function DonorBloodRequestScreen() {
     }
 
     if (
-      !hasExactBloodTypeMatch()
+      !hasCompatibleBloodType()
     ) {
       showMessage(
-        'Blood Type Does Not Match',
-        `This request requires ${request.blood_type}, but your verified donor blood type is ${
+        'Blood Type Not Compatible',
+        `This request needs ${request.blood_type}, and your verified blood type (${
           donorApplication
             ?.blood_type ||
           'not available'
-        }.`
+        }) cannot donate to it. Compatible donors: ${getCompatibleDonorLabel(request.blood_type)}.`
       );
 
       return;
@@ -1294,11 +1763,11 @@ export default function DonorBloodRequestScreen() {
     }
 
     if (
-      !hasExactBloodTypeMatch()
+      !hasCompatibleBloodType()
     ) {
       showMessage(
-        'Blood Type Does Not Match',
-        `Only donors with verified blood type ${request.blood_type} can offer to donate for this request.`
+        'Blood Type Not Compatible',
+        `Only donors whose blood type is compatible with ${request.blood_type} can offer: ${getCompatibleDonorLabel(request.blood_type)}.`
       );
 
       return;
@@ -1465,15 +1934,15 @@ export default function DonorBloodRequestScreen() {
     }
 
     if (
-      !hasExactBloodTypeMatch()
+      !hasCompatibleBloodType()
     ) {
       showMessage(
-        'Blood Type Does Not Match',
-        `This request requires ${request.blood_type}, but your verified blood type is ${
+        'Blood Type Not Compatible',
+        `This request needs ${request.blood_type}, and your verified blood type (${
           donorApplication
             ?.blood_type ||
           'not available'
-        }.`
+        }) cannot donate to it. Compatible donors: ${getCompatibleDonorLabel(request.blood_type)}.`
       );
 
       return;
@@ -1518,11 +1987,11 @@ export default function DonorBloodRequestScreen() {
     }
 
     if (
-      !hasExactBloodTypeMatch()
+      !hasCompatibleBloodType()
     ) {
       showMessage(
-        'Blood Type Does Not Match',
-        'This invitation cannot be accepted because the request does not match your verified blood type.'
+        'Blood Type Not Compatible',
+        'This invitation cannot be accepted because your verified blood type is not compatible with this request.'
       );
 
       return;
@@ -1572,9 +2041,23 @@ export default function DonorBloodRequestScreen() {
       if (
         acceptedResponse
       ) {
-        setDonorResponse(
-          acceptedResponse
-        );
+        const now =
+          new Date()
+            .toISOString();
+
+        // The invitation API's response has optional
+        // timestamps; the donor screen expects them set.
+        setDonorResponse({
+          ...acceptedResponse,
+
+          created_at:
+            acceptedResponse.created_at ||
+            now,
+
+          updated_at:
+            acceptedResponse.updated_at ||
+            now,
+        });
       }
 
       if (
@@ -1722,8 +2205,8 @@ export default function DonorBloodRequestScreen() {
     return null;
   }
 
-  const exactBloodMatch =
-    hasExactBloodTypeMatch();
+  const bloodTypeCompatible =
+    hasCompatibleBloodType();
 
   return (
     <View
@@ -2526,7 +3009,7 @@ export default function DonorBloodRequestScreen() {
                     ======================================== */}
 
                     {isApprovedDonor() ? (
-                      exactBloodMatch ? (
+                      bloodTypeCompatible ? (
                         <View
                           style={
                             styles.matchCard
@@ -2556,7 +3039,7 @@ export default function DonorBloodRequestScreen() {
                                 styles.matchTitle
                               }
                             >
-                              Blood Type Match
+                              Compatible Blood Type
                             </Text>
 
                             <Text
@@ -2573,7 +3056,7 @@ export default function DonorBloodRequestScreen() {
                                 {donorApplication
                                   ?.blood_type}
                               </Text>
-                              , which exactly matches this request.
+                              , which can donate to this {request.blood_type} request.
                             </Text>
                           </View>
                         </View>
@@ -2607,7 +3090,7 @@ export default function DonorBloodRequestScreen() {
                                 styles.mismatchTitle
                               }
                             >
-                              Blood Type Does Not Match
+                              Blood Type Not Compatible
                             </Text>
 
                             <Text
@@ -2615,7 +3098,7 @@ export default function DonorBloodRequestScreen() {
                                 styles.mismatchDescription
                               }
                             >
-                              This request requires{' '}
+                              This request needs{' '}
                               <Text
                                 style={
                                   styles.matchStrong
@@ -2623,7 +3106,7 @@ export default function DonorBloodRequestScreen() {
                               >
                                 {request.blood_type}
                               </Text>
-                              , but your verified donor blood type is{' '}
+                              , and your verified blood type is{' '}
                               <Text
                                 style={
                                   styles.matchStrong
@@ -2633,7 +3116,7 @@ export default function DonorBloodRequestScreen() {
                                   ?.blood_type ||
                                   'unknown'}
                               </Text>
-                              . You cannot donate for this request.
+                              , which cannot donate to it. Compatible donors: {getCompatibleDonorLabel(request.blood_type)}.
                             </Text>
                           </View>
                         </View>
@@ -2725,7 +3208,7 @@ export default function DonorBloodRequestScreen() {
                                     acceptingInvitation ||
                                     decliningInvitation ||
                                     !isApprovedDonor() ||
-                                    !exactBloodMatch
+                                    !bloodTypeCompatible
                                   ) &&
                                     styles.disabledButton,
                                 ]}
@@ -2733,7 +3216,7 @@ export default function DonorBloodRequestScreen() {
                                   acceptingInvitation ||
                                   decliningInvitation ||
                                   !isApprovedDonor() ||
-                                  !exactBloodMatch
+                                  !bloodTypeCompatible
                                 }
                                 activeOpacity={
                                   0.84
@@ -2852,6 +3335,8 @@ export default function DonorBloodRequestScreen() {
                                 />
                               </TouchableOpacity>
                             ) : null}
+
+                            {renderDonationStatus()}
                           </View>
                         ) : null}
 
@@ -3120,6 +3605,8 @@ export default function DonorBloodRequestScreen() {
                               </TouchableOpacity>
                             ) : null}
 
+                            {renderDonationStatus()}
+
                             {donorResponse
                               .status ===
                             'pending' ? (
@@ -3158,7 +3645,7 @@ export default function DonorBloodRequestScreen() {
                             ) : null}
                           </View>
                         ) : isApprovedDonor() ? (
-                          exactBloodMatch ? (
+                          bloodTypeCompatible ? (
                             <>
                               <View
                                 style={
@@ -3197,7 +3684,7 @@ export default function DonorBloodRequestScreen() {
                                       styles.eligibilityText
                                     }
                                   >
-                                    Your verified blood type matches this request. Medical personnel will confirm your final eligibility before donation.
+                                    Your verified blood type is compatible with this request. Medical personnel will confirm your final eligibility before donation.
                                   </Text>
                                 </View>
                               </View>
@@ -3477,6 +3964,66 @@ export default function DonorBloodRequestScreen() {
         </SafeAreaView>
 
         {/* ====================================================
+            RATE THE DONATION / REPORT A PROBLEM
+        ==================================================== */}
+
+        <DonationFeedbackModal
+          visible={Boolean(
+            donationDialog
+          )}
+          mode={
+            donationDialog ||
+            'feedback'
+          }
+          title={
+            donationDialog ===
+            'dispute'
+              ? 'Report a Problem'
+              : getFeedbackFrom(
+                    myDonation,
+                    'donor'
+                  )
+                ? 'Update Your Feedback'
+                : 'Rate Your Experience'
+          }
+          subtitle={
+            donationDialog ===
+            'dispute'
+              ? 'Tell us what is wrong with this donation record. Hemo-Hero will review it.'
+              : `How was your experience with ${
+                  myDonation?.requester_name ||
+                  'the requester'
+                }? They will see your feedback.`
+          }
+          initialRating={
+            getFeedbackFrom(
+              myDonation,
+              'donor'
+            )?.rating || 0
+          }
+          initialComment={
+            donationDialog ===
+            'dispute'
+              ? ''
+              : getFeedbackFrom(
+                  myDonation,
+                  'donor'
+                )?.comment || ''
+          }
+          quickNotes={
+            REQUESTER_FEEDBACK_NOTES
+          }
+          onClose={() =>
+            setDonationDialog(
+              null
+            )
+          }
+          onSubmit={
+            submitDonationDialog
+          }
+        />
+
+        {/* ====================================================
             IN-APP ACTION POPUP
         ==================================================== */}
 
@@ -3634,6 +4181,45 @@ export default function DonorBloodRequestScreen() {
           </View>
         </Modal>
       </View>
+    </View>
+  );
+}
+
+// ============================================================
+// STAR ROW (read-only rating)
+// ============================================================
+
+function StarRow({
+  rating,
+}: {
+  rating: number;
+}) {
+  return (
+    <View
+      style={
+        styles.starRow
+      }
+      accessible
+      accessibilityLabel={`${rating} out of 5 stars`}
+    >
+      {[1, 2, 3, 4, 5].map(
+        value => (
+          <MaterialIcons
+            key={value}
+            name={
+              value <= rating
+                ? 'star'
+                : 'star-border'
+            }
+            size={15}
+            color={
+              value <= rating
+                ? '#F2A516'
+                : '#D9C3C3'
+            }
+          />
+        )
+      )}
     </View>
   );
 }
@@ -5277,6 +5863,140 @@ const styles =
 
       fontSize:
         12,
+    },
+
+    // Donation record status (accepted offer)
+    donationStatusCard: {
+      marginTop: 12,
+
+      paddingHorizontal: 12,
+      paddingVertical: 11,
+
+      flexDirection: 'row',
+      alignItems: 'flex-start',
+
+      gap: 9,
+
+      borderRadius: 12,
+    },
+
+    donationStatusCopy: {
+      flex: 1,
+
+      minWidth: 0,
+    },
+
+    donationStatusTitle: {
+      fontFamily:
+        'Inter_600SemiBold',
+
+      fontSize: 13,
+
+      lineHeight: 18,
+    },
+
+    donationStatusText: {
+      marginTop: 2,
+
+      color:
+        COLORS.muted,
+
+      fontFamily:
+        'Inter_400Regular',
+
+      fontSize: 12,
+
+      lineHeight: 17,
+    },
+
+    // Transaction feedback
+    starRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 1,
+    },
+
+    feedbackReceived: {
+      marginTop: 10,
+      paddingHorizontal: 12,
+      paddingVertical: 10,
+      borderRadius: 12,
+      borderWidth: 1,
+      borderColor: '#F7E3BE',
+      backgroundColor: '#FFFBF2',
+    },
+
+    feedbackHeader: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      gap: 8,
+    },
+
+    feedbackLabel: {
+      color: COLORS.black,
+      fontFamily: 'Inter_600SemiBold',
+      fontSize: 12.5,
+    },
+
+    feedbackComment: {
+      marginTop: 5,
+      color: COLORS.muted,
+      fontFamily: 'Inter_400Regular',
+      fontSize: 12.5,
+      lineHeight: 18,
+    },
+
+    feedbackGiven: {
+      height: 44,
+      marginTop: 10,
+      paddingHorizontal: 12,
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 8,
+      borderRadius: 12,
+      borderWidth: 1,
+      borderColor: COLORS.border,
+      backgroundColor: '#FFF8F8',
+    },
+
+    rateButton: {
+      height: 46,
+      marginTop: 10,
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: 7,
+      borderRadius: 12,
+      borderWidth: 1.5,
+      borderColor: COLORS.orange,
+      backgroundColor: COLORS.orangeLight,
+    },
+
+    rateButtonText: {
+      color: COLORS.orange,
+      fontFamily: 'Poppins_600SemiBold',
+      fontSize: 13,
+    },
+
+    reportLink: {
+      alignSelf: 'center',
+      marginTop: 12,
+      paddingVertical: 4,
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 5,
+    },
+
+    reportLinkText: {
+      color: COLORS.muted,
+      fontFamily: 'Inter_400Regular',
+      fontSize: 12,
+    },
+
+    reportLinkStrong: {
+      color: COLORS.redButton,
+      fontFamily: 'Inter_600SemiBold',
     },
 
     withdrawButton: {

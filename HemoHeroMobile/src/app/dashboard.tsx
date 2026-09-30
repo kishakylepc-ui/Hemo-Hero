@@ -1,5 +1,6 @@
 import {
   useCallback,
+  useRef,
   useState,
 } from 'react';
 
@@ -7,6 +8,7 @@ import {
   Image,
   Modal,
   Platform,
+  RefreshControl,
   ScrollView,
   StyleSheet,
   Text,
@@ -39,6 +41,20 @@ import {
 import * as Location from 'expo-location';
 
 import MainBottomNav from '../components/MainBottomNav';
+
+import {
+  FadeInView,
+  PulseRing,
+} from '../components/Motion';
+
+import {
+  type BloodType,
+  getCompatibleDonorTypes,
+  getCompatibleRecipientTypes,
+  isBloodType,
+} from '../lib/bloodCompatibility';
+
+import { getMyDonorInvitations } from '../lib/donorInvitations';
 
 import {
   getCurrentUser,
@@ -77,7 +93,6 @@ import type {
 } from '../lib/donorApplication';
 
 import {
-  clearSession,
   getAccessToken,
 } from '../lib/session';
 
@@ -267,6 +282,14 @@ export default function DashboardScreen() {
     setSelectedBloodType,
   ] = useState('');
 
+  // Blood type shown in the compatibility popup (null = closed).
+  const [
+    compatibilityType,
+    setCompatibilityType,
+  ] = useState<BloodType | null>(
+    null
+  );
+
   const [
   actionPopup,
   setActionPopup,
@@ -276,6 +299,35 @@ export default function DashboardScreen() {
   message: '',
   variant: 'info',
 });
+
+  // ==========================================================
+  // DONOR INVITATIONS (pending count)
+  // ==========================================================
+
+  const [
+    pendingInvitations,
+    setPendingInvitations,
+  ] = useState(0);
+
+  // ==========================================================
+  // REFRESH / LOADING BEHAVIOUR
+  //
+  // The first load shows the loading cards. Later loads (tab
+  // switches, returning from other screens, pull-to-refresh)
+  // update quietly so the cards do not flash.
+  // ==========================================================
+
+  const [
+    refreshing,
+    setRefreshing,
+  ] = useState(false);
+
+  const hasLoadedOnce =
+    useRef(false);
+
+  // Ask for location permission at most once per app visit.
+  const askedForLocation =
+    useRef(false);
   // ==========================================================
   // LOAD DASHBOARD
   // ==========================================================
@@ -291,92 +343,122 @@ export default function DashboardScreen() {
         return;
       }
 
+      // Only the very first load shows the loading cards.
+      const firstLoad =
+        !hasLoadedOnce.current;
+
+      if (firstLoad) {
+        setLoadingProfile(true);
+        setLoadingActiveRequest(true);
+        setLoadingDonorApplication(true);
+      }
+
+      setActiveRequestError('');
+
       // ======================================================
+      // LOAD INDEPENDENT SECTIONS IN PARALLEL
+      //
+      // One failing section does not block the others.
+      // ======================================================
+
+      const [
+        profileResult,
+        notificationResult,
+        activeRequestResult,
+        donorResult,
+        invitationResult,
+      ] = await Promise.allSettled([
+        getCurrentUser(token),
+        getUnreadNotificationCount(token),
+        getMyActiveBloodRequest(token),
+        getMyDonorApplication(token),
+        getMyDonorInvitations(token),
+      ]);
+
+      // ------------------------------------------------------
       // PROFILE
-      // ======================================================
+      // ------------------------------------------------------
 
-      try {
-        setLoadingProfile(
-          true
-        );
-
-        const data =
-          await getCurrentUser(
-            token
-          );
-
-        if (!data?.user) {
-          throw new Error(
-            'Unable to load profile.'
-          );
-        }
-
+      if (
+        profileResult.status === 'fulfilled' &&
+        profileResult.value?.user
+      ) {
         setProfile(
-          data.user
+          profileResult.value.user
         );
-      } catch (error) {
+      } else if (profileResult.status === 'rejected') {
         console.log(
           'DASHBOARD PROFILE ERROR:',
-          error
-        );
-      } finally {
-        setLoadingProfile(
-          false
+          profileResult.reason
         );
       }
 
-      // ======================================================
+      setLoadingProfile(false);
+
+      // ------------------------------------------------------
       // NOTIFICATION COUNT
-      // ======================================================
+      // ------------------------------------------------------
 
-      try {
-        const notificationData =
-          await getUnreadNotificationCount(
-            token
-          );
+      setUnreadNotifications(
+        notificationResult.status === 'fulfilled'
+          ? Number(
+              notificationResult.value
+                ?.unread_count
+            ) || 0
+          : 0
+      );
 
-        setUnreadNotifications(
-          Number(
-            notificationData
-              ?.unread_count
-          ) || 0
+      // ------------------------------------------------------
+      // DONOR APPLICATION
+      // ------------------------------------------------------
+
+      if (donorResult.status === 'fulfilled') {
+        setDonorApplication(
+          donorResult.value?.application ||
+            null
         );
-      } catch (error) {
+      } else {
         console.log(
-          'DASHBOARD NOTIFICATION COUNT ERROR:',
-          error
+          'DASHBOARD DONOR APPLICATION ERROR:',
+          donorResult.reason
         );
 
-        setUnreadNotifications(
-          0
-        );
+        setDonorApplication(null);
       }
 
-      // ======================================================
-      // ACTIVE REQUEST
-      // ======================================================
+      setLoadingDonorApplication(false);
 
-      try {
-        setLoadingActiveRequest(
-          true
-        );
+      // ------------------------------------------------------
+      // PENDING DONOR INVITATIONS
+      // ------------------------------------------------------
 
-        setActiveRequestError(
-          ''
-        );
+      setPendingInvitations(
+        invitationResult.status === 'fulfilled'
+          ? Number(
+              invitationResult.value?.counts
+                ?.pending
+            ) || 0
+          : 0
+      );
 
-        const data =
-          await getMyActiveBloodRequest(
-            token
-          );
+      // ------------------------------------------------------
+      // ACTIVE REQUEST + DONOR OFFER COUNTS
+      // ------------------------------------------------------
 
+      const emptyCounts = {
+        total: 0,
+        pending: 0,
+        accepted: 0,
+        rejected: 0,
+        withdrawn: 0,
+      };
+
+      if (activeRequestResult.status === 'fulfilled') {
         const currentRequest =
-          data?.request ||
+          activeRequestResult.value?.request ||
           null;
 
-        setActiveRequest(
-          currentRequest
-        );
+        setActiveRequest(currentRequest);
 
         if (currentRequest) {
           try {
@@ -388,29 +470,15 @@ export default function DashboardScreen() {
 
             setActiveRequestResponseCounts({
               total:
-                Number(
-                  responseData?.counts?.total
-                ) || 0,
-
+                Number(responseData?.counts?.total) || 0,
               pending:
-                Number(
-                  responseData?.counts?.pending
-                ) || 0,
-
+                Number(responseData?.counts?.pending) || 0,
               accepted:
-                Number(
-                  responseData?.counts?.accepted
-                ) || 0,
-
+                Number(responseData?.counts?.accepted) || 0,
               rejected:
-                Number(
-                  responseData?.counts?.rejected
-                ) || 0,
-
+                Number(responseData?.counts?.rejected) || 0,
               withdrawn:
-                Number(
-                  responseData?.counts?.withdrawn
-                ) || 0,
+                Number(responseData?.counts?.withdrawn) || 0,
             });
           } catch (responseError) {
             console.log(
@@ -418,87 +486,33 @@ export default function DashboardScreen() {
               responseError
             );
 
-            setActiveRequestResponseCounts({
-              total: 0,
-              pending: 0,
-              accepted: 0,
-              rejected: 0,
-              withdrawn: 0,
-            });
+            setActiveRequestResponseCounts(emptyCounts);
           }
         } else {
-          setActiveRequestResponseCounts({
-            total: 0,
-            pending: 0,
-            accepted: 0,
-            rejected: 0,
-            withdrawn: 0,
-          });
+          setActiveRequestResponseCounts(emptyCounts);
         }
-      } catch (error) {
+      } else {
         console.log(
           'DASHBOARD ACTIVE REQUEST ERROR:',
-          error
+          activeRequestResult.reason
         );
 
-        setActiveRequest(
-          null
-        );
-
-        setActiveRequestResponseCounts({
-          total: 0,
-          pending: 0,
-          accepted: 0,
-          rejected: 0,
-          withdrawn: 0,
-        });
+        setActiveRequest(null);
+        setActiveRequestResponseCounts(emptyCounts);
 
         setActiveRequestError(
-          error instanceof Error
-            ? error.message
+          activeRequestResult.reason instanceof Error
+            ? activeRequestResult.reason.message
             : 'Unable to load active request.'
         );
-      } finally {
-        setLoadingActiveRequest(
-          false
-        );
       }
 
-      // ======================================================
-      // DONOR APPLICATION
-      // ======================================================
+      setLoadingActiveRequest(false);
 
-      try {
-        setLoadingDonorApplication(
-          true
-        );
-
-        const donorData =
-          await getMyDonorApplication(
-            token
-          );
-
-        setDonorApplication(
-          donorData?.application ||
-            null
-        );
-      } catch (error) {
-        console.log(
-          'DASHBOARD DONOR APPLICATION ERROR:',
-          error
-        );
-
-        setDonorApplication(
-          null
-        );
-      } finally {
-        setLoadingDonorApplication(
-          false
-        );
-      }
+      hasLoadedOnce.current = true;
 
       // ======================================================
-      // NEARBY REQUESTS
+      // NEARBY REQUESTS (needs location)
       // ======================================================
 
       await loadNearbyRequests(
@@ -524,9 +538,16 @@ export default function DashboardScreen() {
     token?: string
   ) {
     try {
-      setLoadingNearbyRequests(
-        true
-      );
+      // Show the "finding requests" card only until the first
+      // result; later refreshes update the list in place.
+      if (
+        nearbyRequests.length === 0 &&
+        respondedRequests.length === 0
+      ) {
+        setLoadingNearbyRequests(
+          true
+        );
+      }
 
       setNearbyRequestError(
         ''
@@ -546,10 +567,15 @@ export default function DashboardScreen() {
         await Location
           .getForegroundPermissionsAsync();
 
+      // Ask once; do not re-prompt every time Home is opened.
       if (
         permission.status !==
-        'granted'
+          'granted' &&
+        !askedForLocation.current
       ) {
+        askedForLocation.current =
+          true;
+
         permission =
           await Location
             .requestForegroundPermissionsAsync();
@@ -1091,9 +1117,15 @@ function showMessage(
       return;
     }
 
+    // Pending, approved and rejected all open the status screen
+    // (progress, reviewer note, withdraw / apply again).
     if (
       donorApplication.status ===
-      'pending'
+        'pending' ||
+      donorApplication.status ===
+        'approved' ||
+      donorApplication.status ===
+        'rejected'
     ) {
       router.push({
         pathname:
@@ -1101,21 +1133,9 @@ function showMessage(
 
         params: {
           status:
-            'pending',
+            donorApplication.status,
         },
       } as any);
-
-      return;
-    }
-
-    if (
-      donorApplication.status ===
-      'approved'
-    ) {
-      showMessage(
-        'Verified Donor',
-        'Your donor account has been verified. You can now offer to donate to compatible blood requests.'
-      );
 
       return;
     }
@@ -1191,6 +1211,97 @@ function showMessage(
     }
   }
 
+  // Whole-blood donors can usually give again after about
+  // 3 months (90 days). Uses the last donation the donor
+  // reported in their application. Guidance only.
+  function getDonationEligibility(): {
+    ready: boolean;
+    text: string;
+  } | null {
+    if (
+      donorApplication?.status !==
+      'approved'
+    ) {
+      return null;
+    }
+
+    if (
+      !donorApplication.has_donated_before
+    ) {
+      return {
+        ready: true,
+        text: 'No previous donation on record — you can donate when matched.',
+      };
+    }
+
+    let lastDonation: Date | null =
+      null;
+
+    const dateMatch =
+      String(
+        donorApplication.last_donation_date ||
+          ''
+      ).match(
+        /^(\d{4})-(\d{2})-(\d{2})/
+      );
+
+    if (dateMatch) {
+      lastDonation = new Date(
+        Number(dateMatch[1]),
+        Number(dateMatch[2]) - 1,
+        Number(dateMatch[3])
+      );
+    } else if (
+      donorApplication.last_donation_month &&
+      donorApplication.last_donation_year
+    ) {
+      // Month only: count from the end of that month.
+      lastDonation = new Date(
+        donorApplication.last_donation_year,
+        donorApplication.last_donation_month,
+        0
+      );
+    }
+
+    if (
+      !lastDonation ||
+      Number.isNaN(
+        lastDonation.getTime()
+      )
+    ) {
+      return null;
+    }
+
+    const nextEligible =
+      new Date(lastDonation);
+
+    nextEligible.setDate(
+      nextEligible.getDate() + 90
+    );
+
+    if (
+      nextEligible.getTime() <=
+      Date.now()
+    ) {
+      return {
+        ready: true,
+        text: 'Eligible to donate again (90+ days since your last donation).',
+      };
+    }
+
+    return {
+      ready: false,
+      text: `Next donation from ${nextEligible.toLocaleDateString(
+        'en-US',
+        {
+          month: 'short',
+          day: 'numeric',
+          year: 'numeric',
+        }
+      )} (90-day interval).`,
+    };
+  }
+
   function getDonorButtonText() {
     if (
       loadingDonorApplication
@@ -1226,33 +1337,59 @@ function showMessage(
   // FIND DONORS
   // ==========================================================
 
+  // Opens the real donor search with the chosen blood type.
   function handleSearchDonors() {
     if (!selectedBloodType) {
       showMessage(
         'Select Blood Type',
-        'Please select the blood type you need.'
+        'Please select the blood type you need, then tap Find Donors.'
       );
 
       return;
     }
 
-    showMessage(
-      'Find Compatible Donors',
-      `Donor matching for ${selectedBloodType} will be connected next.`
-    );
+    router.push({
+      pathname:
+        '/search',
+
+      params: {
+        mode:
+          'donors',
+
+        bloodType:
+          selectedBloodType,
+      },
+    } as any);
   }
 
   // ==========================================================
-  // COMING SOON
+  // ALL NEARBY REQUESTS
   // ==========================================================
 
-  function handleComingSoon(
-    page: string
-  ) {
-    showMessage(
-      page,
-      `${page} will be connected as we continue building Hemo-Hero.`
-    );
+  function handleViewAllNearby() {
+    router.push({
+      pathname:
+        '/search',
+
+      params: {
+        mode:
+          'requests',
+      },
+    } as any);
+  }
+
+  // ==========================================================
+  // PULL TO REFRESH
+  // ==========================================================
+
+  async function handleRefresh() {
+    setRefreshing(true);
+
+    try {
+      await loadDashboard();
+    } finally {
+      setRefreshing(false);
+    }
   }
 
   // ==========================================================
@@ -1263,12 +1400,6 @@ function showMessage(
     router.push(
       '/profile'
     );
-  }
-
-  async function handleLogout() {
-    await clearSession();
-
-    router.replace('/');
   }
 
   const activeRequestFulfilled =
@@ -1393,25 +1524,81 @@ function showMessage(
 
                 <View
                   style={
-                    styles.locationPill
+                    styles.headerPills
                   }
                 >
-                  <MaterialIcons
-                    name="location-on"
-                    size={13}
-                    color={
-                      COLORS.white
-                    }
-                  />
+                  {isBloodType(
+                    profile?.blood_type
+                  ) ? (
+                    <TouchableOpacity
+                      style={
+                        styles.bloodTypePill
+                      }
+                      activeOpacity={
+                        0.8
+                      }
+                      accessibilityLabel={`My blood type ${profile?.blood_type}. Show compatible types.`}
+                      onPress={() => {
+                        const myType =
+                          String(
+                            profile?.blood_type
+                          )
+                            .trim()
+                            .toUpperCase();
 
-                  <Text
-                    numberOfLines={1}
+                        if (!isBloodType(myType)) {
+                          return;
+                        }
+
+                        setCompatibilityType(
+                          myType
+                        );
+                      }}
+                    >
+                      <MaterialIcons
+                        name="water-drop"
+                        size={12}
+                        color={
+                          COLORS.white
+                        }
+                      />
+
+                      <Text
+                        style={
+                          styles.bloodTypePillText
+                        }
+                      >
+                        {String(
+                          profile?.blood_type
+                        )
+                          .trim()
+                          .toUpperCase()}
+                      </Text>
+                    </TouchableOpacity>
+                  ) : null}
+
+                  <View
                     style={
-                      styles.locationText
+                      styles.locationPill
                     }
                   >
-                    {displayLocation}
-                  </Text>
+                    <MaterialIcons
+                      name="place"
+                      size={13}
+                      color={
+                        COLORS.white
+                      }
+                    />
+
+                    <Text
+                      numberOfLines={1}
+                      style={
+                        styles.locationText
+                      }
+                    >
+                      {displayLocation}
+                    </Text>
+                  </View>
                 </View>
               </View>
 
@@ -1531,13 +1718,23 @@ function showMessage(
                   styles.emergencyIcon
                 }
               >
+                {/* Gentle pulse draws attention to creating a
+                    request; hidden once a request is active. */}
+                <PulseRing
+                  size={48}
+                  active={
+                    !activeRequest &&
+                    !loadingActiveRequest
+                  }
+                />
+
                 <MaterialIcons
                   name={
                     activeRequest
                       ? 'monitor-heart'
-                      : 'bolt'
+                      : 'emergency'
                   }
-                  size={30}
+                  size={28}
                   color={
                     COLORS.white
                   }
@@ -1565,30 +1762,58 @@ function showMessage(
                   }
                 >
                   {activeRequest
-                    ? 'You currently have an active blood request. View its details and status below.'
-                    : 'Create an emergency request and connect with compatible donors nearby.'}
+                    ? 'You currently have an active blood request. Track donor offers below.'
+                    : 'Post a request in about a minute and reach compatible donors nearby.'}
                 </Text>
               </View>
             </View>
 
             <TouchableOpacity
-              style={
-                styles.emergencyButton
-              }
+              style={[
+                styles.emergencyButton,
+
+                !activeRequest &&
+                  styles.emergencyButtonPrimary,
+              ]}
               activeOpacity={
                 0.85
+              }
+              accessibilityRole="button"
+              accessibilityLabel={
+                activeRequest
+                  ? 'View my active blood request'
+                  : 'Create a blood request'
               }
               onPress={
                 handleCreateRequest
               }
             >
-              <Text
-                style={
-                  styles.emergencyButtonText
+              <MaterialIcons
+                name={
+                  activeRequest
+                    ? 'visibility'
+                    : 'add-circle'
                 }
+                size={
+                  activeRequest
+                    ? 19
+                    : 22
+                }
+                color={
+                  COLORS.redDark
+                }
+              />
+
+              <Text
+                style={[
+                  styles.emergencyButtonText,
+
+                  !activeRequest &&
+                    styles.emergencyButtonTextPrimary,
+                ]}
               >
                 {activeRequest
-                  ? 'View Active Request'
+                  ? 'View My Request'
                   : 'Create Blood Request'}
               </Text>
 
@@ -1616,11 +1841,99 @@ function showMessage(
             showsVerticalScrollIndicator={
               false
             }
-            bounces={false}
+            refreshControl={
+              <RefreshControl
+                refreshing={
+                  refreshing
+                }
+                onRefresh={
+                  handleRefresh
+                }
+                tintColor={
+                  COLORS.redButton
+                }
+                colors={[
+                  COLORS.redButton,
+                ]}
+              />
+            }
           >
+            {/* ==================================================
+                PENDING DONATION INVITATIONS
+                (only shown when a requester invited you)
+            ================================================== */}
+
+            {pendingInvitations >
+            0 ? (
+              <FadeInView>
+                <TouchableOpacity
+                  style={
+                    styles.invitationNotice
+                  }
+                  activeOpacity={
+                    0.85
+                  }
+                  accessibilityRole="button"
+                  onPress={() =>
+                    router.push(
+                      '/requests' as any
+                    )
+                  }
+                >
+                  <View
+                    style={
+                      styles.invitationNoticeIcon
+                    }
+                  >
+                    <MaterialIcons
+                      name="mail-outline"
+                      size={20}
+                      color={
+                        COLORS.redButton
+                      }
+                    />
+                  </View>
+
+                  <View
+                    style={
+                      styles.invitationNoticeText
+                    }
+                  >
+                    <Text
+                      style={
+                        styles.invitationNoticeTitle
+                      }
+                    >
+                      {pendingInvitations ===
+                      1
+                        ? 'You have a donation invitation'
+                        : `You have ${pendingInvitations} donation invitations`}
+                    </Text>
+
+                    <Text
+                      style={
+                        styles.invitationNoticeSubtitle
+                      }
+                    >
+                      A requester asked you to help. Tap to review.
+                    </Text>
+                  </View>
+
+                  <MaterialIcons
+                    name="chevron-right"
+                    size={22}
+                    color={
+                      COLORS.redButton
+                    }
+                  />
+                </TouchableOpacity>
+              </FadeInView>
+            ) : null}
+
             {/* ==================================================
                 ACTIVE REQUEST
             ================================================== */}
+            <FadeInView delay={0}>
 
             <View
               style={
@@ -1633,7 +1946,7 @@ function showMessage(
                 }
               >
                 <MaterialIcons
-                  name="monitor-heart"
+                  name="assignment"
                   size={21}
                   color={
                     COLORS.black
@@ -1681,7 +1994,7 @@ function showMessage(
                   }
                 >
                   <MaterialIcons
-                    name="hourglass-empty"
+                    name="hourglass-top"
                     size={25}
                     color={
                       COLORS.redButton
@@ -2131,9 +2444,11 @@ function showMessage(
               </TouchableOpacity>
             ) : null}
 
+            </FadeInView>
             {/* ==================================================
                 RESPONDED REQUESTS
             ================================================== */}
+            <FadeInView delay={50}>
 
             {respondedRequests.length >
             0 ? (
@@ -2149,7 +2464,7 @@ function showMessage(
                     }
                   >
                     <MaterialIcons
-                      name="volunteer-activism"
+                      name="handshake"
                       size={20}
                       color={
                         COLORS.green
@@ -2366,7 +2681,7 @@ function showMessage(
                               }
                             >
                               <MaterialIcons
-                                name="location-on"
+                                name="place"
                                 size={15}
                                 color={
                                   COLORS.redButton
@@ -2480,9 +2795,11 @@ function showMessage(
               </>
             ) : null}
 
+            </FadeInView>
             {/* ==================================================
                 NEARBY REQUESTS
             ================================================== */}
+            <FadeInView delay={100}>
 
             <View
               style={
@@ -2495,7 +2812,7 @@ function showMessage(
                 }
               >
                 <MaterialIcons
-                  name="location-on"
+                  name="near-me"
                   size={20}
                   color={
                     COLORS.redButton
@@ -2515,10 +2832,8 @@ function showMessage(
                 activeOpacity={
                   0.7
                 }
-                onPress={() =>
-                  handleComingSoon(
-                    'Nearby Blood Requests'
-                  )
+                onPress={
+                  handleViewAllNearby
                 }
               >
                 <Text
@@ -2630,7 +2945,7 @@ function showMessage(
                   }
                 >
                   <MaterialIcons
-                    name="location-searching"
+                    name="travel-explore"
                     size={29}
                     color={
                       COLORS.redButton
@@ -2725,7 +3040,7 @@ function showMessage(
                             }
                           >
                             <MaterialIcons
-                              name="location-on"
+                              name="place"
                               size={13}
                               color={
                                 COLORS.muted
@@ -2915,9 +3230,11 @@ function showMessage(
               </View>
             )}
 
+            </FadeInView>
             {/* ==================================================
                 FIND DONORS
             ================================================== */}
+            <FadeInView delay={150}>
 
             <View
               style={
@@ -2940,7 +3257,7 @@ function showMessage(
                     }
                   >
                     <MaterialIcons
-                      name="bloodtype"
+                      name="person-search"
                       size={20}
                       color={
                         COLORS.redButton
@@ -2971,14 +3288,40 @@ function showMessage(
                   </View>
                 </View>
 
-                <View
-                  style={
-                    styles.compatibilityChip
+                <TouchableOpacity
+                  style={[
+                    styles.compatibilityChip,
+
+                    isBloodType(
+                      selectedBloodType
+                    ) &&
+                      styles.compatibilityChipActive,
+                  ]}
+                  activeOpacity={
+                    0.75
                   }
+                  onPress={() => {
+                    if (
+                      isBloodType(
+                        selectedBloodType
+                      )
+                    ) {
+                      setCompatibilityType(
+                        selectedBloodType
+                      );
+
+                      return;
+                    }
+
+                    showMessage(
+                      'Select a Blood Type',
+                      'Choose a blood type below first, then tap Compatibility to see which types it matches.'
+                    );
+                  }}
                 >
                   <MaterialIcons
-                    name="info-outline"
-                    size={12}
+                    name="compare-arrows"
+                    size={13}
                     color={
                       COLORS.redButton
                     }
@@ -2991,7 +3334,7 @@ function showMessage(
                   >
                     Compatibility
                   </Text>
-                </View>
+                </TouchableOpacity>
               </View>
 
               <Text
@@ -3075,14 +3418,18 @@ function showMessage(
                     styles.searchButtonText
                   }
                 >
-                  Find Donors
+                  {selectedBloodType
+                    ? `Find Donors for ${selectedBloodType}`
+                    : 'Find Donors'}
                 </Text>
               </TouchableOpacity>
             </View>
 
+            </FadeInView>
             {/* ==================================================
                 DONOR STATUS CARD
             ================================================== */}
+            <FadeInView delay={200}>
 
             <View
               style={[
@@ -3112,7 +3459,7 @@ function showMessage(
                       donorApplication?.status ===
                       'approved'
                         ? 'verified'
-                        : 'favorite-border'
+                        : 'volunteer-activism'
                     }
                     size={28}
                     color={
@@ -3195,6 +3542,48 @@ function showMessage(
                 ) : null}
               </View>
 
+              {(() => {
+                const eligibility =
+                  getDonationEligibility();
+
+                if (!eligibility) {
+                  return null;
+                }
+
+                return (
+                  <View
+                    style={[
+                      styles.eligibilityRow,
+
+                      !eligibility.ready &&
+                        styles.eligibilityRowWaiting,
+                    ]}
+                  >
+                    <MaterialIcons
+                      name={
+                        eligibility.ready
+                          ? 'event-available'
+                          : 'event'
+                      }
+                      size={16}
+                      color={
+                        eligibility.ready
+                          ? COLORS.green
+                          : COLORS.orange
+                      }
+                    />
+
+                    <Text
+                      style={
+                        styles.eligibilityText
+                      }
+                    >
+                      {eligibility.text}
+                    </Text>
+                  </View>
+                );
+              })()}
+
               <TouchableOpacity
                 style={[
                   styles.applyButton,
@@ -3250,6 +3639,7 @@ function showMessage(
                 ) : null}
               </TouchableOpacity>
             </View>
+            </FadeInView>
           </ScrollView>
 
           {/* ==================================================
@@ -3371,6 +3761,185 @@ function showMessage(
   </View>
 </Modal>
 
+{/* ==================================================
+    BLOOD TYPE COMPATIBILITY POPUP
+================================================== */}
+
+<Modal
+  visible={
+    compatibilityType !== null
+  }
+  transparent
+  animationType="fade"
+  statusBarTranslucent
+  onRequestClose={() =>
+    setCompatibilityType(null)
+  }
+>
+  <View
+    style={
+      styles.actionPopupOverlay
+    }
+  >
+    {compatibilityType ? (
+      <View
+        style={
+          styles.actionPopupCard
+        }
+      >
+        <View
+          style={
+            styles.compatBadge
+          }
+        >
+          <Text
+            style={
+              styles.compatBadgeText
+            }
+          >
+            {compatibilityType}
+          </Text>
+        </View>
+
+        <Text
+          style={
+            styles.actionPopupTitle
+          }
+        >
+          {compatibilityType}{' '}
+          Compatibility
+        </Text>
+
+        <View
+          style={
+            styles.matchPanel
+          }
+        >
+          {[
+            {
+              key: 'receive',
+              icon: 'call-received' as const,
+              label: 'Can receive blood from',
+              types:
+                getCompatibleDonorTypes(
+                  compatibilityType
+                ),
+            },
+            {
+              key: 'give',
+              icon: 'call-made' as const,
+              label: 'Can donate blood to',
+              types:
+                getCompatibleRecipientTypes(
+                  compatibilityType
+                ),
+            },
+          ].map(row => (
+            <View
+              key={row.key}
+              style={
+                styles.matchRow
+              }
+            >
+              <View
+                style={
+                  styles.matchLabelRow
+                }
+              >
+                <MaterialIcons
+                  name={row.icon}
+                  size={15}
+                  color={
+                    COLORS.redButton
+                  }
+                />
+
+                <Text
+                  style={
+                    styles.matchLabel
+                  }
+                >
+                  {row.label}
+                </Text>
+
+                <Text
+                  style={
+                    styles.matchCount
+                  }
+                >
+                  {row.types.length} of 8
+                </Text>
+              </View>
+
+              <View
+                style={
+                  styles.matchChips
+                }
+              >
+                {row.types.map(
+                  matchType => (
+                    <View
+                      key={matchType}
+                      style={[
+                        styles.matchChip,
+
+                        matchType ===
+                          compatibilityType &&
+                          styles.matchChipSelf,
+                      ]}
+                    >
+                      <Text
+                        style={[
+                          styles.matchChipText,
+
+                          matchType ===
+                            compatibilityType &&
+                            styles.matchChipTextSelf,
+                        ]}
+                      >
+                        {matchType}
+                      </Text>
+                    </View>
+                  )
+                )}
+              </View>
+            </View>
+          ))}
+        </View>
+
+        <Text
+          style={
+            styles.matchDisclaimer
+          }
+        >
+          Red blood cell guidance only. Hospitals
+          confirm compatibility with lab tests.
+        </Text>
+
+        <TouchableOpacity
+          style={
+            styles.actionPopupButton
+          }
+          activeOpacity={
+            0.85
+          }
+          onPress={() =>
+            setCompatibilityType(null)
+          }
+        >
+          <Text
+            style={
+              styles.actionPopupButtonText
+            }
+          >
+            Close
+          </Text>
+        </TouchableOpacity>
+      </View>
+    ) : null}
+  </View>
+</Modal>
+
           
         </SafeAreaView>
       </View>
@@ -3488,7 +4057,7 @@ const styles =
       fontFamily:
         'Inter_400Regular',
 
-      fontSize: 12,
+      fontSize: 13.5,
     },
 
     userName: {
@@ -3501,16 +4070,56 @@ const styles =
         'Poppins_700Bold',
 
       fontSize: 22,
-      lineHeight: 27,
+      lineHeight: 31,
+    },
+
+    headerPills: {
+      flexDirection: 'row',
+      alignItems: 'center',
+
+      gap: 6,
+
+      marginTop: 7,
+    },
+
+    // Tapping it shows the user's own compatibility below.
+    bloodTypePill: {
+      flexDirection: 'row',
+      alignItems: 'center',
+
+      gap: 3,
+
+      paddingHorizontal: 9,
+      paddingVertical: 5,
+
+      borderRadius: 15,
+
+      borderWidth: 1,
+
+      borderColor:
+        'rgba(255,255,255,0.55)',
+
+      backgroundColor:
+        'rgba(255,255,255,0.18)',
+    },
+
+    bloodTypePillText: {
+      color:
+        COLORS.white,
+
+      fontFamily:
+        'Poppins_600SemiBold',
+
+      fontSize: 12.5,
     },
 
     locationPill: {
       alignSelf:
         'flex-start',
 
-      maxWidth: 205,
+      flexShrink: 1,
 
-      marginTop: 7,
+      maxWidth: 190,
 
       paddingHorizontal: 11,
       paddingVertical: 5,
@@ -3534,7 +4143,7 @@ const styles =
       fontFamily:
         'Inter_400Regular',
 
-      fontSize: 10.5,
+      fontSize: 12.5,
     },
 
     headerActions: {
@@ -3605,7 +4214,7 @@ const styles =
       fontFamily:
         'Inter_600SemiBold',
 
-      fontSize: 8,
+      fontSize: 9.5,
     },
 
     avatar: {
@@ -3701,8 +4310,8 @@ const styles =
       fontFamily:
         'Inter_400Regular',
 
-      fontSize: 10.5,
-      lineHeight: 15,
+      fontSize: 12.5,
+      lineHeight: 18,
     },
 
     emergencyButton: {
@@ -3730,7 +4339,32 @@ const styles =
       fontFamily:
         'Poppins_600SemiBold',
 
-      fontSize: 11.5,
+      fontSize: 13,
+    },
+
+    // Highlighted "Create Blood Request" call to action:
+    // full width, taller, with a soft glow.
+    emergencyButtonPrimary: {
+      height: 50,
+      marginLeft: 0,
+      marginTop: 13,
+      borderRadius: 12,
+
+      shadowColor: '#000000',
+      shadowOffset: {
+        width: 0,
+        height: 4,
+      },
+      shadowOpacity: 0.22,
+      shadowRadius: 8,
+      elevation: 5,
+    },
+
+    emergencyButtonTextPrimary: {
+      fontFamily:
+        'Poppins_700Bold',
+
+      fontSize: 15,
     },
 
     // ========================================================
@@ -3784,7 +4418,7 @@ const styles =
       fontFamily:
         'Inter_600SemiBold',
 
-      fontSize: 10.5,
+      fontSize: 12.5,
     },
 
     // ========================================================
@@ -3839,7 +4473,7 @@ const styles =
       fontFamily:
         'Poppins_600SemiBold',
 
-      fontSize: 12.5,
+      fontSize: 13.5,
     },
 
     emptyRequestDescription: {
@@ -3851,8 +4485,8 @@ const styles =
       fontFamily:
         'Inter_400Regular',
 
-      fontSize: 11,
-      lineHeight: 14,
+      fontSize: 13,
+      lineHeight: 18,
     },
 
     // ========================================================
@@ -3928,7 +4562,7 @@ const styles =
       fontFamily:
         'Poppins_600SemiBold',
 
-      fontSize: 12.5,
+      fontSize: 13.5,
     },
 
     requestTimeText: {
@@ -3938,7 +4572,7 @@ const styles =
       fontFamily:
         'Inter_400Regular',
 
-      fontSize: 10,
+      fontSize: 12,
     },
 
     activeRequestMain: {
@@ -3973,7 +4607,7 @@ const styles =
       fontFamily:
         'Poppins_700Bold',
 
-      fontSize: 12,
+      fontSize: 13.5,
     },
 
     activeRequestInfo: {
@@ -3999,8 +4633,8 @@ const styles =
       fontFamily:
         'Inter_400Regular',
 
-      fontSize: 10.5,
-      lineHeight: 13,
+      fontSize: 12.5,
+      lineHeight: 18,
     },
 
     urgentRequestText: {
@@ -4079,7 +4713,7 @@ const styles =
       fontFamily:
         'Inter_600SemiBold',
 
-      fontSize: 9.5,
+      fontSize: 11.5,
     },
 
     progressTextInactive: {
@@ -4089,7 +4723,7 @@ const styles =
       fontFamily:
         'Inter_400Regular',
 
-      fontSize: 9.5,
+      fontSize: 11.5,
     },
 
     progressStatusNote: {
@@ -4126,8 +4760,8 @@ const styles =
       fontFamily:
         'Inter_500Medium',
 
-      fontSize: 9.5,
-      lineHeight: 14,
+      fontSize: 11.5,
+      lineHeight: 16,
     },
 
     progressStatusTextSuccess: {
@@ -4159,7 +4793,7 @@ const styles =
       fontFamily:
         'Poppins_600SemiBold',
 
-      fontSize: 11,
+      fontSize: 13,
     },
 
     requestErrorCard: {
@@ -4198,7 +4832,7 @@ const styles =
       fontFamily:
         'Inter_600SemiBold',
 
-      fontSize: 10,
+      fontSize: 12,
     },
 
     requestErrorText: {
@@ -4210,7 +4844,7 @@ const styles =
       fontFamily:
         'Inter_400Regular',
 
-      fontSize: 9.5,
+      fontSize: 11.5,
     },
 
     // ========================================================
@@ -4291,7 +4925,7 @@ const styles =
       fontFamily:
         'Inter_400Regular',
 
-      fontSize: 10.5,
+      fontSize: 12.5,
     },
 
     compatibilityChip: {
@@ -4318,7 +4952,194 @@ const styles =
       fontFamily:
         'Inter_500Medium',
 
-      fontSize: 9.5,
+      fontSize: 11.5,
+    },
+
+    // ------------------------------------------------------
+    // COMPATIBILITY PANEL
+    // ------------------------------------------------------
+
+    matchPanel: {
+      marginTop: 12,
+      padding: 12,
+
+      gap: 10,
+
+      backgroundColor:
+        COLORS.pinkLight,
+
+      borderWidth: 1,
+
+      borderColor:
+        '#FDE7E7',
+
+      borderRadius: 12,
+    },
+
+    matchRow: {
+      gap: 6,
+    },
+
+    matchLabelRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+
+      gap: 5,
+    },
+
+    matchLabel: {
+      flex: 1,
+
+      color:
+        COLORS.black,
+
+      fontFamily:
+        'Poppins_600SemiBold',
+
+      fontSize: 12.5,
+    },
+
+    matchCount: {
+      color:
+        COLORS.muted,
+
+      fontFamily:
+        'Inter_500Medium',
+
+      fontSize: 11.5,
+    },
+
+    matchChips: {
+      flexDirection: 'row',
+      flexWrap: 'wrap',
+
+      gap: 6,
+    },
+
+    matchChip: {
+      minWidth: 40,
+
+      paddingHorizontal: 8,
+      paddingVertical: 4,
+
+      alignItems: 'center',
+
+      backgroundColor:
+        COLORS.white,
+
+      borderWidth: 1,
+
+      borderColor:
+        '#DAAAAA',
+
+      borderRadius: 8,
+    },
+
+    matchChipSelf: {
+      backgroundColor:
+        COLORS.redButton,
+
+      borderColor:
+        COLORS.redButton,
+    },
+
+    matchChipText: {
+      color:
+        COLORS.redButton,
+
+      fontFamily:
+        'Poppins_600SemiBold',
+
+      fontSize: 12,
+    },
+
+    matchChipTextSelf: {
+      color:
+        COLORS.white,
+    },
+
+    // Compatibility popup: big blood type badge on top.
+    compatBadge: {
+      width: 64,
+      height: 64,
+
+      alignSelf: 'center',
+
+      marginBottom: 12,
+
+      alignItems: 'center',
+      justifyContent: 'center',
+
+      backgroundColor:
+        COLORS.redButton,
+
+      borderRadius: 32,
+    },
+
+    compatBadgeText: {
+      color:
+        COLORS.white,
+
+      fontFamily:
+        'Poppins_700Bold',
+
+      fontSize: 20,
+    },
+
+    // Chip turns solid once a blood type is selected.
+    compatibilityChipActive: {
+      backgroundColor:
+        COLORS.pinkLight,
+
+      borderColor:
+        COLORS.redButton,
+    },
+    matchDisclaimer: {
+      color:
+        COLORS.lightMuted,
+
+      fontFamily:
+        'Inter_400Regular',
+
+      fontSize: 11,
+
+      textAlign: 'center',
+    },
+
+    eligibilityRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+
+      gap: 7,
+
+      marginTop: 12,
+
+      paddingHorizontal: 10,
+      paddingVertical: 8,
+
+      backgroundColor:
+        '#EAF7EF',
+
+      borderRadius: 10,
+    },
+
+    eligibilityRowWaiting: {
+      backgroundColor:
+        '#FDF1E6',
+    },
+
+    eligibilityText: {
+      flex: 1,
+
+      color:
+        COLORS.black,
+
+      fontFamily:
+        'Inter_500Medium',
+
+      fontSize: 12,
+
+      lineHeight: 17,
     },
 
     smallLabel: {
@@ -4328,7 +5149,7 @@ const styles =
       fontFamily:
         'Inter_500Medium',
 
-      fontSize: 10,
+      fontSize: 12,
 
       marginBottom: 8,
     },
@@ -4378,7 +5199,7 @@ const styles =
       fontFamily:
         'Poppins_600SemiBold',
 
-      fontSize: 12,
+      fontSize: 13.5,
     },
 
     bloodTypeTextSelected: {
@@ -4429,7 +5250,7 @@ const styles =
       fontFamily:
         'Poppins_600SemiBold',
 
-      fontSize: 12,
+      fontSize: 13.5,
     },
 
     // ========================================================
@@ -4458,7 +5279,7 @@ const styles =
       fontFamily:
         'Inter_600SemiBold',
 
-      fontSize: 10,
+      fontSize: 12,
     },
 
     respondedList: {
@@ -4547,7 +5368,7 @@ const styles =
       fontFamily:
         'Poppins_600SemiBold',
 
-      fontSize: 12.5,
+      fontSize: 13.5,
     },
 
     respondedMeta: {
@@ -4559,7 +5380,7 @@ const styles =
       fontFamily:
         'Inter_400Regular',
 
-      fontSize: 10.5,
+      fontSize: 12.5,
     },
 
     respondedStatusBadge: {
@@ -4588,7 +5409,7 @@ const styles =
       fontFamily:
         'Inter_600SemiBold',
 
-      fontSize: 9.5,
+      fontSize: 11.5,
     },
 
     respondedInfoBox: {
@@ -4625,7 +5446,7 @@ const styles =
       fontFamily:
         'Inter_500Medium',
 
-      fontSize: 10,
+      fontSize: 12,
     },
 
     acceptedRespondedNotice: {
@@ -4656,8 +5477,8 @@ const styles =
       fontFamily:
         'Inter_500Medium',
 
-      fontSize: 10.5,
-      lineHeight: 13,
+      fontSize: 12.5,
+      lineHeight: 18,
     },
 
     respondedFooter: {
@@ -4675,7 +5496,7 @@ const styles =
       fontFamily:
         'Inter_400Regular',
 
-      fontSize: 10,
+      fontSize: 12,
     },
 
     respondedAction: {
@@ -4714,7 +5535,7 @@ const styles =
       fontFamily:
         'Inter_600SemiBold',
 
-      fontSize: 10.5,
+      fontSize: 12.5,
     },
 
     respondedActionTextAccepted: {
@@ -4770,7 +5591,7 @@ const styles =
       fontFamily:
         'Poppins_600SemiBold',
 
-      fontSize: 12.5,
+      fontSize: 13.5,
 
       textAlign: 'center',
     },
@@ -4786,8 +5607,8 @@ const styles =
       fontFamily:
         'Inter_400Regular',
 
-      fontSize: 10.5,
-      lineHeight: 14,
+      fontSize: 12.5,
+      lineHeight: 18,
 
       textAlign: 'center',
     },
@@ -4801,7 +5622,7 @@ const styles =
       fontFamily:
         'Inter_600SemiBold',
 
-      fontSize: 10.5,
+      fontSize: 12.5,
     },
 
     // ========================================================
@@ -4883,7 +5704,7 @@ const styles =
       fontFamily:
         'Poppins_600SemiBold',
 
-      fontSize: 12.5,
+      fontSize: 13.5,
     },
 
     nearbyDistanceRow: {
@@ -4902,7 +5723,7 @@ const styles =
       fontFamily:
         'Inter_400Regular',
 
-      fontSize: 10,
+      fontSize: 12,
     },
 
     dotSeparator: {
@@ -4911,7 +5732,7 @@ const styles =
       color:
         COLORS.lightMuted,
 
-      fontSize: 9,
+      fontSize: 11,
     },
 
     nearbyTimeText: {
@@ -4921,7 +5742,7 @@ const styles =
       fontFamily:
         'Inter_400Regular',
 
-      fontSize: 10,
+      fontSize: 12,
     },
 
     urgencyPill: {
@@ -4959,7 +5780,7 @@ const styles =
       fontFamily:
         'Inter_600SemiBold',
 
-      fontSize: 9.5,
+      fontSize: 11.5,
     },
 
     urgencyPillTextNeeded: {
@@ -5001,7 +5822,7 @@ const styles =
       fontFamily:
         'Inter_500Medium',
 
-      fontSize: 10,
+      fontSize: 12,
     },
 
     nearbyCardFooter: {
@@ -5022,7 +5843,7 @@ const styles =
       fontFamily:
         'Inter_400Regular',
 
-      fontSize: 10,
+      fontSize: 12,
     },
 
     nearbyViewButton: {
@@ -5037,7 +5858,7 @@ const styles =
       fontFamily:
         'Inter_600SemiBold',
 
-      fontSize: 10.5,
+      fontSize: 12.5,
     },
 
     // ========================================================
@@ -5112,7 +5933,7 @@ const styles =
       fontFamily:
         'Inter_400Regular',
 
-      fontSize: 11,
+      fontSize: 13,
     },
 
     pendingBadge: {
@@ -5148,7 +5969,7 @@ const styles =
       fontFamily:
         'Inter_600SemiBold',
 
-      fontSize: 9.5,
+      fontSize: 11.5,
     },
 
     verifiedBadge: {
@@ -5174,7 +5995,7 @@ const styles =
       fontFamily:
         'Inter_600SemiBold',
 
-      fontSize: 9.5,
+      fontSize: 11.5,
     },
 
     applyButton: {
@@ -5221,7 +6042,7 @@ const styles =
       fontFamily:
         'Poppins_600SemiBold',
 
-      fontSize: 11.5,
+      fontSize: 13,
     },
 
     applyButtonApprovedText: {
@@ -5360,10 +6181,10 @@ actionPopupMessage: {
     'Inter_400Regular',
 
   fontSize:
-    11,
+    13.5,
 
   lineHeight:
-    17,
+    20,
 
   textAlign:
     'center',
@@ -5397,7 +6218,54 @@ actionPopupButtonText: {
     'Poppins_600SemiBold',
 
   fontSize:
-    10,
+    13,
+},
+
+// ============================================================
+// PENDING INVITATION NOTICE
+// ============================================================
+
+invitationNotice: {
+  minHeight: 64,
+  marginBottom: 14,
+  paddingHorizontal: 13,
+  paddingVertical: 11,
+  flexDirection: 'row',
+  alignItems: 'center',
+  gap: 11,
+  borderWidth: 1,
+  borderColor: '#F0B8B8',
+  borderRadius: 14,
+  backgroundColor: COLORS.pinkLight,
+},
+
+invitationNoticeIcon: {
+  width: 40,
+  height: 40,
+  borderRadius: 20,
+  alignItems: 'center',
+  justifyContent: 'center',
+  backgroundColor: COLORS.white,
+},
+
+invitationNoticeText: {
+  flex: 1,
+  minWidth: 0,
+},
+
+invitationNoticeTitle: {
+  color: COLORS.black,
+  fontFamily: 'Inter_600SemiBold',
+  fontSize: 13.5,
+  lineHeight: 19,
+},
+
+invitationNoticeSubtitle: {
+  marginTop: 2,
+  color: COLORS.muted,
+  fontFamily: 'Inter_400Regular',
+  fontSize: 12.5,
+  lineHeight: 18,
 },
   
   

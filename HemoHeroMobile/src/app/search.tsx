@@ -14,6 +14,7 @@ import { getNearbyDonors, } from '../lib/nearbyDonors';
 import type { NearbyDonor, } from '../lib/nearbyDonors';
 import { getMyDonorApplication, } from '../lib/donorApplication';
 import { getAccessToken, } from '../lib/session';
+import { getCompatibleRecipientTypes, isBloodType, } from '../lib/bloodCompatibility';
 // ============================================================
 // COLORS
 // ============================================================
@@ -366,20 +367,22 @@ export default function SearchScreen() {
             // ==================================================
             // REQUESTS TAB
             //
-            // Nearby endpoint may currently return requests for
-            // different blood types. We filter them here using
-            // the APPROVED donor application blood type.
+            // Keep only active requests this donor can give red
+            // cells to (same rule the server uses for offers),
+            // based on the APPROVED donor application blood type.
             //
             // The backend donor-response validation still
-            // independently blocks mismatched donation offers.
+            // independently blocks incompatible donation offers.
             // ==================================================
             const requestResult = await getNearbyBloodRequests(token, latitude, longitude, radiusKm, 100);
+            const compatibleRequestTypes: string[] = isBloodType(currentDonorBloodType)
+                ? getCompatibleRecipientTypes(currentDonorBloodType)
+                : [];
             const matchingRequests = (requestResult
                 .requests ||
                 []).filter(request => request.status ===
                 'active' &&
-                normalizeBloodType(request.blood_type) ===
-                    currentDonorBloodType);
+                compatibleRequestTypes.includes(normalizeBloodType(request.blood_type) || ''));
             setRequests(matchingRequests);
         }
         catch (error) {

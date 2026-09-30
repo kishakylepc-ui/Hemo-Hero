@@ -1,6 +1,7 @@
 import {
   Platform,
 } from 'react-native';
+import { authorizedFetch } from './authFetch';
 
 // ============================================================
 // API URL
@@ -308,7 +309,7 @@ export async function sendDonorInvitation(
 
   try {
     response =
-      await fetch(
+      await authorizedFetch(
         `${API_URL}/api/requests/${encodeURIComponent(
           cleanRequestId
         )}/invitations`,
@@ -378,7 +379,7 @@ export async function getMyDonorInvitations(
 
   try {
     response =
-      await fetch(
+      await authorizedFetch(
         `${API_URL}/api/donor-invitations/me`,
         {
           method:
@@ -449,7 +450,7 @@ export async function acceptDonorInvitation(
 
   try {
     response =
-      await fetch(
+      await authorizedFetch(
         `${API_URL}/api/donor-invitations/${encodeURIComponent(
           cleanInvitationId
         )}/accept`,
@@ -525,7 +526,7 @@ export async function declineDonorInvitation(
 
   try {
     response =
-      await fetch(
+      await authorizedFetch(
         `${API_URL}/api/donor-invitations/${encodeURIComponent(
           cleanInvitationId
         )}/decline`,

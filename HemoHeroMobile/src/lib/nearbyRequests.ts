@@ -1,4 +1,5 @@
 import { Platform } from 'react-native';
+import { authorizedFetch } from './authFetch';
 
 // ============================================================
 // API URL
@@ -61,7 +62,7 @@ export async function getNearbyBloodRequests(
     `&radius=${encodeURIComponent(radiusKm)}` +
     `&limit=${encodeURIComponent(limit)}`;
 
-  const response = await fetch(url, {
+  const response = await authorizedFetch(url, {
     method: 'GET',
     headers: {
       Accept: 'application/json',

@@ -5,6 +5,7 @@
 import {
   Platform,
 } from 'react-native';
+import { authorizedFetch } from './authFetch';
 
 // ============================================================
 // API URL
@@ -243,6 +244,11 @@ export type NotificationType =
   | 'donor_application_rejected'
   | 'coordination_message'
   | 'coordination_schedule'
+  | 'donation_recorded'
+  | 'donation_verified'
+  | 'donation_rejected'
+  | 'donation_disputed'
+  | 'donation_feedback_received'
   | string;
 
 export type NotificationData = {
@@ -268,6 +274,13 @@ export type NotificationData = {
 
   status?:
     | string
+    | null;
+
+  // Donation notifications go to both sides of the
+  // transaction; this says which one received it.
+  recipient_role?:
+    | 'donor'
+    | 'requester'
     | null;
 
   [key: string]:
@@ -314,7 +327,7 @@ async function request(
 
   try {
     response =
-      await fetch(
+      await authorizedFetch(
         `${API_URL}${endpoint}`,
         {
           ...options,
@@ -840,7 +853,7 @@ export async function uploadProfilePhoto(
 
   try {
     response =
-      await fetch(
+      await authorizedFetch(
         `${API_URL}/api/auth/profile-photo`,
         {
           method:

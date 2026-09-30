@@ -1,6 +1,7 @@
 import {
   Platform,
 } from 'react-native';
+import { authorizedFetch } from './authFetch';
 
 // ============================================================
 // API URL
@@ -194,7 +195,7 @@ export async function getNearbyDonors(
   // ==========================================================
 
   const response =
-    await fetch(
+    await authorizedFetch(
       url,
       {
         method:

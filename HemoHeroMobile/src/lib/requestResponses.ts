@@ -1,6 +1,7 @@
 import {
   Platform,
 } from 'react-native';
+import { authorizedFetch } from './authFetch';
 
 // ============================================================
 // API URL
@@ -155,7 +156,7 @@ export async function getRequestDonorResponses(
   requestId: string
 ): Promise<RequestResponsesResult> {
   const response =
-    await fetch(
+    await authorizedFetch(
       `${API_URL}/api/requests/${requestId}/responses`,
       {
         method:
@@ -191,7 +192,7 @@ export async function acceptRequestDonorResponse(
     RequestDonorResponse;
 }> {
   const response =
-    await fetch(
+    await authorizedFetch(
       `${API_URL}/api/requests/${requestId}/responses/${responseId}/accept`,
       {
         method:
@@ -230,7 +231,7 @@ export async function rejectRequestDonorResponse(
     RequestDonorResponse;
 }> {
   const response =
-    await fetch(
+    await authorizedFetch(
       `${API_URL}/api/requests/${requestId}/responses/${responseId}/reject`,
       {
         method:
@@ -263,7 +264,7 @@ export async function fulfillBloodRequest(
   requestId: string
 ): Promise<FulfillBloodRequestResult> {
   const response =
-    await fetch(
+    await authorizedFetch(
       `${API_URL}/api/requests/${requestId}/fulfill`,
       {
         method:

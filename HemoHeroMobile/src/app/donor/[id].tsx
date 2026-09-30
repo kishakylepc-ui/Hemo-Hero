@@ -50,6 +50,12 @@ import {
   getAccessToken,
 } from '../../lib/session';
 
+import {
+  type BloodType,
+  getCompatibleDonorTypes,
+  isBloodType,
+} from '../../lib/bloodCompatibility';
+
 // ============================================================
 // COLORS
 // ============================================================
@@ -113,7 +119,9 @@ function normalizeBloodType(
     .toUpperCase();
 }
 
-function bloodTypesMatchExactly(
+// Same rule as the server: the donor's verified blood type
+// must be red-cell compatible with the requested type.
+function isCompatibleDonorForRequest(
   requestBloodType?: string | null,
   donorBloodType?: string | null
 ) {
@@ -128,13 +136,15 @@ function bloodTypesMatchExactly(
     );
 
   if (
-    !required ||
-    !donor
+    !isBloodType(required) ||
+    !isBloodType(donor)
   ) {
     return false;
   }
 
-  return required === donor;
+  return getCompatibleDonorTypes(
+    required
+  ).includes(donor);
 }
 
 // ============================================================
@@ -252,7 +262,7 @@ export default function DonorDetailsScreen() {
 
         return activeRequests.filter(
           request =>
-            bloodTypesMatchExactly(
+            isCompatibleDonorForRequest(
               request.blood_type,
               donor.blood_type
             )
@@ -556,7 +566,7 @@ export default function DonorDetailsScreen() {
         const matching =
           active.filter(
             request =>
-              bloodTypesMatchExactly(
+              isCompatibleDonorForRequest(
                 request.blood_type,
                 donor.blood_type
               )
@@ -649,14 +659,14 @@ export default function DonorDetailsScreen() {
     // --------------------------------------------------------
 
     if (
-      !bloodTypesMatchExactly(
+      !isCompatibleDonorForRequest(
         selected.blood_type,
         donor.blood_type
       )
     ) {
       showMessage(
-        'Blood Type Does Not Match',
-        `This request requires ${selected.blood_type}, but this donor's verified blood type is ${donor.blood_type}.`
+        'Blood Type Not Compatible',
+        `A ${donor.blood_type} donor cannot donate to a ${selected.blood_type} request. Compatible donors: ${getCompatibleDonorTypes(normalizeBloodType(selected.blood_type) as BloodType).join(', ')}.`
       );
 
       return;
@@ -1445,8 +1455,8 @@ export default function DonorDetailsScreen() {
                       styles.helperText
                     }
                   >
-                    Only an active request with the same blood type as this donor
-                    can be sent.
+                    Only an active request this donor's blood type is compatible
+                    with can be sent.
                   </Text>
                 </View>
 
@@ -1751,7 +1761,7 @@ export default function DonorDetailsScreen() {
                         styles.modalStateTitle
                       }
                     >
-                      Blood Type Does Not Match
+                      Blood Type Not Compatible
                     </Text>
 
                     <Text
@@ -1759,7 +1769,7 @@ export default function DonorDetailsScreen() {
                         styles.modalStateText
                       }
                     >
-                      Your active request requires{' '}
+                      Your active request needs{' '}
                       <Text
                         style={
                           styles.boldStateText
@@ -1770,7 +1780,7 @@ export default function DonorDetailsScreen() {
                             ?.blood_type
                         }
                       </Text>
-                      , while this donor&apos;s verified blood type is{' '}
+                      , and this donor&apos;s verified blood type{' '}
                       <Text
                         style={
                           styles.boldStateText
@@ -1780,7 +1790,7 @@ export default function DonorDetailsScreen() {
                           donor?.blood_type
                         }
                       </Text>
-                      .
+                      {' '}cannot donate to it.
                     </Text>
 
                     <View
@@ -1801,8 +1811,8 @@ export default function DonorDetailsScreen() {
                           styles.matchRuleText
                         }
                       >
-                        Hemo-Hero only allows direct invitations when the request
-                        and donor blood types are exactly the same.
+                        Hemo-Hero only allows direct invitations when the donor's
+                        blood type is compatible with the request.
                       </Text>
                     </View>
 
@@ -2058,7 +2068,7 @@ export default function DonorDetailsScreen() {
                             styles.invitationNoticeText
                           }
                         >
-                          The blood types match. The donor can review this request
+                          The blood types are compatible. The donor can review this request
                           and choose whether to accept or decline.
                         </Text>
                       </View>

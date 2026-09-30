@@ -1,4 +1,5 @@
 import { Platform } from 'react-native';
+import { authorizedFetch } from './authFetch';
 
 const API_URL = (
   Platform.OS === 'web'
@@ -59,7 +60,7 @@ async function request(
   path: string,
   options: RequestInit = {}
 ) {
-  const response = await fetch(`${API_URL}${path}`, {
+  const response = await authorizedFetch(`${API_URL}${path}`, {
     ...options,
     headers: {
       Accept: 'application/json',

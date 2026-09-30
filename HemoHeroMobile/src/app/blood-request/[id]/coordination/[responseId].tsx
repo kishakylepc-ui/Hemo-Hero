@@ -2659,7 +2659,7 @@ export default function DonationCoordinationScreen() {
                   'requester' &&
                 coordination
                   ?.donor
-                  ?.is_verified ? (
+                  ?.verified ? (
                   <View
                     accessible
                     accessibilityLabel="Verified donor"

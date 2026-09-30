@@ -1,4 +1,5 @@
 import { Platform } from 'react-native';
+import { authorizedFetch } from './authFetch';
 
 // ============================================================
 // API URL
@@ -99,7 +100,7 @@ async function readJson(response: Response) {
 export async function getMyDonorApplication(
   accessToken: string
 ) {
-  const response = await fetch(`${API_URL}/api/donors/me`, {
+  const response = await authorizedFetch(`${API_URL}/api/donors/me`, {
     method: 'GET',
     headers: {
       Accept: 'application/json',
@@ -149,7 +150,7 @@ export async function uploadDonorVerificationId(
     );
   }
 
-  const response = await fetch(
+  const response = await authorizedFetch(
     `${API_URL}/api/donors/verification-id`,
     {
       method: 'POST',
@@ -183,7 +184,7 @@ export async function submitDonorApplication(
   accessToken: string,
   input: SubmitDonorApplicationInput
 ) {
-  const response = await fetch(
+  const response = await authorizedFetch(
     `${API_URL}/api/donors/apply`,
     {
       method: 'POST',
@@ -217,7 +218,7 @@ export async function submitDonorApplication(
 export async function withdrawDonorApplication(
   accessToken: string
 ) {
-  const response = await fetch(
+  const response = await authorizedFetch(
     `${API_URL}/api/donors/me/withdraw`,
     {
       method: 'PATCH',

@@ -1,4 +1,5 @@
 import { useEffect } from 'react';
+import { Platform } from 'react-native';
 import { Stack } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { useFonts } from 'expo-font';
@@ -15,6 +16,35 @@ import {
 } from '@expo-google-fonts/inter';
 
 SplashScreen.preventAutoHideAsync();
+
+// ------------------------------------------------------------
+// NO BROWSER DIALOGS ON WEB
+//
+// Hemo-Hero uses its own in-app modals. Silence the browser's
+// "localhost says..." alert/confirm/prompt in case a library
+// calls them. confirm() answers yes so that flow continues.
+// ------------------------------------------------------------
+
+if (
+  Platform.OS === 'web' &&
+  typeof window !== 'undefined'
+) {
+  window.alert = (message?: unknown) => {
+    console.log('[alert suppressed]', message);
+  };
+
+  window.confirm = (message?: string) => {
+    console.log('[confirm suppressed]', message);
+
+    return true;
+  };
+
+  window.prompt = (message?: string) => {
+    console.log('[prompt suppressed]', message);
+
+    return null;
+  };
+}
 
 export default function RootLayout() {
   const [fontsLoaded] = useFonts({
@@ -40,7 +70,16 @@ export default function RootLayout() {
     <Stack
       screenOptions={{
         headerShown: false,
-        animation: 'none',
+
+        // Short, subtle cross-fade between screens. Works for
+        // both bottom-nav tab switches (router.replace) and
+        // detail screens (router.push).
+        animation: 'fade',
+        animationDuration: 200,
+
+        contentStyle: {
+          backgroundColor: '#FFF8F8',
+        },
       }}
     >
       {/* SIGN IN */}

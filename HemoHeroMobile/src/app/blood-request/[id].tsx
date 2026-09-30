@@ -1,11 +1,15 @@
-import { useCallback, useState } from 'react';
+import { useCallback, useRef, useState } from 'react';
 
 import {
+  ActivityIndicator,
+  Linking,
   Modal,
   Platform,
+  RefreshControl,
   ScrollView,
   StyleSheet,
   Text,
+  TextInput,
   TouchableOpacity,
   View,
 } from 'react-native';
@@ -46,6 +50,122 @@ import type {
 import {
   getAccessToken,
 } from '../../lib/session';
+
+import {
+  FadeInView,
+} from '../../components/Motion';
+
+import {
+  getCompatibleDonorTypes,
+  isBloodType,
+} from '../../lib/bloodCompatibility';
+
+import {
+  getFeedbackFrom,
+  getRequestDonations,
+  recordDonation,
+  submitDonationFeedback,
+} from '../../lib/donations';
+
+import type {
+  BloodDonation,
+} from '../../lib/donations';
+
+import DonationFeedbackModal from '../../components/DonationFeedbackModal';
+
+// One-tap phrases for rating a donor.
+const DONOR_FEEDBACK_NOTES = [
+  'Arrived on time',
+  'Very kind and helpful',
+  'Easy to coordinate with',
+  'Would recommend',
+];
+
+// ============================================================
+// DONATION CONFIRMATION
+// ============================================================
+
+const DAY_MS =
+  24 * 60 * 60 * 1000;
+
+const DONATION_NOTE_LIMIT = 500;
+
+// "When did the donation happen?" choices (days before today).
+const DONATION_DAY_OPTIONS = [
+  {
+    offset: 0,
+    label: 'Today',
+  },
+  {
+    offset: 1,
+    label: 'Yesterday',
+  },
+  {
+    offset: 2,
+    label: '2 days ago',
+  },
+];
+
+type DonationModalState = {
+  visible: boolean;
+  response: RequestDonorResponse | null;
+  units: number;
+  dayOffset: number;
+  note: string;
+  saving: boolean;
+  error: string;
+};
+
+const CLOSED_DONATION_MODAL: DonationModalState = {
+  visible: false,
+  response: null,
+  units: 1,
+  dayOffset: 0,
+  note: '',
+  saving: false,
+  error: '',
+};
+
+function bagsLabel(
+  units?: number | null
+) {
+  const count =
+    Number(units) || 0;
+
+  return `${count} ${
+    count === 1
+      ? 'bag'
+      : 'bags'
+  }`;
+}
+
+function formatDonationDate(
+  value?: string | null
+) {
+  if (!value) {
+    return '';
+  }
+
+  const date =
+    new Date(value);
+
+  if (
+    Number.isNaN(
+      date.getTime()
+    )
+  ) {
+    return '';
+  }
+
+  return date.toLocaleDateString(
+    'en-US',
+    {
+      month: 'short',
+      day: 'numeric',
+      year: 'numeric',
+    }
+  );
+}
 
 // ============================================================
 // COLORS
@@ -205,6 +325,15 @@ export default function BloodRequestDetailsScreen() {
     );
 
   const [
+    refreshing,
+    setRefreshing,
+  ] =
+    useState(false);
+
+  const hasLoadedOnce =
+    useRef(false);
+
+  const [
     actionPopup,
     setActionPopup,
   ] =
@@ -218,6 +347,33 @@ export default function BloodRequestDetailsScreen() {
       showCancel: false,
       onConfirm: undefined,
     });
+
+  // Confirmed donations (the transaction record) for this
+  // request, newest first.
+  const [
+    donations,
+    setDonations,
+  ] =
+    useState<
+      BloodDonation[]
+    >([]);
+
+  const [
+    donationModal,
+    setDonationModal,
+  ] =
+    useState<DonationModalState>(
+      CLOSED_DONATION_MODAL
+    );
+
+  // Donation the requester is rating (feedback dialog).
+  const [
+    feedbackDonation,
+    setFeedbackDonation,
+  ] =
+    useState<BloodDonation | null>(
+      null
+    );
 
   // ==========================================================
   // LOAD REQUEST
@@ -237,7 +393,12 @@ export default function BloodRequestDetailsScreen() {
         }
 
         try {
-          setLoading(true);
+          // Only the first load shows the full loader; returning
+          // from a donor chat refreshes quietly.
+          if (!hasLoadedOnce.current) {
+            setLoading(true);
+          }
+
           setErrorMessage('');
 
           const token =
@@ -266,6 +427,8 @@ export default function BloodRequestDetailsScreen() {
           setRequest(
             data.request
           );
+
+          hasLoadedOnce.current = true;
         } catch (error) {
           console.log(
             'LOAD BLOOD REQUEST ERROR:',
@@ -298,9 +461,11 @@ export default function BloodRequestDetailsScreen() {
         }
 
         try {
-          setLoadingResponses(
-            true
-          );
+          if (!hasLoadedOnce.current) {
+            setLoadingResponses(
+              true
+            );
+          }
 
           setResponseError('');
 
@@ -350,18 +515,107 @@ export default function BloodRequestDetailsScreen() {
       ]
     );
 
+  // ==========================================================
+  // LOAD DONATIONS
+  //
+  // Failure only hides donation status; the rest of the
+  // screen still works.
+  // ==========================================================
+
+  const loadDonations =
+    useCallback(
+      async () => {
+        if (!requestId) {
+          return;
+        }
+
+        try {
+          const token =
+            await getAccessToken();
+
+          if (!token) {
+            return;
+          }
+
+          const result =
+            await getRequestDonations(
+              token,
+              requestId
+            );
+
+          setDonations(
+            result.donations ||
+              []
+          );
+        } catch (error) {
+          console.log(
+            'LOAD DONATIONS ERROR:',
+            error
+          );
+        }
+      },
+      [
+        requestId,
+      ]
+    );
+
   useFocusEffect(
     useCallback(
       () => {
         loadRequest();
         loadDonorResponses();
+        loadDonations();
       },
       [
         loadRequest,
         loadDonorResponses,
+        loadDonations,
       ]
     )
   );
+
+  async function handleRefresh() {
+    setRefreshing(true);
+
+    try {
+      await Promise.all([
+        loadRequest(),
+        loadDonorResponses(),
+        loadDonations(),
+      ]);
+    } finally {
+      setRefreshing(false);
+    }
+  }
+
+  // Opens the facility in the phone's maps app.
+  function openDirections() {
+    if (!request) {
+      return;
+    }
+
+    const query =
+      request.facility_latitude != null &&
+      request.facility_longitude != null
+        ? `${request.facility_latitude},${request.facility_longitude}`
+        : [
+            request.facility_name,
+            request.facility_address,
+          ]
+            .filter(Boolean)
+            .join(', ');
+
+    Linking.openURL(
+      `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(
+        query
+      )}`
+    ).catch(() =>
+      showMessage(
+        'Unable to Open Maps',
+        'We could not open a maps app on this device.'
+      )
+    );
+  }
 
   // ==========================================================
   // HELPERS
@@ -613,6 +867,9 @@ export default function BloodRequestDetailsScreen() {
       ) ||
       value.includes(
         'cancelled'
+      ) ||
+      value.includes(
+        'confirmed'
       )
     ) {
       return 'success';
@@ -877,6 +1134,353 @@ export default function BloodRequestDetailsScreen() {
   }
 
   // ==========================================================
+  // DONATIONS
+  //
+  // Requester confirms each accepted donor's donation; an
+  // admin then verifies it. Rejected records can be confirmed
+  // again with corrected details.
+  // ==========================================================
+
+  const activeDonations =
+    donations.filter(
+      donation =>
+        donation.status !==
+        'rejected'
+    );
+
+  const recordedUnits =
+    activeDonations.reduce(
+      (
+        total,
+        donation
+      ) =>
+        total +
+        (Number(
+          donation.units_donated
+        ) || 0),
+      0
+    );
+
+  const reviewDonationCount =
+    donations.filter(
+      donation =>
+        donation.status ===
+        'needs_review'
+    ).length;
+
+  // Recorded donations the requester has already rated.
+  const ratedDonationCount =
+    activeDonations.filter(
+      donation =>
+        Boolean(
+          getFeedbackFrom(
+            donation,
+            'requester'
+          )
+        )
+    ).length;
+
+  // The record that counts for an offer: an active (completed or
+  // under review) one first, otherwise the newest rejected one.
+  function getDonationForResponse(
+    responseId: string
+  ) {
+    const forResponse =
+      donations.filter(
+        donation =>
+          donation.response_id ===
+          responseId
+      );
+
+    return (
+      forResponse.find(
+        donation =>
+          donation.status !==
+          'rejected'
+      ) ||
+      forResponse[0] ||
+      null
+    );
+  }
+
+  // Only offer calendar days on or after the day the request
+  // was posted (a request posted today only offers "Today").
+  function getDonationDayOptions() {
+    const startOfDay =
+      (value: number) => {
+        const date =
+          new Date(value);
+
+        date.setHours(
+          0,
+          0,
+          0,
+          0
+        );
+
+        return date.getTime();
+      };
+
+    const postedDay =
+      startOfDay(
+        request
+          ? new Date(
+              request.created_at
+            ).getTime()
+          : Date.now()
+      );
+
+    return DONATION_DAY_OPTIONS.filter(
+      option =>
+        option.offset === 0 ||
+        startOfDay(
+          Date.now() -
+            option.offset *
+              DAY_MS
+        ) >= postedDay
+    );
+  }
+
+  const maxDonationUnits =
+    Math.max(
+      1,
+      Math.min(
+        20,
+        Number(
+          request?.units_needed
+        ) || 1
+      )
+    );
+
+  function openDonationModal(
+    response:
+      RequestDonorResponse
+  ) {
+    if (
+      !request ||
+      request.status !==
+        'active'
+    ) {
+      return;
+    }
+
+    setDonationModal({
+      ...CLOSED_DONATION_MODAL,
+
+      visible: true,
+
+      response,
+    });
+  }
+
+  function closeDonationModal() {
+    if (
+      donationModal.saving
+    ) {
+      return;
+    }
+
+    setDonationModal(
+      CLOSED_DONATION_MODAL
+    );
+  }
+
+  function changeDonationUnits(
+    change: number
+  ) {
+    setDonationModal(
+      current => ({
+        ...current,
+
+        units:
+          Math.min(
+            maxDonationUnits,
+            Math.max(
+              1,
+              current.units +
+                change
+            )
+          ),
+      })
+    );
+  }
+
+  async function submitDonation() {
+    const response =
+      donationModal.response;
+
+    if (
+      !request ||
+      !response ||
+      donationModal.saving
+    ) {
+      return;
+    }
+
+    setDonationModal(
+      current => ({
+        ...current,
+        saving: true,
+        error: '',
+      })
+    );
+
+    try {
+      const token =
+        await getAccessToken();
+
+      if (!token) {
+        router.replace('/');
+
+        return;
+      }
+
+      const donatedAt =
+        new Date(
+          Date.now() -
+            donationModal.dayOffset *
+              DAY_MS
+        );
+
+      const result =
+        await recordDonation(
+          token,
+          request.id,
+          response.id,
+          {
+            units_donated:
+              donationModal.units,
+
+            donated_at:
+              donatedAt.toISOString(),
+
+            note:
+              donationModal.note.trim() ||
+              null,
+          }
+        );
+
+      setDonationModal(
+        CLOSED_DONATION_MODAL
+      );
+
+      await loadDonations();
+
+      const donorName =
+        getDonorName(
+          response
+        );
+
+      if (
+        result.donation?.status ===
+        'needs_review'
+      ) {
+        showMessage(
+          'Donation Confirmed',
+
+          `${donorName} has been notified. Hemo-Hero will take a quick look at this record before it is added to the donor's history.\n\nYou can still mark this request as fulfilled once you have all the blood you need.`
+        );
+
+        return;
+      }
+
+      // Recorded right away: invite the requester to rate it.
+      confirmAction(
+        'Donation Recorded',
+
+        `Thank you! The donation is now on record and ${donorName} has been notified.\n\nWould you like to rate how it went?`,
+
+        'Rate Donor',
+
+        false,
+
+        () => {
+          if (result.donation) {
+            // Let the popup finish closing first.
+            setTimeout(
+              () =>
+                setFeedbackDonation(
+                  result.donation
+                ),
+              350
+            );
+          }
+        }
+      );
+    } catch (error) {
+      // Keep the dialog open so nothing typed is lost.
+      setDonationModal(
+        current => ({
+          ...current,
+
+          saving: false,
+
+          error:
+            error instanceof Error
+              ? error.message
+              : 'Unable to confirm this donation.',
+        })
+      );
+    }
+  }
+
+  // ==========================================================
+  // TRANSACTION FEEDBACK
+  // ==========================================================
+
+  async function sendDonorFeedback(value: {
+    rating: number;
+    comment: string;
+  }) {
+    const donation =
+      feedbackDonation;
+
+    if (
+      !request ||
+      !donation
+    ) {
+      return;
+    }
+
+    const token =
+      await getAccessToken();
+
+    if (!token) {
+      router.replace('/');
+
+      return;
+    }
+
+    // Errors are shown inside the feedback dialog.
+    await submitDonationFeedback(
+      token,
+      request.id,
+      donation.id,
+      {
+        rating:
+          value.rating,
+
+        comment:
+          value.comment ||
+          null,
+      }
+    );
+
+    setFeedbackDonation(null);
+
+    await loadDonations();
+
+    showMessage(
+      'Feedback Sent',
+
+      `Thank you! ${
+        donation.donor_name ||
+        'Your donor'
+      } will see your feedback.`
+    );
+  }
+
+  // ==========================================================
   // FULFILL
   // ==========================================================
 
@@ -893,10 +1497,27 @@ export default function BloodRequestDetailsScreen() {
       return;
     }
 
+    if (
+      activeDonations.length ===
+      0
+    ) {
+      showMessage(
+        'Confirm a Donation First',
+
+        'After your donor donates at the facility, tap “Confirm Donation Received” on their card. Then you can mark this request as fulfilled.'
+      );
+
+      return;
+    }
+
     confirmAction(
       'Mark Request as Fulfilled',
 
-      'Only continue if the needed blood has already been secured or the donation process has been completed. This will close the active request.',
+      `You confirmed ${bagsLabel(
+        recordedUnits
+      )} of the ${bagsLabel(
+        request.units_needed
+      )} needed. This closes your request; the confirmed donations are already recorded.`,
 
       'Mark Fulfilled',
 
@@ -934,6 +1555,7 @@ export default function BloodRequestDetailsScreen() {
       await Promise.all([
         loadRequest(),
         loadDonorResponses(),
+        loadDonations(),
       ]);
 
       showMessage(
@@ -1130,8 +1752,8 @@ export default function BloodRequestDetailsScreen() {
 
           <LinearGradient
             colors={[
-              COLORS.pageTop,
-              COLORS.pageBottom,
+              '#FFF8F8',
+              '#FFF8F8',
             ]}
             style={
               styles.body
@@ -1152,8 +1774,21 @@ export default function BloodRequestDetailsScreen() {
                 showsVerticalScrollIndicator={
                   false
                 }
-                bounces={
-                  false
+                refreshControl={
+                  <RefreshControl
+                    refreshing={
+                      refreshing
+                    }
+                    onRefresh={
+                      handleRefresh
+                    }
+                    tintColor={
+                      COLORS.redButton
+                    }
+                    colors={[
+                      COLORS.redButton,
+                    ]}
+                  />
                 }
               >
                 {loading ? (
@@ -1207,9 +1842,37 @@ export default function BloodRequestDetailsScreen() {
                     >
                       {errorMessage}
                     </Text>
+
+                    <TouchableOpacity
+                      style={
+                        styles.retryButton
+                      }
+                      activeOpacity={
+                        0.85
+                      }
+                      onPress={
+                        handleRefresh
+                      }
+                    >
+                      <MaterialIcons
+                        name="refresh"
+                        size={18}
+                        color={
+                          COLORS.white
+                        }
+                      />
+
+                      <Text
+                        style={
+                          styles.retryButtonText
+                        }
+                      >
+                        Try Again
+                      </Text>
+                    </TouchableOpacity>
                   </View>
                 ) : request ? (
-                  <>
+                  <FadeInView>
                     <Text
                       style={
                         styles.postedText
@@ -1439,6 +2102,34 @@ export default function BloodRequestDetailsScreen() {
                               }
                             </Text>
                           ) : null}
+
+                          <TouchableOpacity
+                            style={
+                              styles.directionsButton
+                            }
+                            activeOpacity={
+                              0.8
+                            }
+                            onPress={
+                              openDirections
+                            }
+                          >
+                            <MaterialIcons
+                              name="directions"
+                              size={16}
+                              color={
+                                COLORS.redButton
+                              }
+                            />
+
+                            <Text
+                              style={
+                                styles.directionsText
+                              }
+                            >
+                              Get Directions
+                            </Text>
+                          </TouchableOpacity>
                         </View>
                       </View>
 
@@ -1491,6 +2182,122 @@ export default function BloodRequestDetailsScreen() {
                           </Text>
                         </View>
                       </View>
+
+                      {isBloodType(
+                        request.blood_type
+                      ) ? (
+                        <>
+                          <View
+                            style={
+                              styles.infoDivider
+                            }
+                          />
+
+                          <View
+                            style={
+                              styles.infoRow
+                            }
+                          >
+                            <View
+                              style={
+                                styles.infoIcon
+                              }
+                            >
+                              <MaterialIcons
+                                name="groups"
+                                size={21}
+                                color={
+                                  COLORS.redButton
+                                }
+                              />
+                            </View>
+
+                            <View
+                              style={
+                                styles.infoText
+                              }
+                            >
+                              <Text
+                                style={
+                                  styles.infoLabel
+                                }
+                              >
+                                Compatible Donors
+                              </Text>
+
+                              <Text
+                                style={
+                                  styles.infoTitle
+                                }
+                              >
+                                {getCompatibleDonorTypes(
+                                  request.blood_type
+                                ).join(', ')}
+                              </Text>
+
+                              <Text
+                                style={
+                                  styles.infoDescription
+                                }
+                              >
+                                Donors with these blood types can see and respond to this request.
+                              </Text>
+                            </View>
+                          </View>
+                        </>
+                      ) : null}
+
+                      {request.message ? (
+                        <>
+                          <View
+                            style={
+                              styles.infoDivider
+                            }
+                          />
+
+                          <View
+                            style={
+                              styles.infoRow
+                            }
+                          >
+                            <View
+                              style={
+                                styles.infoIcon
+                              }
+                            >
+                              <MaterialIcons
+                                name="notes"
+                                size={21}
+                                color={
+                                  COLORS.redButton
+                                }
+                              />
+                            </View>
+
+                            <View
+                              style={
+                                styles.infoText
+                              }
+                            >
+                              <Text
+                                style={
+                                  styles.infoLabel
+                                }
+                              >
+                                Note to Donors
+                              </Text>
+
+                              <Text
+                                style={
+                                  styles.infoDescription
+                                }
+                              >
+                                {request.message}
+                              </Text>
+                            </View>
+                          </View>
+                        </>
+                      ) : null}
                     </View>
 
                     {/* ==================================================
@@ -1869,6 +2676,274 @@ export default function BloodRequestDetailsScreen() {
                                       Coordinate with Donor
                                     </Text>
                                   </TouchableOpacity>
+
+                                  {/* Donation record for this donor */}
+                                  {(() => {
+                                    const donation =
+                                      getDonationForResponse(
+                                        response.id
+                                      );
+
+                                    if (
+                                      donation &&
+                                      donation.status !==
+                                        'rejected'
+                                    ) {
+                                      const recorded =
+                                        donation.status ===
+                                        'completed';
+
+                                      const myFeedback =
+                                        getFeedbackFrom(
+                                          donation,
+                                          'requester'
+                                        );
+
+                                      const donorFeedback =
+                                        getFeedbackFrom(
+                                          donation,
+                                          'donor'
+                                        );
+
+                                      return (
+                                        <>
+                                          <FadeInView
+                                            key={`${donation.id}-${donation.status}`}
+                                            offset={6}
+                                            style={[
+                                              styles.donationStatus,
+
+                                              recorded &&
+                                                styles.donationStatusVerified,
+                                            ]}
+                                          >
+                                            <MaterialIcons
+                                              name={
+                                                recorded
+                                                  ? 'task-alt'
+                                                  : 'hourglass-top'
+                                              }
+                                              size={19}
+                                              color={
+                                                recorded
+                                                  ? COLORS.green
+                                                  : COLORS.orange
+                                              }
+                                            />
+
+                                            <View
+                                              style={
+                                                styles.donationStatusBody
+                                              }
+                                            >
+                                              <Text
+                                                style={
+                                                  styles.donationStatusTitle
+                                                }
+                                              >
+                                                {recorded
+                                                  ? 'Donation recorded'
+                                                  : 'Under a quick review by Hemo-Hero'}
+                                              </Text>
+
+                                              <Text
+                                                style={
+                                                  styles.donationStatusMeta
+                                                }
+                                              >
+                                                {bagsLabel(
+                                                  donation.units_donated
+                                                )}{' '}
+                                                •{' '}
+                                                {formatDonationDate(
+                                                  donation.donated_at
+                                                )}
+                                              </Text>
+                                            </View>
+                                          </FadeInView>
+
+                                          {/* What the donor said */}
+                                          {donorFeedback ? (
+                                            <View
+                                              style={
+                                                styles.feedbackReceived
+                                              }
+                                            >
+                                              <View
+                                                style={
+                                                  styles.feedbackHeader
+                                                }
+                                              >
+                                                <Text
+                                                  style={
+                                                    styles.feedbackLabel
+                                                  }
+                                                >
+                                                  Donor&apos;s feedback
+                                                </Text>
+
+                                                <StarRow
+                                                  rating={
+                                                    donorFeedback.rating
+                                                  }
+                                                />
+                                              </View>
+
+                                              {donorFeedback.comment ? (
+                                                <Text
+                                                  style={
+                                                    styles.feedbackComment
+                                                  }
+                                                >
+                                                  “{donorFeedback.comment}”
+                                                </Text>
+                                              ) : null}
+                                            </View>
+                                          ) : null}
+
+                                          {/* Rate the donor / your rating */}
+                                          {myFeedback ? (
+                                            <TouchableOpacity
+                                              style={
+                                                styles.feedbackGiven
+                                              }
+                                              activeOpacity={
+                                                0.8
+                                              }
+                                              onPress={() =>
+                                                setFeedbackDonation(
+                                                  donation
+                                                )
+                                              }
+                                            >
+                                              <Text
+                                                style={
+                                                  styles.feedbackLabel
+                                                }
+                                              >
+                                                Your rating
+                                              </Text>
+
+                                              <StarRow
+                                                rating={
+                                                  myFeedback.rating
+                                                }
+                                              />
+
+                                              <MaterialIcons
+                                                name="edit"
+                                                size={15}
+                                                color={
+                                                  COLORS.lightMuted
+                                                }
+                                              />
+                                            </TouchableOpacity>
+                                          ) : (
+                                            <TouchableOpacity
+                                              style={
+                                                styles.rateButton
+                                              }
+                                              activeOpacity={
+                                                0.85
+                                              }
+                                              onPress={() =>
+                                                setFeedbackDonation(
+                                                  donation
+                                                )
+                                              }
+                                            >
+                                              <MaterialIcons
+                                                name="star-outline"
+                                                size={18}
+                                                color={
+                                                  COLORS.orange
+                                                }
+                                              />
+
+                                              <Text
+                                                style={
+                                                  styles.rateButtonText
+                                                }
+                                              >
+                                                Rate This Donation
+                                              </Text>
+                                            </TouchableOpacity>
+                                          )}
+                                        </>
+                                      );
+                                    }
+
+                                    if (
+                                      request.status !==
+                                      'active'
+                                    ) {
+                                      return null;
+                                    }
+
+                                    return (
+                                      <>
+                                        {donation?.status ===
+                                        'rejected' ? (
+                                          <View
+                                            style={
+                                              styles.donationRejected
+                                            }
+                                          >
+                                            <MaterialIcons
+                                              name="error-outline"
+                                              size={17}
+                                              color={
+                                                COLORS.redButton
+                                              }
+                                            />
+
+                                            <Text
+                                              style={
+                                                styles.donationRejectedText
+                                              }
+                                            >
+                                              Record not accepted:{' '}
+                                              {donation.admin_note ||
+                                                'Please confirm the details again.'}
+                                            </Text>
+                                          </View>
+                                        ) : null}
+
+                                        <TouchableOpacity
+                                          style={
+                                            styles.confirmDonationButton
+                                          }
+                                          activeOpacity={
+                                            0.85
+                                          }
+                                          onPress={() =>
+                                            openDonationModal(
+                                              response
+                                            )
+                                          }
+                                        >
+                                          <MaterialIcons
+                                            name="task-alt"
+                                            size={18}
+                                            color={
+                                              COLORS.green
+                                            }
+                                          />
+
+                                          <Text
+                                            style={
+                                              styles.confirmDonationText
+                                            }
+                                          >
+                                            {donation?.status ===
+                                            'rejected'
+                                              ? 'Confirm Donation Again'
+                                              : 'Confirm Donation Received'}
+                                          </Text>
+                                        </TouchableOpacity>
+                                      </>
+                                    );
+                                  })()}
                                 </>
                               ) : null}
                             </View>
@@ -1914,11 +2989,17 @@ export default function BloodRequestDetailsScreen() {
                               styles.completionTitle
                             }
                           >
-                            {donorResponseCounts.accepted}{' '}
-                            {donorResponseCounts.accepted ===
-                            1
-                              ? 'Donor Accepted'
-                              : 'Donors Accepted'}
+                            {activeDonations.length >
+                            0
+                              ? `${recordedUnits} of ${bagsLabel(
+                                  request.units_needed
+                                )} received`
+                              : `${donorResponseCounts.accepted} ${
+                                  donorResponseCounts.accepted ===
+                                  1
+                                    ? 'Donor Accepted'
+                                    : 'Donors Accepted'
+                                }`}
                           </Text>
 
                           <Text
@@ -1926,13 +3007,20 @@ export default function BloodRequestDetailsScreen() {
                               styles.completionDescription
                             }
                           >
-                            Coordinate with your accepted donor before completing the request.
+                            {activeDonations.length >
+                            0
+                              ? 'Donations are recorded as you confirm them. Mark the request fulfilled once you have all the blood you need.'
+                              : 'After your donor donates, confirm it on their card. Then mark this request fulfilled.'}
                           </Text>
                         </View>
 
                         <TouchableOpacity
                           style={[
                             styles.fulfillButton,
+
+                            activeDonations.length ===
+                              0 &&
+                              styles.fulfillButtonWaiting,
 
                             fulfilling &&
                               styles.disabledButton,
@@ -2005,7 +3093,7 @@ export default function BloodRequestDetailsScreen() {
                           donorResponseCounts.accepted ===
                             0
                         }
-                        title="Donor Matching"
+                        title="Donor Accepted"
                         description={
                           donorResponseCounts.accepted >
                           0
@@ -2015,7 +3103,34 @@ export default function BloodRequestDetailsScreen() {
                                   ? 'has'
                                   : 'have'
                               } been accepted.`
-                            : 'Waiting for a compatible donor.'
+                            : 'Waiting for a compatible donor to offer.'
+                        }
+                        last={
+                          false
+                        }
+                      />
+
+                      <ProgressStep
+                        complete={
+                          activeDonations.length >
+                          0
+                        }
+                        current={
+                          request.status ===
+                            'active' &&
+                          donorResponseCounts.accepted >
+                            0 &&
+                          activeDonations.length ===
+                            0
+                        }
+                        title="Donation Confirmed"
+                        description={
+                          activeDonations.length >
+                          0
+                            ? `You confirmed ${bagsLabel(
+                                recordedUnits
+                              )} received.`
+                            : 'Confirm each donation after your donor donates.'
                         }
                         last={
                           false
@@ -2028,20 +3143,67 @@ export default function BloodRequestDetailsScreen() {
                           'fulfilled'
                         }
                         current={
-                          false
+                          request.status ===
+                            'active' &&
+                          activeDonations.length >
+                            0
                         }
-                        title="Fulfilled"
+                        title="Request Fulfilled"
                         description={
                           request.status ===
                           'fulfilled'
-                            ? 'The blood request has been completed.'
-                            : 'Complete the donation process before marking fulfilled.'
+                            ? 'You marked this request as fulfilled.'
+                            : 'Mark fulfilled once you have the blood you need.'
+                        }
+                        last={
+                          false
+                        }
+                      />
+
+                      <ProgressStep
+                        complete={
+                          activeDonations.length >
+                            0 &&
+                          ratedDonationCount ===
+                            activeDonations.length
+                        }
+                        current={
+                          activeDonations.length >
+                            0 &&
+                          ratedDonationCount <
+                            activeDonations.length
+                        }
+                        title="Feedback Shared"
+                        description={
+                          activeDonations.length ===
+                          0
+                            ? 'Rate each donation once it is recorded.'
+                            : ratedDonationCount ===
+                                activeDonations.length
+                              ? 'Thank you for rating your donors. Transaction complete.'
+                              : reviewDonationCount >
+                                  0
+                                ? 'A donation is under a quick review. You can still rate your donor.'
+                                : 'Let your donor know how it went.'
                         }
                         last
                       />
                     </View>
 
                     {request.status ===
+                      'active' &&
+                    activeDonations.length >
+                      0 ? (
+                      // A confirmed donation means the request was
+                      // (partly) met: fulfill it instead of cancelling.
+                      <Text
+                        style={
+                          styles.cancelHint
+                        }
+                      >
+                        This request has a confirmed donation, so it can no longer be cancelled.
+                      </Text>
+                    ) : request.status ===
                     'active' ? (
                       <>
                         <TouchableOpacity
@@ -2110,12 +3272,422 @@ export default function BloodRequestDetailsScreen() {
                         </Text>
                       </TouchableOpacity>
                     )}
-                  </>
+                  </FadeInView>
                 ) : null}
               </ScrollView>
             </View>
           </LinearGradient>
         </SafeAreaView>
+
+        {/* ====================================================
+            CONFIRM DONATION
+        ==================================================== */}
+
+        <Modal
+          transparent
+          visible={
+            donationModal.visible
+          }
+          animationType="fade"
+          onRequestClose={
+            closeDonationModal
+          }
+        >
+          <View
+            style={
+              styles.actionPopupOverlay
+            }
+          >
+            <View
+              style={[
+                styles.actionPopupCard,
+                styles.donationModalCard,
+              ]}
+            >
+              <View
+                style={[
+                  styles.actionPopupIcon,
+                  styles.actionPopupIconSuccess,
+                ]}
+              >
+                <MaterialIcons
+                  name="bloodtype"
+                  size={30}
+                  color={
+                    COLORS.green
+                  }
+                />
+              </View>
+
+              <Text
+                style={
+                  styles.actionPopupTitle
+                }
+              >
+                Confirm Donation Received
+              </Text>
+
+              <Text
+                style={
+                  styles.actionPopupMessage
+                }
+              >
+                Confirm that{' '}
+                {donationModal.response
+                  ? getDonorName(
+                      donationModal.response
+                    )
+                  : 'your donor'}{' '}
+                donated for your {request?.blood_type} request at{' '}
+                {request?.facility_name}.
+              </Text>
+
+              {/* Bags donated */}
+              <View
+                style={
+                  styles.donationField
+                }
+              >
+                <Text
+                  style={
+                    styles.donationFieldLabel
+                  }
+                >
+                  Bags donated
+                </Text>
+
+                <View
+                  style={
+                    styles.donationStepper
+                  }
+                >
+                  <TouchableOpacity
+                    style={[
+                      styles.donationStepperButton,
+
+                      donationModal.units <=
+                        1 &&
+                        styles.donationStepperDisabled,
+                    ]}
+                    disabled={
+                      donationModal.units <=
+                        1 ||
+                      donationModal.saving
+                    }
+                    accessibilityLabel="Fewer bags"
+                    onPress={() =>
+                      changeDonationUnits(
+                        -1
+                      )
+                    }
+                  >
+                    <MaterialIcons
+                      name="remove"
+                      size={19}
+                      color={
+                        COLORS.redButton
+                      }
+                    />
+                  </TouchableOpacity>
+
+                  <Text
+                    style={
+                      styles.donationStepperValue
+                    }
+                  >
+                    {donationModal.units}
+                  </Text>
+
+                  <TouchableOpacity
+                    style={[
+                      styles.donationStepperButton,
+
+                      donationModal.units >=
+                        maxDonationUnits &&
+                        styles.donationStepperDisabled,
+                    ]}
+                    disabled={
+                      donationModal.units >=
+                        maxDonationUnits ||
+                      donationModal.saving
+                    }
+                    accessibilityLabel="More bags"
+                    onPress={() =>
+                      changeDonationUnits(
+                        1
+                      )
+                    }
+                  >
+                    <MaterialIcons
+                      name="add"
+                      size={19}
+                      color={
+                        COLORS.redButton
+                      }
+                    />
+                  </TouchableOpacity>
+                </View>
+              </View>
+
+              {/* When */}
+              <View
+                style={
+                  styles.donationField
+                }
+              >
+                <Text
+                  style={
+                    styles.donationFieldLabel
+                  }
+                >
+                  When did they donate?
+                </Text>
+
+                <View
+                  style={
+                    styles.donationDayRow
+                  }
+                >
+                  {getDonationDayOptions().map(
+                    option => {
+                      const selected =
+                        donationModal.dayOffset ===
+                        option.offset;
+
+                      return (
+                        <TouchableOpacity
+                          key={
+                            option.offset
+                          }
+                          style={[
+                            styles.donationDayChip,
+
+                            selected &&
+                              styles.donationDayChipSelected,
+                          ]}
+                          disabled={
+                            donationModal.saving
+                          }
+                          onPress={() =>
+                            setDonationModal(
+                              current => ({
+                                ...current,
+                                dayOffset:
+                                  option.offset,
+                              })
+                            )
+                          }
+                        >
+                          <Text
+                            style={[
+                              styles.donationDayText,
+
+                              selected &&
+                                styles.donationDayTextSelected,
+                            ]}
+                          >
+                            {option.label}
+                          </Text>
+                        </TouchableOpacity>
+                      );
+                    }
+                  )}
+                </View>
+              </View>
+
+              {/* Optional note */}
+              <TextInput
+                style={
+                  styles.donationNoteInput
+                }
+                editable={
+                  !donationModal.saving
+                }
+                multiline
+                maxLength={
+                  DONATION_NOTE_LIMIT
+                }
+                placeholder="Optional note, e.g. donated at the blood bank, 2nd floor"
+                placeholderTextColor={
+                  COLORS.lightMuted
+                }
+                value={
+                  donationModal.note
+                }
+                onChangeText={value =>
+                  setDonationModal(
+                    current => ({
+                      ...current,
+                      note: value,
+                    })
+                  )
+                }
+                textAlignVertical="top"
+              />
+
+              <View
+                style={
+                  styles.donationInfo
+                }
+              >
+                <MaterialIcons
+                  name="verified-user"
+                  size={16}
+                  color={
+                    COLORS.green
+                  }
+                />
+
+                <Text
+                  style={
+                    styles.donationInfoText
+                  }
+                >
+                  The donation is recorded right away and added to the donor's history. You can rate the transaction afterwards.
+                </Text>
+              </View>
+
+              {donationModal.error ? (
+                <FadeInView
+                  key={
+                    donationModal.error
+                  }
+                  offset={4}
+                  style={
+                    styles.donationError
+                  }
+                >
+                  <MaterialIcons
+                    name="error-outline"
+                    size={16}
+                    color={
+                      COLORS.redButton
+                    }
+                  />
+
+                  <Text
+                    style={
+                      styles.donationErrorText
+                    }
+                  >
+                    {donationModal.error}
+                  </Text>
+                </FadeInView>
+              ) : null}
+
+              <View
+                style={
+                  styles.actionPopupActions
+                }
+              >
+                <TouchableOpacity
+                  style={
+                    styles.actionPopupSecondaryButton
+                  }
+                  disabled={
+                    donationModal.saving
+                  }
+                  activeOpacity={
+                    0.82
+                  }
+                  onPress={
+                    closeDonationModal
+                  }
+                >
+                  <Text
+                    style={
+                      styles.actionPopupSecondaryText
+                    }
+                  >
+                    Cancel
+                  </Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={[
+                    styles.actionPopupPrimaryButton,
+                    styles.actionPopupPrimarySuccess,
+
+                    donationModal.saving &&
+                      styles.disabledButton,
+                  ]}
+                  disabled={
+                    donationModal.saving
+                  }
+                  activeOpacity={
+                    0.85
+                  }
+                  onPress={
+                    submitDonation
+                  }
+                >
+                  {donationModal.saving ? (
+                    <ActivityIndicator
+                      size="small"
+                      color={
+                        COLORS.white
+                      }
+                    />
+                  ) : (
+                    <Text
+                      style={
+                        styles.actionPopupPrimaryText
+                      }
+                    >
+                      Confirm Donation
+                    </Text>
+                  )}
+                </TouchableOpacity>
+              </View>
+            </View>
+          </View>
+        </Modal>
+
+        {/* ====================================================
+            RATE THE DONATION
+        ==================================================== */}
+
+        <DonationFeedbackModal
+          visible={Boolean(
+            feedbackDonation
+          )}
+          mode="feedback"
+          title={
+            getFeedbackFrom(
+              feedbackDonation,
+              'requester'
+            )
+              ? 'Update Your Feedback'
+              : 'Rate This Donation'
+          }
+          subtitle={`How was your experience with ${
+            feedbackDonation?.donor_name ||
+            'your donor'
+          }? They will see your feedback.`}
+          initialRating={
+            getFeedbackFrom(
+              feedbackDonation,
+              'requester'
+            )?.rating || 0
+          }
+          initialComment={
+            getFeedbackFrom(
+              feedbackDonation,
+              'requester'
+            )?.comment || ''
+          }
+          quickNotes={
+            DONOR_FEEDBACK_NOTES
+          }
+          onClose={() =>
+            setFeedbackDonation(
+              null
+            )
+          }
+          onSubmit={
+            sendDonorFeedback
+          }
+        />
 
         {/* ====================================================
             IN-APP ACTION POPUP
@@ -2288,6 +3860,45 @@ export default function BloodRequestDetailsScreen() {
 }
 
 // ============================================================
+// STAR ROW (read-only rating)
+// ============================================================
+
+function StarRow({
+  rating,
+}: {
+  rating: number;
+}) {
+  return (
+    <View
+      style={
+        styles.starRow
+      }
+      accessible
+      accessibilityLabel={`${rating} out of 5 stars`}
+    >
+      {[1, 2, 3, 4, 5].map(
+        value => (
+          <MaterialIcons
+            key={value}
+            name={
+              value <= rating
+                ? 'star'
+                : 'star-border'
+            }
+            size={15}
+            color={
+              value <= rating
+                ? '#F2A516'
+                : '#D9C3C3'
+            }
+          />
+        )
+      )}
+    </View>
+  );
+}
+
+// ============================================================
 // PROGRESS STEP
 // ============================================================
 
@@ -2384,6 +3995,324 @@ function ProgressStep({
 
 const styles =
   StyleSheet.create({
+    retryButton: {
+      marginTop: 16,
+      paddingHorizontal: 18,
+      height: 44,
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 6,
+      borderRadius: 11,
+      backgroundColor: COLORS.redButton,
+    },
+
+    retryButtonText: {
+      color: COLORS.white,
+      fontFamily: 'Inter_600SemiBold',
+      fontSize: 13,
+    },
+
+    directionsButton: {
+      alignSelf: 'flex-start',
+      marginTop: 8,
+      paddingHorizontal: 10,
+      paddingVertical: 6,
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 5,
+      borderWidth: 1,
+      borderColor: '#F0D1D1',
+      borderRadius: 9,
+      backgroundColor: COLORS.white,
+    },
+
+    directionsText: {
+      color: COLORS.redButton,
+      fontFamily: 'Inter_600SemiBold',
+      fontSize: 12,
+    },
+
+    // ------------------------------------------------------
+    // DONATION RECORD (accepted donor card)
+    // ------------------------------------------------------
+
+    donationStatus: {
+      marginTop: 10,
+      paddingHorizontal: 11,
+      paddingVertical: 10,
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 9,
+      borderRadius: 11,
+      backgroundColor: COLORS.orangeLight,
+    },
+
+    donationStatusVerified: {
+      backgroundColor: COLORS.greenLight,
+    },
+
+    donationStatusBody: {
+      flex: 1,
+      minWidth: 0,
+    },
+
+    donationStatusTitle: {
+      color: COLORS.black,
+      fontFamily: 'Inter_600SemiBold',
+      fontSize: 12.5,
+      lineHeight: 17,
+    },
+
+    donationStatusMeta: {
+      marginTop: 1,
+      color: COLORS.muted,
+      fontFamily: 'Inter_400Regular',
+      fontSize: 12,
+    },
+
+    donationRejected: {
+      marginTop: 10,
+      paddingHorizontal: 11,
+      paddingVertical: 9,
+      flexDirection: 'row',
+      alignItems: 'flex-start',
+      gap: 7,
+      borderRadius: 11,
+      backgroundColor: COLORS.pinkLight,
+    },
+
+    donationRejectedText: {
+      flex: 1,
+      color: COLORS.redButton,
+      fontFamily: 'Inter_500Medium',
+      fontSize: 12,
+      lineHeight: 17,
+    },
+
+    confirmDonationButton: {
+      height: 44,
+      marginTop: 9,
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: 7,
+      borderRadius: 11,
+      borderWidth: 1.5,
+      borderColor: COLORS.green,
+      backgroundColor: COLORS.greenLight,
+    },
+
+    confirmDonationText: {
+      color: COLORS.green,
+      fontFamily: 'Poppins_600SemiBold',
+      fontSize: 13,
+    },
+
+    fulfillButtonWaiting: {
+      opacity: 0.6,
+    },
+
+    // ------------------------------------------------------
+    // TRANSACTION FEEDBACK
+    // ------------------------------------------------------
+
+    starRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 1,
+    },
+
+    feedbackReceived: {
+      marginTop: 9,
+      paddingHorizontal: 11,
+      paddingVertical: 10,
+      borderRadius: 11,
+      borderWidth: 1,
+      borderColor: '#F7E3BE',
+      backgroundColor: '#FFFBF2',
+    },
+
+    feedbackHeader: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      gap: 8,
+    },
+
+    feedbackLabel: {
+      color: COLORS.black,
+      fontFamily: 'Inter_600SemiBold',
+      fontSize: 12.5,
+    },
+
+    feedbackComment: {
+      marginTop: 5,
+      color: COLORS.muted,
+      fontFamily: 'Inter_400Regular',
+      fontSize: 12.5,
+      lineHeight: 18,
+    },
+
+    feedbackGiven: {
+      height: 42,
+      marginTop: 9,
+      paddingHorizontal: 12,
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 8,
+      borderRadius: 11,
+      borderWidth: 1,
+      borderColor: COLORS.border,
+      backgroundColor: COLORS.softCard,
+    },
+
+    rateButton: {
+      height: 44,
+      marginTop: 9,
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: 7,
+      borderRadius: 11,
+      borderWidth: 1.5,
+      borderColor: COLORS.orange,
+      backgroundColor: COLORS.orangeLight,
+    },
+
+    rateButtonText: {
+      color: COLORS.orange,
+      fontFamily: 'Poppins_600SemiBold',
+      fontSize: 13,
+    },
+
+    // ------------------------------------------------------
+    // CONFIRM DONATION DIALOG
+    // ------------------------------------------------------
+
+    donationModalCard: {
+      maxWidth: 380,
+    },
+
+    donationField: {
+      marginTop: 16,
+    },
+
+    donationFieldLabel: {
+      marginBottom: 8,
+      color: COLORS.black,
+      fontFamily: 'Inter_600SemiBold',
+      fontSize: 13,
+    },
+
+    donationStepper: {
+      alignSelf: 'flex-start',
+      flexDirection: 'row',
+      alignItems: 'center',
+      padding: 4,
+      borderRadius: 13,
+      backgroundColor: COLORS.pinkLight,
+    },
+
+    donationStepperButton: {
+      width: 36,
+      height: 36,
+      borderRadius: 10,
+      alignItems: 'center',
+      justifyContent: 'center',
+      backgroundColor: COLORS.white,
+    },
+
+    donationStepperDisabled: {
+      opacity: 0.4,
+    },
+
+    donationStepperValue: {
+      width: 46,
+      color: COLORS.black,
+      fontFamily: 'Poppins_700Bold',
+      fontSize: 18,
+      textAlign: 'center',
+    },
+
+    donationDayRow: {
+      flexDirection: 'row',
+      flexWrap: 'wrap',
+      gap: 8,
+    },
+
+    donationDayChip: {
+      paddingHorizontal: 13,
+      paddingVertical: 8,
+      borderRadius: 16,
+      borderWidth: 1.5,
+      borderColor: COLORS.softBorder,
+      backgroundColor: COLORS.white,
+    },
+
+    donationDayChipSelected: {
+      borderColor: COLORS.redButton,
+      backgroundColor: COLORS.redButton,
+    },
+
+    donationDayText: {
+      color: COLORS.black,
+      fontFamily: 'Inter_500Medium',
+      fontSize: 12.5,
+    },
+
+    donationDayTextSelected: {
+      color: COLORS.white,
+    },
+
+    donationNoteInput: {
+      minHeight: 70,
+      marginTop: 16,
+      padding: 11,
+      borderRadius: 12,
+      borderWidth: 1.5,
+      borderColor: COLORS.border,
+      backgroundColor: COLORS.softCard,
+      color: COLORS.black,
+      fontFamily: 'Inter_400Regular',
+      fontSize: 13,
+      lineHeight: 18,
+      outlineStyle: Platform.OS === 'web' ? 'none' : undefined,
+    } as any,
+
+    donationInfo: {
+      marginTop: 12,
+      flexDirection: 'row',
+      alignItems: 'flex-start',
+      gap: 7,
+    },
+
+    donationInfoText: {
+      flex: 1,
+      color: COLORS.muted,
+      fontFamily: 'Inter_400Regular',
+      fontSize: 12,
+      lineHeight: 17,
+    },
+
+    donationError: {
+      marginTop: 12,
+      paddingHorizontal: 10,
+      paddingVertical: 9,
+      flexDirection: 'row',
+      alignItems: 'flex-start',
+      gap: 7,
+      borderRadius: 10,
+      backgroundColor: COLORS.pinkLight,
+    },
+
+    donationErrorText: {
+      flex: 1,
+      color: COLORS.redButton,
+      fontFamily: 'Inter_500Medium',
+      fontSize: 12.5,
+      lineHeight: 17,
+    },
+
     desktopBackground: {
       flex:
         1,
@@ -2398,7 +4327,7 @@ const styles =
         Platform.OS ===
         'web'
           ? '#242424'
-          : COLORS.pageBottom,
+          : '#FFF8F8',
     },
 
     phone: {
@@ -2418,7 +4347,7 @@ const styles =
         'hidden',
 
       backgroundColor:
-        COLORS.pageBottom,
+        '#FFF8F8',
     },
 
     safeArea: {
@@ -2429,18 +4358,19 @@ const styles =
         COLORS.red,
     },
 
+    // Compact header; the main card overlaps its bottom edge.
     header: {
-      height:
-        112,
-
       paddingHorizontal:
-        22,
+        20,
 
       paddingTop:
         Platform.OS ===
         'web'
           ? 18
-          : 8,
+          : 10,
+
+      paddingBottom:
+        38,
 
       overflow:
         'hidden',
@@ -2550,7 +4480,7 @@ const styles =
         'Inter_400Regular',
 
       fontSize:
-        10,
+        12.5,
     },
 
     body: {
@@ -2558,10 +4488,13 @@ const styles =
         1,
 
       paddingHorizontal:
-        16,
+        14,
 
       paddingBottom:
         14,
+
+      backgroundColor:
+        '#FFF8F8',
     },
 
     mainCard: {
@@ -2569,16 +4502,39 @@ const styles =
         1,
 
       marginTop:
-        -10,
+        -26,
 
       overflow:
         'hidden',
 
       borderRadius:
-        28,
+        22,
+
+      borderWidth:
+        1,
+
+      borderColor:
+        '#EFE3E3',
 
       backgroundColor:
         COLORS.white,
+
+      shadowColor:
+        '#8F1111',
+
+      shadowOffset: {
+        width: 0,
+        height: 4,
+      },
+
+      shadowOpacity:
+        0.08,
+
+      shadowRadius:
+        12,
+
+      elevation:
+        3,
     },
 
     scroll: {
@@ -2636,7 +4592,7 @@ const styles =
         'Inter_400Regular',
 
       fontSize:
-        10,
+        12.5,
 
       textAlign:
         'center',
@@ -2653,7 +4609,7 @@ const styles =
         'Inter_400Regular',
 
       fontSize:
-        9,
+        12,
 
       textAlign:
         'right',
@@ -2754,7 +4710,7 @@ const styles =
         'Inter_400Regular',
 
       fontSize:
-        9,
+        12,
     },
 
     statusPill: {
@@ -2776,7 +4732,7 @@ const styles =
         'Inter_600SemiBold',
 
       fontSize:
-        8,
+        11,
     },
 
     summaryDivider: {
@@ -2842,7 +4798,7 @@ const styles =
         'Inter_500Medium',
 
       fontSize:
-        8.5,
+        11.5,
     },
 
     sectionTitle: {
@@ -2921,7 +4877,7 @@ const styles =
         'Poppins_600SemiBold',
 
       fontSize:
-        10,
+        12.5,
     },
 
     infoGroup: {
@@ -2991,7 +4947,7 @@ const styles =
         'Inter_500Medium',
 
       fontSize:
-        9,
+        12,
     },
 
     infoTitle: {
@@ -3005,7 +4961,7 @@ const styles =
         'Inter_600SemiBold',
 
       fontSize:
-        11.5,
+        14,
     },
 
     infoDescription: {
@@ -3019,7 +4975,7 @@ const styles =
         'Inter_400Regular',
 
       fontSize:
-        9,
+        12,
     },
 
     infoDivider: {
@@ -3073,7 +5029,7 @@ const styles =
         'Poppins_600SemiBold',
 
       fontSize:
-        12,
+        14,
     },
 
     emptyText: {
@@ -3087,13 +5043,13 @@ const styles =
         'Inter_400Regular',
 
       fontSize:
-        9,
+        12,
 
       textAlign:
         'center',
 
       lineHeight:
-        14,
+        18,
     },
 
     donorCard: {
@@ -3163,7 +5119,7 @@ const styles =
         'Poppins_700Bold',
 
       fontSize:
-        12,
+        14,
     },
 
     donorInfo: {
@@ -3179,7 +5135,7 @@ const styles =
         'Poppins_600SemiBold',
 
       fontSize:
-        11.5,
+        14,
     },
 
     badgeRow: {
@@ -3227,7 +5183,7 @@ const styles =
         'Inter_700Bold',
 
       fontSize:
-        8,
+        11,
     },
 
     verifiedBadge: {
@@ -3261,7 +5217,7 @@ const styles =
         'Inter_600SemiBold',
 
       fontSize:
-        7.5,
+        10.5,
     },
 
     responseStatus: {
@@ -3286,7 +5242,7 @@ const styles =
         'Inter_600SemiBold',
 
       fontSize:
-        7.5,
+        10.5,
     },
 
     statusAccepted: {
@@ -3356,10 +5312,10 @@ const styles =
         'Inter_400Regular',
 
       fontSize:
-        9.5,
+        12.5,
 
       lineHeight:
-        14,
+        18,
     },
 
     actionRow: {
@@ -3404,7 +5360,7 @@ const styles =
         'Poppins_600SemiBold',
 
       fontSize:
-        9.5,
+        12.5,
     },
 
     acceptButton: {
@@ -3435,7 +5391,7 @@ const styles =
         'Poppins_600SemiBold',
 
       fontSize:
-        9.5,
+        12.5,
     },
 
     acceptedNotice: {
@@ -3472,7 +5428,7 @@ const styles =
         'Inter_600SemiBold',
 
       fontSize:
-        8.5,
+        11.5,
     },
 
     coordinateButton: {
@@ -3509,7 +5465,7 @@ const styles =
         'Poppins_600SemiBold',
 
       fontSize:
-        9.5,
+        12.5,
     },
 
     completionCard: {
@@ -3568,7 +5524,7 @@ const styles =
         'Poppins_600SemiBold',
 
       fontSize:
-        12,
+        14,
     },
 
     completionDescription: {
@@ -3582,10 +5538,10 @@ const styles =
         'Inter_400Regular',
 
       fontSize:
-        9,
+        12,
 
       lineHeight:
-        14,
+        18,
     },
 
     fulfillButton: {
@@ -3622,7 +5578,7 @@ const styles =
         'Poppins_600SemiBold',
 
       fontSize:
-        9.5,
+        12.5,
     },
 
     disabledButton: {
@@ -3767,7 +5723,7 @@ const styles =
         'Inter_600SemiBold',
 
       fontSize:
-        11,
+        13.5,
     },
 
     progressDescription: {
@@ -3781,10 +5737,10 @@ const styles =
         'Inter_400Regular',
 
       fontSize:
-        9,
+        12,
 
       lineHeight:
-        14,
+        18,
     },
 
     cancelButton: {
@@ -3821,7 +5777,7 @@ const styles =
         'Poppins_600SemiBold',
 
       fontSize:
-        10.5,
+        13,
     },
 
     cancelHint: {
@@ -3835,7 +5791,7 @@ const styles =
         'Inter_400Regular',
 
       fontSize:
-        8.5,
+        11.5,
 
       textAlign:
         'center',
@@ -3872,7 +5828,7 @@ const styles =
         'Poppins_600SemiBold',
 
       fontSize:
-        10.5,
+        13,
     },
 
     // ========================================================
@@ -3991,7 +5947,7 @@ const styles =
         16,
 
       lineHeight:
-        21,
+        27,
 
       textAlign:
         'center',
@@ -4008,10 +5964,10 @@ const styles =
         'Inter_400Regular',
 
       fontSize:
-        10.8,
+        13,
 
       lineHeight:
-        17,
+        22,
 
       textAlign:
         'center',
@@ -4067,7 +6023,7 @@ const styles =
         'Poppins_600SemiBold',
 
       fontSize:
-        10,
+        12.5,
     },
 
     actionPopupPrimaryButton: {
@@ -4111,6 +6067,6 @@ const styles =
         'Poppins_600SemiBold',
 
       fontSize:
-        10,
+        12.5,
     },
   });

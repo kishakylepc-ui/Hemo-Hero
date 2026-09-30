@@ -1,4 +1,5 @@
 import { Platform } from 'react-native';
+import { authorizedFetch } from './authFetch';
 
 const API_URL = (
   Platform.OS === 'web'
@@ -138,7 +139,7 @@ export async function getCoordinationSession(
   requestId: string,
   responseId: string
 ): Promise<{ coordination: CoordinationSession }> {
-  const response = await fetch(
+  const response = await authorizedFetch(
     `${API_URL}/api/requests/${requestId}/responses/${responseId}/coordination`,
     {
       method: 'GET',
@@ -163,7 +164,7 @@ export async function getCoordinationMessages(
   count: number;
   messages: CoordinationMessage[];
 }> {
-  const response = await fetch(
+  const response = await authorizedFetch(
     `${API_URL}/api/requests/${requestId}/responses/${responseId}/messages`,
     {
       method: 'GET',
@@ -189,7 +190,7 @@ export async function sendCoordinationMessage(
   message: string;
   data: CoordinationMessage;
 }> {
-  const response = await fetch(
+  const response = await authorizedFetch(
     `${API_URL}/api/requests/${requestId}/responses/${responseId}/messages`,
     {
       method: 'POST',
@@ -218,7 +219,7 @@ export async function saveCoordinationSchedule(
   message: string;
   schedule: CoordinationSchedule;
 }> {
-  const response = await fetch(
+  const response = await authorizedFetch(
     `${API_URL}/api/requests/${requestId}/responses/${responseId}/schedule`,
     {
       method: 'PUT',
@@ -266,7 +267,7 @@ export async function submitCoordinationSupport(
     created_at: string;
   };
 }> {
-  const response = await fetch(
+  const response = await authorizedFetch(
     `${API_URL}/api/requests/${requestId}/responses/${responseId}/reports`,
     {
       method: 'POST',
@@ -309,7 +310,7 @@ export async function getCoordinationInbox(
   count: number;
   conversations: CoordinationInboxItem[];
 }> {
-  const response = await fetch(
+  const response = await authorizedFetch(
     `${API_URL}/api/requests/coordination/inbox`,
     {
       method: 'GET',

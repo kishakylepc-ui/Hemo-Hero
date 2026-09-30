@@ -1,6 +1,7 @@
 import {
   useCallback,
   useMemo,
+  useRef,
   useState,
 } from 'react';
 
@@ -36,6 +37,11 @@ import {
 } from 'react-native-safe-area-context';
 
 import MainBottomNav from '../../components/MainBottomNav';
+
+import {
+  FadeInView,
+  PulseRing,
+} from '../../components/Motion';
 
 import {
   getMyBloodRequests,
@@ -145,6 +151,43 @@ function formatDate(
         'numeric',
     }
   );
+}
+
+// ============================================================
+// NEEDED BY
+// ============================================================
+
+function formatNeededBy(
+  request: BloodRequest
+) {
+  if (
+    request.urgency === 'urgent'
+  ) {
+    return 'Needed as soon as possible';
+  }
+
+  if (!request.needed_date) {
+    return 'Scheduled request';
+  }
+
+  let text = `Needed ${formatDate(
+    `${request.needed_date}T00:00:00`
+  )}`;
+
+  const timeMatch = String(
+    request.needed_time || ''
+  ).match(/^(\d{1,2}):(\d{2})/);
+
+  if (timeMatch) {
+    const hours =
+      Number(timeMatch[1]);
+
+    text += `, ${hours % 12 || 12}:${timeMatch[2]} ${
+      hours >= 12 ? 'PM' : 'AM'
+    }`;
+  }
+
+  return text;
 }
 
 // ============================================================
@@ -370,6 +413,9 @@ export default function RequestsScreen() {
   ] =
     useState('');
 
+  const hasLoadedOnce =
+    useRef(false);
+
   // ==========================================================
   // LOAD DATA
   // ==========================================================
@@ -409,11 +455,14 @@ export default function RequestsScreen() {
             return;
           }
 
+          // Load all three sections in parallel; one failing
+          // section does not hide the others.
           const [
             requestResult,
             inboxResult,
+            invitationResult,
           ] =
-            await Promise.all([
+            await Promise.allSettled([
               getMyBloodRequests(
                 token
               ),
@@ -421,84 +470,130 @@ export default function RequestsScreen() {
               getCoordinationInbox(
                 token
               ),
+
+              getMyDonorInvitations(
+                token
+              ),
             ]);
+
+          if (
+            inboxResult.status ===
+              'rejected' &&
+            inboxResult.reason instanceof
+              CoordinationInboxError &&
+            inboxResult.reason.status ===
+              401
+          ) {
+            router.replace(
+              '/'
+            );
+
+            return;
+          }
+
+          const failedSections: string[] =
+            [];
 
           // --------------------------------------------------
           // MY REQUESTS
           // --------------------------------------------------
 
-          const requestRows =
-            Array.isArray(
-              requestResult
-                ?.requests
-            )
-              ? requestResult
-                  .requests
-              : [];
+          if (
+            requestResult.status ===
+            'fulfilled'
+          ) {
+            setRequests(
+              Array.isArray(
+                requestResult.value
+                  ?.requests
+              )
+                ? requestResult.value
+                    .requests
+                : []
+            );
+          } else {
+            console.log(
+              'MY REQUESTS LOAD ERROR:',
+              requestResult.reason
+            );
 
-          setRequests(
-            requestRows
-          );
+            failedSections.push(
+              'your requests'
+            );
+          }
 
           // --------------------------------------------------
           // COORDINATION
           // --------------------------------------------------
 
-          const conversationRows =
-            Array.isArray(
-              inboxResult
-                ?.conversations
-            )
-              ? inboxResult
-                  .conversations
-              : [];
+          if (
+            inboxResult.status ===
+            'fulfilled'
+          ) {
+            setConversations(
+              Array.isArray(
+                inboxResult.value
+                  ?.conversations
+              )
+                ? inboxResult.value
+                    .conversations
+                : []
+            );
+          } else {
+            console.log(
+              'COORDINATION INBOX LOAD ERROR:',
+              inboxResult.reason
+            );
 
-          setConversations(
-            conversationRows
-          );
+            failedSections.push(
+              'your donations'
+            );
+          }
+
+          if (
+            failedSections.length > 0
+          ) {
+            setErrorMessage(
+              `We couldn't load ${failedSections.join(
+                ' and '
+              )}. Check your connection and try again.`
+            );
+          }
 
           // --------------------------------------------------
           // INVITATIONS
           // --------------------------------------------------
 
-          try {
-            const invitationResult =
-              await getMyDonorInvitations(
-                token
-              );
-
-            const invitationRows =
+          if (
+            invitationResult.status ===
+            'fulfilled'
+          ) {
+            setInvitations(
               Array.isArray(
-                invitationResult
+                invitationResult.value
                   ?.invitations
               )
-                ? invitationResult
+                ? invitationResult.value
                     .invitations
-                : [];
-
-            setInvitations(
-              invitationRows
+                : []
             );
-          } catch (
-            invitationError
-          ) {
+          } else {
             console.log(
               'DONOR INVITATIONS LOAD ERROR:',
-              invitationError
-            );
-
-            setInvitations(
-              []
+              invitationResult.reason
             );
 
             setInvitationErrorMessage(
-              invitationError instanceof
+              invitationResult.reason instanceof
                 Error
-                ? invitationError
+                ? invitationResult.reason
                     .message
                 : 'Unable to load donor invitations.'
             );
           }
+
+          hasLoadedOnce.current =
+            true;
         } catch (
           error
         ) {
@@ -543,10 +638,14 @@ export default function RequestsScreen() {
   // LOAD ON FOCUS
   // ==========================================================
 
+  // Only the first visit shows the loading card; later
+  // visits refresh quietly so the list doesn't flash.
   useFocusEffect(
     useCallback(
       () => {
-        loadData();
+        loadData(
+          hasLoadedOnce.current
+        );
       },
       [
         loadData,
@@ -589,6 +688,53 @@ export default function RequestsScreen() {
       [
         conversations,
       ]
+    );
+
+  // ==========================================================
+  // SORT REQUESTS (active first, then newest)
+  // ==========================================================
+
+  const sortedRequests =
+    useMemo(
+      () =>
+        [...requests].sort(
+          (a, b) => {
+            const aActive =
+              a.status === 'active'
+                ? 0
+                : 1;
+
+            const bActive =
+              b.status === 'active'
+                ? 0
+                : 1;
+
+            if (aActive !== bActive) {
+              return aActive - bActive;
+            }
+
+            return (
+              new Date(
+                b.created_at
+              ).getTime() -
+              new Date(
+                a.created_at
+              ).getTime()
+            );
+          }
+        ),
+      [requests]
+    );
+
+  const hasActiveRequest =
+    useMemo(
+      () =>
+        requests.some(
+          request =>
+            request.status ===
+            'active'
+        ),
+      [requests]
     );
 
   // ==========================================================
@@ -1123,6 +1269,72 @@ export default function RequestsScreen() {
                 requests.length >
                 0 ? (
                   <>
+                    {!hasActiveRequest ? (
+                      <FadeInView>
+                        <TouchableOpacity
+                          style={
+                            styles.createCard
+                          }
+                          activeOpacity={
+                            0.85
+                          }
+                          onPress={() =>
+                            router.push(
+                              '/blood-request/create' as any
+                            )
+                          }
+                        >
+                          <View
+                            style={
+                              styles.createIcon
+                            }
+                          >
+                            <PulseRing
+                              size={42}
+                            />
+
+                            <MaterialIcons
+                              name="add"
+                              size={26}
+                              color={
+                                COLORS.white
+                              }
+                            />
+                          </View>
+
+                          <View
+                            style={
+                              styles.createBody
+                            }
+                          >
+                            <Text
+                              style={
+                                styles.createTitle
+                              }
+                            >
+                              Create Blood Request
+                            </Text>
+
+                            <Text
+                              style={
+                                styles.createText
+                              }
+                            >
+                              Need blood? Reach compatible donors nearby.
+                            </Text>
+                          </View>
+
+                          <MaterialIcons
+                            name="arrow-forward"
+                            size={20}
+                            color={
+                              COLORS.white
+                            }
+                          />
+                        </TouchableOpacity>
+                      </FadeInView>
+                    ) : null}
+
                     <Text
                       style={
                         styles.sectionLabel
@@ -1131,21 +1343,28 @@ export default function RequestsScreen() {
                       Your Blood Requests
                     </Text>
 
-                    {requests.map(
-                      request => (
-                        <RequestCard
+                    {sortedRequests.map(
+                      (request, index) => (
+                        <FadeInView
                           key={
                             request.id
                           }
-                          request={
-                            request
-                          }
-                          onPress={() =>
-                            openRequest(
+                          delay={Math.min(
+                            index * 40,
+                            200
+                          )}
+                        >
+                          <RequestCard
+                            request={
                               request
-                            )
-                          }
-                        />
+                            }
+                            onPress={() =>
+                              openRequest(
+                                request
+                              )
+                            }
+                          />
+                        </FadeInView>
                       )
                     )}
                   </>
@@ -1279,20 +1498,27 @@ export default function RequestsScreen() {
                       </Text>
 
                       {sortedInvitations.map(
-                        invitation => (
-                          <InvitationCard
+                        (invitation, index) => (
+                          <FadeInView
                             key={
                               invitation.id
                             }
-                            invitation={
-                              invitation
-                            }
-                            onViewRequest={() =>
-                              openInvitationRequest(
+                            delay={Math.min(
+                              index * 40,
+                              200
+                            )}
+                          >
+                            <InvitationCard
+                              invitation={
                                 invitation
-                              )
-                            }
-                          />
+                              }
+                              onViewRequest={() =>
+                                openInvitationRequest(
+                                  invitation
+                                )
+                              }
+                            />
+                          </FadeInView>
                         )
                       )}
                     </>
@@ -1349,20 +1575,27 @@ export default function RequestsScreen() {
                   </Text>
 
                   {myDonations.map(
-                    item => (
-                      <DonationCard
+                    (item, index) => (
+                      <FadeInView
                         key={
                           item.response_id
                         }
-                        item={
-                          item
-                        }
-                        onPress={() =>
-                          openDonation(
+                        delay={Math.min(
+                          index * 40,
+                          200
+                        )}
+                      >
+                        <DonationCard
+                          item={
                             item
-                          )
-                        }
-                      />
+                          }
+                          onPress={() =>
+                            openDonation(
+                              item
+                            )
+                          }
+                        />
+                      </FadeInView>
                     )
                   )}
                 </>
@@ -1533,27 +1766,116 @@ function RequestCard({
       >
         <View
           style={
-            styles.detailItem
+            styles.detailList
           }
         >
-          <MaterialIcons
-            name="event"
-            size={16}
-            color={
-              COLORS.redButton
-            }
-          />
+          {request.status ===
+          'active' ? (
+            <View
+              style={
+                styles.detailListItem
+              }
+            >
+              <MaterialIcons
+                name={
+                  request.urgency ===
+                  'urgent'
+                    ? 'priority-high'
+                    : 'schedule'
+                }
+                size={16}
+                color={
+                  request.urgency ===
+                  'urgent'
+                    ? COLORS.redButton
+                    : COLORS.orange
+                }
+              />
 
-          <Text
+              <Text
+                numberOfLines={1}
+                style={
+                  styles.detailText
+                }
+              >
+                {formatNeededBy(
+                  request
+                )}
+              </Text>
+            </View>
+          ) : null}
+
+          {request.facility_address ? (
+            <View
+              style={
+                styles.detailListItem
+              }
+            >
+              <MaterialIcons
+                name="place"
+                size={16}
+                color={
+                  COLORS.redButton
+                }
+              />
+
+              <Text
+                numberOfLines={1}
+                style={
+                  styles.detailText
+                }
+              >
+                {
+                  request.facility_address
+                }
+              </Text>
+            </View>
+          ) : null}
+
+          <View
             style={
-              styles.detailText
+              styles.detailListItem
             }
           >
-            Created{' '}
-            {formatDate(
-              request.created_at
-            )}
-          </Text>
+            <MaterialIcons
+              name={
+                request.status ===
+                'fulfilled'
+                  ? 'task-alt'
+                  : request.status ===
+                      'cancelled'
+                    ? 'cancel'
+                    : 'event'
+              }
+              size={16}
+              color={
+                COLORS.redButton
+              }
+            />
+
+            <Text
+              numberOfLines={1}
+              style={
+                styles.detailText
+              }
+            >
+              {request.status ===
+                'fulfilled' &&
+              request.fulfilled_at
+                ? `Fulfilled ${formatDate(
+                    request.fulfilled_at
+                  )}`
+                : request.status ===
+                      'cancelled' &&
+                    request.cancelled_at
+                  ? `Cancelled ${formatDate(
+                      request.cancelled_at
+                    )}`
+                  : `Created ${formatDate(
+                      request.created_at
+                    )}`}
+            </Text>
+          </View>
         </View>
 
         <MaterialIcons
@@ -1564,6 +1886,17 @@ function RequestCard({
           }
         />
       </View>
+
+      {request.status ===
+      'active' ? (
+        <Text
+          style={
+            styles.activeHint
+          }
+        >
+          Tap to view donor offers and manage this request
+        </Text>
+      ) : null}
     </TouchableOpacity>
   );
 }
@@ -1835,9 +2168,14 @@ function InvitationCard({
       ====================================================== */}
 
       <TouchableOpacity
-        style={
-          styles.viewRequestButton
-        }
+        style={[
+          styles.viewRequestButton,
+
+          invitation.status ===
+            'pending' &&
+            requestIsActive &&
+            styles.respondButton,
+        ]}
         activeOpacity={
           0.8
         }
@@ -1865,11 +2203,20 @@ function InvitationCard({
           </View>
 
           <Text
-            style={
-              styles.viewRequestText
-            }
+            style={[
+              styles.viewRequestText,
+
+              invitation.status ===
+                'pending' &&
+                requestIsActive &&
+                styles.respondButtonText,
+            ]}
           >
-            View Request
+            {invitation.status ===
+              'pending' &&
+            requestIsActive
+              ? 'Review & Respond'
+              : 'View Request'}
           </Text>
         </View>
 
@@ -1877,7 +2224,11 @@ function InvitationCard({
           name="chevron-right"
           size={20}
           color={
-            COLORS.redButton
+            invitation.status ===
+              'pending' &&
+            requestIsActive
+              ? COLORS.white
+              : COLORS.redButton
           }
         />
       </TouchableOpacity>
@@ -2289,7 +2640,7 @@ const styles =
         'Inter_500Medium',
 
       fontSize:
-        10,
+        12,
 
       letterSpacing:
         1.3,
@@ -2306,7 +2657,7 @@ const styles =
         'Poppins_700Bold',
 
       fontSize:
-        23,
+        24,
     },
 
     headerSubtitle: {
@@ -2320,7 +2671,7 @@ const styles =
         'Inter_400Regular',
 
       fontSize:
-        10.5,
+        12.5,
     },
 
     // ========================================================
@@ -2421,7 +2772,7 @@ const styles =
         'Inter_600SemiBold',
 
       fontSize:
-        9.3,
+        11.5,
     },
 
     tabTextActive: {
@@ -2465,7 +2816,7 @@ const styles =
         'Inter_600SemiBold',
 
       fontSize:
-        8,
+        10.5,
     },
 
     tabCountTextAttention: {
@@ -2504,7 +2855,7 @@ const styles =
         'Poppins_600SemiBold',
 
       fontSize:
-        13,
+        14.5,
     },
 
     // ========================================================
@@ -2578,7 +2929,7 @@ const styles =
         'Poppins_700Bold',
 
       fontSize:
-        12,
+        13,
     },
 
     cardMain: {
@@ -2600,7 +2951,7 @@ const styles =
         'Poppins_600SemiBold',
 
       fontSize:
-        12.5,
+        14,
     },
 
     metaText: {
@@ -2614,7 +2965,7 @@ const styles =
         'Inter_400Regular',
 
       fontSize:
-        10.5,
+        12.5,
     },
 
     statusBadge: {
@@ -2639,7 +2990,7 @@ const styles =
         'Inter_600SemiBold',
 
       fontSize:
-        9.5,
+        12,
     },
 
     detailBox: {
@@ -2693,10 +3044,105 @@ const styles =
         'Inter_500Medium',
 
       fontSize:
-        10.5,
+        12.5,
 
       lineHeight:
-        15,
+        19,
+    },
+
+    detailList: {
+      flex: 1,
+
+      paddingVertical: 9,
+      paddingRight: 8,
+
+      gap: 6,
+    },
+
+    detailListItem: {
+      flexDirection: 'row',
+      alignItems: 'center',
+
+      gap: 6,
+    },
+
+    activeHint: {
+      marginTop: 8,
+
+      color: COLORS.green,
+
+      fontFamily:
+        'Inter_500Medium',
+
+      fontSize: 11.5,
+    },
+
+    // ========================================================
+    // CREATE REQUEST CALL TO ACTION
+    // ========================================================
+
+    createCard: {
+      marginBottom: 16,
+
+      padding: 14,
+
+      flexDirection: 'row',
+      alignItems: 'center',
+
+      gap: 12,
+
+      borderRadius: 15,
+
+      backgroundColor:
+        COLORS.redButton,
+
+      shadowColor: '#8F1111',
+      shadowOffset: {
+        width: 0,
+        height: 4,
+      },
+      shadowOpacity: 0.25,
+      shadowRadius: 8,
+      elevation: 5,
+    },
+
+    createIcon: {
+      width: 42,
+      height: 42,
+
+      borderRadius: 21,
+
+      alignItems: 'center',
+      justifyContent: 'center',
+
+      backgroundColor:
+        'rgba(255,255,255,0.2)',
+    },
+
+    createBody: {
+      flex: 1,
+      minWidth: 0,
+    },
+
+    createTitle: {
+      color: COLORS.white,
+
+      fontFamily:
+        'Poppins_700Bold',
+
+      fontSize: 15,
+    },
+
+    createText: {
+      marginTop: 1,
+
+      color:
+        'rgba(255,255,255,0.85)',
+
+      fontFamily:
+        'Inter_400Regular',
+
+      fontSize: 12,
     },
 
     // ========================================================
@@ -2768,7 +3214,7 @@ const styles =
         'Poppins_600SemiBold',
 
       fontSize:
-        11,
+        13,
     },
 
     invitationInfoText: {
@@ -2782,10 +3228,10 @@ const styles =
         'Inter_400Regular',
 
       fontSize:
-        9.5,
+        12,
 
       lineHeight:
-        14,
+        18,
     },
 
     // ========================================================
@@ -2836,7 +3282,7 @@ const styles =
         'Poppins_700Bold',
 
       fontSize:
-        11.5,
+        13,
     },
 
     invitationRequester: {
@@ -2901,7 +3347,7 @@ const styles =
         'Inter_400Regular',
 
       fontSize:
-        7.5,
+        10.5,
     },
 
     requesterName: {
@@ -2915,7 +3361,7 @@ const styles =
         'Inter_600SemiBold',
 
       fontSize:
-        9.5,
+        12,
     },
 
     invitationDate: {
@@ -2929,7 +3375,7 @@ const styles =
         'Inter_400Regular',
 
       fontSize:
-        7.5,
+        10.5,
     },
 
     invitationMessage: {
@@ -2972,10 +3418,10 @@ const styles =
         'Inter_400Regular',
 
       fontSize:
-        9,
+        11.5,
 
       lineHeight:
-        13,
+        16,
     },
 
     requestClosedNotice: {
@@ -3012,7 +3458,7 @@ const styles =
         'Inter_400Regular',
 
       fontSize:
-        8.5,
+        11,
     },
 
     // ========================================================
@@ -3049,6 +3495,19 @@ const styles =
 
       backgroundColor:
         '#FFF8F8',
+    },
+
+    // Pending invitation on an active request: solid button.
+    respondButton: {
+      borderColor:
+        COLORS.redButton,
+
+      backgroundColor:
+        COLORS.redButton,
+    },
+
+    respondButtonText: {
+      color: COLORS.white,
     },
 
     viewRequestLeft: {
@@ -3090,7 +3549,7 @@ const styles =
         'Inter_600SemiBold',
 
       fontSize:
-        10,
+        12,
     },
 
     // ========================================================
@@ -3134,10 +3593,10 @@ const styles =
         'Inter_400Regular',
 
       fontSize:
-        10.5,
+        12.5,
 
       lineHeight:
-        15,
+        19,
     },
 
     // ========================================================
@@ -3183,7 +3642,7 @@ const styles =
         'Poppins_600SemiBold',
 
       fontSize:
-        11.5,
+        13,
     },
 
     errorText: {
@@ -3197,10 +3656,10 @@ const styles =
         'Inter_400Regular',
 
       fontSize:
-        10,
+        12,
 
       lineHeight:
-        14,
+        18,
     },
 
     retryText: {
@@ -3214,7 +3673,7 @@ const styles =
         'Inter_600SemiBold',
 
       fontSize:
-        10,
+        12,
     },
 
     // ========================================================
@@ -3278,7 +3737,7 @@ const styles =
         'Poppins_600SemiBold',
 
       fontSize:
-        14,
+        16,
 
       textAlign:
         'center',
@@ -3298,10 +3757,10 @@ const styles =
         'Inter_400Regular',
 
       fontSize:
-        10.5,
+        12.5,
 
       lineHeight:
-        15,
+        19,
 
       textAlign:
         'center',
@@ -3338,7 +3797,7 @@ const styles =
         'Inter_600SemiBold',
 
       fontSize:
-        11,
+        13,
     },
 
     bottomSpacing: {

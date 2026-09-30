@@ -569,6 +569,40 @@ export default function NotificationsScreen() {
     }
 
     // ========================================================
+    // DONATION RECORD (confirmed / verified / not verified)
+    //
+    // Sent to both sides; data.recipient_role says which.
+    // Donor -> their view of the request.
+    // Requester -> their request (donor cards show status).
+    // ========================================================
+
+    if (
+      notification.type ===
+        'donation_recorded' ||
+      notification.type ===
+        'donation_verified' ||
+      notification.type ===
+        'donation_rejected' ||
+      notification.type ===
+        'donation_disputed' ||
+      notification.type ===
+        'donation_feedback_received'
+    ) {
+      if (
+        requestId
+      ) {
+        router.push(
+          (data.recipient_role ===
+          'requester'
+            ? `/blood-request/${requestId}`
+            : `/blood-request/donor/${requestId}`) as any
+        );
+
+        return;
+      }
+    }
+
+    // ========================================================
     // DONOR APPLICATION
     // ========================================================
 
@@ -1619,6 +1653,66 @@ function getNotificationAppearance(
 
         background:
           COLORS.blueLight,
+      };
+
+    case 'donation_recorded':
+      return {
+        icon:
+          'task-alt',
+
+        color:
+          COLORS.green,
+
+        background:
+          COLORS.greenLight,
+      };
+
+    case 'donation_disputed':
+      return {
+        icon:
+          'hourglass-top',
+
+        color:
+          COLORS.orange,
+
+        background:
+          COLORS.orangeLight,
+      };
+
+    case 'donation_feedback_received':
+      return {
+        icon:
+          'star',
+
+        color:
+          COLORS.orange,
+
+        background:
+          COLORS.orangeLight,
+      };
+
+    case 'donation_verified':
+      return {
+        icon:
+          'verified',
+
+        color:
+          COLORS.green,
+
+        background:
+          COLORS.greenLight,
+      };
+
+    case 'donation_rejected':
+      return {
+        icon:
+          'error-outline',
+
+        color:
+          COLORS.redButton,
+
+        background:
+          COLORS.pinkLight,
       };
 
     default:
