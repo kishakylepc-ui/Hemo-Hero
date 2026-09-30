@@ -54,6 +54,8 @@ import {
   PulseRing,
 } from '../../components/Motion';
 
+import TimeWheelPicker from '../../components/TimeWheelPicker';
+
 import {
   type BloodType,
   getCompatibleDonorTypes,
@@ -1280,27 +1282,19 @@ export default function CreateBloodRequestScreen() {
           .getMinutes()
       );
     } else {
-      const now =
+      // Start the wheels at the next full hour.
+      const nextHour =
         new Date();
 
-      let minute =
-        Math.ceil(
-          now.getMinutes() /
-            5
-        ) * 5;
+      nextHour.setHours(
+        nextHour.getHours() + 1,
+        0,
+        0,
+        0
+      );
 
-      let hour =
-        now.getHours();
-
-      if (
-        minute >= 60
-      ) {
-        minute = 0;
-
-        hour =
-          (hour + 1) %
-          24;
-      }
+      const hour =
+        nextHour.getHours();
 
       setSelectedPeriod(
         hour >= 12
@@ -1314,9 +1308,7 @@ export default function CreateBloodRequestScreen() {
           : hour % 12
       );
 
-      setSelectedMinute(
-        minute
-      );
+      setSelectedMinute(0);
     }
 
     setShowTimePicker(
@@ -1324,68 +1316,52 @@ export default function CreateBloodRequestScreen() {
     );
   }
 
-  function decreaseHour() {
-    setSelectedHour(
-      current =>
-        current === 1
-          ? 12
-          : current - 1
-    );
-  }
-
-  function increaseHour() {
-    setSelectedHour(
-      current =>
-        current === 12
-          ? 1
-          : current + 1
-    );
-  }
-
-  function decreaseMinute() {
-    setSelectedMinute(
-      current =>
-        current === 0
-          ? 55
-          : current - 5
-    );
-  }
-
-  function increaseMinute() {
-    setSelectedMinute(
-      current =>
-        current === 55
-          ? 0
-          : current + 5
-    );
-  }
-
-  function confirmTime() {
-    let hour24 =
-      selectedHour;
-
-    if (
-      selectedPeriod ===
-        'AM' &&
-      selectedHour === 12
-    ) {
-      hour24 = 0;
+  function getSelectedHour24() {
+    if (selectedPeriod === 'AM') {
+      return selectedHour === 12
+        ? 0
+        : selectedHour;
     }
 
-    if (
-      selectedPeriod ===
-        'PM' &&
-      selectedHour !== 12
-    ) {
-      hour24 =
-        selectedHour + 12;
+    return selectedHour === 12
+      ? 12
+      : selectedHour + 12;
+  }
+
+  // True when the picked date is today and the wheel time has
+  // already passed, so it's caught here instead of on submit.
+  const selectedTimeHasPassed =
+    (() => {
+      if (!neededDate) {
+        return false;
+      }
+
+      const combined =
+        new Date(neededDate);
+
+      combined.setHours(
+        getSelectedHour24(),
+        selectedMinute,
+        0,
+        0
+      );
+
+      return (
+        combined.getTime() <=
+        Date.now()
+      );
+    })();
+
+  function confirmTime() {
+    if (selectedTimeHasPassed) {
+      return;
     }
 
     const value =
       new Date();
 
     value.setHours(
-      hour24,
+      getSelectedHour24(),
       selectedMinute,
       0,
       0
@@ -3366,67 +3342,32 @@ export default function CreateBloodRequestScreen() {
             </TouchableOpacity>
           </View>
 
-          <View style={styles.timePickerRow}>
-            <TimeColumn
-              label="Hour"
-              value={String(selectedHour)}
-              onUp={increaseHour}
-              onDown={decreaseHour}
-            />
-
-            <Text style={styles.timeColon}>:</Text>
-
-            <TimeColumn
-              label="Minute"
-              value={String(selectedMinute).padStart(2, '0')}
-              onUp={increaseMinute}
-              onDown={decreaseMinute}
-            />
-
-            <View style={styles.periodColumn}>
-              {(['AM', 'PM'] as const).map(period => {
-                const selected =
-                  selectedPeriod === period;
-
-                return (
-                  <TouchableOpacity
-                    key={period}
-                    style={[
-                      styles.periodButton,
-
-                      selected &&
-                        styles.periodButtonSelected,
-                    ]}
-                    activeOpacity={0.8}
-                    onPress={() =>
-                      setSelectedPeriod(period)
-                    }
-                  >
-                    <Text
-                      style={[
-                        styles.periodText,
-
-                        selected &&
-                          styles.periodSelectedText,
-                      ]}
-                    >
-                      {period}
-                    </Text>
-                  </TouchableOpacity>
-                );
-              })}
-            </View>
-          </View>
+          <TimeWheelPicker
+            hour={selectedHour}
+            minute={selectedMinute}
+            period={selectedPeriod}
+            onHourChange={setSelectedHour}
+            onMinuteChange={setSelectedMinute}
+            onPeriodChange={setSelectedPeriod}
+          />
 
           <TouchableOpacity
-            style={styles.sheetPrimaryFull}
+            style={[
+              styles.sheetPrimaryFull,
+
+              selectedTimeHasPassed &&
+                styles.buttonDisabled,
+            ]}
+            disabled={selectedTimeHasPassed}
             activeOpacity={0.85}
             onPress={confirmTime}
           >
             <Text style={styles.sheetPrimaryText}>
-              Use {selectedHour}:
-              {String(selectedMinute).padStart(2, '0')}{' '}
-              {selectedPeriod}
+              {selectedTimeHasPassed
+                ? 'That time has passed'
+                : `Use ${selectedHour}:${String(
+                    selectedMinute
+                  ).padStart(2, '0')} ${selectedPeriod}`}
             </Text>
           </TouchableOpacity>
         </BottomSheet>
@@ -3692,65 +3633,6 @@ function ReviewRow({
           </Text>
         ) : null}
       </View>
-    </View>
-  );
-}
-
-// ============================================================
-// TIME COLUMN (hour / minute wheel)
-// ============================================================
-
-function TimeColumn({
-  label,
-  value,
-  onUp,
-  onDown,
-}: {
-  label: string;
-  value: string;
-  onUp: () => void;
-  onDown: () => void;
-}) {
-  return (
-    <View style={styles.timeColumn}>
-      <Text style={styles.timeLabel}>
-        {label}
-      </Text>
-
-      <TouchableOpacity
-        style={styles.timeArrow}
-        accessibilityLabel={`${label} up`}
-        onPress={onUp}
-      >
-        <MaterialIcons
-          name="keyboard-arrow-up"
-          size={28}
-          color={COLORS.redButton}
-        />
-      </TouchableOpacity>
-
-      <View style={styles.timeValueBox}>
-        <FadeInView
-          key={value}
-          offset={4}
-        >
-          <Text style={styles.timeValueText}>
-            {value}
-          </Text>
-        </FadeInView>
-      </View>
-
-      <TouchableOpacity
-        style={styles.timeArrow}
-        accessibilityLabel={`${label} down`}
-        onPress={onDown}
-      >
-        <MaterialIcons
-          name="keyboard-arrow-down"
-          size={28}
-          color={COLORS.redButton}
-        />
-      </TouchableOpacity>
     </View>
   );
 }
@@ -4943,88 +4825,6 @@ const styles = StyleSheet.create({
   daySelectedText: {
     color: COLORS.white,
     fontFamily: 'Inter_600SemiBold',
-  },
-
-  // TIME
-
-  timePickerRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-
-  timeColumn: {
-    width: 78,
-    alignItems: 'center',
-  },
-
-  timeLabel: {
-    marginBottom: 4,
-    color: COLORS.lightMuted,
-    fontFamily: 'Inter_500Medium',
-    fontSize: 11.5,
-  },
-
-  timeArrow: {
-    width: 44,
-    height: 32,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-
-  timeValueBox: {
-    width: 64,
-    height: 56,
-    borderRadius: 14,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: COLORS.pinkLight,
-  },
-
-  timeValueText: {
-    color: COLORS.black,
-    fontFamily: 'Poppins_600SemiBold',
-    fontSize: 22,
-  },
-
-  timeColon: {
-    marginHorizontal: 2,
-    marginTop: 14,
-    color: COLORS.black,
-    fontFamily: 'Poppins_700Bold',
-    fontSize: 22,
-  },
-
-  periodColumn: {
-    marginLeft: 14,
-    marginTop: 16,
-    gap: 8,
-  },
-
-  periodButton: {
-    width: 52,
-    height: 38,
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: '#D9CFCF',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: COLORS.white,
-  },
-
-  periodButtonSelected: {
-    borderColor: COLORS.redButton,
-    backgroundColor: COLORS.redButton,
-  },
-
-  periodText: {
-    color: '#333333',
-    fontFamily: 'Inter_600SemiBold',
-    fontSize: 13,
-  },
-
-  periodSelectedText: {
-    color: COLORS.white,
   },
 
   // IN-APP MESSAGE

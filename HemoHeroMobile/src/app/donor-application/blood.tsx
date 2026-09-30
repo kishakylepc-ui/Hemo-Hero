@@ -1047,7 +1047,7 @@ const styles =
         'Inter_400Regular',
 
       fontSize:
-        11,
+        12.5,
     },
 
 
@@ -1174,7 +1174,7 @@ const styles =
         'Inter_500Medium',
 
       fontSize:
-        9,
+        11.5,
 
       textAlign:
         'left',
@@ -1220,7 +1220,7 @@ const styles =
         'Inter_400Regular',
 
       fontSize:
-        11,
+        12.5,
     },
 
 
@@ -1257,10 +1257,10 @@ const styles =
         'Inter_400Regular',
 
       fontSize:
-        11.5,
+        12.5,
 
       lineHeight:
-        17,
+        18,
     },
 
 
@@ -1360,7 +1360,7 @@ const styles =
         'Inter_600SemiBold',
 
       fontSize:
-        11.5,
+        13.5,
     },
 
 
@@ -1375,10 +1375,10 @@ const styles =
         'Inter_400Regular',
 
       fontSize:
-        9.5,
+        12,
 
       lineHeight:
-        14,
+        17,
     },
 
 
@@ -1394,7 +1394,7 @@ const styles =
         'Inter_500Medium',
 
       fontSize:
-        11.5,
+        12.5,
 
       marginBottom:
         8,
@@ -1473,7 +1473,7 @@ const styles =
         'Poppins_600SemiBold',
 
       fontSize:
-        12,
+        14,
     },
 
 
@@ -1525,10 +1525,10 @@ const styles =
         'Inter_400Regular',
 
       fontSize:
-        9.5,
+        12,
 
       lineHeight:
-        14,
+        17,
     },
 
 
@@ -1577,6 +1577,6 @@ const styles =
         'Poppins_600SemiBold',
 
       fontSize:
-        11.5,
+        14.5,
     },
   });

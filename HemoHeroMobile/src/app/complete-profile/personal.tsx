@@ -30,14 +30,14 @@ const COLORS = {
   backgroundBottom: '#D90B12',
 
   white: '#FFFFFF',
-  black: '#111111',
+  black: '#171717',
 
   inputBorder: '#D6D6D6',
   placeholder: '#A0A0A0',
   muted: '#646464',
 
   progressInactive: '#D6D6D6',
-  photoBackground: '#E5E5E5',
+  photoBackground: '#EFE3E3',
 
   selectedDate: '#B42323',
 };
@@ -1905,7 +1905,7 @@ const styles =
         'Poppins_700Bold',
 
       fontSize:
-        17,
+        20,
     },
 
     // ==========================================================
@@ -2021,7 +2021,7 @@ const styles =
         'Inter_600SemiBold',
 
       fontSize:
-        12,
+        14.5,
 
       marginBottom:
         12,
@@ -2148,7 +2148,7 @@ const styles =
         'Inter_500Medium',
 
       fontSize:
-        10,
+        13.5,
     },
 
     photoSubtitle: {
@@ -2159,7 +2159,7 @@ const styles =
         'Inter_400Regular',
 
       fontSize:
-        8,
+        12,
 
       marginTop:
         2,
@@ -2196,7 +2196,7 @@ const styles =
         'Inter_500Medium',
 
       fontSize:
-        8,
+        12,
     },
 
     // ==========================================================
@@ -2234,7 +2234,7 @@ const styles =
         'Inter_500Medium',
 
       fontSize:
-        9,
+        12,
 
       textAlign:
         'center',
@@ -2252,7 +2252,7 @@ const styles =
         'Inter_500Medium',
 
       fontSize:
-        10,
+        12.5,
 
       marginBottom:
         6,
@@ -2260,7 +2260,7 @@ const styles =
 
     input: {
       height:
-        38,
+        44,
 
       marginBottom:
         12,
@@ -2287,7 +2287,7 @@ const styles =
         'Inter_400Regular',
 
       fontSize:
-        10,
+        13.5,
 
       outlineStyle:
         Platform.OS ===
@@ -2302,7 +2302,7 @@ const styles =
 
     dateSelector: {
       height:
-        38,
+        44,
 
       marginBottom:
         12,
@@ -2354,7 +2354,7 @@ const styles =
         'Inter_400Regular',
 
       fontSize:
-        10,
+        13.5,
     },
 
     placeholderText: {
@@ -2368,7 +2368,7 @@ const styles =
 
     genderSelector: {
       height:
-        38,
+        44,
 
       paddingHorizontal:
         14,
@@ -2403,7 +2403,7 @@ const styles =
         'Inter_400Regular',
 
       fontSize:
-        10,
+        13.5,
     },
 
     genderDropdown: {
@@ -2428,7 +2428,7 @@ const styles =
 
     genderOption: {
       height:
-        36,
+        40,
 
       paddingHorizontal:
         14,
@@ -2453,7 +2453,7 @@ const styles =
         'Inter_400Regular',
 
       fontSize:
-        10,
+        13.5,
     },
 
     // ==========================================================
@@ -2488,7 +2488,7 @@ const styles =
         'Poppins_600SemiBold',
 
       fontSize:
-        12,
+        14.5,
     },
 
     // ==========================================================
@@ -2577,7 +2577,7 @@ const styles =
         'Inter_500Medium',
 
       fontSize:
-        10,
+        12,
     },
 
     calendarSelectedText: {
@@ -2703,7 +2703,7 @@ const styles =
         'Poppins_600SemiBold',
 
       fontSize:
-        14,
+        14.5,
     },
 
     // ==========================================================
@@ -2740,7 +2740,7 @@ const styles =
         'Inter_500Medium',
 
       fontSize:
-        8,
+        11.5,
     },
 
     // ==========================================================
@@ -2791,7 +2791,7 @@ const styles =
         'Inter_400Regular',
 
       fontSize:
-        10,
+        13.5,
     },
 
     dayTextSelected: {
@@ -2839,7 +2839,7 @@ const styles =
         'Inter_600SemiBold',
 
       fontSize:
-        10,
+        13.5,
     },
 
     // ==========================================================
@@ -2950,7 +2950,7 @@ const styles =
         'Poppins_600SemiBold',
 
       fontSize:
-        16,
+        17,
 
       lineHeight:
         22,
@@ -2970,10 +2970,10 @@ const styles =
         'Inter_400Regular',
 
       fontSize:
-        11,
+        13.5,
 
       lineHeight:
-        17,
+        20,
 
       textAlign:
         'center',
@@ -3007,6 +3007,6 @@ const styles =
         'Poppins_600SemiBold',
 
       fontSize:
-        10,
+        14,
     },
   });

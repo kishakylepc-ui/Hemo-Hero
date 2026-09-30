@@ -38,6 +38,10 @@ import {
 import MainBottomNav from '../../components/MainBottomNav';
 
 import {
+  FadeInView,
+} from '../../components/Motion';
+
+import {
   AppNotification,
   getNotifications,
   markAllNotificationsAsRead,
@@ -621,6 +625,9 @@ export default function NotificationsScreen() {
 
     // ========================================================
     // FULFILLED / CANCELLED
+    //
+    // Sent to accepted donors; their view of the request shows
+    // the outcome and where to rate the donation.
     // ========================================================
 
     if (
@@ -629,8 +636,10 @@ export default function NotificationsScreen() {
       notification.type ===
         'blood_request_cancelled'
     ) {
-      router.replace(
-        '/dashboard' as any
+      router.push(
+        (requestId
+          ? `/blood-request/donor/${requestId}`
+          : '/dashboard') as any
       );
 
       return;
@@ -814,7 +823,7 @@ export default function NotificationsScreen() {
 
           <LinearGradient
             colors={[
-              '#CF1115',
+              '#D2151A',
               COLORS.redDark,
             ]}
             style={
@@ -1255,20 +1264,27 @@ export default function NotificationsScreen() {
 
             {!loading &&
               visibleNotifications.map(
-                notification => (
-                  <NotificationCard
+                (notification, index) => (
+                  <FadeInView
                     key={
                       notification.id
                     }
-                    notification={
-                      notification
-                    }
-                    onPress={() =>
-                      handleNotificationPress(
+                    delay={Math.min(
+                      index * 40,
+                      280
+                    )}
+                  >
+                    <NotificationCard
+                      notification={
                         notification
-                      )
-                    }
-                  />
+                      }
+                      onPress={() =>
+                        handleNotificationPress(
+                          notification
+                        )
+                      }
+                    />
+                  </FadeInView>
                 )
               )}
 
@@ -1983,7 +1999,7 @@ const styles =
         'Poppins_700Bold',
 
       fontSize:
-        18,
+        21,
     },
 
     headerSubtitle: {
@@ -1997,7 +2013,7 @@ const styles =
         'Inter_400Regular',
 
       fontSize:
-        9.5,
+        12.5,
     },
 
     // ========================================================
@@ -2092,7 +2108,7 @@ const styles =
         'Poppins_600SemiBold',
 
       fontSize:
-        12.5,
+        14.5,
     },
 
     summarySubtitle: {
@@ -2106,7 +2122,7 @@ const styles =
         'Inter_400Regular',
 
       fontSize:
-        9.5,
+        12,
     },
 
     summaryBadge: {
@@ -2140,7 +2156,7 @@ const styles =
         'Inter_600SemiBold',
 
       fontSize:
-        10,
+        12,
     },
 
     // ========================================================
@@ -2200,7 +2216,7 @@ const styles =
         'Inter_600SemiBold',
 
       fontSize:
-        10,
+        13,
     },
 
     filterTextActive: {
@@ -2239,7 +2255,7 @@ const styles =
         'Inter_600SemiBold',
 
       fontSize:
-        8,
+        11,
     },
 
     // ========================================================
@@ -2289,7 +2305,7 @@ const styles =
         'Inter_500Medium',
 
       fontSize:
-        9.5,
+        12.5,
     },
 
     // ========================================================
@@ -2377,7 +2393,7 @@ const styles =
         'Inter_500Medium',
 
       fontSize:
-        11.3,
+        13.5,
     },
 
     notificationTitleUnread: {
@@ -2413,10 +2429,10 @@ const styles =
         'Inter_400Regular',
 
       fontSize:
-        9.6,
+        12.5,
 
       lineHeight:
-        14.5,
+        18,
     },
 
     notificationFooter: {
@@ -2441,7 +2457,7 @@ const styles =
         'Inter_400Regular',
 
       fontSize:
-        8.7,
+        11.5,
     },
 
     footerSpacer: {
@@ -2457,7 +2473,7 @@ const styles =
         'Inter_600SemiBold',
 
       fontSize:
-        8.8,
+        12,
     },
 
     // ========================================================
@@ -2521,7 +2537,7 @@ const styles =
         'Poppins_600SemiBold',
 
       fontSize:
-        13,
+        15,
     },
 
     stateDescription: {
@@ -2538,10 +2554,10 @@ const styles =
         'Inter_400Regular',
 
       fontSize:
-        9.5,
+        12.5,
 
       lineHeight:
-        14,
+        18,
 
       textAlign:
         'center',

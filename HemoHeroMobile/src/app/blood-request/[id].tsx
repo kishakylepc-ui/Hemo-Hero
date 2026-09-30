@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 
 import {
   ActivityIndicator,
@@ -245,12 +245,20 @@ export default function BloodRequestDetailsScreen() {
   const params =
     useLocalSearchParams<{
       id?: string | string[];
+      confirmDonation?: string | string[];
     }>();
 
   const requestId =
     Array.isArray(params.id)
       ? params.id[0]
       : params.id;
+
+  // Response ID passed from the donor chat's "Confirm Donation"
+  // button; opens the confirm dialog for that donor once.
+  const confirmDonationFor =
+    Array.isArray(params.confirmDonation)
+      ? params.confirmDonation[0]
+      : params.confirmDonation;
 
   // ==========================================================
   // STATE
@@ -374,6 +382,15 @@ export default function BloodRequestDetailsScreen() {
     useState<BloodDonation | null>(
       null
     );
+
+  const [
+    donationsLoaded,
+    setDonationsLoaded,
+  ] =
+    useState(false);
+
+  const autoConfirmHandled =
+    useRef(false);
 
   // ==========================================================
   // LOAD REQUEST
@@ -552,6 +569,8 @@ export default function BloodRequestDetailsScreen() {
             'LOAD DONATIONS ERROR:',
             error
           );
+        } finally {
+          setDonationsLoaded(true);
         }
       },
       [
@@ -573,6 +592,55 @@ export default function BloodRequestDetailsScreen() {
       ]
     )
   );
+
+  // Opened from the donor chat: show the confirm dialog for that
+  // donor once everything has loaded, unless a donation for them
+  // is already recorded.
+  useEffect(() => {
+    if (
+      autoConfirmHandled.current ||
+      !confirmDonationFor ||
+      !request ||
+      !donationsLoaded
+    ) {
+      return;
+    }
+
+    const response =
+      donorResponses.find(
+        item =>
+          item.id ===
+            confirmDonationFor &&
+          item.status ===
+            'accepted'
+      );
+
+    if (!response) {
+      return;
+    }
+
+    autoConfirmHandled.current = true;
+
+    const existing =
+      getDonationForResponse(
+        response.id
+      );
+
+    if (
+      !existing ||
+      existing.status ===
+        'rejected'
+    ) {
+      openDonationModal(
+        response
+      );
+    }
+  }, [
+    confirmDonationFor,
+    request,
+    donorResponses,
+    donationsLoaded,
+  ]);
 
   async function handleRefresh() {
     setRefreshing(true);
@@ -4466,7 +4534,7 @@ const styles =
         'Poppins_700Bold',
 
       fontSize:
-        20,
+        21,
     },
 
     headerSubtitle: {
@@ -4732,7 +4800,7 @@ const styles =
         'Inter_600SemiBold',
 
       fontSize:
-        11,
+        11.5,
     },
 
     summaryDivider: {
@@ -5183,7 +5251,7 @@ const styles =
         'Inter_700Bold',
 
       fontSize:
-        11,
+        11.5,
     },
 
     verifiedBadge: {
@@ -5217,7 +5285,7 @@ const styles =
         'Inter_600SemiBold',
 
       fontSize:
-        10.5,
+        11.5,
     },
 
     responseStatus: {
@@ -5242,7 +5310,7 @@ const styles =
         'Inter_600SemiBold',
 
       fontSize:
-        10.5,
+        11.5,
     },
 
     statusAccepted: {

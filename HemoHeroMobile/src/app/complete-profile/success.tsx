@@ -37,7 +37,7 @@ const COLORS = {
   backgroundBottom: '#D90B12',
 
   white: '#FFFFFF',
-  black: '#111111',
+  black: '#171717',
   muted: '#646464',
 
   green: '#2E7D32',
@@ -658,7 +658,7 @@ const styles =
       fontFamily:
         'Poppins_700Bold',
 
-      fontSize: 17,
+      fontSize: 20,
     },
 
     // ========================================================
@@ -752,9 +752,9 @@ const styles =
       fontFamily:
         'Inter_400Regular',
 
-      fontSize: 9,
+      fontSize: 12.5,
 
-      lineHeight: 14,
+      lineHeight: 18,
 
       textAlign: 'center',
     },
@@ -830,7 +830,7 @@ const styles =
       fontFamily:
         'Inter_600SemiBold',
 
-      fontSize: 10,
+      fontSize: 13.5,
     },
 
     completedSubtitle: {
@@ -842,9 +842,9 @@ const styles =
       fontFamily:
         'Inter_400Regular',
 
-      fontSize: 8,
+      fontSize: 12,
 
-      lineHeight: 12,
+      lineHeight: 17,
     },
 
     // ========================================================
@@ -864,7 +864,7 @@ const styles =
       fontFamily:
         'Inter_400Regular',
 
-      fontSize: 9,
+      fontSize: 11.5,
     },
 
     summaryName: {
@@ -876,7 +876,7 @@ const styles =
       fontFamily:
         'Poppins_600SemiBold',
 
-      fontSize: 14,
+      fontSize: 14.5,
 
       textAlign: 'center',
     },
@@ -905,7 +905,7 @@ const styles =
       fontFamily:
         'Inter_400Regular',
 
-      fontSize: 8,
+      fontSize: 12,
 
       textAlign: 'center',
     },
@@ -951,7 +951,7 @@ const styles =
       fontFamily:
         'Inter_600SemiBold',
 
-      fontSize: 9,
+      fontSize: 13,
     },
 
     privacyText: {
@@ -963,9 +963,9 @@ const styles =
       fontFamily:
         'Inter_400Regular',
 
-      fontSize: 8,
+      fontSize: 12,
 
-      lineHeight: 12,
+      lineHeight: 17,
     },
 
     // ========================================================
@@ -998,6 +998,6 @@ const styles =
       fontFamily:
         'Poppins_600SemiBold',
 
-      fontSize: 11,
+      fontSize: 14.5,
     },
   });

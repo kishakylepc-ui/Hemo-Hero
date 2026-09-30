@@ -1231,10 +1231,10 @@ const styles =
         'Inter_400Regular',
 
       fontSize:
-        11,
+        12.5,
 
       lineHeight:
-        17,
+        18,
     },
 
     // ========================================================
@@ -1353,10 +1353,10 @@ const styles =
         'Inter_500Medium',
 
       fontSize:
-        9,
+        11.5,
 
       lineHeight:
-        14,
+        16,
     },
 
     progressLabelActive: {
@@ -1399,10 +1399,10 @@ const styles =
         'Inter_400Regular',
 
       fontSize:
-        11.5,
+        12.5,
 
       lineHeight:
-        17,
+        18,
     },
 
     // ========================================================
@@ -1478,7 +1478,7 @@ const styles =
         'Inter_600SemiBold',
 
       fontSize:
-        11.5,
+        13.5,
 
       lineHeight:
         18,
@@ -1498,10 +1498,10 @@ const styles =
         'Inter_400Regular',
 
       fontSize:
-        9.5,
+        12,
 
       lineHeight:
-        14,
+        17,
 
       textAlign:
         'center',
@@ -1610,10 +1610,10 @@ const styles =
         'Inter_400Regular',
 
       fontSize:
-        10.5,
+        12,
 
       lineHeight:
-        16,
+        17,
     },
 
     // ========================================================
@@ -1631,10 +1631,10 @@ const styles =
         'Inter_500Medium',
 
       fontSize:
-        9.5,
+        12,
 
       lineHeight:
-        14,
+        17,
 
       textAlign:
         'center',
@@ -1694,7 +1694,7 @@ const styles =
         'Poppins_600SemiBold',
 
       fontSize:
-        11.5,
+        14,
 
       lineHeight:
         20,
@@ -1740,7 +1740,7 @@ const styles =
         'Poppins_600SemiBold',
 
       fontSize:
-        11.5,
+        14.5,
 
       lineHeight:
         20,
@@ -1890,10 +1890,10 @@ const styles =
         'Inter_400Regular',
 
       fontSize:
-        11,
+        13.5,
 
       lineHeight:
-        17,
+        20,
 
       textAlign:
         'center',
@@ -1927,6 +1927,6 @@ const styles =
         'Poppins_600SemiBold',
 
       fontSize:
-        10,
+        14,
     },
   });

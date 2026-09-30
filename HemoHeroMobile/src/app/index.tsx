@@ -50,14 +50,14 @@ import {
 
 const COLORS = {
   red: '#DB0A0A',
-  redDark: '#7E0B0B',
+  redDark: '#8F1111',
   redButton: '#B42323',
 
   pinkTop: '#EBA4A7',
   pinkBottom: '#D93238',
 
   white: '#FFFFFF',
-  black: '#111111',
+  black: '#171717',
 
   inputBorder: '#D8D8D8',
   placeholder: '#A3A3A3',
@@ -1559,7 +1559,7 @@ const styles =
         'Inter_400Regular',
 
       fontSize:
-        12,
+        12.5,
     },
 
     // ========================================================
@@ -1856,10 +1856,10 @@ const styles =
         'Inter_500Medium',
 
       fontSize:
-        11,
+        12,
 
       lineHeight:
-        16,
+        17,
 
       textAlign:
         'center',
@@ -1880,7 +1880,7 @@ const styles =
         'Inter_500Medium',
 
       fontSize:
-        12,
+        12.5,
     },
 
     input: {
@@ -1912,7 +1912,7 @@ const styles =
         'Inter_400Regular',
 
       fontSize:
-        12,
+        13.5,
 
       outlineStyle:
         Platform.OS ===
@@ -1961,7 +1961,7 @@ const styles =
         'Inter_400Regular',
 
       fontSize:
-        12,
+        13.5,
 
       outlineStyle:
         Platform.OS ===
@@ -1978,7 +1978,7 @@ const styles =
         'Inter_400Regular',
 
       fontSize:
-        11,
+        12,
     },
 
     // ========================================================
@@ -2001,7 +2001,7 @@ const styles =
         'Inter_500Medium',
 
       fontSize:
-        11,
+        12,
     },
 
     // ========================================================
@@ -2041,6 +2041,6 @@ const styles =
         'Poppins_600SemiBold',
 
       fontSize:
-        13,
+        14.5,
     },
   });

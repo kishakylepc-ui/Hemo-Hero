@@ -2640,7 +2640,7 @@ const styles =
         'Inter_500Medium',
 
       fontSize:
-        12,
+        11,
 
       letterSpacing:
         1.3,
@@ -2657,7 +2657,7 @@ const styles =
         'Poppins_700Bold',
 
       fontSize:
-        24,
+        22,
     },
 
     headerSubtitle: {
@@ -2772,7 +2772,7 @@ const styles =
         'Inter_600SemiBold',
 
       fontSize:
-        11.5,
+        12.5,
     },
 
     tabTextActive: {
@@ -2816,7 +2816,7 @@ const styles =
         'Inter_600SemiBold',
 
       fontSize:
-        10.5,
+        11,
     },
 
     tabCountTextAttention: {
@@ -3347,7 +3347,7 @@ const styles =
         'Inter_400Regular',
 
       fontSize:
-        10.5,
+        11.5,
     },
 
     requesterName: {
@@ -3375,7 +3375,7 @@ const styles =
         'Inter_400Regular',
 
       fontSize:
-        10.5,
+        11.5,
     },
 
     invitationMessage: {
@@ -3418,10 +3418,10 @@ const styles =
         'Inter_400Regular',
 
       fontSize:
-        11.5,
+        12.5,
 
       lineHeight:
-        16,
+        18,
     },
 
     requestClosedNotice: {
@@ -3458,7 +3458,7 @@ const styles =
         'Inter_400Regular',
 
       fontSize:
-        11,
+        12,
     },
 
     // ========================================================
@@ -3737,7 +3737,7 @@ const styles =
         'Poppins_600SemiBold',
 
       fontSize:
-        16,
+        15,
 
       textAlign:
         'center',

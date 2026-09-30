@@ -1404,10 +1404,10 @@ const styles =
         'Inter_400Regular',
 
       fontSize:
-        14,
+        12.5,
 
       lineHeight:
-        21,
+        18,
 
       color:
         COLORS.muted,
@@ -1624,7 +1624,7 @@ const styles =
         'Inter_600SemiBold',
 
       fontSize:
-        11,
+        11.5,
 
       color:
         COLORS.redButton,
@@ -1655,10 +1655,10 @@ const styles =
         'Inter_400Regular',
 
       fontSize:
-        14,
+        13,
 
       lineHeight:
-        21,
+        19,
 
       color:
         COLORS.black,
@@ -1686,7 +1686,7 @@ const styles =
         'Inter_400Regular',
 
       fontSize:
-        11,
+        11.5,
 
       color:
         COLORS.muted,
@@ -1741,10 +1741,10 @@ const styles =
         'Poppins_600SemiBold',
 
       fontSize:
-        17,
+        15,
 
       lineHeight:
-        25,
+        22,
 
       textAlign:
         'center',
@@ -1758,10 +1758,10 @@ const styles =
         'Inter_400Regular',
 
       fontSize:
-        14,
+        12.5,
 
       lineHeight:
-        22,
+        18,
 
       color:
         COLORS.muted,
@@ -1804,7 +1804,7 @@ const styles =
         'Inter_500Medium',
 
       fontSize:
-        14,
+        13.5,
 
       color:
         COLORS.white,

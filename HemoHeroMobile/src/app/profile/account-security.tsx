@@ -54,27 +54,27 @@ import {
 // ============================================================
 
 const COLORS = {
-  red: '#D31217',
-  redDark: '#8F1014',
+  red: '#DB0A0A',
+  redDark: '#8F1111',
   redButton: '#B42323',
 
   white: '#FFFFFF',
-  black: '#1D1D1F',
+  black: '#171717',
 
-  page: '#F7F7F8',
+  page: '#FFF8F8',
   card: '#FFFFFF',
 
-  muted: '#6E6E73',
-  lightMuted: '#A0A0A5',
+  muted: '#666666',
+  lightMuted: '#9A9A9A',
 
-  border: '#ECECEF',
+  border: '#EFE3E3',
 
-  pinkSoft: '#FFF1F2',
+  pinkSoft: '#FFF1F1',
 
-  green: '#178B49',
+  green: '#159447',
   greenSoft: '#EAF7EF',
 
-  graySoft: '#F2F2F4',
+  graySoft: '#F5EFEF',
 };
 
 // ============================================================
@@ -1093,7 +1093,7 @@ export default function AccountSecurityScreen() {
 
           <LinearGradient
             colors={[
-              '#D9191E',
+              '#D2151A',
               COLORS.redDark,
             ]}
             style={
@@ -3047,7 +3047,7 @@ const styles =
       fontFamily:
         'Poppins_700Bold',
 
-      fontSize: 18,
+      fontSize: 20,
     },
 
     headerSubtitle: {
@@ -3059,7 +3059,7 @@ const styles =
       fontFamily:
         'Inter_400Regular',
 
-      fontSize: 9.5,
+      fontSize: 12,
     },
 
     // ========================================================
@@ -3092,7 +3092,7 @@ const styles =
       fontFamily:
         'Poppins_600SemiBold',
 
-      fontSize: 14,
+      fontSize: 14.5,
     },
 
     card: {
@@ -3211,7 +3211,7 @@ const styles =
       fontFamily:
         'Inter_500Medium',
 
-      fontSize: 9.5,
+      fontSize: 11.5,
     },
 
     rowValue: {
@@ -3223,7 +3223,7 @@ const styles =
       fontFamily:
         'Inter_600SemiBold',
 
-      fontSize: 11.5,
+      fontSize: 13,
     },
 
     actionTitle: {
@@ -3233,7 +3233,7 @@ const styles =
       fontFamily:
         'Poppins_600SemiBold',
 
-      fontSize: 11.5,
+      fontSize: 13.5,
     },
 
     destructiveText: {
@@ -3250,7 +3250,7 @@ const styles =
       fontFamily:
         'Inter_400Regular',
 
-      fontSize: 9.5,
+      fontSize: 12,
     },
 
     statusRow: {
@@ -3300,7 +3300,7 @@ const styles =
       fontFamily:
         'Inter_600SemiBold',
 
-      fontSize: 9,
+      fontSize: 11.5,
     },
 
     // ========================================================
@@ -3339,9 +3339,9 @@ const styles =
       fontFamily:
         'Inter_400Regular',
 
-      fontSize: 9.5,
+      fontSize: 12,
 
-      lineHeight: 14,
+      lineHeight: 17,
     },
 
     accountManagementNote: {
@@ -3357,9 +3357,9 @@ const styles =
       fontFamily:
         'Inter_400Regular',
 
-      fontSize: 9,
+      fontSize: 12,
 
-      lineHeight: 14,
+      lineHeight: 17,
     },
 
     adminCard: {
@@ -3397,9 +3397,9 @@ const styles =
       fontFamily:
         'Inter_400Regular',
 
-      fontSize: 9.5,
+      fontSize: 12,
 
-      lineHeight: 14,
+      lineHeight: 17,
     },
 
     footerText: {
@@ -3411,7 +3411,7 @@ const styles =
       fontFamily:
         'Inter_400Regular',
 
-      fontSize: 9,
+      fontSize: 11.5,
 
       textAlign:
         'center',
@@ -3460,7 +3460,7 @@ const styles =
       fontFamily:
         'Inter_600SemiBold',
 
-      fontSize: 10,
+      fontSize: 13,
     },
 
     errorText: {
@@ -3472,7 +3472,7 @@ const styles =
       fontFamily:
         'Inter_400Regular',
 
-      fontSize: 9.5,
+      fontSize: 12,
     },
 
     // ========================================================
@@ -3520,7 +3520,7 @@ const styles =
       fontFamily:
         'Poppins_700Bold',
 
-      fontSize: 18,
+      fontSize: 17,
     },
 
     modalSubtitle: {
@@ -3532,9 +3532,9 @@ const styles =
       fontFamily:
         'Inter_400Regular',
 
-      fontSize: 10,
+      fontSize: 12.5,
 
-      lineHeight: 15,
+      lineHeight: 18,
     },
 
     closeButton: {
@@ -3592,7 +3592,7 @@ const styles =
       fontFamily:
         'Inter_500Medium',
 
-      fontSize: 8.5,
+      fontSize: 11.5,
     },
 
     currentAccountValue: {
@@ -3604,7 +3604,7 @@ const styles =
       fontFamily:
         'Inter_600SemiBold',
 
-      fontSize: 10.5,
+      fontSize: 13,
     },
 
     // ========================================================
@@ -3624,7 +3624,7 @@ const styles =
       fontFamily:
         'Inter_600SemiBold',
 
-      fontSize: 10.5,
+      fontSize: 12.5,
     },
 
     modalInput: {
@@ -3648,7 +3648,7 @@ const styles =
       fontFamily:
         'Inter_400Regular',
 
-      fontSize: 11,
+      fontSize: 13.5,
     },
 
     passwordInputContainer: {
@@ -3685,7 +3685,7 @@ const styles =
       fontFamily:
         'Inter_400Regular',
 
-      fontSize: 11,
+      fontSize: 13.5,
     },
 
     eyeButton: {
@@ -3731,9 +3731,9 @@ const styles =
       fontFamily:
         'Inter_400Regular',
 
-      fontSize: 9.5,
+      fontSize: 12,
 
-      lineHeight: 14,
+      lineHeight: 17,
     },
 
     // ========================================================
@@ -3834,7 +3834,7 @@ const styles =
       fontFamily:
         'Poppins_700Bold',
 
-      fontSize: 18,
+      fontSize: 17,
     },
 
     passwordModalSubtitle: {
@@ -3846,9 +3846,9 @@ const styles =
       fontFamily:
         'Inter_400Regular',
 
-      fontSize: 10,
+      fontSize: 12.5,
 
-      lineHeight: 15,
+      lineHeight: 18,
     },
 
     passwordSection: {
@@ -3865,7 +3865,7 @@ const styles =
       fontFamily:
         'Poppins_600SemiBold',
 
-      fontSize: 12,
+      fontSize: 13.5,
     },
 
     passwordSeparator: {
@@ -3908,7 +3908,7 @@ const styles =
       fontFamily:
         'Inter_600SemiBold',
 
-      fontSize: 9.5,
+      fontSize: 12,
     },
 
     requirementRow: {
@@ -3928,7 +3928,7 @@ const styles =
       fontFamily:
         'Inter_400Regular',
 
-      fontSize: 9.5,
+      fontSize: 12,
     },
 
     requirementMet: {
@@ -3947,9 +3947,9 @@ const styles =
       fontFamily:
         'Inter_400Regular',
 
-      fontSize: 9.5,
+      fontSize: 12,
 
-      lineHeight: 15,
+      lineHeight: 17,
     },
 
     passwordModalActions: {
@@ -4101,7 +4101,7 @@ const styles =
       fontFamily:
         'Poppins_700Bold',
 
-      fontSize: 18,
+      fontSize: 17,
     },
 
     deleteModalSubtitle: {
@@ -4113,9 +4113,9 @@ const styles =
       fontFamily:
         'Inter_400Regular',
 
-      fontSize: 10,
+      fontSize: 12.5,
 
-      lineHeight: 15,
+      lineHeight: 18,
     },
 
     deleteInformation: {
@@ -4138,7 +4138,7 @@ const styles =
       fontFamily:
         'Inter_600SemiBold',
 
-      fontSize: 10,
+      fontSize: 13,
     },
 
     deleteInformationText: {
@@ -4150,9 +4150,9 @@ const styles =
       fontFamily:
         'Inter_400Regular',
 
-      fontSize: 9.5,
+      fontSize: 12,
 
-      lineHeight: 15,
+      lineHeight: 17,
     },
 
     deleteModalActions: {
@@ -4254,7 +4254,7 @@ const styles =
       fontFamily:
         'Inter_600SemiBold',
 
-      fontSize: 10.5,
+      fontSize: 13.5,
     },
 
     primaryButton: {
@@ -4298,7 +4298,7 @@ const styles =
       fontFamily:
         'Inter_600SemiBold',
 
-      fontSize: 10.5,
+      fontSize: 13.5,
     },
 
     buttonDisabled: {
@@ -4375,7 +4375,7 @@ const styles =
       fontFamily:
         'Poppins_700Bold',
 
-      fontSize: 18,
+      fontSize: 17,
 
       textAlign:
         'center',
@@ -4390,9 +4390,9 @@ const styles =
       fontFamily:
         'Inter_400Regular',
 
-      fontSize: 11,
+      fontSize: 13.5,
 
-      lineHeight: 17,
+      lineHeight: 20,
 
       textAlign:
         'center',

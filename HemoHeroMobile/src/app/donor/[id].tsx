@@ -61,29 +61,29 @@ import {
 // ============================================================
 
 const COLORS = {
-  red: '#D31217',
-  redDark: '#8F1014',
-  redButton: '#C62828',
+  red: '#DB0A0A',
+  redDark: '#8F1111',
+  redButton: '#B42323',
 
   white: '#FFFFFF',
-  black: '#1D1D1F',
+  black: '#171717',
 
-  page: '#F7F7F8',
+  page: '#FFF8F8',
 
-  muted: '#6E6E73',
-  lightMuted: '#A0A0A5',
+  muted: '#666666',
+  lightMuted: '#9A9A9A',
 
-  border: '#E7E7EA',
+  border: '#E8DADA',
 
-  pinkSoft: '#FFF1F2',
+  pinkSoft: '#FFF1F1',
 
-  green: '#178B49',
+  green: '#159447',
   greenSoft: '#EAF7EF',
 
-  orange: '#DD7A20',
-  orangeSoft: '#FFF3E7',
+  orange: '#DF721D',
+  orangeSoft: '#FDF1E6',
 
-  graySoft: '#F2F2F4',
+  graySoft: '#F5EFEF',
 };
 
 // ============================================================
@@ -559,7 +559,7 @@ export default function DonorDetailsScreen() {
       );
 
       // ------------------------------------------------------
-      // AUTO-SELECT ONLY AN EXACT BLOOD-TYPE MATCH
+      // AUTO-SELECT WHEN EXACTLY ONE REQUEST IS COMPATIBLE
       // ------------------------------------------------------
 
       if (donor) {
@@ -900,7 +900,7 @@ export default function DonorDetailsScreen() {
 
           <LinearGradient
             colors={[
-              '#D9191E',
+              '#D2151A',
               COLORS.redDark,
             ]}
             style={
@@ -2576,7 +2576,7 @@ const styles =
         'Poppins_600SemiBold',
 
       fontSize:
-        14.5,
+        17,
     },
 
     profileHeader: {
@@ -2646,10 +2646,10 @@ const styles =
         'Poppins_700Bold',
 
       fontSize:
-        16.5,
+        20,
 
       lineHeight:
-        20,
+        26,
     },
 
     locationRow: {
@@ -2677,7 +2677,7 @@ const styles =
         'Inter_400Regular',
 
       fontSize:
-        8.5,
+        12.5,
     },
 
     verifiedBadge: {
@@ -2717,7 +2717,7 @@ const styles =
         'Inter_600SemiBold',
 
       fontSize:
-        8,
+        11.5,
     },
 
     summaryCard: {
@@ -2819,7 +2819,7 @@ const styles =
         'Inter_600SemiBold',
 
       fontSize:
-        10,
+        13.5,
     },
 
     summaryLabel: {
@@ -2833,7 +2833,7 @@ const styles =
         'Inter_400Regular',
 
       fontSize:
-        7.5,
+        11,
     },
 
     summaryDivider: {
@@ -2880,7 +2880,7 @@ const styles =
         'Poppins_600SemiBold',
 
       fontSize:
-        12.5,
+        14.5,
     },
 
     infoCard: {
@@ -2953,7 +2953,7 @@ const styles =
         'Inter_400Regular',
 
       fontSize:
-        8,
+        11.5,
     },
 
     infoValue: {
@@ -2964,10 +2964,10 @@ const styles =
         'Inter_600SemiBold',
 
       fontSize:
-        10,
+        13,
 
       lineHeight:
-        14,
+        18,
     },
 
     divider: {
@@ -3046,7 +3046,7 @@ const styles =
         'Inter_600SemiBold',
 
       fontSize:
-        10.5,
+        13.5,
     },
 
     privacyDescription: {
@@ -3060,10 +3060,10 @@ const styles =
         'Inter_400Regular',
 
       fontSize:
-        8.5,
+        12,
 
       lineHeight:
-        13,
+        17,
     },
 
     requestHelpButton: {
@@ -3102,7 +3102,7 @@ const styles =
         'Poppins_600SemiBold',
 
       fontSize:
-        11,
+        14.5,
     },
 
     helperRow: {
@@ -3136,10 +3136,10 @@ const styles =
         'Inter_400Regular',
 
       fontSize:
-        8,
+        12,
 
       lineHeight:
-        12,
+        17,
 
       textAlign:
         'center',
@@ -3210,7 +3210,7 @@ const styles =
         'Poppins_600SemiBold',
 
       fontSize:
-        13.5,
+        15,
 
       textAlign:
         'center',
@@ -3230,10 +3230,10 @@ const styles =
         'Inter_400Regular',
 
       fontSize:
-        9.5,
+        12.5,
 
       lineHeight:
-        14,
+        18,
 
       textAlign:
         'center',
@@ -3276,7 +3276,7 @@ const styles =
         'Inter_600SemiBold',
 
       fontSize:
-        10,
+        13,
     },
 
     modalOverlay: {
@@ -3380,7 +3380,7 @@ const styles =
         'Poppins_600SemiBold',
 
       fontSize:
-        15,
+        17,
     },
 
     modalSubtitle: {
@@ -3394,10 +3394,10 @@ const styles =
         'Inter_400Regular',
 
       fontSize:
-        9,
+        12.5,
 
       lineHeight:
-        13,
+        18,
     },
 
     modalClose: {
@@ -3494,7 +3494,7 @@ const styles =
         'Poppins_600SemiBold',
 
       fontSize:
-        12,
+        14.5,
     },
 
     modalStateText: {
@@ -3511,10 +3511,10 @@ const styles =
         'Inter_400Regular',
 
       fontSize:
-        9,
+        12.5,
 
       lineHeight:
-        14,
+        18,
 
       textAlign:
         'center',
@@ -3565,10 +3565,10 @@ const styles =
         'Inter_400Regular',
 
       fontSize:
-        8.5,
+        12,
 
       lineHeight:
-        13,
+        17,
     },
 
     modalSecondaryButton: {
@@ -3614,7 +3614,7 @@ const styles =
         'Inter_600SemiBold',
 
       fontSize:
-        9.5,
+        13.5,
     },
 
     createRequestButton: {
@@ -3654,7 +3654,7 @@ const styles =
         'Inter_600SemiBold',
 
       fontSize:
-        9.5,
+        13.5,
     },
 
     chooseRequestLabel: {
@@ -3671,7 +3671,7 @@ const styles =
         'Inter_600SemiBold',
 
       fontSize:
-        8,
+        12,
 
       letterSpacing:
         0.8,
@@ -3752,7 +3752,7 @@ const styles =
         'Inter_700Bold',
 
       fontSize:
-        10,
+        13.5,
     },
 
     matchBadge: {
@@ -3789,7 +3789,7 @@ const styles =
         'Inter_600SemiBold',
 
       fontSize:
-        8,
+        11.5,
     },
 
     requestFacility: {
@@ -3803,7 +3803,7 @@ const styles =
         'Inter_600SemiBold',
 
       fontSize:
-        10.5,
+        13.5,
     },
 
     requestMetaRow: {
@@ -3842,7 +3842,7 @@ const styles =
         'Inter_400Regular',
 
       fontSize:
-        8,
+        12,
     },
 
     requestMetaDot: {
@@ -3893,10 +3893,10 @@ const styles =
         'Inter_400Regular',
 
       fontSize:
-        8,
+        12,
 
       lineHeight:
-        12,
+        17,
     },
 
     sendInvitationButton: {
@@ -3938,7 +3938,7 @@ const styles =
         'Poppins_600SemiBold',
 
       fontSize:
-        10.5,
+        14.5,
     },
 
     // ========================================================
@@ -4051,7 +4051,7 @@ const styles =
         'Poppins_600SemiBold',
 
       fontSize:
-        16,
+        17,
 
       lineHeight:
         22,
@@ -4071,10 +4071,10 @@ const styles =
         'Inter_400Regular',
 
       fontSize:
-        11,
+        13.5,
 
       lineHeight:
-        17,
+        20,
 
       textAlign:
         'center',
@@ -4108,6 +4108,6 @@ const styles =
         'Poppins_600SemiBold',
 
       fontSize:
-        10,
+        14,
     },
   });

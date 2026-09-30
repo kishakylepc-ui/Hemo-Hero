@@ -52,7 +52,7 @@ const COLORS = {
     '#DB0A0A',
 
   redDark:
-    '#7E0B0B',
+    '#8F1111',
 
   redButton:
     '#B42323',
@@ -67,7 +67,7 @@ const COLORS = {
     '#FFFFFF',
 
   black:
-    '#111111',
+    '#171717',
 
   inputBorder:
     '#D8D8D8',
@@ -956,10 +956,10 @@ function showMessage(
           color={
             actionPopup.variant ===
             'success'
-              ? '#178B49'
+              ? '#159447'
               : actionPopup.variant ===
                   'warning'
-                ? '#DD7A20'
+                ? '#DF721D'
                 : COLORS.redButton
           }
         />
@@ -1200,7 +1200,7 @@ const styles =
         'Inter_400Regular',
 
       fontSize:
-        12,
+        12.5,
     },
 
     // --------------------------------------------------------
@@ -1360,10 +1360,10 @@ const styles =
         'Inter_400Regular',
 
       fontSize:
-        12,
+        12.5,
 
       lineHeight:
-        18,
+        19,
 
       textAlign:
         'center',
@@ -1380,10 +1380,10 @@ const styles =
         'Inter_600SemiBold',
 
       fontSize:
-        12,
+        12.5,
 
       lineHeight:
-        18,
+        19,
 
       textAlign:
         'center',
@@ -1424,10 +1424,10 @@ const styles =
         'Inter_500Medium',
 
       fontSize:
-        10,
+        12,
 
       lineHeight:
-        15,
+        17,
 
       textAlign:
         'center',
@@ -1530,10 +1530,10 @@ const styles =
         'Inter_400Regular',
 
       fontSize:
-        10,
+        12,
 
       lineHeight:
-        15,
+        17,
 
       textAlign:
         'center',
@@ -1576,7 +1576,7 @@ const styles =
         'Poppins_600SemiBold',
 
       fontSize:
-        13,
+        14.5,
     },
 
     // --------------------------------------------------------
@@ -1605,7 +1605,7 @@ const styles =
         'Inter_400Regular',
 
       fontSize:
-        11,
+        12,
     },
 
     resendText: {
@@ -1616,7 +1616,7 @@ const styles =
         'Inter_600SemiBold',
 
       fontSize:
-        11,
+        12,
     },
 
     resendDisabled: {
@@ -1646,7 +1646,7 @@ const styles =
         'Inter_500Medium',
 
       fontSize:
-        11,
+        12,
     },
 
     // --------------------------------------------------------
@@ -1742,7 +1742,7 @@ actionPopupIconSuccess: {
 
 actionPopupIconWarning: {
   backgroundColor:
-    '#FFF3E7',
+    '#FDF1E6',
 },
 
 actionPopupIconError: {
@@ -1758,7 +1758,7 @@ actionPopupTitle: {
     'Poppins_600SemiBold',
 
   fontSize:
-    16,
+    17,
 
   lineHeight:
     22,
@@ -1778,10 +1778,10 @@ actionPopupMessage: {
     'Inter_400Regular',
 
   fontSize:
-    11,
+    13.5,
 
   lineHeight:
-    17,
+    20,
 
   textAlign:
     'center',
@@ -1815,6 +1815,6 @@ actionPopupButtonText: {
     'Poppins_600SemiBold',
 
   fontSize:
-    10,
+    14,
 },
   });

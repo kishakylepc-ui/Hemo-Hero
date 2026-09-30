@@ -529,7 +529,7 @@ const styles = StyleSheet.create({
   title: {
     color: COLORS.black,
     fontFamily: 'Poppins_600SemiBold',
-    fontSize: 16,
+    fontSize: 17,
     textAlign: 'center',
   },
 
@@ -661,7 +661,7 @@ const styles = StyleSheet.create({
   secondaryText: {
     color: COLORS.redButton,
     fontFamily: 'Poppins_600SemiBold',
-    fontSize: 13,
+    fontSize: 14,
   },
 
   primaryButton: {
@@ -680,7 +680,7 @@ const styles = StyleSheet.create({
   primaryText: {
     color: COLORS.white,
     fontFamily: 'Poppins_600SemiBold',
-    fontSize: 13,
+    fontSize: 14,
   },
 
   disabled: {

@@ -12,30 +12,30 @@ import type { DonorApplication, } from '../../lib/donorApplication';
 import { clearSession, getAccessToken, } from '../../lib/session';
 
 const COLORS = {
-    red: '#D31217',
-    redDark: '#8F1014',
+    red: '#DB0A0A',
+    redDark: '#8F1111',
     redButton: '#B42323',
 
     white: '#FFFFFF',
-    black: '#1D1D1F',
+    black: '#171717',
 
-    page: '#F7F7F8',
+    page: '#FFF8F8',
     card: '#FFFFFF',
 
-    muted: '#6E6E73',
-    lightMuted: '#A0A0A5',
+    muted: '#666666',
+    lightMuted: '#9A9A9A',
 
-    border: '#ECECEF',
+    border: '#EFE3E3',
 
-    pinkSoft: '#FFF1F2',
+    pinkSoft: '#FFF1F1',
 
-    green: '#178B49',
+    green: '#159447',
     greenSoft: '#EAF7EF',
 
-    orange: '#DD7A20',
-    orangeSoft: '#FFF3E7',
+    orange: '#DF721D',
+    orangeSoft: '#FDF1E6',
 
-    graySoft: '#F2F2F4',
+    graySoft: '#F5EFEF',
 };
 
 type ActionPopupVariant =
@@ -459,7 +459,15 @@ export default function ProfileScreen() {
         );
     }
 
-    function handleDonorActivity() {
+    function handleDonationHistory() {
+        router.push(
+            '/donations' as any
+        );
+    }
+
+    // Shown until the application is approved: a pending one
+    // opens its status, a rejected/withdrawn one can be sent again.
+    function handleDonorApplication() {
         if (
             !donorApplication
         ) {
@@ -483,18 +491,6 @@ export default function ProfileScreen() {
             return;
         }
 
-        if (
-            donorApplication.status ===
-            'approved'
-        ) {
-            showMessage(
-                'Donor Activity',
-                'Your donation history and donor activity will be connected next.'
-            );
-
-            return;
-        }
-
         router.push(
             '/donor-application/blood' as any
         );
@@ -507,16 +503,14 @@ export default function ProfileScreen() {
     }
 
     function handleNotifications() {
-        showMessage(
-            'Notifications',
-            'Notification preferences will be connected later.'
+        router.push(
+            '/notifications' as any
         );
     }
 
     function handleHelpCenter() {
-        showMessage(
-            'Help Center',
-            'The Hemo-Hero Help Center will be connected later.'
+        router.push(
+            '/help' as any
         );
     }
 
@@ -642,7 +636,7 @@ export default function ProfileScreen() {
                     >
                         <LinearGradient
                             colors={[
-                                '#D9191E',
+                                '#D2151A',
                                 COLORS.redDark,
                             ]}
                             style={
@@ -1042,27 +1036,37 @@ export default function ProfileScreen() {
                                 }
                             />
 
-                            {donorApplication ? (
+                            <Divider />
+
+                            <MenuRow
+                                icon="volunteer-activism"
+                                iconColor={
+                                    COLORS.orange
+                                }
+                                title="Donation History"
+                                subtitle="Donations you gave or received"
+                                onPress={
+                                    handleDonationHistory
+                                }
+                            />
+
+                            {donorApplication &&
+                            donorApplication.status !==
+                                'approved' ? (
                                 <>
                                     <Divider />
 
                                     <MenuRow
-                                        icon="volunteer-activism"
-                                        iconColor={
-                                            COLORS.orange
-                                        }
-                                        title="Donor Activity"
+                                        icon="how-to-reg"
+                                        title="Donor Application"
                                         subtitle={
                                             donorApplication.status ===
-                                            'approved'
-                                                ? 'View your donor activity'
-                                                : donorApplication.status ===
-                                                  'pending'
-                                                    ? 'Application under review'
-                                                    : 'View donor application'
+                                            'pending'
+                                                ? 'Under review'
+                                                : 'Apply again'
                                         }
                                         onPress={
-                                            handleDonorActivity
+                                            handleDonorApplication
                                         }
                                     />
                                 </>
@@ -1323,7 +1327,7 @@ export default function ProfileScreen() {
                             <MenuRow
                                 icon="notifications-none"
                                 title="Notifications"
-                                subtitle="Manage alerts and notifications"
+                                subtitle="Your alerts and updates"
                                 onPress={
                                     handleNotifications
                                 }
@@ -1342,7 +1346,7 @@ export default function ProfileScreen() {
                             <MenuRow
                                 icon="help-outline"
                                 title="Help Center"
-                                subtitle="Get help using Hemo-Hero"
+                                subtitle="How Hemo-Hero works"
                                 onPress={
                                     handleHelpCenter
                                 }
@@ -2056,7 +2060,7 @@ const styles =
                 'Poppins_700Bold',
 
             fontSize:
-                18,
+                17,
         },
 
         identityRow: {
@@ -2209,7 +2213,7 @@ const styles =
                 'Inter_400Regular',
 
             fontSize:
-                11,
+                12.5,
         },
 
         donorBadge: {
@@ -2243,7 +2247,7 @@ const styles =
                 'Inter_600SemiBold',
 
             fontSize:
-                9.5,
+                11.5,
         },
 
         statusDot: {
@@ -2371,10 +2375,10 @@ const styles =
                 'Inter_600SemiBold',
 
             fontSize:
-                12,
+                13.5,
 
             lineHeight:
-                16,
+                18,
         },
 
         quickLabel: {
@@ -2388,7 +2392,7 @@ const styles =
                 'Inter_400Regular',
 
             fontSize:
-                10,
+                11.5,
         },
 
         quickDivider: {
@@ -2441,7 +2445,7 @@ const styles =
                 'Poppins_600SemiBold',
 
             fontSize:
-                14,
+                14.5,
         },
 
         card: {
@@ -2551,7 +2555,7 @@ const styles =
                 'Poppins_600SemiBold',
 
             fontSize:
-                12,
+                13.5,
         },
 
         menuSubtitle: {
@@ -2565,7 +2569,7 @@ const styles =
                 'Inter_400Regular',
 
             fontSize:
-                10,
+                12,
         },
 
         infoRow: {
@@ -2621,7 +2625,7 @@ const styles =
                 'Inter_500Medium',
 
             fontSize:
-                9.5,
+                11.5,
         },
 
         infoValue: {
@@ -2635,10 +2639,10 @@ const styles =
                 'Inter_600SemiBold',
 
             fontSize:
-                12,
+                13,
 
             lineHeight:
-                16,
+                18,
         },
 
         medicalRow: {
@@ -2697,7 +2701,7 @@ const styles =
                 'Poppins_600SemiBold',
 
             fontSize:
-                12,
+                13.5,
         },
 
         medicalHelper: {
@@ -2711,7 +2715,7 @@ const styles =
                 'Inter_400Regular',
 
             fontSize:
-                10,
+                12,
         },
 
         bloodBadge: {
@@ -2745,7 +2749,7 @@ const styles =
                 'Poppins_700Bold',
 
             fontSize:
-                13,
+                13.5,
         },
 
         statusRow: {
@@ -2804,7 +2808,7 @@ const styles =
                 'Inter_500Medium',
 
             fontSize:
-                11,
+                13,
         },
 
         statusBadge: {
@@ -2836,7 +2840,7 @@ const styles =
                 'Inter_600SemiBold',
 
             fontSize:
-                9.5,
+                11.5,
 
             textAlign:
                 'center',
@@ -2900,7 +2904,7 @@ const styles =
                 'Inter_600SemiBold',
 
             fontSize:
-                11.5,
+                13.5,
         },
 
         errorText: {
@@ -2914,7 +2918,7 @@ const styles =
                 'Inter_400Regular',
 
             fontSize:
-                10,
+                12,
         },
 
         logoutButton: {
@@ -2965,7 +2969,7 @@ const styles =
                 'Poppins_600SemiBold',
 
             fontSize:
-                12,
+                14,
         },
 
         footerText: {
@@ -2979,7 +2983,7 @@ const styles =
                 'Inter_400Regular',
 
             fontSize:
-                9.5,
+                11.5,
 
             textAlign:
                 'center',
@@ -3079,7 +3083,7 @@ const styles =
                 'Poppins_700Bold',
 
             fontSize:
-                19,
+                17,
 
             textAlign:
                 'center',
@@ -3099,7 +3103,7 @@ const styles =
                 'Inter_400Regular',
 
             fontSize:
-                13,
+                13.5,
 
             lineHeight:
                 20,
@@ -3304,7 +3308,7 @@ const styles =
                 'Poppins_700Bold',
 
             fontSize:
-                18,
+                17,
 
             lineHeight:
                 24,
@@ -3327,10 +3331,10 @@ const styles =
                 'Inter_400Regular',
 
             fontSize:
-                12,
+                13.5,
 
             lineHeight:
-                18,
+                20,
 
             textAlign:
                 'center',
@@ -3367,6 +3371,6 @@ const styles =
                 'Inter_600SemiBold',
 
             fontSize:
-                12,
+                14,
         },
     });

@@ -48,14 +48,14 @@ import {
 
 const COLORS = {
   red: '#DB0A0A',
-  redDark: '#7E0B0B',
+  redDark: '#8F1111',
   redButton: '#B42323',
 
   pinkTop: '#EBA4A7',
   pinkBottom: '#D93238',
 
   white: '#FFFFFF',
-  black: '#111111',
+  black: '#171717',
 
   inputBorder: '#D8D8D8',
   placeholder: '#A3A3A3',
@@ -1626,7 +1626,7 @@ const styles =
       fontFamily:
         'Inter_400Regular',
 
-      fontSize: 12,
+      fontSize: 12.5,
     },
 
     // ========================================================
@@ -1717,7 +1717,7 @@ const styles =
       fontFamily:
         'Poppins_600SemiBold',
 
-      fontSize: 9,
+      fontSize: 11,
 
       letterSpacing: 1,
 
@@ -1745,7 +1745,7 @@ const styles =
       fontFamily:
         'Inter_400Regular',
 
-      fontSize: 11,
+      fontSize: 12.5,
 
       textAlign: 'center',
     },
@@ -1761,7 +1761,7 @@ const styles =
       fontFamily:
         'Inter_600SemiBold',
 
-      fontSize: 11,
+      fontSize: 12.5,
 
       textAlign: 'center',
     },
@@ -1808,7 +1808,7 @@ const styles =
       fontFamily:
         'Inter_500Medium',
 
-      fontSize: 11,
+      fontSize: 12,
     },
 
     // ========================================================
@@ -1840,9 +1840,9 @@ const styles =
       fontFamily:
         'Inter_500Medium',
 
-      fontSize: 10,
+      fontSize: 12,
 
-      lineHeight: 15,
+      lineHeight: 17,
 
       textAlign: 'center',
     },
@@ -1889,9 +1889,9 @@ const styles =
       fontFamily:
         'Inter_500Medium',
 
-      fontSize: 10,
+      fontSize: 12,
 
-      lineHeight: 15,
+      lineHeight: 17,
 
       textAlign: 'center',
     },
@@ -1983,7 +1983,7 @@ const styles =
       fontFamily:
         'Inter_400Regular',
 
-      fontSize: 10,
+      fontSize: 12,
     },
 
     resendText: {
@@ -1993,7 +1993,7 @@ const styles =
       fontFamily:
         'Inter_600SemiBold',
 
-      fontSize: 10,
+      fontSize: 12,
     },
 
     // ========================================================
@@ -2009,7 +2009,7 @@ const styles =
       fontFamily:
         'Inter_500Medium',
 
-      fontSize: 12,
+      fontSize: 12.5,
     },
 
     confirmLabel: {
@@ -2023,7 +2023,7 @@ const styles =
       fontFamily:
         'Inter_500Medium',
 
-      fontSize: 12,
+      fontSize: 12.5,
     },
 
     passwordBox: {
@@ -2064,7 +2064,7 @@ const styles =
       fontFamily:
         'Inter_400Regular',
 
-      fontSize: 12,
+      fontSize: 13.5,
 
       outlineStyle:
         Platform.OS === 'web'
@@ -2079,7 +2079,7 @@ const styles =
       fontFamily:
         'Inter_400Regular',
 
-      fontSize: 11,
+      fontSize: 12,
     },
 
     // ========================================================
@@ -2101,7 +2101,7 @@ const styles =
       fontFamily:
         'Inter_500Medium',
 
-      fontSize: 9,
+      fontSize: 11.5,
     },
 
     requirementsGrid: {
@@ -2133,7 +2133,7 @@ const styles =
       fontFamily:
         'Inter_400Regular',
 
-      fontSize: 9,
+      fontSize: 11.5,
     },
 
     requirementTextValid: {
@@ -2159,7 +2159,7 @@ const styles =
       fontFamily:
         'Inter_400Regular',
 
-      fontSize: 9,
+      fontSize: 11.5,
     },
 
     passwordMatchTextSuccess: {
@@ -2204,7 +2204,7 @@ const styles =
       fontFamily:
         'Poppins_600SemiBold',
 
-      fontSize: 13,
+      fontSize: 14.5,
     },
 
     // ========================================================
@@ -2229,6 +2229,6 @@ const styles =
       fontFamily:
         'Inter_500Medium',
 
-      fontSize: 11,
+      fontSize: 12.5,
     },
   });

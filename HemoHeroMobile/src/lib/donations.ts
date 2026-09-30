@@ -79,8 +79,11 @@ export type BloodDonation = {
   // When the donor can donate again (donated_at + 90 days).
   next_eligible_at?: string | null;
 
-  // Feedback both sides left (request donations endpoint).
+  // Feedback both sides left (request donations and history).
   feedback?: DonationFeedback[];
+
+  // History only: whether the signed-in user gave or received it.
+  role?: DonationRole;
 };
 
 export type DonationSummary = {
@@ -101,6 +104,9 @@ export type DonationSummary = {
 
 export type MyDonationSummary =
   DonationSummary & {
+    // Donations received for the user's own requests.
+    received_count: number;
+
     last_completed_at: string | null;
 
     next_eligible_at: string | null;

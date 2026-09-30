@@ -1402,7 +1402,7 @@ const styles = StyleSheet.create({
   },
   headerSubtitle: {
     marginTop: 1, color: 'rgba(255,255,255,0.82)',
-    fontFamily: 'Inter_400Regular', fontSize: 11, lineHeight: 17,
+    fontFamily: 'Inter_400Regular', fontSize: 12.5, lineHeight: 18,
   },
   body: { flex: 1, paddingHorizontal: 18, paddingBottom: 16 },
   card: {
@@ -1420,11 +1420,11 @@ const styles = StyleSheet.create({
   },
   description: {
     marginTop: 3, marginBottom: 18, color: COLORS.muted,
-    fontFamily: 'Inter_400Regular', fontSize: 11.5, lineHeight: 17,
+    fontFamily: 'Inter_400Regular', fontSize: 12.5, lineHeight: 18,
   },
   label: {
     marginBottom: 8, color: COLORS.black,
-    fontFamily: 'Inter_500Medium', fontSize: 11.5, lineHeight: 18,
+    fontFamily: 'Inter_500Medium', fontSize: 12.5, lineHeight: 18,
   },
   optionRow: { flexDirection: 'row', gap: 10, marginBottom: 18 },
   optionButton: {
@@ -1434,7 +1434,7 @@ const styles = StyleSheet.create({
   },
   optionButtonSelected: { borderColor: COLORS.redButton, backgroundColor: COLORS.pink },
   optionText: {
-    color: COLORS.black, fontFamily: 'Inter_500Medium', fontSize: 11.5, lineHeight: 18,
+    color: COLORS.black, fontFamily: 'Inter_500Medium', fontSize: 13, lineHeight: 18,
   },
   pressableField: {
     minHeight: 52, paddingHorizontal: 11, flexDirection: 'row', alignItems: 'center',
@@ -1451,7 +1451,7 @@ const styles = StyleSheet.create({
     color: COLORS.lightMuted, fontFamily: 'Inter_500Medium', fontSize: 12,
   },
   fieldValue: {
-    color: COLORS.black, fontFamily: 'Inter_500Medium', fontSize: 11.5, lineHeight: 18,
+    color: COLORS.black, fontFamily: 'Inter_500Medium', fontSize: 13, lineHeight: 18,
   },
   fieldHint: {
     marginTop: 2, color: COLORS.lightMuted, fontFamily: 'Inter_400Regular', fontSize: 12,
@@ -1651,7 +1651,7 @@ const styles = StyleSheet.create({
   progressStep: { flex: 1 },
   progressLabel: {
     marginTop: 6, color: COLORS.lightMuted, fontFamily: 'Inter_500Medium',
-    fontSize: 11, lineHeight: 16,
+    fontSize: 11.5, lineHeight: 16,
   },
   progressLabelActive: {
     color: COLORS.redButton, fontFamily: 'Inter_600SemiBold',
@@ -1685,7 +1685,7 @@ const styles = StyleSheet.create({
   },
   selectValue: {
     flex: 1, color: COLORS.black, fontFamily: 'Inter_600SemiBold',
-    fontSize: 11.5, lineHeight: 18,
+    fontSize: 13, lineHeight: 18,
   },
   helperText: {
     marginTop: 8, color: COLORS.muted, fontFamily: 'Inter_400Regular',

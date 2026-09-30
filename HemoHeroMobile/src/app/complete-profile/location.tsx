@@ -34,7 +34,7 @@ const COLORS = {
   backgroundBottom: '#D90B12',
 
   white: '#FFFFFF',
-  black: '#111111',
+  black: '#171717',
 
   inputBorder: '#D6D6D6',
   placeholder: '#A0A0A0',
@@ -390,17 +390,6 @@ export default function LocationScreen() {
         false
       );
     }
-  }
-
-  // ==========================================================
-  // SELECT ON MAP
-  // ==========================================================
-
-  function handleSelectMap() {
-    showMessage(
-      'Select on Map',
-      'Interactive map selection will be connected after the Complete Profile flow is fully saved to the database.'
-    );
   }
 
   // ==========================================================
@@ -831,70 +820,6 @@ export default function LocationScreen() {
                       </View>
                     </View>
                   ) : null}
-
-                  {/* ==============================================
-                      OR
-                  ============================================== */}
-
-                  <View
-                    style={
-                      styles.orRow
-                    }
-                  >
-                    <View
-                      style={
-                        styles.orLine
-                      }
-                    />
-
-                    <Text
-                      style={
-                        styles.orText
-                      }
-                    >
-                      or
-                    </Text>
-
-                    <View
-                      style={
-                        styles.orLine
-                      }
-                    />
-                  </View>
-
-                  {/* ==============================================
-                      SELECT MAP
-                  ============================================== */}
-
-                  <TouchableOpacity
-                    style={
-                      styles.mapButton
-                    }
-                    activeOpacity={
-                      0.8
-                    }
-                    onPress={
-                      handleSelectMap
-                    }
-                  >
-                    <MaterialIcons
-                      name="map"
-                      size={
-                        17
-                      }
-                      color={
-                        COLORS.black
-                      }
-                    />
-
-                    <Text
-                      style={
-                        styles.mapButtonText
-                      }
-                    >
-                      Select on Map
-                    </Text>
-                  </TouchableOpacity>
 
                   {/* ==============================================
                       LOCATION DETAILS
@@ -1357,7 +1282,7 @@ const styles =
         'Poppins_700Bold',
 
       fontSize:
-        17,
+        20,
     },
 
     // ========================================================
@@ -1473,7 +1398,7 @@ const styles =
         'Inter_600SemiBold',
 
       fontSize:
-        12,
+        14.5,
 
       marginBottom:
         12,
@@ -1685,10 +1610,10 @@ const styles =
         'Inter_400Regular',
 
       fontSize:
-        8,
+        12,
 
       lineHeight:
-        12,
+        17,
 
       textAlign:
         'center',
@@ -1703,7 +1628,7 @@ const styles =
 
     currentLocationButton: {
       height:
-        42,
+        46,
 
       flexDirection:
         'row',
@@ -1732,7 +1657,7 @@ const styles =
         'Inter_600SemiBold',
 
       fontSize:
-        10,
+        13.5,
     },
 
     disabledButton: {
@@ -1809,7 +1734,7 @@ const styles =
         'Inter_600SemiBold',
 
       fontSize:
-        9,
+        12.5,
     },
 
     detectedCoordinates: {
@@ -1823,95 +1748,16 @@ const styles =
         'Inter_400Regular',
 
       fontSize:
-        7,
+        11,
     },
 
     // ========================================================
     // OR
     // ========================================================
 
-    orRow: {
-      flexDirection:
-        'row',
-
-      alignItems:
-        'center',
-
-      marginVertical:
-        10,
-    },
-
-    orLine: {
-      flex:
-        1,
-
-      height:
-        1,
-
-      backgroundColor:
-        '#E1E1E1',
-    },
-
-    orText: {
-      marginHorizontal:
-        9,
-
-      color:
-        COLORS.muted,
-
-      fontFamily:
-        'Inter_400Regular',
-
-      fontSize:
-        9,
-    },
-
     // ========================================================
     // SELECT MAP
     // ========================================================
-
-    mapButton: {
-      height:
-        40,
-
-      flexDirection:
-        'row',
-
-      alignItems:
-        'center',
-
-      justifyContent:
-        'center',
-
-      gap:
-        8,
-
-      borderWidth:
-        1,
-
-      borderColor:
-        '#BFBFBF',
-
-      borderRadius:
-        7,
-
-      backgroundColor:
-        COLORS.white,
-
-      marginBottom:
-        15,
-    },
-
-    mapButtonText: {
-      color:
-        COLORS.black,
-
-      fontFamily:
-        'Inter_500Medium',
-
-      fontSize:
-        9,
-    },
 
     // ========================================================
     // LOCATION DETAILS
@@ -1925,7 +1771,7 @@ const styles =
         'Inter_600SemiBold',
 
       fontSize:
-        11,
+        13.5,
     },
 
     locationHint: {
@@ -1942,7 +1788,7 @@ const styles =
         'Inter_400Regular',
 
       fontSize:
-        8,
+        12,
     },
 
     // ========================================================
@@ -1980,7 +1826,7 @@ const styles =
         'Inter_500Medium',
 
       fontSize:
-        9,
+        12,
 
       textAlign:
         'center',
@@ -1998,7 +1844,7 @@ const styles =
         'Inter_500Medium',
 
       fontSize:
-        9,
+        12.5,
 
       marginBottom:
         5,
@@ -2006,7 +1852,7 @@ const styles =
 
     input: {
       height:
-        37,
+        44,
 
       marginBottom:
         10,
@@ -2033,7 +1879,7 @@ const styles =
         'Inter_400Regular',
 
       fontSize:
-        9,
+        13.5,
 
       outlineStyle:
         Platform.OS ===
@@ -2085,7 +1931,7 @@ const styles =
         'Poppins_600SemiBold',
 
       fontSize:
-        11,
+        14,
     },
 
     nextButton: {
@@ -2116,7 +1962,7 @@ const styles =
         'Poppins_600SemiBold',
 
       fontSize:
-        11,
+        14.5,
     },
 
     // ========================================================
@@ -2232,7 +2078,7 @@ const styles =
         'Poppins_600SemiBold',
 
       fontSize:
-        16,
+        17,
 
       lineHeight:
         22,
@@ -2252,10 +2098,10 @@ const styles =
         'Inter_400Regular',
 
       fontSize:
-        11,
+        13.5,
 
       lineHeight:
-        17,
+        20,
 
       textAlign:
         'center',
@@ -2289,6 +2135,6 @@ const styles =
         'Poppins_600SemiBold',
 
       fontSize:
-        10,
+        14,
     },
   });

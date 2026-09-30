@@ -277,8 +277,8 @@ const styles = StyleSheet.create({
     marginTop: 14,
     color: COLORS.black,
     fontFamily: FONTS.heading,
-    fontSize: 18,
-    lineHeight: 25,
+    fontSize: 17,
+    lineHeight: 24,
     textAlign: 'center',
   },
 

@@ -47,10 +47,6 @@ import {
 } from 'react-native-safe-area-context';
 
 import {
-  fulfillBloodRequest,
-} from '../../../../lib/requestResponses';
-
-import {
   getCoordinationMessages,
   getCoordinationSession,
   saveCoordinationSchedule,
@@ -66,6 +62,8 @@ import type {
 import {
   getAccessToken,
 } from '../../../../lib/session';
+
+import TimeWheelPicker from '../../../../components/TimeWheelPicker';
 
 // ============================================================
 // COLORS
@@ -394,13 +392,6 @@ export default function DonationCoordinationScreen() {
       false
     );
 
-  const [
-    fulfilling,
-    setFulfilling,
-  ] =
-    useState(
-      false
-    );
 
   // ==========================================================
   // CUSTOM POPUP
@@ -1378,53 +1369,6 @@ export default function DonationCoordinationScreen() {
     });
   }
 
-  function showConfirmation(
-    options: {
-      title:
-        string;
-
-      message:
-        string;
-
-      confirmText:
-        string;
-
-      cancelText:
-        string;
-
-      variant:
-        ActionPopupVariant;
-
-      onConfirm:
-        () => void;
-    }
-  ) {
-    setActionPopup({
-      visible:
-        true,
-
-      title:
-        options.title,
-
-      message:
-        options.message,
-
-      variant:
-        options.variant,
-
-      confirmText:
-        options.confirmText,
-
-      cancelText:
-        options.cancelText,
-
-      showCancel:
-        true,
-
-      onConfirm:
-        options.onConfirm,
-    });
-  }
 
   // ==========================================================
   // VIEW REQUEST
@@ -1811,16 +1755,14 @@ export default function DonationCoordinationScreen() {
 
     setTempMinute(
       Math.min(
-        55,
+        59,
 
         Math.max(
           0,
 
           Math.round(
-            minute /
-              5
-          ) *
-            5
+            minute
+          ) || 0
         )
       )
     );
@@ -1831,68 +1773,6 @@ export default function DonationCoordinationScreen() {
 
     setTimePickerVisible(
       true
-    );
-  }
-
-  function changeTempHour(
-    offset:
-      number
-  ) {
-    setTempHour(
-      current => {
-        let next =
-          current +
-          offset;
-
-        if (
-          next >
-          12
-        ) {
-          next =
-            1;
-        }
-
-        if (
-          next <
-          1
-        ) {
-          next =
-            12;
-        }
-
-        return next;
-      }
-    );
-  }
-
-  function changeTempMinute(
-    offset:
-      number
-  ) {
-    setTempMinute(
-      current => {
-        let next =
-          current +
-          offset;
-
-        if (
-          next >
-          55
-        ) {
-          next =
-            0;
-        }
-
-        if (
-          next <
-          0
-        ) {
-          next =
-            55;
-        }
-
-        return next;
-      }
     );
   }
 
@@ -2030,99 +1910,29 @@ export default function DonationCoordinationScreen() {
   }
 
   // ==========================================================
-  // FULFILL
+  // CONFIRM DONATION
+  //
+  // The requester confirms the donation on their request page
+  // (it records the transaction); fulfilling needs it first.
   // ==========================================================
 
-  function handleFulfill() {
+  function handleConfirmDonation() {
     if (
       !request ||
-      viewerRole !==
-        'requester' ||
-      request.status !==
-        'active' ||
-      fulfilling
+      !responseId
     ) {
       return;
     }
 
-    const description =
-      'Only mark the request as fulfilled after the needed blood has been secured or the donation has been completed.';
+    router.push({
+      pathname:
+        `/blood-request/${request.id}` as any,
 
-    showConfirmation({
-      title:
-        'Mark Request as Fulfilled',
-
-      message:
-        description,
-
-      confirmText:
-        'Mark Fulfilled',
-
-      cancelText:
-        'Not Yet',
-
-      variant:
-        'success',
-
-      onConfirm: () => {
-        closeActionPopup();
-
-        performFulfill();
+      params: {
+        confirmDonation:
+          responseId,
       },
-    });
-  }
-
-  async function performFulfill() {
-    if (
-      !request ||
-      fulfilling
-    ) {
-      return;
-    }
-
-    try {
-      setFulfilling(
-        true
-      );
-
-      const token =
-        await getAccessToken();
-
-      if (!token) {
-        router.replace(
-          '/'
-        );
-
-        return;
-      }
-
-      await fulfillBloodRequest(
-        token,
-        request.id
-      );
-
-      await loadCoordination();
-
-      showMessage(
-        'Request Fulfilled',
-        'The blood request has been completed successfully.'
-      );
-    } catch (
-      fulfillError
-    ) {
-      showMessage(
-        'Unable to Complete Request',
-
-        fulfillError instanceof
-          Error
-          ? fulfillError.message
-          : 'Unable to mark the request as fulfilled.'
-      );
-    } finally {
-      setFulfilling(
-        false
-      );
-    }
+    } as any);
   }
 
   // ==========================================================
@@ -2465,7 +2275,7 @@ export default function DonationCoordinationScreen() {
                   styles.fulfillTitle
                 }
               >
-                Donation complete?
+                Donor already donated?
               </Text>
 
               <Text
@@ -2473,50 +2283,34 @@ export default function DonationCoordinationScreen() {
                   styles.fulfillDescription
                 }
               >
-                Close when blood is secured.
+                Confirm it, then close your request.
               </Text>
             </View>
 
             <TouchableOpacity
               accessibilityRole="button"
-              style={[
-                styles.fulfillButton,
-
-                fulfilling &&
-                  styles.disabledButton,
-              ]}
-              disabled={
-                fulfilling
+              style={
+                styles.fulfillButton
               }
               onPress={
-                handleFulfill
+                handleConfirmDonation
               }
             >
-              {fulfilling ? (
-                <ActivityIndicator
-                  color={
-                    COLORS.white
-                  }
-                />
-              ) : (
-                <>
-                  <MaterialIcons
-                    name="check-circle-outline"
-                    size={18}
-                    color={
-                      COLORS.white
-                    }
-                  />
+              <MaterialIcons
+                name="task-alt"
+                size={18}
+                color={
+                  COLORS.white
+                }
+              />
 
-                  <Text
-                    style={
-                      styles.fulfillButtonText
-                    }
-                  >
-                    Mark fulfilled
-                  </Text>
-                </>
-              )}
+              <Text
+                style={
+                  styles.fulfillButtonText
+                }
+              >
+                Confirm Donation
+              </Text>
             </TouchableOpacity>
           </View>
         ) : null}
@@ -4359,229 +4153,14 @@ export default function DonationCoordinationScreen() {
                       </TouchableOpacity>
                     </View>
 
-                    <View
-                      style={
-                        styles.timePickerBody
-                      }
-                    >
-                      <View
-                        style={
-                          styles.timeColumn
-                        }
-                      >
-                        <Text
-                          style={
-                            styles.timeColumnLabel
-                          }
-                        >
-                          Hour
-                        </Text>
-
-                        <TouchableOpacity
-                          accessibilityRole="button"
-                          accessibilityLabel="Increase hour"
-                          style={
-                            styles.timeArrow
-                          }
-                          onPress={() =>
-                            changeTempHour(
-                              1
-                            )
-                          }
-                        >
-                          <MaterialIcons
-                            name="keyboard-arrow-up"
-                            size={23}
-                            color={
-                              COLORS.redButton
-                            }
-                          />
-                        </TouchableOpacity>
-
-                        <View
-                          style={
-                            styles.timeValueBox
-                          }
-                        >
-                          <Text
-                            style={
-                              styles.timeValueText
-                            }
-                          >
-                            {
-                              padNumber(
-                                tempHour
-                              )
-                            }
-                          </Text>
-                        </View>
-
-                        <TouchableOpacity
-                          accessibilityRole="button"
-                          accessibilityLabel="Decrease hour"
-                          style={
-                            styles.timeArrow
-                          }
-                          onPress={() =>
-                            changeTempHour(
-                              -1
-                            )
-                          }
-                        >
-                          <MaterialIcons
-                            name="keyboard-arrow-down"
-                            size={23}
-                            color={
-                              COLORS.redButton
-                            }
-                          />
-                        </TouchableOpacity>
-                      </View>
-
-                      <Text
-                        style={
-                          styles.timeColon
-                        }
-                      >
-                        :
-                      </Text>
-
-                      <View
-                        style={
-                          styles.timeColumn
-                        }
-                      >
-                        <Text
-                          style={
-                            styles.timeColumnLabel
-                          }
-                        >
-                          Minute
-                        </Text>
-
-                        <TouchableOpacity
-                          accessibilityRole="button"
-                          accessibilityLabel="Increase minute"
-                          style={
-                            styles.timeArrow
-                          }
-                          onPress={() =>
-                            changeTempMinute(
-                              5
-                            )
-                          }
-                        >
-                          <MaterialIcons
-                            name="keyboard-arrow-up"
-                            size={23}
-                            color={
-                              COLORS.redButton
-                            }
-                          />
-                        </TouchableOpacity>
-
-                        <View
-                          style={
-                            styles.timeValueBox
-                          }
-                        >
-                          <Text
-                            style={
-                              styles.timeValueText
-                            }
-                          >
-                            {
-                              padNumber(
-                                tempMinute
-                              )
-                            }
-                          </Text>
-                        </View>
-
-                        <TouchableOpacity
-                          accessibilityRole="button"
-                          accessibilityLabel="Decrease minute"
-                          style={
-                            styles.timeArrow
-                          }
-                          onPress={() =>
-                            changeTempMinute(
-                              -5
-                            )
-                          }
-                        >
-                          <MaterialIcons
-                            name="keyboard-arrow-down"
-                            size={23}
-                            color={
-                              COLORS.redButton
-                            }
-                          />
-                        </TouchableOpacity>
-                      </View>
-
-                      <View
-                        style={
-                          styles.periodColumn
-                        }
-                      >
-                        <TouchableOpacity
-                          accessibilityRole="button"
-                          style={[
-                            styles.periodButton,
-
-                            tempPeriod ===
-                              'AM' &&
-                              styles.periodButtonSelected,
-                          ]}
-                          onPress={() =>
-                            setTempPeriod(
-                              'AM'
-                            )
-                          }
-                        >
-                          <Text
-                            style={[
-                              styles.periodButtonText,
-
-                              tempPeriod ===
-                                'AM' &&
-                                styles.periodButtonTextSelected,
-                            ]}
-                          >
-                            AM
-                          </Text>
-                        </TouchableOpacity>
-
-                        <TouchableOpacity
-                          accessibilityRole="button"
-                          style={[
-                            styles.periodButton,
-
-                            tempPeriod ===
-                              'PM' &&
-                              styles.periodButtonSelected,
-                          ]}
-                          onPress={() =>
-                            setTempPeriod(
-                              'PM'
-                            )
-                          }
-                        >
-                          <Text
-                            style={[
-                              styles.periodButtonText,
-
-                              tempPeriod ===
-                                'PM' &&
-                                styles.periodButtonTextSelected,
-                            ]}
-                          >
-                            PM
-                          </Text>
-                        </TouchableOpacity>
-                      </View>
-                    </View>
+                    <TimeWheelPicker
+                      hour={tempHour}
+                      minute={tempMinute}
+                      period={tempPeriod}
+                      onHourChange={setTempHour}
+                      onMinuteChange={setTempMinute}
+                      onPeriodChange={setTempPeriod}
+                    />
 
                     <TouchableOpacity
                       accessibilityRole="button"
@@ -5155,10 +4734,10 @@ const styles =
         'Poppins_700Bold',
 
       fontSize:
-        19,
+        17,
 
       lineHeight:
-        28,
+        24,
 
       color:
         COLORS.black,
@@ -5328,10 +4907,10 @@ const styles =
         'Inter_500Medium',
 
       fontSize:
-        16,
+        14,
 
       lineHeight:
-        22,
+        20,
 
       color:
         COLORS.black,
@@ -5353,10 +4932,10 @@ const styles =
         'Inter_400Regular',
 
       fontSize:
-        14,
+        13.5,
 
       lineHeight:
-        22,
+        20,
 
       color:
         COLORS.muted,
@@ -5370,7 +4949,7 @@ const styles =
         'Inter_500Medium',
 
       fontSize:
-        14,
+        13,
 
       color:
         COLORS.black,
@@ -5432,10 +5011,10 @@ const styles =
         'Inter_400Regular',
 
       fontSize:
-        14,
+        13.5,
 
       lineHeight:
-        20,
+        19,
 
       color:
         COLORS.black,
@@ -5467,10 +5046,10 @@ const styles =
         'Inter_400Regular',
 
       fontSize:
-        15,
+        14,
 
       lineHeight:
-        22,
+        20,
 
       color:
         COLORS.black,
@@ -5487,38 +5066,7 @@ const styles =
         'Inter_400Regular',
 
       fontSize:
-        12,
-
-      color:
-        COLORS.muted,
-    },
-
-    supportAvailability: {
-      flexDirection:
-        'row',
-
-      alignItems:
-        'center',
-
-      gap:
-        8,
-
-      marginTop:
-        14,
-    },
-
-    supportAvailabilityText: {
-      flex:
-        1,
-
-      fontFamily:
-        'Inter_400Regular',
-
-      fontSize:
-        13,
-
-      lineHeight:
-        20,
+        11,
 
       color:
         COLORS.muted,
@@ -5558,10 +5106,10 @@ const styles =
         'Inter_500Medium',
 
       fontSize:
-        15,
+        14.5,
 
       lineHeight:
-        22,
+        20,
 
       color:
         COLORS.white,
@@ -5666,7 +5214,7 @@ const styles =
         'Inter_600SemiBold',
 
       fontSize:
-        10,
+        11.5,
 
       letterSpacing:
         0.3,
@@ -6092,7 +5640,7 @@ const styles =
         'Poppins_700Bold',
 
       fontSize:
-        12,
+        13,
     },
 
     requestCard: {
@@ -6207,7 +5755,7 @@ const styles =
         'Inter_400Regular',
 
       fontSize:
-        11,
+        11.5,
 
       letterSpacing:
         0.3,
@@ -6400,10 +5948,10 @@ const styles =
         'Inter_400Regular',
 
       fontSize:
-        16,
+        14.5,
 
       lineHeight:
-        24,
+        21,
     },
 
     messageTime: {
@@ -6571,7 +6119,7 @@ const styles =
         'Inter_400Regular',
 
       fontSize:
-        10,
+        11.5,
 
       letterSpacing:
         0.7,
@@ -6650,7 +6198,7 @@ const styles =
         'Poppins_700Bold',
 
       fontSize:
-        11,
+        13.5,
     },
 
     fulfillDescription: {
@@ -6664,10 +6212,10 @@ const styles =
         'Inter_400Regular',
 
       fontSize:
-        10,
+        12,
 
       lineHeight:
-        15,
+        17,
     },
 
     fulfillButton: {
@@ -6701,10 +6249,10 @@ const styles =
         COLORS.white,
 
       fontFamily:
-        'Inter_400Regular',
+        'Inter_600SemiBold',
 
       fontSize:
-        11,
+        13,
     },
 
     closedBar: {
@@ -6813,10 +6361,10 @@ const styles =
         'Inter_400Regular',
 
       fontSize:
-        15,
+        14,
 
       lineHeight:
-        22,
+        20,
     },
 
     sendButton: {
@@ -6878,7 +6426,7 @@ const styles =
         'Inter_500Medium',
 
       fontSize:
-        11,
+        12,
     },
 
     modalBackdrop: {
@@ -6951,7 +6499,7 @@ const styles =
         'Poppins_700Bold',
 
       fontSize:
-        18,
+        17,
     },
 
     modalSubtitle: {
@@ -7171,7 +6719,7 @@ const styles =
         'Poppins_700Bold',
 
       fontSize:
-        12,
+        14,
     },
 
     pickerHeader: {
@@ -7383,172 +6931,7 @@ const styles =
         'Poppins_700Bold',
 
       fontSize:
-        11,
-    },
-
-    timePickerBody: {
-      flexDirection:
-        'row',
-
-      alignItems:
-        'center',
-
-      justifyContent:
-        'center',
-
-      marginTop:
-        3,
-
-      marginBottom:
-        20,
-    },
-
-    timeColumn: {
-      alignItems:
-        'center',
-    },
-
-    timeColumnLabel: {
-      marginBottom:
-        4,
-
-      color:
-        COLORS.lightMuted,
-
-      fontFamily:
-        'Inter_500Medium',
-
-      fontSize:
-        11,
-    },
-
-    timeArrow: {
-      width:
-        44,
-
-      height:
-        44,
-
-      alignItems:
-        'center',
-
-      justifyContent:
-        'center',
-    },
-
-    timeValueBox: {
-      width:
-        55,
-
-      height:
-        50,
-
-      borderWidth:
-        1,
-
-      borderColor:
-        '#E6B4B4',
-
-      borderRadius:
-        10,
-
-      alignItems:
-        'center',
-
-      justifyContent:
-        'center',
-
-      backgroundColor:
-        '#FFF8F8',
-    },
-
-    timeValueText: {
-      color:
-        COLORS.black,
-
-      fontFamily:
-        'Poppins_700Bold',
-
-      fontSize:
-        18,
-    },
-
-    timeColon: {
-      marginHorizontal:
-        8,
-
-      marginTop:
-        17,
-
-      color:
-        COLORS.black,
-
-      fontFamily:
-        'Poppins_700Bold',
-
-      fontSize:
-        23,
-    },
-
-    periodColumn: {
-      marginLeft:
         14,
-
-      marginTop:
-        18,
-
-      gap:
-        8,
-    },
-
-    periodButton: {
-      width:
-        44,
-
-      height:
-        44,
-
-      borderWidth:
-        1,
-
-      borderColor:
-        COLORS.border,
-
-      borderRadius:
-        12,
-
-      alignItems:
-        'center',
-
-      justifyContent:
-        'center',
-
-      backgroundColor:
-        COLORS.white,
-    },
-
-    periodButtonSelected: {
-      borderColor:
-        COLORS.redButton,
-
-      backgroundColor:
-        COLORS.redButton,
-    },
-
-    periodButtonText: {
-      color:
-        COLORS.black,
-
-      fontFamily:
-        'Inter_600SemiBold',
-
-      fontSize:
-        12,
-    },
-
-    periodButtonTextSelected: {
-      color:
-        COLORS.white,
     },
 
     confirmTimeButton: {
@@ -7686,7 +7069,7 @@ const styles =
         'Poppins_600SemiBold',
 
       fontSize:
-        16,
+        17,
 
       lineHeight:
         22,
@@ -7706,10 +7089,10 @@ const styles =
         'Inter_400Regular',
 
       fontSize:
-        12.5,
+        13.5,
 
       lineHeight:
-        19,
+        20,
 
       textAlign:
         'center',
@@ -7765,7 +7148,7 @@ const styles =
         'Poppins_600SemiBold',
 
       fontSize:
-        11,
+        13.5,
     },
 
     actionPopupPrimaryButton: {
@@ -7809,6 +7192,6 @@ const styles =
         'Poppins_600SemiBold',
 
       fontSize:
-        11,
+        13.5,
     },
   });

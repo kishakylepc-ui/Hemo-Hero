@@ -38,7 +38,7 @@ const COLORS = {
   backgroundBottom: '#D90B12',
 
   white: '#FFFFFF',
-  black: '#111111',
+  black: '#171717',
 
   muted: '#646464',
 
@@ -1152,7 +1152,7 @@ const styles =
       fontFamily:
         'Poppins_700Bold',
 
-      fontSize: 17,
+      fontSize: 20,
     },
 
     // ========================================================
@@ -1244,7 +1244,7 @@ const styles =
       fontFamily:
         'Inter_600SemiBold',
 
-      fontSize: 12,
+      fontSize: 14.5,
 
       marginBottom: 15,
     },
@@ -1256,7 +1256,7 @@ const styles =
       fontFamily:
         'Inter_500Medium',
 
-      fontSize: 10,
+      fontSize: 12.5,
 
       marginBottom: 3,
     },
@@ -1268,7 +1268,7 @@ const styles =
       fontFamily:
         'Inter_400Regular',
 
-      fontSize: 8,
+      fontSize: 11.5,
 
       marginBottom: 12,
     },
@@ -1339,7 +1339,7 @@ const styles =
       fontFamily:
         'Inter_600SemiBold',
 
-      fontSize: 10,
+      fontSize: 14,
     },
 
     bloodButtonTextSelected: {
@@ -1400,7 +1400,7 @@ const styles =
       fontFamily:
         'Inter_400Regular',
 
-      fontSize: 8,
+      fontSize: 12,
     },
 
     selectedBloodType: {
@@ -1412,7 +1412,7 @@ const styles =
       fontFamily:
         'Inter_600SemiBold',
 
-      fontSize: 10,
+      fontSize: 13.5,
     },
 
     clearSelectionButton: {
@@ -1427,7 +1427,7 @@ const styles =
       fontFamily:
         'Inter_600SemiBold',
 
-      fontSize: 8,
+      fontSize: 12,
     },
 
     // ========================================================
@@ -1467,9 +1467,9 @@ const styles =
       fontFamily:
         'Inter_400Regular',
 
-      fontSize: 8,
+      fontSize: 12,
 
-      lineHeight: 12,
+      lineHeight: 17,
     },
 
     // ========================================================
@@ -1500,9 +1500,9 @@ const styles =
       fontFamily:
         'Inter_500Medium',
 
-      fontSize: 9,
+      fontSize: 12,
 
-      lineHeight: 13,
+      lineHeight: 17,
 
       textAlign: 'center',
     },
@@ -1550,9 +1550,9 @@ const styles =
       fontFamily:
         'Inter_400Regular',
 
-      fontSize: 9,
+      fontSize: 12,
 
-      lineHeight: 14,
+      lineHeight: 17,
     },
 
     infoHighlight: {
@@ -1607,7 +1607,7 @@ const styles =
       fontFamily:
         'Poppins_600SemiBold',
 
-      fontSize: 11,
+      fontSize: 14,
     },
 
     completeButton: {
@@ -1632,7 +1632,7 @@ const styles =
       fontFamily:
         'Poppins_600SemiBold',
 
-      fontSize: 10,
+      fontSize: 14.5,
     },
 
     loadingRow: {
@@ -1730,7 +1730,7 @@ const styles =
       fontFamily:
         'Poppins_600SemiBold',
 
-      fontSize: 16,
+      fontSize: 17,
       lineHeight: 22,
 
       textAlign: 'center',
@@ -1745,8 +1745,8 @@ const styles =
       fontFamily:
         'Inter_400Regular',
 
-      fontSize: 11,
-      lineHeight: 17,
+      fontSize: 13.5,
+      lineHeight: 20,
 
       textAlign: 'center',
     },
@@ -1772,6 +1772,6 @@ const styles =
       fontFamily:
         'Poppins_600SemiBold',
 
-      fontSize: 10,
+      fontSize: 14,
     },
   });

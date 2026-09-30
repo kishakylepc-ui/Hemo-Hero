@@ -2208,6 +2208,12 @@ export default function DonorBloodRequestScreen() {
   const bloodTypeCompatible =
     hasCompatibleBloodType();
 
+  // Fulfilled / cancelled requests stay viewable for donors who
+  // took part, but can no longer be offered to or withdrawn from.
+  const requestClosed =
+    Boolean(request?.status) &&
+    request?.status !== 'active';
+
   return (
     <View
       style={
@@ -3124,6 +3130,69 @@ export default function DonorBloodRequestScreen() {
                     ) : null}
 
                     {/* ========================================
+                        REQUEST CLOSED
+                    ======================================== */}
+
+                    {requestClosed ? (
+                      <FadeInView
+                        style={[
+                          styles.closedRequestCard,
+
+                          request?.status ===
+                            'fulfilled' &&
+                            styles.closedRequestCardFulfilled,
+                        ]}
+                      >
+                        <MaterialIcons
+                          name={
+                            request?.status ===
+                            'fulfilled'
+                              ? 'task-alt'
+                              : 'block'
+                          }
+                          size={22}
+                          color={
+                            request?.status ===
+                            'fulfilled'
+                              ? COLORS.green
+                              : COLORS.gray
+                          }
+                        />
+
+                        <View
+                          style={
+                            styles.closedInvitationCopy
+                          }
+                        >
+                          <Text
+                            style={
+                              styles.closedInvitationTitle
+                            }
+                          >
+                            {request?.status ===
+                            'fulfilled'
+                              ? 'Request Fulfilled'
+                              : request?.status ===
+                                  'cancelled'
+                                ? 'Request Cancelled'
+                                : 'Request Closed'}
+                          </Text>
+
+                          <Text
+                            style={
+                              styles.closedInvitationDescription
+                            }
+                          >
+                            {request?.status ===
+                            'fulfilled'
+                              ? 'The requester received the blood they needed. Thank you for helping.'
+                              : 'This request is closed and no longer accepts offers.'}
+                          </Text>
+                        </View>
+                      </FadeInView>
+                    ) : null}
+
+                    {/* ========================================
                         DIRECT INVITATION ACTIONS
                     ======================================== */}
 
@@ -3131,7 +3200,8 @@ export default function DonorBloodRequestScreen() {
                     invitation ? (
                       <>
                         {invitation.status ===
-                        'pending' ? (
+                          'pending' &&
+                        !requestClosed ? (
                           <>
                             <View
                               style={
@@ -3609,7 +3679,8 @@ export default function DonorBloodRequestScreen() {
 
                             {donorResponse
                               .status ===
-                            'pending' ? (
+                              'pending' &&
+                            !requestClosed ? (
                               <TouchableOpacity
                                 style={
                                   styles.withdrawButton
@@ -3644,7 +3715,7 @@ export default function DonorBloodRequestScreen() {
                               </TouchableOpacity>
                             ) : null}
                           </View>
-                        ) : isApprovedDonor() ? (
+                        ) : requestClosed ? null : isApprovedDonor() ? (
                           bloodTypeCompatible ? (
                             <>
                               <View
@@ -4406,7 +4477,7 @@ const styles =
         'Inter_400Regular',
 
       fontSize:
-        11.5,
+        12.5,
     },
 
     // ========================================================
@@ -4560,7 +4631,7 @@ const styles =
         'Poppins_600SemiBold',
 
       fontSize:
-        12,
+        13,
     },
 
     // ========================================================
@@ -4630,7 +4701,7 @@ const styles =
         'Inter_700Bold',
 
       fontSize:
-        8.5,
+        11,
 
       letterSpacing:
         0.8,
@@ -4647,10 +4718,10 @@ const styles =
         'Poppins_600SemiBold',
 
       fontSize:
-        13.5,
+        14.5,
 
       lineHeight:
-        18,
+        20,
     },
 
     directInvitationDescription: {
@@ -4664,10 +4735,10 @@ const styles =
         'Inter_400Regular',
 
       fontSize:
-        10.5,
+        12.5,
 
       lineHeight:
-        16,
+        18,
     },
 
     invitationStatusRow: {
@@ -4703,7 +4774,7 @@ const styles =
         'Inter_700Bold',
 
       fontSize:
-        9.5,
+        11.5,
     },
 
     invitationMessage: {
@@ -4739,10 +4810,10 @@ const styles =
         'Inter_400Regular',
 
       fontSize:
-        10,
+        12.5,
 
       lineHeight:
-        15,
+        18,
     },
 
     // ========================================================
@@ -4840,7 +4911,7 @@ const styles =
         'Inter_700Bold',
 
       fontSize:
-        11,
+        11.5,
     },
 
     bloodTypeBadge: {
@@ -4874,7 +4945,7 @@ const styles =
         'Poppins_700Bold',
 
       fontSize:
-        12,
+        13,
     },
 
     requestCardSubtitle: {
@@ -4885,7 +4956,7 @@ const styles =
         'Inter_700Bold',
 
       fontSize:
-        9,
+        11,
 
       letterSpacing:
         0.9,
@@ -4925,7 +4996,7 @@ const styles =
         'Inter_500Medium',
 
       fontSize:
-        11.5,
+        12.5,
 
       textAlign:
         'center',
@@ -4956,7 +5027,7 @@ const styles =
         'Inter_700Bold',
 
       fontSize:
-        11.5,
+        12,
     },
 
     detailRows: {
@@ -5026,7 +5097,7 @@ const styles =
         'Inter_500Medium',
 
       fontSize:
-        11.5,
+        12.5,
     },
 
     detailValue: {
@@ -5040,7 +5111,7 @@ const styles =
         'Inter_500Medium',
 
       fontSize:
-        11.5,
+        13,
 
       textAlign:
         'right',
@@ -5057,7 +5128,7 @@ const styles =
         'Inter_700Bold',
 
       fontSize:
-        11.5,
+        13,
 
       textAlign:
         'right',
@@ -5079,10 +5150,10 @@ const styles =
         'Inter_700Bold',
 
       fontSize:
-        11.5,
+        13,
 
       lineHeight:
-        16,
+        18,
 
       textAlign:
         'right',
@@ -5099,10 +5170,10 @@ const styles =
         'Inter_400Regular',
 
       fontSize:
-        9.5,
+        11.5,
 
       lineHeight:
-        14,
+        16,
 
       textAlign:
         'right',
@@ -5146,7 +5217,7 @@ const styles =
         'Inter_700Bold',
 
       fontSize:
-        10.5,
+        11.5,
     },
 
     messageBoxText: {
@@ -5160,10 +5231,10 @@ const styles =
         'Inter_400Regular',
 
       fontSize:
-        11.5,
+        13,
 
       lineHeight:
-        17,
+        19,
     },
 
     // ========================================================
@@ -5286,7 +5357,7 @@ const styles =
         'Poppins_600SemiBold',
 
       fontSize:
-        12,
+        13.5,
     },
 
     mismatchTitle: {
@@ -5297,7 +5368,7 @@ const styles =
         'Poppins_600SemiBold',
 
       fontSize:
-        12,
+        13.5,
     },
 
     matchDescription: {
@@ -5311,10 +5382,10 @@ const styles =
         'Inter_400Regular',
 
       fontSize:
-        10,
+        12,
 
       lineHeight:
-        15,
+        17,
     },
 
     mismatchDescription: {
@@ -5328,10 +5399,10 @@ const styles =
         'Inter_400Regular',
 
       fontSize:
-        10,
+        12,
 
       lineHeight:
-        15,
+        17,
     },
 
     matchStrong: {
@@ -5383,10 +5454,10 @@ const styles =
         'Inter_400Regular',
 
       fontSize:
-        10,
+        12.5,
 
       lineHeight:
-        15,
+        18,
     },
 
     invitationButtons: {
@@ -5440,7 +5511,7 @@ const styles =
         'Poppins_600SemiBold',
 
       fontSize:
-        10.5,
+        13.5,
     },
 
     acceptInvitationButton: {
@@ -5477,7 +5548,7 @@ const styles =
         'Poppins_600SemiBold',
 
       fontSize:
-        10.5,
+        13.5,
     },
 
     acceptedInvitationCard: {
@@ -5543,7 +5614,7 @@ const styles =
         'Poppins_600SemiBold',
 
       fontSize:
-        13,
+        14,
     },
 
     acceptedInvitationDescription: {
@@ -5557,10 +5628,10 @@ const styles =
         'Inter_400Regular',
 
       fontSize:
-        10,
+        12.5,
 
       lineHeight:
-        15,
+        18,
     },
 
     closedInvitationCard: {
@@ -5592,6 +5663,23 @@ const styles =
         COLORS.grayLight,
     },
 
+    closedRequestCard: {
+      marginBottom: 14,
+      padding: 14,
+      flexDirection: 'row',
+      alignItems: 'flex-start',
+      gap: 10,
+      borderWidth: 1,
+      borderColor: '#DEDEDE',
+      borderRadius: 15,
+      backgroundColor: COLORS.grayLight,
+    },
+
+    closedRequestCardFulfilled: {
+      borderColor: '#CBE8D6',
+      backgroundColor: COLORS.greenLight,
+    },
+
     closedInvitationCopy: {
       flex: 1,
     },
@@ -5604,7 +5692,7 @@ const styles =
         'Poppins_600SemiBold',
 
       fontSize:
-        12.5,
+        14,
     },
 
     closedInvitationDescription: {
@@ -5618,10 +5706,10 @@ const styles =
         'Inter_400Regular',
 
       fontSize:
-        10,
+        12.5,
 
       lineHeight:
-        15,
+        18,
     },
 
     // ========================================================
@@ -5746,7 +5834,7 @@ const styles =
         'Inter_700Bold',
 
       fontSize:
-        9.5,
+        11.5,
     },
 
     responsePanelTitle: {
@@ -5760,10 +5848,10 @@ const styles =
         'Poppins_600SemiBold',
 
       fontSize:
-        13.5,
+        14.5,
 
       lineHeight:
-        18,
+        20,
     },
 
     responsePanelDescription: {
@@ -5777,10 +5865,10 @@ const styles =
         'Inter_400Regular',
 
       fontSize:
-        10.8,
+        12.5,
 
       lineHeight:
-        16,
+        18,
     },
 
     sentMessageCard: {
@@ -5805,7 +5893,7 @@ const styles =
         'Inter_700Bold',
 
       fontSize:
-        8.5,
+        11,
 
       letterSpacing:
         0.6,
@@ -5822,10 +5910,10 @@ const styles =
         'Inter_400Regular',
 
       fontSize:
-        11,
+        13,
 
       lineHeight:
-        16,
+        19,
     },
 
     openChatButton: {
@@ -5862,7 +5950,7 @@ const styles =
         'Poppins_600SemiBold',
 
       fontSize:
-        12,
+        14,
     },
 
     // Donation record status (accepted offer)
@@ -6039,7 +6127,7 @@ const styles =
         'Poppins_600SemiBold',
 
       fontSize:
-        11.5,
+        13.5,
     },
 
     // ========================================================
@@ -6110,7 +6198,7 @@ const styles =
         'Poppins_600SemiBold',
 
       fontSize:
-        12.5,
+        14,
     },
 
     eligibilityText: {
@@ -6124,10 +6212,10 @@ const styles =
         'Inter_400Regular',
 
       fontSize:
-        10.5,
+        12.5,
 
       lineHeight:
-        15.5,
+        18,
     },
 
     offerSection: {
@@ -6143,7 +6231,7 @@ const styles =
         'Poppins_600SemiBold',
 
       fontSize:
-        14,
+        14.5,
     },
 
     offerSubtitle: {
@@ -6160,10 +6248,10 @@ const styles =
         'Inter_400Regular',
 
       fontSize:
-        10.5,
+        12.5,
 
       lineHeight:
-        15,
+        18,
     },
 
     messageInput: {
@@ -6192,10 +6280,10 @@ const styles =
         'Inter_400Regular',
 
       fontSize:
-        12,
+        13.5,
 
       lineHeight:
-        18,
+        19,
 
       backgroundColor:
         COLORS.white,
@@ -6212,7 +6300,7 @@ const styles =
         'Inter_400Regular',
 
       fontSize:
-        9.5,
+        11,
 
       textAlign:
         'right',
@@ -6252,7 +6340,7 @@ const styles =
         'Poppins_600SemiBold',
 
       fontSize:
-        12.5,
+        14.5,
     },
 
     disabledButton: {
@@ -6325,7 +6413,7 @@ const styles =
         'Poppins_600SemiBold',
 
       fontSize:
-        13,
+        14,
     },
 
     donorGateDescription: {
@@ -6339,10 +6427,10 @@ const styles =
         'Inter_400Regular',
 
       fontSize:
-        10.5,
+        12.5,
 
       lineHeight:
-        16,
+        18,
     },
 
     donorStatusPill: {
@@ -6387,7 +6475,7 @@ const styles =
         'Inter_700Bold',
 
       fontSize:
-        9,
+        11.5,
     },
 
     donorActionButton: {
@@ -6426,7 +6514,7 @@ const styles =
         'Poppins_600SemiBold',
 
       fontSize:
-        12,
+        14,
     },
 
     donorActionButtonTextDisabled: {
@@ -6481,10 +6569,10 @@ const styles =
         'Inter_400Regular',
 
       fontSize:
-        9.8,
+        12,
 
       lineHeight:
-        15,
+        17,
     },
 
     // ========================================================
@@ -6600,7 +6688,7 @@ const styles =
         'Poppins_600SemiBold',
 
       fontSize:
-        16,
+        17,
 
       lineHeight:
         21,
@@ -6620,10 +6708,10 @@ const styles =
         'Inter_400Regular',
 
       fontSize:
-        10.8,
+        13.5,
 
       lineHeight:
-        17,
+        20,
 
       textAlign:
         'center',
@@ -6679,7 +6767,7 @@ const styles =
         'Poppins_600SemiBold',
 
       fontSize:
-        10,
+        13.5,
     },
 
     actionPopupPrimaryButton: {
@@ -6723,6 +6811,6 @@ const styles =
         'Poppins_600SemiBold',
 
       fontSize:
-        10,
+        13.5,
     },
   });
