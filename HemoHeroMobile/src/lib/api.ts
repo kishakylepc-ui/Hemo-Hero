@@ -6,16 +6,7 @@ import {
   Platform,
 } from 'react-native';
 import { authorizedFetch } from './authFetch';
-
-// ============================================================
-// API URL
-// ============================================================
-
-const API_URL =
-  Platform.OS === 'web'
-    ? 'http://localhost:5000'
-    : process.env.EXPO_PUBLIC_API_URL ||
-      'http://localhost:5000';
+import { API_URL } from './apiUrl';
 
 // ============================================================
 // API ERROR

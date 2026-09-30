@@ -15,8 +15,6 @@
 // is returned to sign in.
 // ============================================================
 
-import { Platform } from 'react-native';
-
 import { router } from 'expo-router';
 
 import {
@@ -24,13 +22,7 @@ import {
   getRefreshToken,
   saveSession,
 } from './session';
-
-const API_URL = (
-  Platform.OS === 'web'
-    ? 'http://localhost:5000'
-    : process.env.EXPO_PUBLIC_API_URL ||
-      'http://localhost:5000'
-).replace(/\/+$/, '');
+import { API_URL } from './apiUrl';
 
 // Requests that must never trigger a refresh.
 const NO_REFRESH_PATHS = [

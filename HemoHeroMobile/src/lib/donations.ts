@@ -1,7 +1,5 @@
-import {
-  Platform,
-} from 'react-native';
 import { authorizedFetch } from './authFetch';
+import { API_URL } from './apiUrl';
 
 // ============================================================
 // BLOOD DONATIONS (TRANSACTION RECORD)
@@ -11,13 +9,6 @@ import { authorizedFetch } from './authFetch';
 // flags it for admin review ('needs_review'). Both sides can
 // then leave feedback, and the donor can report a problem.
 // ============================================================
-
-const API_URL = (
-  Platform.OS === 'web'
-    ? 'http://localhost:5000'
-    : process.env.EXPO_PUBLIC_API_URL ||
-      'http://localhost:5000'
-).replace(/\/+$/, '');
 
 // ============================================================
 // TYPES
