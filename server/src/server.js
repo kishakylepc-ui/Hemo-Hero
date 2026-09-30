@@ -43,6 +43,12 @@ const adminReportRoutes =
 const notificationRoutes =
   require('./routes/notificationRoutes');
 
+const donationRoutes =
+  require('./routes/donationRoutes');
+
+const adminDonationRoutes =
+  require('./routes/adminDonationRoutes');
+
 // ============================================================
 // APP
 // ============================================================
@@ -215,6 +221,34 @@ app.use(
 );
 
 // ============================================================
+// ADMIN DONATION RECORDS (review flagged records only)
+//
+// GET   /api/admin/donations
+// GET   /api/admin/donations/summary
+// GET   /api/admin/donations/:id
+// PATCH /api/admin/donations/:id/approve
+// PATCH /api/admin/donations/:id/reject
+//
+// ADMIN ONLY
+// ============================================================
+
+app.use(
+  '/api/admin/donations',
+  adminDonationRoutes
+);
+
+// ============================================================
+// DONATION HISTORY
+//
+// GET /api/donations/me
+// ============================================================
+
+app.use(
+  '/api/donations',
+  donationRoutes
+);
+
+// ============================================================
 // NOTIFICATIONS
 //
 // GET   /api/notifications
@@ -318,6 +352,10 @@ app.listen(
 
     console.log(
       `Admin Issues: http://localhost:${PORT}/api/admin/reports`
+    );
+
+    console.log(
+      `Admin Donations: http://localhost:${PORT}/api/admin/donations`
     );
 
     console.log(

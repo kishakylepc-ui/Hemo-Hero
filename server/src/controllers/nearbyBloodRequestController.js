@@ -2,6 +2,10 @@ const {
   supabaseAdmin,
 } = require('../config/supabase');
 
+const {
+  getCompatibleRecipientTypesForDonor,
+} = require('../utils/bloodCompatibility');
+
 // ============================================================
 // CONSTANTS
 // ============================================================
@@ -457,22 +461,25 @@ async function getNearbyBloodRequests(
         );
 
     // ========================================================
-    // EXACT BLOOD TYPE FILTER
+    // BLOOD TYPE COMPATIBILITY FILTER
     //
     // Only applied when the authenticated user is an approved
     // donor with a verified blood type.
     //
-    // Hemo-Hero rule:
-    // request blood type must exactly equal donor blood type.
+    // Hemo-Hero rule (same as responses and invitations):
+    // show requests whose blood type this donor can give
+    // red cells to, e.g. an O- donor sees every request.
     // ========================================================
 
     if (
       donorBloodType
     ) {
       requestQuery =
-        requestQuery.eq(
+        requestQuery.in(
           'blood_type',
-          donorBloodType
+          getCompatibleRecipientTypesForDonor(
+            donorBloodType
+          )
         );
     }
 

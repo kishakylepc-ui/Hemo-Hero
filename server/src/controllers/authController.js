@@ -1545,6 +1545,161 @@ async function login(
 }
 
 // ============================================================
+// POST /api/auth/refresh
+//
+// Exchanges a refresh token for a new session so the mobile
+// app stays signed in after the access token expires (~1 hour).
+//
+// Body: { refresh_token: string }
+//
+// Does NOT require a valid access token (the old one has
+// usually expired). Deactivated accounts cannot refresh.
+// ============================================================
+
+async function refreshSession(
+  req,
+  res
+) {
+  try {
+    const refreshToken =
+      typeof req.body?.refresh_token ===
+      'string'
+        ? req.body.refresh_token.trim()
+        : '';
+
+    if (!refreshToken) {
+      return res
+        .status(400)
+        .json({
+          error:
+            'Refresh token is required.',
+
+          code:
+            'REFRESH_TOKEN_REQUIRED',
+        });
+    }
+
+    const {
+      data,
+      error,
+    } =
+      await supabaseAnon
+        .auth
+        .refreshSession({
+          refresh_token:
+            refreshToken,
+        });
+
+    if (
+      error ||
+      !data?.session ||
+      !data?.user
+    ) {
+      return res
+        .status(401)
+        .json({
+          error:
+            'Your session has expired. Please sign in again.',
+
+          code:
+            'REFRESH_TOKEN_INVALID',
+        });
+    }
+
+    // --------------------------------------------------------
+    // ACCOUNT MUST STILL BE ACTIVE
+    // --------------------------------------------------------
+
+    const {
+      data:
+        dbUser,
+      error:
+        dbError,
+    } =
+      await supabaseAdmin
+        .from(
+          'users'
+        )
+        .select(
+          '*'
+        )
+        .eq(
+          'id',
+          data.user.id
+        )
+        .maybeSingle();
+
+    if (dbError) {
+      console.error(
+        'REFRESH PROFILE LOOKUP ERROR:',
+        dbError
+      );
+
+      return res
+        .status(500)
+        .json({
+          error:
+            'Unable to refresh session.',
+        });
+    }
+
+    if (
+      !dbUser ||
+      dbUser.is_active ===
+        false
+    ) {
+      try {
+        await supabaseAdmin
+          .auth
+          .admin
+          .signOut(
+            data.session.access_token
+          );
+      } catch (signOutError) {
+        console.error(
+          'REFRESH SIGNOUT ERROR:',
+          signOutError
+        );
+      }
+
+      return res
+        .status(403)
+        .json({
+          error:
+            'Your account has been deactivated. Please contact an administrator.',
+
+          code:
+            'ACCOUNT_DEACTIVATED',
+        });
+    }
+
+    return res
+      .status(200)
+      .json({
+        session:
+          data.session,
+
+        profile:
+          dbUser,
+      });
+  } catch (
+    error
+  ) {
+    console.error(
+      'REFRESH SESSION ERROR:',
+      error
+    );
+
+    return res
+      .status(500)
+      .json({
+        error:
+          'Unable to refresh session.',
+      });
+  }
+}
+
+// ============================================================
 // POST /api/auth/logout
 // ============================================================
 
@@ -2917,6 +3072,7 @@ module.exports = {
   verifyEmail,
   resendVerification,
   login,
+  refreshSession,
   logout,
   forgotPassword,
   verifyRecoveryCode,

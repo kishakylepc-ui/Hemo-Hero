@@ -61,6 +61,16 @@ const {
   );
 
 const {
+  recordDonation,
+  getRequestDonations,
+  submitDonationFeedback,
+  disputeDonation,
+} =
+  require(
+    '../controllers/donationController'
+  );
+
+const {
   requireAuth,
 } =
   require(
@@ -502,6 +512,111 @@ router.post(
   }),
 
   submitConversationReport
+);
+
+// ============================================================
+// DONATIONS (TRANSACTION RECORD)
+//
+// GET  /api/requests/:id/donations
+//      owner -> all donations, donor -> their own
+//
+// POST /api/requests/:id/responses/:responseId/donation
+//      owner confirms an accepted donor's donation; it is
+//      recorded right away unless an automatic check flags it
+//      for admin review.
+//
+// POST /api/requests/:id/donations/:donationId/feedback
+//      donor or requester rates the transaction
+//
+// POST /api/requests/:id/donations/:donationId/dispute
+//      donor reports a problem with the record
+// ============================================================
+
+router.get(
+  '/:id/donations',
+  getRequestDonations
+);
+
+router.post(
+  '/:id/donations/:donationId/feedback',
+
+  activityLog({
+    action:
+      'SUBMIT_DONATION_FEEDBACK',
+
+    module:
+      'Donations',
+
+    successDescription:
+      'User left feedback on a donation transaction.',
+
+    failureDescription:
+      'Donation feedback attempt failed.',
+
+    entityType:
+      'blood_donation',
+
+    // Log the rating only - never the comment text.
+    metadata: ({ req }) => ({
+      rating:
+        req.body?.rating ||
+        null,
+    }),
+  }),
+
+  submitDonationFeedback
+);
+
+router.post(
+  '/:id/donations/:donationId/dispute',
+
+  activityLog({
+    action:
+      'DISPUTE_DONATION',
+
+    module:
+      'Donations',
+
+    successDescription:
+      'Donor reported a problem with a donation record.',
+
+    failureDescription:
+      'Donation dispute attempt failed.',
+
+    entityType:
+      'blood_donation',
+  }),
+
+  disputeDonation
+);
+
+router.post(
+  '/:id/responses/:responseId/donation',
+
+  activityLog({
+    action:
+      'RECORD_DONATION',
+
+    module:
+      'Donations',
+
+    successDescription:
+      'Requester confirmed a donor\'s donation.',
+
+    failureDescription:
+      'Donation confirmation attempt failed.',
+
+    entityType:
+      'blood_donation',
+
+    metadata: ({ req }) => ({
+      units_donated:
+        req.body?.units_donated ||
+        1,
+    }),
+  }),
+
+  recordDonation
 );
 
 // ============================================================

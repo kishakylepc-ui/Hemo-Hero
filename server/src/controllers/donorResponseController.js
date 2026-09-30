@@ -17,6 +17,14 @@ const {
     '../middleware/activityLogMiddleware'
   );
 
+const {
+  areRedBloodCellsCompatible,
+  getCompatibleDonorTypes
+} =
+  require(
+    '../utils/bloodCompatibility'
+  );
+
 // ============================================================
 // HELPERS
 // ============================================================
@@ -96,41 +104,26 @@ function normalizeBloodType(
 }
 
 // ============================================================
-// EXACT BLOOD TYPE MATCH
+// BLOOD TYPE COMPATIBILITY
 //
-// Hemo-Hero direct donor response rule:
+// Hemo-Hero donor response rule (same as donor invitations):
+// the donor's verified blood type must be red-cell compatible
+// with the requested type.
 //
-// Request O+ -> verified donor O+ only
-// Request AB- -> verified donor AB- only
+// Request A+  -> donors O-, O+, A-, A+
+// Request O-  -> donors O- only
 //
-// This intentionally uses exact matching rather than
-// transfusion compatibility.
+// Final compatibility is always confirmed by blood-bank
+// testing at the facility.
 // ============================================================
 
-function bloodTypesMatchExactly(
+function isCompatibleDonorBloodType(
   requestBloodType,
   donorBloodType
 ) {
-  const requiredBloodType =
-    normalizeBloodType(
-      requestBloodType
-    );
-
-  const verifiedBloodType =
-    normalizeBloodType(
-      donorBloodType
-    );
-
-  if (
-    !requiredBloodType ||
-    !verifiedBloodType
-  ) {
-    return false;
-  }
-
-  return (
-    requiredBloodType ===
-    verifiedBloodType
+  return areRedBloodCellsCompatible(
+    requestBloodType,
+    donorBloodType
   );
 }
 
@@ -731,11 +724,11 @@ async function respondToBloodRequest(
     }
 
     // ========================================================
-    // EXACT BLOOD TYPE VALIDATION
+    // BLOOD TYPE COMPATIBILITY
     // ========================================================
 
     if (
-      !bloodTypesMatchExactly(
+      !isCompatibleDonorBloodType(
         bloodRequest.blood_type,
         donorApplication
           .blood_type
@@ -745,7 +738,7 @@ async function respondToBloodRequest(
         .status(409)
         .json({
           error:
-            'Your verified blood type does not match the blood type required by this request.',
+            'Your verified blood type is not compatible with the blood type required by this request.',
 
           required_blood_type:
             normalizeBloodType(
@@ -756,6 +749,12 @@ async function respondToBloodRequest(
           donor_blood_type:
             normalizeBloodType(
               donorApplication
+                .blood_type
+            ),
+
+          compatible_donor_types:
+            getCompatibleDonorTypes(
+              bloodRequest
                 .blood_type
             )
         });
@@ -1755,11 +1754,11 @@ async function acceptDonorResponse(
     }
 
     // ========================================================
-    // EXACT BLOOD TYPE REVALIDATION
+    // BLOOD TYPE COMPATIBILITY REVALIDATION
     // ========================================================
 
     if (
-      !bloodTypesMatchExactly(
+      !isCompatibleDonorBloodType(
         bloodRequest.blood_type,
         donorApplication
           .blood_type
@@ -1769,7 +1768,7 @@ async function acceptDonorResponse(
         .status(409)
         .json({
           error:
-            'This donor\'s verified blood type does not match the blood type required by this request.',
+            'This donor\'s verified blood type is not compatible with the blood type required by this request.',
 
           required_blood_type:
             normalizeBloodType(

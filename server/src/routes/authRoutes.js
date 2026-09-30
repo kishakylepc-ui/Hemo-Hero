@@ -16,6 +16,7 @@ const {
   verifyEmail,
   resendVerification,
   login,
+  refreshSession,
   logout,
   forgotPassword,
   verifyRecoveryCode,
@@ -285,6 +286,20 @@ router.post(
   loginLimiter,
 
   login
+);
+
+// ------------------------------------------------------------
+// REFRESH SESSION
+//
+// POST /api/auth/refresh
+//
+// Not activity-logged: apps refresh roughly every hour, which
+// would flood the Log Trails with routine entries.
+// ------------------------------------------------------------
+
+router.post(
+  '/refresh',
+  refreshSession
 );
 
 // ------------------------------------------------------------

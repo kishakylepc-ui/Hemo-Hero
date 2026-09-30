@@ -1242,6 +1242,61 @@ async function fulfillBloodRequest(
     }
 
     // --------------------------------------------------------
+    // CONFIRMED DONATIONS
+    //
+    // A request is fulfilled only after the requester has
+    // confirmed at least one donation (pending or verified),
+    // so every fulfilled request has a stored donation record.
+    // --------------------------------------------------------
+
+    const {
+      data:
+        confirmedDonations,
+      error:
+        donationsError
+    } =
+      await supabaseAdmin
+        .from(
+          'blood_donations'
+        )
+        .select(
+          'id,units_donated'
+        )
+        .eq(
+          'request_id',
+          requestId
+        )
+        .neq(
+          'status',
+          'rejected'
+        );
+
+    if (donationsError) {
+      console.error(
+        'FULFILL REQUEST DONATIONS ERROR:',
+        donationsError
+      );
+
+      return res
+        .status(500)
+        .json({
+          error:
+            'Unable to verify confirmed donations.'
+        });
+    }
+
+    if (
+      !confirmedDonations?.length
+    ) {
+      return res
+        .status(409)
+        .json({
+          error:
+            'Confirm at least one donor\'s donation before marking this request as fulfilled.'
+        });
+    }
+
+    // --------------------------------------------------------
     // FULFILL
     // --------------------------------------------------------
 
@@ -1257,7 +1312,11 @@ async function fulfillBloodRequest(
         )
         .update({
           status:
-            'fulfilled'
+            'fulfilled',
+
+          fulfilled_at:
+            new Date()
+              .toISOString()
         })
         .eq(
           'id',
@@ -1367,6 +1426,9 @@ async function fulfillBloodRequest(
 
         accepted_donor_count:
           acceptedDonorCount,
+
+        confirmed_donation_count:
+          confirmedDonations.length,
 
         request:
           updatedRequest
@@ -1487,6 +1549,61 @@ async function cancelBloodRequest(
     }
 
     // --------------------------------------------------------
+    // CONFIRMED DONATIONS BLOCK CANCELLING
+    //
+    // Once a donation is confirmed the request was (at least
+    // partly) met, so it should be fulfilled, not cancelled.
+    // --------------------------------------------------------
+
+    const {
+      data:
+        confirmedDonations,
+      error:
+        donationsError
+    } =
+      await supabaseAdmin
+        .from(
+          'blood_donations'
+        )
+        .select(
+          'id'
+        )
+        .eq(
+          'request_id',
+          requestId
+        )
+        .neq(
+          'status',
+          'rejected'
+        )
+        .limit(1);
+
+    if (donationsError) {
+      console.error(
+        'CANCEL REQUEST DONATIONS ERROR:',
+        donationsError
+      );
+
+      return res
+        .status(500)
+        .json({
+          error:
+            'Unable to check confirmed donations.'
+        });
+    }
+
+    if (
+      confirmedDonations?.length
+    ) {
+      return res
+        .status(409)
+        .json({
+          error:
+            'This request already has a confirmed donation. Mark it as fulfilled instead of cancelling.'
+        });
+    }
+
+    // --------------------------------------------------------
     // FIND INVOLVED DONORS BEFORE CANCELLING
     // --------------------------------------------------------
 
@@ -1540,7 +1657,11 @@ async function cancelBloodRequest(
         )
         .update({
           status:
-            'cancelled'
+            'cancelled',
+
+          cancelled_at:
+            new Date()
+              .toISOString()
         })
         .eq(
           'id',
