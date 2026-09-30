@@ -2292,7 +2292,13 @@ async function getRequestDonations(
 // ============================================================
 // GET /api/donations/me
 //
-// The signed-in donor's donation history.
+// The signed-in user's donation history in both roles:
+// donations they gave (role 'donor') and donations they
+// received for their requests (role 'requester'), each with
+// the feedback both sides left.
+//
+// The summary (and 90-day eligibility) counts only donations
+// the user gave.
 // ============================================================
 
 async function getMyDonations(
@@ -2300,12 +2306,12 @@ async function getMyDonations(
   res
 ) {
   try {
-    const donorId =
+    const userId =
       getAuthenticatedUserId(
         req
       );
 
-    if (!donorId) {
+    if (!userId) {
       return res
         .status(401)
         .json({
@@ -2326,6 +2332,9 @@ async function getMyDonations(
           id,
           request_id,
           response_id,
+          donor_id,
+          requester_id,
+          donor_name,
           requester_name,
           blood_type,
           facility_name,
@@ -2336,9 +2345,8 @@ async function getMyDonations(
           admin_note,
           created_at
         `)
-        .eq(
-          'donor_id',
-          donorId
+        .or(
+          `donor_id.eq.${userId},requester_id.eq.${userId}`
         )
         .order(
           'donated_at',
@@ -2362,12 +2370,65 @@ async function getMyDonations(
         });
     }
 
-    const donations =
+    const rows =
       data ||
       [];
 
+    const feedbackByDonation =
+      await loadFeedback(
+        rows.map(
+          donation =>
+            donation.id
+        )
+      );
+
+    const donations =
+      rows.map(
+        donation => ({
+          ...donation,
+
+          role:
+            donation.donor_id ===
+            userId
+              ? 'donor'
+              : 'requester',
+
+          feedback:
+            (
+              feedbackByDonation.get(
+                donation.id
+              ) ||
+              []
+            ).map(
+              row => ({
+                from_role:
+                  row.from_role,
+
+                rating:
+                  row.rating,
+
+                comment:
+                  row.comment,
+
+                created_at:
+                  row.created_at,
+
+                updated_at:
+                  row.updated_at
+              })
+            )
+        })
+      );
+
+    const given =
+      donations.filter(
+        donation =>
+          donation.role ===
+          'donor'
+      );
+
     const lastCompleted =
-      donations.find(
+      given.find(
         donation =>
           donation.status ===
           'completed'
@@ -2381,8 +2442,12 @@ async function getMyDonations(
 
         summary: {
           ...buildDonationSummary(
-            donations
+            given
           ),
+
+          received_count:
+            donations.length -
+            given.length,
 
           last_completed_at:
             lastCompleted

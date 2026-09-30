@@ -1,5 +1,8 @@
 require('dotenv').config();
 
+const os =
+  require('os');
+
 const express =
   require('express');
 
@@ -307,6 +310,25 @@ app.use(
 // START SERVER
 // ============================================================
 
+// IPv4 addresses of this computer on its local networks
+// (Wi-Fi, hotspot, Ethernet).
+function getLanAddresses() {
+  return Object.values(
+    os.networkInterfaces()
+  )
+    .flat()
+    .filter(
+      item =>
+        item &&
+        item.family === 'IPv4' &&
+        !item.internal
+    )
+    .map(
+      item =>
+        item.address
+    );
+}
+
 app.listen(
   PORT,
   () => {
@@ -321,6 +343,14 @@ app.listen(
     console.log(
       `Health: http://localhost:${PORT}/health`
     );
+
+    // Addresses a phone on the same Wi-Fi / hotspot can use
+    // (Expo Go builds the API address from the same IP).
+    for (const address of getLanAddresses()) {
+      console.log(
+        `Phone (same network): http://${address}:${PORT}/health`
+      );
+    }
 
     console.log(
       `Donors: http://localhost:${PORT}/api/donors`

@@ -1042,16 +1042,63 @@ async function getDonorViewBloodRequestById(
         });
     }
 
+    // A closed request stays visible to donors who took part
+    // (offered, were invited, or have a donation record), so
+    // they can still see the outcome and leave feedback.
     if (
       data.status !==
       'active'
     ) {
-      return res
-        .status(409)
-        .json({
-          error:
-            'This blood request is no longer active.'
-        });
+      const [
+        responseResult,
+        invitationResult
+      ] =
+        await Promise.all([
+          supabaseAdmin
+            .from(
+              'blood_request_responses'
+            )
+            .select('id')
+            .eq(
+              'request_id',
+              requestId
+            )
+            .eq(
+              'donor_id',
+              viewerId
+            )
+            .limit(1),
+
+          supabaseAdmin
+            .from(
+              'blood_request_invitations'
+            )
+            .select('id')
+            .eq(
+              'request_id',
+              requestId
+            )
+            .eq(
+              'donor_id',
+              viewerId
+            )
+            .limit(1)
+        ]);
+
+      const tookPart =
+        (responseResult.data || [])
+          .length > 0 ||
+        (invitationResult.data || [])
+          .length > 0;
+
+      if (!tookPart) {
+        return res
+          .status(409)
+          .json({
+            error:
+              'This blood request is no longer active.'
+          });
+      }
     }
 
     const {
