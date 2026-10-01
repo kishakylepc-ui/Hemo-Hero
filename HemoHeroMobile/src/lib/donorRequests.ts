@@ -20,13 +20,20 @@ export type DonorBloodRequest = {
   message?: string | null;
   status: 'active' | 'fulfilled' | 'cancelled' | 'expired';
   created_at: string;
+  // Under review after several reports.
+  flagged_at?: string | null;
+  // Taken down by an admin after review.
+  removed_at?: string | null;
+  removal_reason?: string | null;
 };
 
 export type DonorResponseStatus =
   | 'pending'
   | 'accepted'
   | 'rejected'
-  | 'withdrawn';
+  | 'withdrawn'
+  // Released after the requester reported a no-show.
+  | 'no_show';
 
 export type DonorResponse = {
   id: string;
@@ -44,6 +51,7 @@ export type DonorResponseCounts = {
   accepted: number;
   rejected: number;
   withdrawn: number;
+  no_show?: number;
 };
 
 // ============================================================
@@ -175,6 +183,46 @@ export async function withdrawDonorResponse(
       headers: {
         Authorization: `Bearer ${accessToken}`,
       },
+    }
+  );
+}
+
+// ============================================================
+// REPORT A BLOOD REQUEST
+//
+// False request, asking for payment, wrong details. Several
+// separate reports hide it from nearby donors until an admin
+// reviews it.
+// ============================================================
+
+export type RequestReportReason =
+  | 'False request'
+  | 'Asking for payment'
+  | 'Misleading information'
+  | 'Other';
+
+export async function reportBloodRequest(
+  accessToken: string,
+  requestId: string,
+  input: {
+    reason: RequestReportReason;
+    details?: string;
+  }
+): Promise<{
+  message: string;
+  flagged: boolean;
+}> {
+  return request(
+    `/api/requests/${encodeURIComponent(requestId)}/report`,
+    {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+      },
+      body: JSON.stringify({
+        reason: input.reason,
+        details: input.details?.trim() || null,
+      }),
     }
   );
 }

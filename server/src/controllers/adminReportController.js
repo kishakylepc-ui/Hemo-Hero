@@ -431,7 +431,10 @@ async function loadReportDetails(
           facility_name,
           urgency,
           status,
-          created_at
+          created_at,
+          flagged_at,
+          removed_at,
+          removal_reason
         `)
         .eq(
           'id',
@@ -505,13 +508,133 @@ async function loadReportDetails(
       );
   }
 
+  // ----------------------------------------------------------
+  // NO-SHOWS AGAINST THIS USER / OPEN REPORTS ON THIS REQUEST
+  // ----------------------------------------------------------
+
+  let reportedUserNoShowCount =
+    0;
+
+  if (
+    report.reported_user_id
+  ) {
+    const {
+      count,
+      error:
+        noShowError
+    } =
+      await supabaseAdmin
+        .from(
+          'user_reports'
+        )
+        .select(
+          'id',
+          {
+            count:
+              'exact',
+
+            head:
+              true
+          }
+        )
+        .eq(
+          'reason',
+          'No-show'
+        )
+        .eq(
+          'reported_user_id',
+          report.reported_user_id
+        );
+
+    if (noShowError) {
+      console.error(
+        'ADMIN NO-SHOW COUNT ERROR:',
+        noShowError
+      );
+    }
+
+    reportedUserNoShowCount =
+      Number(
+        count ||
+          0
+      );
+  }
+
+  let requestReportCount =
+    0;
+
+  if (
+    report.request_id &&
+    !report.response_id
+  ) {
+    const {
+      count,
+      error:
+        requestCountError
+    } =
+      await supabaseAdmin
+        .from(
+          'user_reports'
+        )
+        .select(
+          'id',
+          {
+            count:
+              'exact',
+
+            head:
+              true
+          }
+        )
+        .eq(
+          'kind',
+          'report'
+        )
+        .eq(
+          'request_id',
+          report.request_id
+        )
+        .is(
+          'response_id',
+          null
+        )
+        .in(
+          'status',
+          [
+            'open',
+            'in_review'
+          ]
+        );
+
+    if (requestCountError) {
+      console.error(
+        'ADMIN REQUEST REPORT COUNT ERROR:',
+        requestCountError
+      );
+    }
+
+    requestReportCount =
+      Number(
+        count ||
+          0
+      );
+  }
+
   return {
     ...withUsers,
 
     request,
 
     reported_user_report_count:
-      reportedUserReportCount
+      reportedUserReportCount,
+
+    reported_user_no_show_count:
+      reportedUserNoShowCount,
+
+    // Open reports about the request itself (false request,
+    // asking for payment). Only for request-level reports.
+    request_report_count:
+      requestReportCount
   };
 }
 

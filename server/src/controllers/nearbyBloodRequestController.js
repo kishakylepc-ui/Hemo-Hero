@@ -445,6 +445,12 @@ async function getNearbyBloodRequests(
           'status',
           'active'
         )
+        // Reported by several people: hidden until an admin
+        // reviews it.
+        .is(
+          'flagged_at',
+          null
+        )
         .neq(
           'requester_id',
           requesterId

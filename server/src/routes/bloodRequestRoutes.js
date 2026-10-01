@@ -18,6 +18,8 @@ const {
   getAdminBloodRequests,
   getAdminBloodTypeDemand,
   getAdminBloodRequestById,
+  removeAdminBloodRequest,
+  keepAdminBloodRequest,
 } =
   require(
     '../controllers/adminBloodRequestController'
@@ -44,6 +46,7 @@ const {
 
 const {
   getCoordinationInbox,
+  markCoordinationRead,
   getCoordination,
   getCoordinationMessages,
   sendCoordinationMessage,
@@ -55,6 +58,8 @@ const {
 
 const {
   submitConversationReport,
+  submitNoShowReport,
+  submitRequestReport,
 } =
   require(
     '../controllers/userReportController'
@@ -171,6 +176,61 @@ router.get(
 router.get(
   '/admin/:id',
   getAdminBloodRequestById
+);
+
+// ============================================================
+// ADMIN REVIEW OF REPORTED REQUESTS
+//
+// PATCH /api/requests/admin/:id/remove  { note }   take it down
+// PATCH /api/requests/admin/:id/keep    { note? }  keep it up
+//
+// Admin authorization is checked inside the controller.
+// ============================================================
+
+router.patch(
+  '/admin/:id/remove',
+
+  activityLog({
+    action:
+      'ADMIN_REMOVE_BLOOD_REQUEST',
+
+    module:
+      'Requests',
+
+    successDescription:
+      'Admin removed a reported blood request.',
+
+    failureDescription:
+      'Admin blood request removal failed.',
+
+    entityType:
+      'blood_request',
+  }),
+
+  removeAdminBloodRequest
+);
+
+router.patch(
+  '/admin/:id/keep',
+
+  activityLog({
+    action:
+      'ADMIN_KEEP_BLOOD_REQUEST',
+
+    module:
+      'Requests',
+
+    successDescription:
+      'Admin reviewed a reported blood request and kept it.',
+
+    failureDescription:
+      'Admin blood request review failed.',
+
+    entityType:
+      'blood_request',
+  }),
+
+  keepAdminBloodRequest
 );
 
 // ============================================================
@@ -412,6 +472,13 @@ router.get(
   getCoordinationMessages
 );
 
+// Clears the viewer's unread alerts for this conversation.
+// Not activity-logged: it runs every time a chat is opened.
+router.patch(
+  '/:id/responses/:responseId/read',
+  markCoordinationRead
+);
+
 // ============================================================
 // SEND COORDINATION MESSAGE
 //
@@ -512,6 +579,73 @@ router.post(
   }),
 
   submitConversationReport
+);
+
+// ============================================================
+// REPORT A NO-SHOW
+//
+// POST /api/requests/:id/responses/:responseId/no-show
+//
+// Either participant, after the agreed meeting time, while no
+// donation is recorded for the conversation.
+// ============================================================
+
+router.post(
+  '/:id/responses/:responseId/no-show',
+
+  activityLog({
+    action:
+      'REPORT_NO_SHOW',
+
+    module:
+      'Coordination',
+
+    successDescription:
+      'User reported a no-show for a donation meeting.',
+
+    failureDescription:
+      'No-show report failed.',
+
+    entityType:
+      'user_report',
+  }),
+
+  submitNoShowReport
+);
+
+// ============================================================
+// REPORT A BLOOD REQUEST (false request, asking for payment)
+//
+// POST /api/requests/:id/report
+// ============================================================
+
+router.post(
+  '/:id/report',
+
+  activityLog({
+    action:
+      'REPORT_BLOOD_REQUEST',
+
+    module:
+      'Requests',
+
+    successDescription:
+      'User reported a blood request.',
+
+    failureDescription:
+      'Blood request report failed.',
+
+    entityType:
+      'user_report',
+
+    metadata: ({ req }) => ({
+      reason:
+        req.body?.reason ||
+        null,
+    }),
+  }),
+
+  submitRequestReport
 );
 
 // ============================================================

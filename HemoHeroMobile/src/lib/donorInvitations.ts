@@ -104,7 +104,8 @@ export type InvitationDonorResponse = {
     | 'pending'
     | 'accepted'
     | 'rejected'
-    | 'withdrawn';
+    | 'withdrawn'
+    | 'no_show';
 
   message?:
     | string

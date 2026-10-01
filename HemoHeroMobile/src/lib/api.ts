@@ -212,6 +212,21 @@ export type BloodRequest = {
     | string
     | null;
 
+  // Hidden from nearby donors after several reports, until
+  // an admin reviews it.
+  flagged_at?:
+    | string
+    | null;
+
+  // Taken down by an admin after review (status cancelled).
+  removed_at?:
+    | string
+    | null;
+
+  removal_reason?:
+    | string
+    | null;
+
   created_at: string;
 
   updated_at: string;
@@ -231,10 +246,12 @@ export type NotificationType =
   | 'donor_response_rejected'
   | 'blood_request_fulfilled'
   | 'blood_request_cancelled'
+  | 'blood_request_removed'
   | 'donor_application_approved'
   | 'donor_application_rejected'
   | 'coordination_message'
   | 'coordination_schedule'
+  | 'coordination_no_show'
   | 'donation_recorded'
   | 'donation_verified'
   | 'donation_rejected'

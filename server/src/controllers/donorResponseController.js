@@ -633,7 +633,8 @@ async function respondToBloodRequest(
           requester_id,
           status,
           blood_type,
-          facility_name
+          facility_name,
+          flagged_at
         `)
         .eq(
           'id',
@@ -698,6 +699,18 @@ async function respondToBloodRequest(
         .json({
           error:
             'This blood request is no longer active.'
+        });
+    }
+
+    // Reported by several people and waiting for admin review.
+    if (
+      bloodRequest.flagged_at
+    ) {
+      return res
+        .status(409)
+        .json({
+          error:
+            'This request is under review by Hemo-Hero and isn’t accepting offers right now.'
         });
     }
 
@@ -1486,6 +1499,9 @@ async function getResponsesForMyBloodRequest(
         0,
 
       withdrawn:
+        0,
+
+      no_show:
         0
     };
 
@@ -1522,6 +1538,14 @@ async function getResponsesForMyBloodRequest(
         'withdrawn'
       ) {
         counts.withdrawn +=
+          1;
+      }
+
+      if (
+        response.status ===
+        'no_show'
+      ) {
+        counts.no_show +=
           1;
       }
     }

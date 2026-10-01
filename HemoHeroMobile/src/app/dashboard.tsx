@@ -57,6 +57,11 @@ import {
 import { getMyDonorInvitations } from '../lib/donorInvitations';
 
 import {
+  getCoordinationInbox,
+  type CoordinationInboxItem,
+} from '../lib/coordination';
+
+import {
   getCurrentUser,
   getMyActiveBloodRequest,
   getUnreadNotificationCount,
@@ -212,6 +217,15 @@ export default function DashboardScreen() {
     activeRequestError,
     setActiveRequestError,
   ] = useState('');
+
+  // Conversations with accepted donors for the active request:
+  // meeting time, recorded donation, no-show, unread messages.
+  const [
+    activeRequestConversations,
+    setActiveRequestConversations,
+  ] = useState<
+    CoordinationInboxItem[]
+  >([]);
 
   const [
     activeRequestResponseCounts,
@@ -461,6 +475,27 @@ export default function DashboardScreen() {
         setActiveRequest(currentRequest);
 
         if (currentRequest) {
+          // Conversations only add detail; a failure here just
+          // falls back to the offer counts.
+          getCoordinationInbox(token)
+            .then(result =>
+              setActiveRequestConversations(
+                (result.conversations || []).filter(
+                  item =>
+                    item.request_id ===
+                    currentRequest.id
+                )
+              )
+            )
+            .catch(inboxError => {
+              console.log(
+                'DASHBOARD ACTIVE REQUEST CONVERSATIONS ERROR:',
+                inboxError
+              );
+
+              setActiveRequestConversations([]);
+            });
+
           try {
             const responseData =
               await getResponsesForMyBloodRequest(
@@ -490,6 +525,8 @@ export default function DashboardScreen() {
           }
         } else {
           setActiveRequestResponseCounts(emptyCounts);
+
+          setActiveRequestConversations([]);
         }
       } else {
         console.log(
@@ -1021,6 +1058,9 @@ function showMessage(
       case 'withdrawn':
         return 'Withdrawn';
 
+      case 'no_show':
+        return 'Marked No-show';
+
       default:
         return response.status;
     }
@@ -1044,6 +1084,9 @@ function showMessage(
       case 'withdrawn':
         return COLORS.lightMuted;
 
+      case 'no_show':
+        return COLORS.orange;
+
       default:
         return COLORS.lightMuted;
     }
@@ -1054,7 +1097,9 @@ function showMessage(
   ) {
     if (
       response.status ===
-      'accepted'
+        'accepted' ||
+      response.status ===
+        'no_show'
     ) {
       return 'Open Chat';
     }
@@ -1074,7 +1119,9 @@ function showMessage(
   ) {
     if (
       item.response.status ===
-      'accepted'
+        'accepted' ||
+      item.response.status ===
+        'no_show'
     ) {
       router.push(
         `/blood-request/${item.request.id}/coordination/${item.response.id}` as any
@@ -1402,44 +1449,231 @@ function showMessage(
     );
   }
 
-  const activeRequestFulfilled =
-    activeRequest?.status ===
-    'fulfilled';
+  // ==========================================================
+  // ACTIVE REQUEST STATUS
+  //
+  // Posted -> Donor accepted -> Scheduled -> Donated, plus the
+  // one next thing to do.
+  // ==========================================================
 
-  const activeRequestHasDonor =
-    activeRequestResponseCounts.accepted >
-      0 ||
-    activeRequestFulfilled;
+  const activeAccepted =
+    activeRequestConversations.filter(
+      item =>
+        item.response_status ===
+        'accepted'
+    );
 
-  function getActiveRequestProgressMessage() {
-    if (activeRequestFulfilled) {
-      return 'This blood request has been fulfilled.';
-    }
+  const activeNoShows =
+    activeRequestConversations.filter(
+      item =>
+        item.response_status ===
+        'no_show'
+    );
 
-    if (
-      activeRequestResponseCounts.accepted >
+  const activeDonation =
+    activeRequestConversations.find(
+      item =>
+        item.donation &&
+        item.donation.status !==
+          'rejected'
+    )?.donation ||
+    null;
+
+  const activeScheduled =
+    activeAccepted.find(
+      item =>
+        item.schedule
+    ) ||
+    null;
+
+  const activeUnread =
+    activeRequestConversations.reduce(
+      (total, item) =>
+        total +
+        (item.unread_count || 0),
       0
-    ) {
-      return activeRequestResponseCounts.accepted ===
-        1
-        ? 'Donor accepted — coordination is available.'
-        : `${activeRequestResponseCounts.accepted} donors accepted — coordination is available.`;
-    }
+    );
 
-    if (
-      activeRequestResponseCounts.pending >
-      0
-    ) {
-      return activeRequestResponseCounts.pending ===
-        1
-        ? '1 donor offer is waiting for your review.'
-        : `${activeRequestResponseCounts.pending} donor offers are waiting for your review.`;
-    }
+  const activeRequestFlagged =
+    Boolean(
+      activeRequest?.flagged_at
+    );
 
-    return 'Waiting for a compatible donor to respond.';
+  const activeHasDonor =
+    activeRequestResponseCounts.accepted > 0 ||
+    activeAccepted.length > 0 ||
+    Boolean(activeDonation);
+
+  const activeSteps = [
+    {
+      label: 'Posted',
+      done: true,
+    },
+    {
+      label: 'Donor',
+      done: activeHasDonor,
+    },
+    {
+      label: 'Scheduled',
+      done:
+        Boolean(activeScheduled) ||
+        Boolean(activeDonation),
+    },
+    {
+      label: 'Donated',
+      done:
+        Boolean(activeDonation),
+    },
+  ];
+
+  function personName(
+    item: CoordinationInboxItem
+  ) {
+    return (
+      item.other_participant
+        .first_name ||
+      item.other_participant
+        .full_name ||
+      'your donor'
+    );
   }
 
+  function formatMeeting(
+    value: string
+  ) {
+    const date =
+      new Date(value);
+
+    if (
+      Number.isNaN(
+        date.getTime()
+      )
+    ) {
+      return 'scheduled';
+    }
+
+    const today =
+      new Date();
+
+    const tomorrow =
+      new Date(
+        today.getFullYear(),
+        today.getMonth(),
+        today.getDate() + 1
+      );
+
+    const day =
+      date.toDateString() ===
+      today.toDateString()
+        ? 'Today'
+        : date.toDateString() ===
+            tomorrow.toDateString()
+          ? 'Tomorrow'
+          : date.toLocaleDateString(
+              'en-US',
+              {
+                month: 'short',
+                day: 'numeric',
+              }
+            );
+
+    return `${day}, ${date.toLocaleTimeString(
+      'en-US',
+      {
+        hour: 'numeric',
+        minute: '2-digit',
+      }
+    )}`;
+  }
+
+  function getActiveRequestStatus(): {
+    icon: keyof typeof MaterialIcons.glyphMap;
+    tone: 'green' | 'orange' | 'muted';
+    text: string;
+  } {
+    if (activeRequestFlagged) {
+      return {
+        icon: 'report-problem',
+        tone: 'orange',
+        text: 'Under review · hidden from donors for now',
+      };
+    }
+
+    if (activeDonation) {
+      return {
+        icon: 'task-alt',
+        tone: 'green',
+        text:
+          activeDonation.status ===
+          'needs_review'
+            ? `${activeDonation.units_donated} ${activeDonation.units_donated === 1 ? 'bag' : 'bags'} recorded · quick review`
+            : `${activeDonation.units_donated} ${activeDonation.units_donated === 1 ? 'bag' : 'bags'} recorded · mark fulfilled when done`,
+      };
+    }
+
+    if (activeScheduled?.schedule) {
+      return {
+        icon: 'event',
+        tone: 'green',
+        text: `Meet ${personName(activeScheduled)} · ${formatMeeting(activeScheduled.schedule.scheduled_at)}`,
+      };
+    }
+
+    if (activeAccepted.length > 0) {
+      return {
+        icon: 'chat-bubble-outline',
+        tone: 'green',
+        text:
+          activeAccepted.length === 1
+            ? `Set a meeting time with ${personName(activeAccepted[0])}`
+            : `${activeAccepted.length} donors accepted · set meeting times`,
+      };
+    }
+
+    if (
+      activeRequestResponseCounts.accepted > 0
+    ) {
+      return {
+        icon: 'chat-bubble-outline',
+        tone: 'green',
+        text: 'Donor accepted · set a meeting time',
+      };
+    }
+
+    if (
+      activeRequestResponseCounts.pending > 0
+    ) {
+      return {
+        icon: 'schedule',
+        tone: 'orange',
+        text:
+          activeRequestResponseCounts.pending === 1
+            ? '1 offer waiting for your review'
+            : `${activeRequestResponseCounts.pending} offers waiting for your review`,
+      };
+    }
+
+    if (activeNoShows.length > 0) {
+      return {
+        icon: 'person-off',
+        tone: 'orange',
+        text: `${personName(activeNoShows[0])} didn't show up · invite another donor`,
+      };
+    }
+
+    return {
+      icon: 'search',
+      tone: 'muted',
+      text: 'Waiting for a compatible donor',
+    };
+  }
+
+  const activeStatus =
+    getActiveRequestStatus();
+
   // ==========================================================
+  // UI
+  // ==========================================================  // ==========================================================
   // UI
   // ==========================================================
 
@@ -2061,7 +2295,9 @@ function showMessage(
                       {getRequestNumber(
                         activeRequest.id
                       )}{' '}
-                      • Active
+                      • {activeRequestFlagged
+                        ? 'Under review'
+                        : 'Active'}
                     </Text>
                   </View>
 
@@ -2160,8 +2396,8 @@ function showMessage(
                         }{' '}
                         {activeRequest.units_needed ===
                         1
-                          ? 'unit / bag needed'
-                          : 'units / bags needed'}
+                          ? 'bag needed'
+                          : 'bags needed'}
                       </Text>
                     </View>
 
@@ -2210,132 +2446,117 @@ function showMessage(
                     styles.requestProgress
                   }
                 >
-                  <View
-                    style={
-                      styles.progressItem
-                    }
-                  >
-                    <View
-                      style={
-                        styles.progressDotActive
-                      }
-                    />
+                  {activeSteps.map(
+                    (step, index) => (
+                      <View
+                        key={step.label}
+                        style={
+                          index > 0
+                            ? styles.progressStep
+                            : undefined
+                        }
+                      >
+                        {index > 0 ? (
+                          <View
+                            style={[
+                              styles.progressLine,
 
-                    <Text
-                      style={
-                        styles.progressTextActive
-                      }
-                    >
-                      Posted
-                    </Text>
-                  </View>
+                              step.done &&
+                                styles.progressLineActive,
+                            ]}
+                          />
+                        ) : null}
 
-                  <View
-                    style={[
-                      styles.progressLine,
+                        <View
+                          style={
+                            styles.progressItem
+                          }
+                        >
+                          <View
+                            style={
+                              step.done
+                                ? styles.progressDotActive
+                                : styles.progressDotInactive
+                            }
+                          />
 
-                      activeRequestHasDonor &&
-                        styles.progressLineActive,
-                    ]}
-                  />
-
-                  <View
-                    style={
-                      styles.progressItem
-                    }
-                  >
-                    <View
-                      style={
-                        activeRequestHasDonor
-                          ? styles.progressDotActive
-                          : styles.progressDotInactive
-                      }
-                    />
-
-                    <Text
-                      style={
-                        activeRequestHasDonor
-                          ? styles.progressTextActive
-                          : styles.progressTextInactive
-                      }
-                    >
-                      Donor Found
-                    </Text>
-                  </View>
-
-                  <View
-                    style={[
-                      styles.progressLine,
-
-                      activeRequestFulfilled &&
-                        styles.progressLineActive,
-                    ]}
-                  />
-
-                  <View
-                    style={
-                      styles.progressItem
-                    }
-                  >
-                    <View
-                      style={
-                        activeRequestFulfilled
-                          ? styles.progressDotActive
-                          : styles.progressDotInactive
-                      }
-                    />
-
-                    <Text
-                      style={
-                        activeRequestFulfilled
-                          ? styles.progressTextActive
-                          : styles.progressTextInactive
-                      }
-                    >
-                      Fulfilled
-                    </Text>
-                  </View>
+                          <Text
+                            style={
+                              step.done
+                                ? styles.progressTextActive
+                                : styles.progressTextInactive
+                            }
+                          >
+                            {step.label}
+                          </Text>
+                        </View>
+                      </View>
+                    )
+                  )}
                 </View>
 
-                <View
+                <FadeInView
+                  key={activeStatus.text}
+                  offset={4}
                   style={[
                     styles.progressStatusNote,
 
-                    activeRequestHasDonor &&
+                    activeStatus.tone ===
+                      'green' &&
                       styles.progressStatusNoteSuccess,
+
+                    activeStatus.tone ===
+                      'orange' &&
+                      styles.progressStatusNoteWarning,
                   ]}
                 >
                   <MaterialIcons
-                    name={
-                      activeRequestHasDonor
-                        ? 'check-circle-outline'
-                        : activeRequestResponseCounts.pending >
-                            0
-                          ? 'schedule'
-                          : 'search'
-                    }
+                    name={activeStatus.icon}
                     size={15}
                     color={
-                      activeRequestHasDonor
+                      activeStatus.tone ===
+                      'green'
                         ? COLORS.green
-                        : activeRequestResponseCounts.pending >
-                            0
+                        : activeStatus.tone ===
+                            'orange'
                           ? COLORS.orange
                           : COLORS.muted
                     }
                   />
 
                   <Text
+                    numberOfLines={2}
                     style={[
                       styles.progressStatusText,
 
-                      activeRequestHasDonor &&
+                      activeStatus.tone ===
+                        'green' &&
                         styles.progressStatusTextSuccess,
+
+                      activeStatus.tone ===
+                        'orange' &&
+                        styles.progressStatusTextWarning,
                     ]}
                   >
-                    {getActiveRequestProgressMessage()}
+                    {activeStatus.text}
                   </Text>
-                </View>
+
+                  {activeUnread > 0 ? (
+                    <View
+                      style={
+                        styles.unreadPill
+                      }
+                    >
+                      <Text
+                        style={
+                          styles.unreadPillText
+                        }
+                      >
+                        {activeUnread} new
+                      </Text>
+                    </View>
+                  ) : null}
+                </FadeInView>
 
                 <View
                   style={
@@ -4656,6 +4877,13 @@ const styles =
       paddingHorizontal: 3,
     },
 
+    // Line + dot for every step after the first.
+    progressStep: {
+      flex: 1,
+      flexDirection: 'row',
+      alignItems: 'flex-start',
+    },
+
     progressItem: {
       alignItems: 'center',
       minWidth: 60,
@@ -4749,6 +4977,27 @@ const styles =
     progressStatusNoteSuccess: {
       backgroundColor:
         '#EDF8F1',
+    },
+
+    progressStatusNoteWarning: {
+      backgroundColor: '#FDF1E6',
+    },
+
+    progressStatusTextWarning: {
+      color: COLORS.orange,
+    },
+
+    unreadPill: {
+      paddingHorizontal: 8,
+      paddingVertical: 3,
+      borderRadius: 10,
+      backgroundColor: COLORS.red,
+    },
+
+    unreadPillText: {
+      color: COLORS.white,
+      fontFamily: 'Inter_600SemiBold',
+      fontSize: 11,
     },
 
     progressStatusText: {

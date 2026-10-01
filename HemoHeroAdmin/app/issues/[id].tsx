@@ -37,6 +37,8 @@ import { FadeInView } from '../../components/AdminMotion';
 
 import {
   getAdminReportById,
+  keepAdminBloodRequest,
+  removeAdminBloodRequest,
   updateAdminReport,
   type AdminProfile,
   type AdminReport,
@@ -345,6 +347,21 @@ export default function IssueReviewScreen() {
     report?.status === 'resolved' ||
     report?.status === 'dismissed';
 
+  // Made from the request page (false request, asking for
+  // payment), not from a conversation.
+  const isRequestReport =
+    isReport &&
+    Boolean(report?.request_id) &&
+    !report?.response_id;
+
+  // The admin can still take the reported request down or
+  // keep it up.
+  const canDecideRequest =
+    isRequestReport &&
+    !isClosed &&
+    report?.request?.status === 'active' &&
+    !report?.request?.removed_at;
+
   // ==========================================================
   // CUSTOM ACTION MODAL
   // ==========================================================
@@ -546,6 +563,134 @@ export default function IssueReviewScreen() {
           'Your admin note has been saved.',
       }
     );
+  }
+
+  // ==========================================================
+  // REPORTED REQUEST: REMOVE OR KEEP
+  //
+  // Removing closes it for everyone and the requester sees the
+  // admin note. Either way, all open reports on the request are
+  // closed together.
+  // ==========================================================
+
+  function handleRequestDecision(
+    decision: 'remove' | 'keep'
+  ) {
+    const request =
+      report?.request;
+
+    if (
+      !request ||
+      submitting
+    ) {
+      return;
+    }
+
+    const note =
+      adminNote.trim();
+
+    if (
+      decision === 'remove' &&
+      !note
+    ) {
+      showMessage(
+        'Admin Note Required',
+        'Write a short reason in the admin note first. The requester will see it.',
+        'warning'
+      );
+
+      return;
+    }
+
+    confirmAction(
+      decision === 'remove'
+        ? 'Remove Request'
+        : 'Keep Request',
+
+      decision === 'remove'
+        ? `Take down this ${request.blood_type} request at ${request.facility_name}? It closes for everyone, donors with offers are told not to go, and the requester sees your note. All open reports on it are resolved.`
+        : 'Keep this request up? It becomes visible to nearby donors again and all open reports on it are dismissed.',
+
+      () =>
+        applyRequestDecision(
+          decision,
+          request.id,
+          note
+        ),
+
+      {
+        variant:
+          decision === 'remove'
+            ? 'reject'
+            : 'approve',
+
+        confirmLabel:
+          decision === 'remove'
+            ? 'Remove Request'
+            : 'Keep Request',
+      }
+    );
+  }
+
+  async function applyRequestDecision(
+    decision: 'remove' | 'keep',
+    requestId: string,
+    note: string
+  ) {
+    try {
+      setSubmitting(true);
+
+      const token =
+        await getAdminAccessToken();
+
+      if (!token) {
+        await clearAdminSession();
+
+        router.replace('/');
+
+        return;
+      }
+
+      if (decision === 'remove') {
+        await removeAdminBloodRequest(
+          token,
+          requestId,
+          note
+        );
+      } else {
+        await keepAdminBloodRequest(
+          token,
+          requestId,
+          note
+        );
+      }
+
+      await loadIssue();
+
+      showMessage(
+        decision === 'remove'
+          ? 'Request Removed'
+          : 'Request Kept',
+
+        decision === 'remove'
+          ? 'The request was taken down and the reports on it were resolved.'
+          : 'The request is visible again and the reports on it were dismissed.',
+
+        'success'
+      );
+    } catch (decisionError) {
+      showMessage(
+        'Unable to Update Request',
+
+        decisionError instanceof Error
+          ? decisionError.message
+          : 'Please try again.',
+
+        'error'
+      );
+    } finally {
+      setSubmitting(false);
+    }
   }
 
   function openUser(
@@ -963,8 +1108,43 @@ export default function IssueReviewScreen() {
                         <InfoItem
                           fontScale={fs}
                           label="Source"
-                          value="Donation coordination chat"
+                          value={
+                            isRequestReport
+                              ? 'Blood request page'
+                              : 'Donation coordination chat'
+                          }
                         />
+
+                        {report.reason ===
+                        'No-show' ? (
+                          <InfoItem
+                            fontScale={fs}
+                            label="No-shows by This User"
+                            value={String(
+                              report.reported_user_no_show_count ||
+                                1
+                            )}
+                            highlight={
+                              (report.reported_user_no_show_count ||
+                                0) > 1
+                            }
+                          />
+                        ) : null}
+
+                        {isRequestReport ? (
+                          <InfoItem
+                            fontScale={fs}
+                            label="Open Reports on Request"
+                            value={String(
+                              report.request_report_count ||
+                                0
+                            )}
+                            highlight={
+                              (report.request_report_count ||
+                                0) > 1
+                            }
+                          />
+                        ) : null}
                       </InfoGrid>
 
                       <Text
@@ -1130,6 +1310,32 @@ export default function IssueReviewScreen() {
                               report.request.created_at
                             )}
                           />
+
+                          <InfoItem
+                            fontScale={fs}
+                            label="Visibility"
+                            value={
+                              report.request.removed_at
+                                ? 'Removed by admin'
+                                : report.request.flagged_at
+                                  ? 'Hidden (under review)'
+                                  : 'Visible to donors'
+                            }
+                            highlight={Boolean(
+                              report.request.removed_at ||
+                                report.request.flagged_at
+                            )}
+                          />
+
+                          {report.request.removal_reason ? (
+                            <InfoItem
+                              fontScale={fs}
+                              label="Removal Reason"
+                              value={
+                                report.request.removal_reason
+                              }
+                            />
+                          ) : null}
                         </InfoGrid>
                       ) : (
                         <Text
@@ -1262,6 +1468,113 @@ export default function IssueReviewScreen() {
                           </Text>
                         </Pressable>
                       </View>
+
+                      {/* REPORTED REQUEST: REMOVE OR KEEP */}
+
+                      {canDecideRequest &&
+                      report.request ? (
+                        <View
+                          style={[
+                            styles.requestDecision,
+
+                            {
+                              marginTop: 18 * s,
+                              padding: 14 * s,
+                              borderRadius: 10 * s,
+                            },
+                          ]}
+                        >
+                          <View
+                            style={[
+                              styles.row,
+
+                              {
+                                gap: 8 * s,
+                              },
+                            ]}
+                          >
+                            <MaterialIcons
+                              name={
+                                report.request.flagged_at
+                                  ? 'visibility-off'
+                                  : 'outlined-flag'
+                              }
+                              size={19 * s}
+                              color={COLORS.orange}
+                            />
+
+                            <Text
+                              style={[
+                                styles.reviewedTitle,
+
+                                {
+                                  fontSize: 13 * fs,
+                                },
+                              ]}
+                            >
+                              Reported Request
+                            </Text>
+                          </View>
+
+                          <Text
+                            style={[
+                              styles.reviewedDate,
+
+                              {
+                                fontSize: 11.5 * fs,
+                                lineHeight: 17 * fs,
+                                marginTop: 6 * s,
+                              },
+                            ]}
+                          >
+                            {report.request.flagged_at
+                              ? `Hidden from nearby donors after ${report.request_report_count || 0} reports. `
+                              : `${report.request_report_count || 0} open report${(report.request_report_count || 0) === 1 ? '' : 's'} on this request. `}
+                            Decide if it stays up. Removing needs an admin note; the requester sees it.
+                          </Text>
+
+                          <View
+                            style={[
+                              styles.row,
+
+                              {
+                                gap: 10 * s,
+                                marginTop: 12 * s,
+                              },
+                            ]}
+                          >
+                            <ActionButton
+                              label="Keep Request"
+                              icon="visibility"
+                              tone="outline"
+                              scale={s}
+                              fontScale={fs}
+                              disabled={submitting}
+                              onPress={() =>
+                                handleRequestDecision(
+                                  'keep'
+                                )
+                              }
+                              style={styles.flexFill}
+                            />
+
+                            <ActionButton
+                              label="Remove Request"
+                              icon="block"
+                              tone="danger"
+                              scale={s}
+                              fontScale={fs}
+                              disabled={submitting}
+                              onPress={() =>
+                                handleRequestDecision(
+                                  'remove'
+                                )
+                              }
+                              style={styles.flexFill}
+                            />
+                          </View>
+                        </View>
+                      ) : null}
 
                       {/* STATUS ACTIONS */}
 
@@ -3044,6 +3357,12 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: COLORS.border,
     backgroundColor: COLORS.cardLight,
+  },
+
+  requestDecision: {
+    borderWidth: 1,
+    borderColor: 'rgba(243,163,74,0.35)',
+    backgroundColor: 'rgba(243,163,74,0.08)',
   },
 
   reviewedTitle: {

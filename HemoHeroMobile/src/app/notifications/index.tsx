@@ -624,6 +624,42 @@ export default function NotificationsScreen() {
     }
 
     // ========================================================
+    // NO-SHOW REPORTED (open the conversation to explain)
+    // ========================================================
+
+    if (
+      notification.type ===
+      'coordination_no_show'
+    ) {
+      if (
+        requestId &&
+        responseId
+      ) {
+        router.push(
+          `/blood-request/${requestId}/coordination/${responseId}` as any
+        );
+
+        return;
+      }
+    }
+
+    // ========================================================
+    // REQUEST REMOVED BY HEMO-HERO (sent to the requester)
+    // ========================================================
+
+    if (
+      notification.type ===
+        'blood_request_removed' &&
+      requestId
+    ) {
+      router.push(
+        `/blood-request/${requestId}` as any
+      );
+
+      return;
+    }
+
+    // ========================================================
     // FULFILLED / CANCELLED
     //
     // Sent to accepted donors; their view of the request shows
@@ -1615,6 +1651,30 @@ function getNotificationAppearance(
       return {
         icon:
           'event-busy',
+
+        color:
+          COLORS.orange,
+
+        background:
+          COLORS.orangeLight,
+      };
+
+    case 'blood_request_removed':
+      return {
+        icon:
+          'block',
+
+        color:
+          COLORS.redButton,
+
+        background:
+          COLORS.pinkLight,
+      };
+
+    case 'coordination_no_show':
+      return {
+        icon:
+          'person-off',
 
         color:
           COLORS.orange,

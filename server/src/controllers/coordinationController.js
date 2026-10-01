@@ -333,12 +333,15 @@ async function getCoordinationContext(
   }
 
   // ----------------------------------------------------------
-  // MUST BE ACCEPTED
+  // MUST BE ACCEPTED (or released after a no-show, which stays
+  // readable so both people can still talk it through)
   // ----------------------------------------------------------
 
   if (
     donorResponse.status !==
-    'accepted'
+      'accepted' &&
+    donorResponse.status !==
+      'no_show'
   ) {
     return {
       error:
@@ -1234,6 +1237,18 @@ async function setCoordinationSchedule(
         });
     }
 
+    if (
+      context.response.status ===
+      'no_show'
+    ) {
+      return res
+        .status(409)
+        .json({
+          error:
+            'This donor was marked as a no-show, so the meeting time can’t be changed.'
+        });
+    }
+
     const now =
       new Date()
         .toISOString();
@@ -1523,6 +1538,45 @@ const INBOX_PERSON_FIELDS =
 const INBOX_SCHEDULE_FIELDS =
   'id,request_id,response_id,scheduled_at,note,created_by,updated_by,created_at,updated_at';
 
+const INBOX_DONATION_FIELDS =
+  'id,response_id,status,units_donated,donated_at,created_at';
+
+// Notifications that belong to one conversation (unread badge).
+const COORDINATION_NOTIFICATION_TYPES = [
+  'coordination_message',
+  'coordination_schedule'
+];
+
+// Newest record per conversation, preferring one that was not
+// rejected (a rejected record can be confirmed again).
+function pickInboxDonation(
+  rows
+) {
+  const sorted =
+    [...rows].sort(
+      (
+        a,
+        b
+      ) =>
+        inboxTimestamp(
+          b.created_at
+        ) -
+        inboxTimestamp(
+          a.created_at
+        )
+    );
+
+  return (
+    sorted.find(
+      row =>
+        row.status !==
+        'rejected'
+    ) ||
+    sorted[0] ||
+    null
+  );
+}
+
 // ============================================================
 // READ INBOX ROWS
 // ============================================================
@@ -1741,9 +1795,12 @@ async function getCoordinationInbox(
                 'donor_id',
                 viewerId
               )
-              .eq(
+              .in(
                 'status',
-                'accepted'
+                [
+                  'accepted',
+                  'no_show'
+                ]
               )
               .order(
                 'id',
@@ -1778,9 +1835,12 @@ async function getCoordinationInbox(
               'request_id',
               ids
             )
-            .eq(
+            .in(
               'status',
-              'accepted'
+              [
+                'accepted',
+                'no_show'
+              ]
             )
             .order(
               'id',
@@ -1879,8 +1939,12 @@ async function getCoordinationInbox(
 
           return (
             request &&
-            response.status ===
-              'accepted' &&
+            (
+              response.status ===
+                'accepted' ||
+              response.status ===
+                'no_show'
+            ) &&
             (
               request.requester_id ===
                 viewerId ||
@@ -1947,7 +2011,9 @@ async function getCoordinationInbox(
     const [
       people,
       applications,
-      schedules
+      schedules,
+      donations,
+      unreadNotifications
     ] =
       await Promise.all([
         readInboxRowsByIds(
@@ -2023,8 +2089,207 @@ async function getCoordinationInbox(
                     true
                 }
               )
+        ),
+
+        readInboxRowsByIds(
+          visibleResponses.map(
+            row =>
+              row.id
+          ),
+
+          ids =>
+            supabaseAdmin
+              .from(
+                'blood_donations'
+              )
+              .select(
+                INBOX_DONATION_FIELDS
+              )
+              .in(
+                'response_id',
+                ids
+              )
+              .order(
+                'id',
+                {
+                  ascending:
+                    true
+                }
+              )
+        ),
+
+        // Only the viewer's own unread conversation alerts.
+        readInboxRows(
+          () =>
+            supabaseAdmin
+              .from(
+                'notifications'
+              )
+              .select(
+                'id,data'
+              )
+              .eq(
+                'user_id',
+                viewerId
+              )
+              .eq(
+                'is_read',
+                false
+              )
+              .in(
+                'type',
+                COORDINATION_NOTIFICATION_TYPES
+              )
+              .order(
+                'id',
+                {
+                  ascending:
+                    true
+                }
+              )
         )
       ]);
+
+    // Donation record per conversation, and who has rated it.
+    const donationsByResponse =
+      new Map();
+
+    for (const row of donations) {
+      const list =
+        donationsByResponse.get(
+          row.response_id
+        ) ||
+        [];
+
+      list.push(row);
+
+      donationsByResponse.set(
+        row.response_id,
+        list
+      );
+    }
+
+    const inboxDonations =
+      new Map();
+
+    for (const [
+      id,
+      rows
+    ] of donationsByResponse) {
+      inboxDonations.set(
+        id,
+        pickInboxDonation(
+          rows
+        )
+      );
+    }
+
+    const feedbackRows =
+      await readInboxRowsByIds(
+        [
+          ...inboxDonations.values()
+        ]
+          .filter(Boolean)
+          .map(
+            row =>
+              row.id
+          ),
+
+        ids =>
+          supabaseAdmin
+            .from(
+              'donation_feedback'
+            )
+            .select(
+              'id,donation_id,from_role,rating'
+            )
+            .in(
+              'donation_id',
+              ids
+            )
+            .order(
+              'id',
+              {
+                ascending:
+                  true
+              }
+            )
+      );
+
+    function buildInboxDonation(
+      donation,
+      viewerRole
+    ) {
+      if (!donation) {
+        return null;
+      }
+
+      const ratings =
+        feedbackRows.filter(
+          row =>
+            row.donation_id ===
+            donation.id
+        );
+
+      const ratingFrom =
+        role =>
+          ratings.find(
+            row =>
+              row.from_role ===
+              role
+          )
+            ?.rating ||
+          null;
+
+      return {
+        id:
+          donation.id,
+
+        status:
+          donation.status,
+
+        units_donated:
+          donation.units_donated,
+
+        donated_at:
+          donation.donated_at,
+
+        my_rating:
+          ratingFrom(
+            viewerRole
+          ),
+
+        their_rating:
+          ratingFrom(
+            viewerRole ===
+            'requester'
+              ? 'donor'
+              : 'requester'
+          )
+      };
+    }
+
+    const unreadByResponse =
+      new Map();
+
+    for (const row of unreadNotifications) {
+      const id =
+        row.data
+          ?.response_id;
+
+      if (id) {
+        unreadByResponse.set(
+          id,
+          (
+            unreadByResponse.get(
+              id
+            ) ||
+            0
+          ) +
+            1
+        );
+      }
+    }
 
     const personMap =
       new Map(
@@ -2275,6 +2540,20 @@ async function getCoordinationInbox(
 
             schedule,
 
+            donation:
+              buildInboxDonation(
+                inboxDonations.get(
+                  response.id
+                ),
+                viewerRole
+              ),
+
+            unread_count:
+              unreadByResponse.get(
+                response.id
+              ) ||
+              0,
+
             last_activity_at:
               activity
           };
@@ -2323,11 +2602,119 @@ async function getCoordinationInbox(
 }
 
 // ============================================================
+// MARK CONVERSATION READ
+//
+// PATCH /api/requests/:id/responses/:responseId/read
+//
+// Marks the viewer's own unread message/schedule alerts for
+// this conversation as read (clears the inbox badge). Only the
+// signed-in user's notifications are ever touched.
+// ============================================================
+
+async function markCoordinationRead(
+  req,
+  res
+) {
+  const viewerId =
+    getAuthenticatedUserId(
+      req
+    );
+
+  if (!viewerId) {
+    return res
+      .status(401)
+      .json({
+        error:
+          'Unauthorized'
+      });
+  }
+
+  const responseId =
+    getResponseId(
+      req
+    );
+
+  if (!responseId) {
+    return res
+      .status(400)
+      .json({
+        error:
+          'Conversation ID is required.'
+      });
+  }
+
+  try {
+    const {
+      data,
+      error
+    } =
+      await supabaseAdmin
+        .from(
+          'notifications'
+        )
+        .update({
+          is_read:
+            true,
+
+          read_at:
+            new Date()
+              .toISOString()
+        })
+        .eq(
+          'user_id',
+          viewerId
+        )
+        .eq(
+          'is_read',
+          false
+        )
+        .in(
+          'type',
+          COORDINATION_NOTIFICATION_TYPES
+        )
+        .eq(
+          'data->>response_id',
+          responseId
+        )
+        .select(
+          'id'
+        );
+
+    if (error) {
+      throw error;
+    }
+
+    return res
+      .status(200)
+      .json({
+        updated:
+          (data || [])
+            .length
+      });
+  } catch (error) {
+    console.error(
+      'MARK COORDINATION READ ERROR:',
+      error?.code ||
+      error
+    );
+
+    return res
+      .status(500)
+      .json({
+        error:
+          'Unable to update this conversation.'
+      });
+  }
+}
+
+// ============================================================
 // EXPORTS
 // ============================================================
 
 module.exports = {
   getCoordinationInbox,
+
+  markCoordinationRead,
 
   getCoordination,
 

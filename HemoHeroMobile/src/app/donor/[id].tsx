@@ -1221,7 +1221,7 @@ export default function DonorDetailsScreen() {
             donor ? (
               <>
                 <SectionTitle
-                  title="Donor Status"
+                  title="Details"
                 />
 
                 <View
@@ -1247,26 +1247,14 @@ export default function DonorDetailsScreen() {
                     value={
                       donor.availability_status ===
                       'available'
-                        ? 'Available'
-                        : 'Unavailable'
+                        ? 'Available to donate'
+                        : 'Unavailable right now'
                     }
                     valueColor={
                       donor.availability_status ===
                       'available'
                         ? COLORS.green
                         : COLORS.muted
-                    }
-                  />
-
-                  <Divider />
-
-                  <InfoRow
-                    icon="directions-car"
-                    label="Travel Range"
-                    value={
-                      donor.travel_radius_km
-                        ? `Up to ${donor.travel_radius_km} km`
-                        : 'Not specified'
                     }
                   />
 
@@ -1284,118 +1272,51 @@ export default function DonorDetailsScreen() {
                         ? COLORS.orangeSoft
                         : COLORS.graySoft
                     }
-                    label="Urgent Requests"
+                    label="Requests"
                     value={
                       donor.allow_urgent_requests
                         ? 'Accepts urgent requests'
                         : 'Regular requests only'
                     }
                   />
-                </View>
 
-                <SectionTitle
-                  title="Donation Information"
-                />
+                  <Divider />
 
-                <View
-                  style={
-                    styles.infoCard
-                  }
-                >
                   <InfoRow
-                    icon="volunteer-activism"
-                    label="Previous Donor"
+                    icon="directions-car"
+                    label="Travels up to"
                     value={
-                      donor.has_donated_before
-                        ? 'Yes'
-                        : 'No'
-                    }
-                  />
-
-                  {donor.has_donated_before ? (
-                    <>
-                      <Divider />
-
-                      <InfoRow
-                        icon="history"
-                        label="Last Donation"
-                        value={
-                          formatDate(
-                            donor.last_donation_date
-                          )
-                        }
-                      />
-                    </>
-                  ) : null}
-                </View>
-
-                <SectionTitle
-                  title="Location"
-                />
-
-                <View
-                  style={
-                    styles.infoCard
-                  }
-                >
-                  <InfoRow
-                    icon="location-on"
-                    label="General Location"
-                    value={
-                      donorLocation
+                      donor.travel_radius_km
+                        ? `${donor.travel_radius_km} km`
+                        : 'Not specified'
                     }
                   />
 
                   <Divider />
 
                   <InfoRow
-                    icon="lock-outline"
-                    label="Location Privacy"
-                    value="Exact location hidden"
+                    icon="volunteer-activism"
+                    label="Donated before"
+                    value={
+                      donor.has_donated_before
+                        ? donor.last_donation_date
+                          ? `Yes · last on ${formatDate(
+                              donor.last_donation_date
+                            )}`
+                          : 'Yes'
+                        : 'Not yet'
+                    }
                   />
-                </View>
 
-                <View
-                  style={
-                    styles.privacyCard
-                  }
-                >
-                  <View
-                    style={
-                      styles.privacyIcon
+                  <Divider />
+
+                  <InfoRow
+                    icon="location-on"
+                    label="Area"
+                    value={
+                      donorLocation
                     }
-                  >
-                    <MaterialIcons
-                      name="security"
-                      size={20}
-                      color={
-                        COLORS.redButton
-                      }
-                    />
-                  </View>
-
-                  <View
-                    style={
-                      styles.privacyBody
-                    }
-                  >
-                    <Text
-                      style={
-                        styles.privacyTitle
-                      }
-                    >
-                      Privacy Protected
-                    </Text>
-
-                    <Text
-                      style={
-                        styles.privacyDescription
-                      }
-                    >
-                      Exact address, coordinates, phone number, and email are
-                      hidden. Communication happens securely through Hemo-Hero.
-                    </Text>
-                  </View>
+                  />
                 </View>
 
                 <TouchableOpacity
@@ -1455,8 +1376,29 @@ export default function DonorDetailsScreen() {
                       styles.helperText
                     }
                   >
-                    Only an active request this donor's blood type is compatible
-                    with can be sent.
+                    Sends your active request if their blood type matches.
+                  </Text>
+                </View>
+
+                <View
+                  style={
+                    styles.helperRow
+                  }
+                >
+                  <MaterialIcons
+                    name="shield"
+                    size={13}
+                    color={
+                      COLORS.lightMuted
+                    }
+                  />
+
+                  <Text
+                    style={
+                      styles.helperText
+                    }
+                  >
+                    Exact location and contact details stay private.
                   </Text>
                 </View>
 
@@ -2979,91 +2921,6 @@ const styles =
 
       backgroundColor:
         COLORS.border,
-    },
-
-    privacyCard: {
-      marginBottom:
-        15,
-
-      padding:
-        12,
-
-      flexDirection:
-        'row',
-
-      alignItems:
-        'flex-start',
-
-      borderWidth:
-        1,
-
-      borderColor:
-        '#ECD2D2',
-
-      borderRadius:
-        14,
-
-      backgroundColor:
-        COLORS.pinkSoft,
-    },
-
-    privacyIcon: {
-      width:
-        38,
-
-      height:
-        38,
-
-      marginRight:
-        10,
-
-      borderRadius:
-        19,
-
-      alignItems:
-        'center',
-
-      justifyContent:
-        'center',
-
-      backgroundColor:
-        COLORS.white,
-    },
-
-    privacyBody: {
-      flex:
-        1,
-
-      minWidth:
-        0,
-    },
-
-    privacyTitle: {
-      color:
-        COLORS.black,
-
-      fontFamily:
-        'Inter_600SemiBold',
-
-      fontSize:
-        13.5,
-    },
-
-    privacyDescription: {
-      marginTop:
-        3,
-
-      color:
-        COLORS.muted,
-
-      fontFamily:
-        'Inter_400Regular',
-
-      fontSize:
-        12,
-
-      lineHeight:
-        17,
     },
 
     requestHelpButton: {

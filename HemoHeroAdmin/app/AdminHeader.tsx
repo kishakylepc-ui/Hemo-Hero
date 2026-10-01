@@ -1452,6 +1452,14 @@ function getNotificationVisual(
         tint: 'rgba(243,163,74,0.12)',
       };
 
+    // A blood request hidden after several reports.
+    case 'admin_request_flagged':
+      return {
+        icon: 'visibility-off',
+        color: COLORS.orange,
+        tint: 'rgba(243,163,74,0.12)',
+      };
+
     default:
       return {
         icon: 'notifications',
@@ -1470,6 +1478,7 @@ function getFallbackRoute(
       return '/applications';
 
     case 'admin_user_report':
+    case 'admin_request_flagged':
       return '/issues';
 
     case 'admin_urgent_blood_request':

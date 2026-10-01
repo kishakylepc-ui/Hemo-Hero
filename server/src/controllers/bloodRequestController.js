@@ -999,7 +999,10 @@ async function getDonorViewBloodRequestById(
           needed_time,
           message,
           status,
-          created_at
+          created_at,
+          flagged_at,
+          removed_at,
+          removal_reason
         `)
         .eq(
           'id',

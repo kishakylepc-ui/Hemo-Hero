@@ -783,6 +783,14 @@ export type AdminReportRequest = {
   status: string;
 
   created_at?: string | null;
+
+  // Hidden from nearby donors after several reports.
+  flagged_at?: string | null;
+
+  // Removed by an admin after review.
+  removed_at?: string | null;
+
+  removal_reason?: string | null;
 };
 
 export type AdminReport = {
@@ -834,6 +842,15 @@ export type AdminReport = {
     AdminReportRequest | null;
 
   reported_user_report_count?:
+    number;
+
+  // 'No-show' reports against the reported person.
+  reported_user_no_show_count?:
+    number;
+
+  // Open reports about the request itself (false request,
+  // asking for payment). Only for request-level reports.
+  request_report_count?:
     number;
 };
 
@@ -2451,6 +2468,83 @@ export async function updateAdminReport(
           JSON.stringify(
             input
           ),
+      }
+    );
+
+  return parseResponse(
+    response
+  );
+}
+
+// ============================================================
+// REVIEW A REPORTED BLOOD REQUEST
+//
+// PATCH /api/requests/admin/:id/remove  { note }  take it down
+// PATCH /api/requests/admin/:id/keep    { note? } keep it up
+// ============================================================
+
+export async function removeAdminBloodRequest(
+  token: string,
+  requestId: string,
+  note: string
+): Promise<{ message: string }> {
+  const response =
+    await fetch(
+      `${API_URL}/api/requests/admin/${encodeURIComponent(
+        requestId
+      )}/remove`,
+      {
+        method:
+          'PATCH',
+
+        headers: {
+          Authorization:
+            `Bearer ${token}`,
+
+          'Content-Type':
+            'application/json',
+        },
+
+        body:
+          JSON.stringify({
+            note,
+          }),
+      }
+    );
+
+  return parseResponse(
+    response
+  );
+}
+
+export async function keepAdminBloodRequest(
+  token: string,
+  requestId: string,
+  note?: string
+): Promise<{ message: string }> {
+  const response =
+    await fetch(
+      `${API_URL}/api/requests/admin/${encodeURIComponent(
+        requestId
+      )}/keep`,
+      {
+        method:
+          'PATCH',
+
+        headers: {
+          Authorization:
+            `Bearer ${token}`,
+
+          'Content-Type':
+            'application/json',
+        },
+
+        body:
+          JSON.stringify({
+            note:
+              note ||
+              null,
+          }),
       }
     );
 

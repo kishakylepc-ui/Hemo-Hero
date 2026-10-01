@@ -89,7 +89,8 @@ export type CoordinationInboxItem = {
   units_needed: number;
   facility_name: string;
   request_status: CoordinationRequest['status'];
-  response_status: 'accepted';
+  // 'no_show': the requester reported the donor didn't come.
+  response_status: 'accepted' | 'no_show';
   latest_message: {
     id: string;
     message: string;
@@ -97,6 +98,17 @@ export type CoordinationInboxItem = {
     is_mine: boolean;
   } | null;
   schedule: CoordinationSchedule | null;
+  // Donation record for this conversation, if one was confirmed.
+  donation: {
+    id: string;
+    status: 'completed' | 'needs_review' | 'rejected';
+    units_donated: number;
+    donated_at: string;
+    my_rating: number | null;
+    their_rating: number | null;
+  } | null;
+  // Unread message/schedule alerts for the viewer.
+  unread_count: number;
   last_activity_at: string | null;
 };
 
@@ -193,6 +205,30 @@ export async function sendCoordinationMessage(
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({ message }),
+    }
+  );
+
+  return parseResponse(response);
+}
+
+// ============================================================
+// MARK CONVERSATION READ
+//
+// Clears this conversation's unread badge for the viewer.
+// ============================================================
+
+export async function markCoordinationRead(
+  token: string,
+  requestId: string,
+  responseId: string
+): Promise<{ updated: number }> {
+  const response = await authorizedFetch(
+    `${API_URL}/api/requests/${requestId}/responses/${responseId}/read`,
+    {
+      method: 'PATCH',
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
     }
   );
 
@@ -325,4 +361,34 @@ export async function getCoordinationInbox(
       response.status
     );
   }
+}
+// ============================================================
+// REPORT A NO-SHOW
+//
+// After the agreed meeting time, while no donation is recorded:
+// the other person didn't come. Saved for admin review and the
+// other person is notified.
+// ============================================================
+
+export async function reportNoShow(
+  token: string,
+  requestId: string,
+  responseId: string,
+  details?: string
+): Promise<{ message: string }> {
+  const response = await authorizedFetch(
+    `${API_URL}/api/requests/${requestId}/responses/${responseId}/no-show`,
+    {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${token}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        details: details?.trim() || null,
+      }),
+    }
+  );
+
+  return parseResponse(response);
 }

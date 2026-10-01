@@ -53,7 +53,9 @@ export type RequestDonorResponse = {
     | 'pending'
     | 'accepted'
     | 'rejected'
-    | 'withdrawn';
+    | 'withdrawn'
+    // Released after the requester reported a no-show.
+    | 'no_show';
 
   message:
     | string
@@ -82,6 +84,8 @@ export type RequestResponseCounts = {
   rejected: number;
 
   withdrawn: number;
+
+  no_show?: number;
 };
 
 export type RequestResponsesResult = {
