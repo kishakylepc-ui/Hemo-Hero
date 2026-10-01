@@ -597,6 +597,47 @@ async function register(
           },
         });
 
+    // --------------------------------------------------------
+    // ALREADY REGISTERED
+    //
+    // Supabase either errors ("User already registered") or,
+    // with email confirmation on, returns a user with no
+    // identities and sends nothing. Without this the app would
+    // wait for a verification code that never comes. (Sign in
+    // already tells whether an account exists.)
+    // --------------------------------------------------------
+
+    const alreadyRegistered =
+      (error &&
+        /already (registered|exists)/i.test(
+          error.message ||
+            ''
+        )) ||
+      (!error &&
+        Array.isArray(
+          data?.user
+            ?.identities
+        ) &&
+        data.user
+          .identities
+          .length === 0);
+
+    if (
+      alreadyRegistered
+    ) {
+      return res
+        .status(
+          409
+        )
+        .json({
+          code:
+            'EMAIL_ALREADY_REGISTERED',
+
+          error:
+            'An account with this email already exists.',
+        });
+    }
+
     if (error) {
       console.log(
         'REGISTER ERROR:',

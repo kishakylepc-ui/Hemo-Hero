@@ -5,6 +5,7 @@ import {
 } from 'react';
 
 import {
+  ActivityIndicator,
   Animated,
   Easing,
   Image,
@@ -29,6 +30,7 @@ import {
 
 import {
   router,
+  useLocalSearchParams,
 } from 'expo-router';
 
 import {
@@ -40,12 +42,24 @@ import {
 } from 'react-native-safe-area-context';
 
 import {
+  ApiError,
   registerUser,
 } from '../lib/api';
 
 import {
   saveSession,
 } from '../lib/session';
+
+import {
+  whenIntroDone,
+} from '../lib/appIntro';
+
+import AuthField from '../components/AuthField';
+import AuthTabs from '../components/AuthTabs';
+
+import {
+  FadeInView,
+} from '../components/Motion';
 
 // ============================================================
 // COLORS
@@ -97,6 +111,12 @@ export default function SignUpScreen() {
     height <=
       844;
 
+  // Email carried over from Sign In.
+  const params =
+    useLocalSearchParams<{
+      email?: string | string[];
+    }>();
+
   // ==========================================================
   // FORM STATE
   // ==========================================================
@@ -105,7 +125,12 @@ export default function SignUpScreen() {
     email,
     setEmail,
   ] =
-    useState('');
+    useState(
+      typeof params.email ===
+        'string'
+        ? params.email
+        : ''
+    );
 
   const [
     password,
@@ -119,17 +144,52 @@ export default function SignUpScreen() {
   ] =
     useState('');
 
+  // Rules checklist shows while typing the password.
   const [
-    showPassword,
-    setShowPassword,
+    passwordFocused,
+    setPasswordFocused,
   ] =
     useState(false);
 
+  // "Passwords don't match" waits until the field is left.
   const [
-    showConfirmPassword,
-    setShowConfirmPassword,
+    confirmTouched,
+    setConfirmTouched,
   ] =
     useState(false);
+
+  // Typing mistakes, shown under each field.
+  const [
+    fieldErrors,
+    setFieldErrors,
+  ] =
+    useState<{
+      email?: string;
+      password?: string;
+      confirm?: string;
+    }>({});
+
+  // Next step offered with the error ("Sign in instead").
+  const [
+    errorAction,
+    setErrorAction,
+  ] =
+    useState<{
+      label: string;
+      onPress: () => void;
+    } | null>(null);
+
+  const [
+    termsError,
+    setTermsError,
+  ] =
+    useState(false);
+
+  const passwordRef =
+    useRef<TextInput>(null);
+
+  const confirmRef =
+    useRef<TextInput>(null);
 
   const [
     accepted,
@@ -189,6 +249,34 @@ export default function SignUpScreen() {
     password ===
       confirmPassword;
 
+  const passwordScore =
+    [
+      passwordHasMinimumLength,
+      passwordHasLowercase,
+      passwordHasUppercase,
+      passwordHasNumber,
+      passwordHasSpecialCharacter,
+    ].filter(Boolean).length;
+
+  const passwordValid =
+    passwordScore === 5;
+
+  const strength =
+    passwordValid
+      ? {
+          label: 'Strong',
+          color: COLORS.success,
+        }
+      : passwordScore >= 3
+        ? {
+            label: 'Fair',
+            color: '#DF721D',
+          }
+        : {
+            label: 'Weak',
+            color: COLORS.redButton,
+          };
+
   // ==========================================================
   // ANIMATIONS
   // ==========================================================
@@ -242,53 +330,19 @@ export default function SignUpScreen() {
   // ENTRANCE ANIMATION
   // ==========================================================
 
+  // Waits for the opening animation (first launch) so this
+  // entrance isn't hidden underneath it.
   useEffect(
-    () => {
-      Animated.sequence([
-        Animated.parallel([
-          Animated.timing(
-            headerOpacity,
-            {
-              toValue: 1,
-
-              duration: 320,
-
-              easing:
-                Easing.out(
-                  Easing.ease
-                ),
-
-              useNativeDriver:
-                true,
-            }
-          ),
-
-          Animated.timing(
-            headerTranslateY,
-            {
-              toValue: 0,
-
-              duration: 320,
-
-              easing:
-                Easing.out(
-                  Easing.ease
-                ),
-
-              useNativeDriver:
-                true,
-            }
-          ),
-        ]),
-
-        Animated.parallel([
+    () =>
+      whenIntroDone(() => {
+        Animated.sequence([
           Animated.parallel([
             Animated.timing(
-              logoOpacity,
+              headerOpacity,
               {
                 toValue: 1,
 
-                duration: 330,
+                duration: 320,
 
                 easing:
                   Easing.out(
@@ -300,14 +354,17 @@ export default function SignUpScreen() {
               }
             ),
 
-            Animated.spring(
-              logoScale,
+            Animated.timing(
+              headerTranslateY,
               {
-                toValue: 1,
+                toValue: 0,
 
-                friction: 6,
+                duration: 320,
 
-                tension: 70,
+                easing:
+                  Easing.out(
+                    Easing.ease
+                  ),
 
                 useNativeDriver:
                   true,
@@ -316,43 +373,77 @@ export default function SignUpScreen() {
           ]),
 
           Animated.parallel([
-            Animated.timing(
-              cardOpacity,
-              {
-                toValue: 1,
+            Animated.parallel([
+              Animated.timing(
+                logoOpacity,
+                {
+                  toValue: 1,
 
-                duration: 430,
+                  duration: 330,
 
-                easing:
-                  Easing.out(
-                    Easing.cubic
-                  ),
+                  easing:
+                    Easing.out(
+                      Easing.ease
+                    ),
 
-                useNativeDriver:
-                  true,
-              }
-            ),
+                  useNativeDriver:
+                    true,
+                }
+              ),
 
-            Animated.timing(
-              cardTranslateY,
-              {
-                toValue: 0,
+              Animated.spring(
+                logoScale,
+                {
+                  toValue: 1,
 
-                duration: 430,
+                  friction: 6,
 
-                easing:
-                  Easing.out(
-                    Easing.cubic
-                  ),
+                  tension: 70,
 
-                useNativeDriver:
-                  true,
-              }
-            ),
+                  useNativeDriver:
+                    true,
+                }
+              ),
+            ]),
+
+            Animated.parallel([
+              Animated.timing(
+                cardOpacity,
+                {
+                  toValue: 1,
+
+                  duration: 430,
+
+                  easing:
+                    Easing.out(
+                      Easing.cubic
+                    ),
+
+                  useNativeDriver:
+                    true,
+                }
+              ),
+
+              Animated.timing(
+                cardTranslateY,
+                {
+                  toValue: 0,
+
+                  duration: 430,
+
+                  easing:
+                    Easing.out(
+                      Easing.cubic
+                    ),
+
+                  useNativeDriver:
+                    true,
+                }
+              ),
+            ]),
           ]),
-        ]),
-      ]).start();
-    },
+        ]).start();
+      }),
     [
       headerOpacity,
       headerTranslateY,
@@ -368,13 +459,19 @@ export default function SignUpScreen() {
   // ==========================================================
 
   function triggerError(
-    message: string
+    message: string,
+    action: {
+      label: string;
+      onPress: () => void;
+    } | null = null
   ) {
     setSuccessMessage('');
 
     setErrorMessage(
       message
     );
+
+    setErrorAction(action);
 
     errorShake.setValue(
       0
@@ -525,6 +622,8 @@ export default function SignUpScreen() {
         !current
     );
 
+    setTermsError(false);
+
     Animated.sequence([
       Animated.timing(
         checkboxScale,
@@ -565,8 +664,14 @@ export default function SignUpScreen() {
   // ==========================================================
 
   async function handleCreateAccount() {
+    if (loading) {
+      return;
+    }
+
     setErrorMessage('');
+    setErrorAction(null);
     setSuccessMessage('');
+    setTermsError(false);
 
     const cleanEmail =
       email
@@ -574,119 +679,57 @@ export default function SignUpScreen() {
         .toLowerCase();
 
     // --------------------------------------------------------
-    // REQUIRED
-    // --------------------------------------------------------
-
-    if (
-      !cleanEmail ||
-      !password ||
-      !confirmPassword
-    ) {
-      triggerError(
-        'Please complete all required fields.'
-      );
-
-      return;
-    }
-
-    // --------------------------------------------------------
-    // EMAIL FORMAT
+    // CHECK THE FIELDS (messages under each one)
     // --------------------------------------------------------
 
     const emailPattern =
       /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
-    if (
+    const errors: {
+      email?: string;
+      password?: string;
+      confirm?: string;
+    } = {};
+
+    if (!cleanEmail) {
+      errors.email =
+        'Enter your email address.';
+    } else if (
       !emailPattern.test(
         cleanEmail
       )
     ) {
-      triggerError(
-        'Please enter a valid email address.'
-      );
-
-      return;
+      errors.email =
+        'Enter a valid email address.';
     }
 
-    // --------------------------------------------------------
-    // PASSWORD LENGTH
-    // --------------------------------------------------------
-
-    if (
-      !passwordHasMinimumLength
-    ) {
-      triggerError(
-        'Password must be at least 8 characters.'
-      );
-
-      return;
+    if (!password) {
+      errors.password =
+        'Create a password.';
+    } else if (!passwordValid) {
+      errors.password =
+        'Your password doesn’t meet all the rules yet.';
     }
 
-    // --------------------------------------------------------
-    // LOWERCASE
-    // --------------------------------------------------------
-
-    if (
-      !passwordHasLowercase
-    ) {
-      triggerError(
-        'Password must contain at least one lowercase letter.'
-      );
-
-      return;
+    if (!confirmPassword) {
+      errors.confirm =
+        'Type your password again.';
+    } else if (!passwordsMatch) {
+      errors.confirm =
+        'Passwords don’t match.';
     }
 
-    // --------------------------------------------------------
-    // UPPERCASE
-    // --------------------------------------------------------
+    setFieldErrors(errors);
 
     if (
-      !passwordHasUppercase
+      errors.email ||
+      errors.password ||
+      errors.confirm
     ) {
+      setConfirmTouched(true);
+
       triggerError(
-        'Password must contain at least one uppercase letter.'
-      );
-
-      return;
-    }
-
-    // --------------------------------------------------------
-    // NUMBER
-    // --------------------------------------------------------
-
-    if (
-      !passwordHasNumber
-    ) {
-      triggerError(
-        'Password must contain at least one number.'
-      );
-
-      return;
-    }
-
-    // --------------------------------------------------------
-    // SPECIAL CHARACTER
-    // --------------------------------------------------------
-
-    if (
-      !passwordHasSpecialCharacter
-    ) {
-      triggerError(
-        'Password must contain at least one special character.'
-      );
-
-      return;
-    }
-
-    // --------------------------------------------------------
-    // PASSWORD MATCH
-    // --------------------------------------------------------
-
-    if (
-      !passwordsMatch
-    ) {
-      triggerError(
-        'Passwords do not match.'
+        'Please fix the highlighted fields.'
       );
 
       return;
@@ -696,9 +739,9 @@ export default function SignUpScreen() {
     // TERMS
     // --------------------------------------------------------
 
-    if (
-      !accepted
-    ) {
+    if (!accepted) {
+      setTermsError(true);
+
       triggerError(
         'Please agree to the Terms of Service and Privacy Policy.'
       );
@@ -783,6 +826,40 @@ export default function SignUpScreen() {
       let message =
         'Unable to create your account. Please try again.';
 
+      // Already has an account: offer to sign in instead.
+      if (
+        error instanceof
+          ApiError &&
+        error.data?.code ===
+          'EMAIL_ALREADY_REGISTERED'
+      ) {
+        setFieldErrors({
+          email:
+            'This email already has an account.',
+        });
+
+        triggerError(
+          'An account with this email already exists.',
+          {
+            label:
+              'Sign in instead',
+
+            onPress: () =>
+              router.replace({
+                pathname:
+                  '/',
+
+                params: {
+                  email:
+                    cleanEmail,
+                },
+              }),
+          }
+        );
+
+        return;
+      }
+
       if (
         error instanceof
         Error
@@ -798,6 +875,29 @@ export default function SignUpScreen() {
       setLoading(
         false
       );
+    }
+  }
+
+  // ==========================================================
+  // CLEAR A FIELD ERROR WHILE TYPING
+  // ==========================================================
+
+  function clearFieldError(
+    field: 'email' | 'password' | 'confirm'
+  ) {
+    if (fieldErrors[field]) {
+      setFieldErrors(
+        current => ({
+          ...current,
+          [field]: undefined,
+        })
+      );
+    }
+
+    if (errorMessage) {
+      setErrorMessage('');
+
+      setErrorAction(null);
     }
   }
 
@@ -1053,50 +1153,28 @@ export default function SignUpScreen() {
                         TABS
                     ============================================== */}
 
-                    <View
-                      style={
-                        styles.tabs
+                    <AuthTabs
+                      active="signup"
+                      disabled={
+                        loading
                       }
-                    >
-                      <TouchableOpacity
-                        style={
-                          styles.inactiveTab
-                        }
-                        activeOpacity={
-                          0.7
-                        }
-                        disabled={
-                          loading
-                        }
-                        onPress={() =>
-                          router.replace(
-                            '/'
-                          )
-                        }
-                      >
-                        <Text
-                          style={
-                            styles.inactiveTabText
-                          }
-                        >
-                          Sign In
-                        </Text>
-                      </TouchableOpacity>
+                      onSwitch={() =>
+                        router.replace({
+                          pathname:
+                            '/',
 
-                      <View
-                        style={
-                          styles.activeTab
-                        }
-                      >
-                        <Text
-                          style={
-                            styles.activeTabText
-                          }
-                        >
-                          Sign Up
-                        </Text>
-                      </View>
-                    </View>
+                          params:
+                            email.trim()
+                              ? {
+                                  email:
+                                    email
+                                      .trim()
+                                      .toLowerCase(),
+                                }
+                              : {},
+                        } as any)
+                      }
+                    />
 
                     {/* ==============================================
                         ERROR
@@ -1126,6 +1204,39 @@ export default function SignUpScreen() {
                             errorMessage
                           }
                         </Text>
+
+                        {errorAction ? (
+                          <TouchableOpacity
+                            style={
+                              styles.errorAction
+                            }
+                            activeOpacity={
+                              0.75
+                            }
+                            accessibilityRole="button"
+                            onPress={
+                              errorAction.onPress
+                            }
+                          >
+                            <Text
+                              style={
+                                styles.errorActionText
+                              }
+                            >
+                              {
+                                errorAction.label
+                              }
+                            </Text>
+
+                            <MaterialIcons
+                              name="arrow-forward"
+                              size={15}
+                              color={
+                                COLORS.redButton
+                              }
+                            />
+                          </TouchableOpacity>
+                        ) : null}
                       </Animated.View>
                     ) : null}
 
@@ -1163,337 +1274,246 @@ export default function SignUpScreen() {
                         EMAIL
                     ============================================== */}
 
-                    <Text
-                      style={
-                        styles.label
-                      }
-                    >
-                      Email Address
-                    </Text>
-
-                    <TextInput
-                      style={
-                        styles.input
-                      }
+                    <AuthField
+                      label="Email Address"
+                      icon="mail-outline"
                       placeholder="Enter your email"
-                      placeholderTextColor={
-                        COLORS.placeholder
-                      }
-                      value={
-                        email
-                      }
                       keyboardType="email-address"
                       autoCapitalize="none"
                       autoCorrect={
                         false
                       }
                       autoComplete="email"
+                      textContentType="emailAddress"
+                      value={
+                        email
+                      }
                       editable={
                         !loading
+                      }
+                      returnKeyType="next"
+                      submitBehavior="submit"
+                      error={
+                        fieldErrors.email
                       }
                       onChangeText={value => {
                         setEmail(
                           value
                         );
 
-                        if (
-                          errorMessage
-                        ) {
-                          setErrorMessage(
-                            ''
-                          );
-                        }
-
-                        if (
-                          successMessage
-                        ) {
-                          setSuccessMessage(
-                            ''
-                          );
-                        }
+                        clearFieldError(
+                          'email'
+                        );
                       }}
+                      onBlur={() =>
+                        setEmail(
+                          current =>
+                            current.trim()
+                        )
+                      }
+                      onSubmitEditing={() =>
+                        passwordRef.current?.focus()
+                      }
                     />
 
                     {/* ==============================================
-                        PASSWORD
+                        PASSWORD (+ strength and rules)
                     ============================================== */}
 
-                    <Text
-                      style={
-                        styles.label
+                    <AuthField
+                      ref={
+                        passwordRef
                       }
-                    >
-                      Password
-                    </Text>
-
-                    <View
-                      style={
-                        styles.passwordBox
+                      label="Password"
+                      icon="lock-outline"
+                      password
+                      placeholder="Create a password"
+                      autoCapitalize="none"
+                      autoCorrect={
+                        false
                       }
-                    >
-                      <TextInput
-                        style={
-                          styles.passwordInput
-                        }
-                        placeholder="Enter your password"
-                        placeholderTextColor={
-                          COLORS.placeholder
-                        }
-                        value={
-                          password
-                        }
-                        secureTextEntry={
-                          !showPassword
-                        }
-                        autoCapitalize="none"
-                        autoCorrect={
+                      autoComplete="new-password"
+                      textContentType="newPassword"
+                      value={
+                        password
+                      }
+                      editable={
+                        !loading
+                      }
+                      returnKeyType="next"
+                      submitBehavior="submit"
+                      error={
+                        fieldErrors.password
+                      }
+                      onFocus={() =>
+                        setPasswordFocused(
+                          true
+                        )
+                      }
+                      onBlur={() =>
+                        setPasswordFocused(
                           false
-                        }
-                        autoComplete="new-password"
-                        editable={
-                          !loading
-                        }
-                        onChangeText={value => {
-                          setPassword(
-                            value
-                          );
+                        )
+                      }
+                      onChangeText={value => {
+                        setPassword(
+                          value
+                        );
 
-                          if (
-                            errorMessage
-                          ) {
-                            setErrorMessage(
-                              ''
-                            );
-                          }
-
-                          if (
-                            successMessage
-                          ) {
-                            setSuccessMessage(
-                              ''
-                            );
-                          }
-                        }}
-                      />
-
-                      <TouchableOpacity
-                        activeOpacity={
-                          0.7
-                        }
-                        disabled={
-                          loading
-                        }
-                        onPress={() =>
-                          setShowPassword(
-                            current =>
-                              !current
-                          )
-                        }
-                      >
-                        <Text
+                        clearFieldError(
+                          'password'
+                        );
+                      }}
+                      onSubmitEditing={() =>
+                        confirmRef.current?.focus()
+                      }
+                    >
+                      {password.length >
+                      0 ? (
+                        <View
                           style={
-                            styles.showText
+                            styles.strengthRow
                           }
                         >
-                          {showPassword
-                            ? 'Hide'
-                            : 'Show'}
-                        </Text>
-                      </TouchableOpacity>
-                    </View>
+                          <View
+                            style={
+                              styles.strengthTrack
+                            }
+                          >
+                            <View
+                              style={[
+                                styles.strengthFill,
+                                {
+                                  width: `${
+                                    (passwordScore /
+                                      5) *
+                                    100
+                                  }%`,
+                                  backgroundColor:
+                                    strength.color,
+                                },
+                              ]}
+                            />
+                          </View>
 
-                    {/* ==============================================
-                        PASSWORD REQUIREMENTS
-                    ============================================== */}
+                          <Text
+                            style={[
+                              styles.strengthLabel,
+                              {
+                                color:
+                                  strength.color,
+                              },
+                            ]}
+                          >
+                            {passwordValid
+                              ? 'Password looks good'
+                              : strength.label}
+                          </Text>
+                        </View>
+                      ) : null}
 
-                    <View
-                      style={
-                        styles.requirementsContainer
-                      }
-                    >
-                      <Text
-                        style={
-                          styles.requirementsTitle
-                        }
-                      >
-                        Password must contain:
-                      </Text>
-
-                      <View
-                        style={
-                          styles.requirementsGrid
-                        }
-                      >
-                        <PasswordRequirement
-                          valid={
-                            passwordHasMinimumLength
+                      {/* Rules: while typing, until all are met */}
+                      {!passwordValid &&
+                      (passwordFocused ||
+                        Boolean(
+                          fieldErrors.password
+                        )) ? (
+                        <FadeInView
+                          offset={-4}
+                          style={
+                            styles.requirementsList
                           }
-                          label="8+ characters"
-                        />
+                        >
+                          <PasswordRequirement
+                            valid={
+                              passwordHasMinimumLength
+                            }
+                            label="8+ characters"
+                          />
 
-                        <PasswordRequirement
-                          valid={
-                            passwordHasLowercase
-                          }
-                          label="Lowercase letter"
-                        />
+                          <PasswordRequirement
+                            valid={
+                              passwordHasLowercase
+                            }
+                            label="Lowercase letter"
+                          />
 
-                        <PasswordRequirement
-                          valid={
-                            passwordHasUppercase
-                          }
-                          label="Uppercase letter"
-                        />
+                          <PasswordRequirement
+                            valid={
+                              passwordHasUppercase
+                            }
+                            label="Uppercase letter"
+                          />
 
-                        <PasswordRequirement
-                          valid={
-                            passwordHasNumber
-                          }
-                          label="Number"
-                        />
+                          <PasswordRequirement
+                            valid={
+                              passwordHasNumber
+                            }
+                            label="Number"
+                          />
 
-                        <PasswordRequirement
-                          valid={
-                            passwordHasSpecialCharacter
-                          }
-                          label="Special character"
-                        />
-                      </View>
-                    </View>
+                          <PasswordRequirement
+                            valid={
+                              passwordHasSpecialCharacter
+                            }
+                            label="Special character"
+                          />
+                        </FadeInView>
+                      ) : null}
+                    </AuthField>
 
                     {/* ==============================================
                         CONFIRM PASSWORD
                     ============================================== */}
 
-                    <Text
-                      style={
-                        styles.confirmLabel
+                    <AuthField
+                      ref={
+                        confirmRef
                       }
-                    >
-                      Confirm Password
-                    </Text>
-
-                    <View
-                      style={[
-                        styles.passwordBox,
-
+                      label="Confirm Password"
+                      icon="lock-outline"
+                      password
+                      placeholder="Type it again"
+                      autoCapitalize="none"
+                      autoCorrect={
+                        false
+                      }
+                      autoComplete="new-password"
+                      textContentType="newPassword"
+                      value={
+                        confirmPassword
+                      }
+                      editable={
+                        !loading
+                      }
+                      returnKeyType="done"
+                      valid={
+                        passwordsMatch
+                      }
+                      error={
+                        fieldErrors.confirm ||
+                        (confirmTouched &&
                         confirmPassword.length >
                           0 &&
-                          passwordsMatch &&
-                          styles.passwordBoxSuccess,
-                      ]}
-                    >
-                      <TextInput
-                        style={
-                          styles.passwordInput
-                        }
-                        placeholder="Confirm your password"
-                        placeholderTextColor={
-                          COLORS.placeholder
-                        }
-                        value={
-                          confirmPassword
-                        }
-                        secureTextEntry={
-                          !showConfirmPassword
-                        }
-                        autoCapitalize="none"
-                        autoCorrect={
-                          false
-                        }
-                        autoComplete="new-password"
-                        editable={
-                          !loading
-                        }
-                        returnKeyType="done"
-                        onChangeText={value => {
-                          setConfirmPassword(
-                            value
-                          );
+                        !passwordsMatch
+                          ? 'Passwords don’t match.'
+                          : null)
+                      }
+                      onBlur={() =>
+                        setConfirmTouched(
+                          true
+                        )
+                      }
+                      onChangeText={value => {
+                        setConfirmPassword(
+                          value
+                        );
 
-                          if (
-                            errorMessage
-                          ) {
-                            setErrorMessage(
-                              ''
-                            );
-                          }
-
-                          if (
-                            successMessage
-                          ) {
-                            setSuccessMessage(
-                              ''
-                            );
-                          }
-                        }}
-                        onSubmitEditing={
-                          handleCreateAccount
-                        }
-                      />
-
-                      <TouchableOpacity
-                        activeOpacity={
-                          0.7
-                        }
-                        disabled={
-                          loading
-                        }
-                        onPress={() =>
-                          setShowConfirmPassword(
-                            current =>
-                              !current
-                          )
-                        }
-                      >
-                        <Text
-                          style={
-                            styles.showText
-                          }
-                        >
-                          {showConfirmPassword
-                            ? 'Hide'
-                            : 'Show'}
-                        </Text>
-                      </TouchableOpacity>
-                    </View>
-
-                    {confirmPassword.length >
-                    0 ? (
-                      <View
-                        style={
-                          styles.passwordMatchRow
-                        }
-                      >
-                        <MaterialIcons
-                          name={
-                            passwordsMatch
-                              ? 'check-circle'
-                              : 'cancel'
-                          }
-                          size={13}
-                          color={
-                            passwordsMatch
-                              ? COLORS.success
-                              : COLORS.redButton
-                          }
-                        />
-
-                        <Text
-                          style={[
-                            styles.passwordMatchText,
-
-                            passwordsMatch
-                              ? styles.passwordMatchTextSuccess
-                              : styles.passwordMatchTextError,
-                          ]}
-                        >
-                          {passwordsMatch
-                            ? 'Passwords match'
-                            : 'Passwords do not match'}
-                        </Text>
-                      </View>
-                    ) : null}
+                        clearFieldError(
+                          'confirm'
+                        );
+                      }}
+                    />
 
                     {/* ==============================================
                         TERMS
@@ -1521,6 +1541,9 @@ export default function SignUpScreen() {
 
                             accepted &&
                               styles.checkboxChecked,
+
+                            termsError &&
+                              styles.checkboxError,
 
                             {
                               transform: [
@@ -1607,6 +1630,7 @@ export default function SignUpScreen() {
                         activeOpacity={
                           1
                         }
+                        accessibilityRole="button"
                         disabled={
                           loading
                         }
@@ -1620,6 +1644,14 @@ export default function SignUpScreen() {
                           handleCreateAccount
                         }
                       >
+                        {loading ? (
+                          <ActivityIndicator
+                            color={
+                              COLORS.white
+                            }
+                          />
+                        ) : null}
+
                         <Text
                           style={
                             styles.primaryButtonText
@@ -1970,66 +2002,6 @@ const styles =
     // TABS
     // ========================================================
 
-    tabs: {
-      flexDirection:
-        'row',
-
-      marginBottom: 19,
-    },
-
-    activeTab: {
-      flex: 1,
-
-      height: 43,
-
-      marginHorizontal: 7,
-
-      borderRadius: 22,
-
-      backgroundColor:
-        COLORS.redButton,
-
-      alignItems:
-        'center',
-
-      justifyContent:
-        'center',
-    },
-
-    inactiveTab: {
-      flex: 1,
-
-      height: 43,
-
-      marginHorizontal: 7,
-
-      alignItems:
-        'center',
-
-      justifyContent:
-        'center',
-    },
-
-    activeTabText: {
-      color:
-        COLORS.white,
-
-      fontFamily:
-        'Poppins_600SemiBold',
-
-      fontSize: 13,
-    },
-
-    inactiveTabText: {
-      color:
-        COLORS.black,
-
-      fontFamily:
-        'Inter_500Medium',
-
-      fontSize: 13,
-    },
-
     // ========================================================
     // ERROR
     // ========================================================
@@ -2050,6 +2022,25 @@ const styles =
 
       backgroundColor:
         '#FDECEC',
+    },
+
+    // "Sign in instead" under the message.
+    errorAction: {
+      marginTop: 8,
+      alignSelf: 'center',
+      minHeight: 30,
+      paddingHorizontal: 12,
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 5,
+      borderRadius: 15,
+      backgroundColor: COLORS.white,
+    },
+
+    errorActionText: {
+      color: COLORS.redButton,
+      fontFamily: 'Inter_600SemiBold',
+      fontSize: 12.5,
     },
 
     errorText: {
@@ -2121,150 +2112,46 @@ const styles =
     // FORM
     // ========================================================
 
-    label: {
-      marginBottom: 6,
-
-      color:
-        COLORS.black,
-
-      fontFamily:
-        'Inter_500Medium',
-
-      fontSize: 12.5,
-    },
-
-    confirmLabel: {
-      marginTop: 14,
-
-      marginBottom: 6,
-
-      color:
-        COLORS.black,
-
-      fontFamily:
-        'Inter_500Medium',
-
-      fontSize: 12.5,
-    },
-
-    input: {
-      height: 43,
-
-      marginBottom: 14,
-
-      paddingHorizontal: 15,
-
-      borderWidth: 1,
-
-      borderColor:
-        COLORS.inputBorder,
-
-      borderRadius: 22,
-
-      color:
-        COLORS.black,
-
-      backgroundColor:
-        COLORS.white,
-
-      fontFamily:
-        'Inter_400Regular',
-
-      fontSize: 13.5,
-
-      outlineStyle:
-        Platform.OS === 'web'
-          ? 'none'
-          : undefined,
-    } as any,
-
-    passwordBox: {
-      height: 43,
-
-      flexDirection:
-        'row',
-
-      alignItems:
-        'center',
-
-      paddingLeft: 15,
-
-      paddingRight: 13,
-
-      borderWidth: 1,
-
-      borderColor:
-        COLORS.inputBorder,
-
-      borderRadius: 22,
-
-      backgroundColor:
-        COLORS.white,
-    },
-
-    passwordBoxSuccess: {
-      borderColor:
-        COLORS.success,
-    },
-
-    passwordInput: {
-      flex: 1,
-
-      color:
-        COLORS.black,
-
-      fontFamily:
-        'Inter_400Regular',
-
-      fontSize: 13.5,
-
-      outlineStyle:
-        Platform.OS === 'web'
-          ? 'none'
-          : undefined,
-    } as any,
-
-    showText: {
-      color:
-        COLORS.muted,
-
-      fontFamily:
-        'Inter_400Regular',
-
-      fontSize: 12,
-    },
-
     // ========================================================
     // PASSWORD REQUIREMENTS
     // ========================================================
 
-    requirementsContainer: {
-      marginTop: 10,
-
-      paddingHorizontal: 5,
+    // Password strength bar under the field.
+    strengthRow: {
+      marginTop: 8,
+      marginHorizontal: 6,
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 10,
     },
 
-    requirementsTitle: {
-      marginBottom: 6,
+    strengthTrack: {
+      flex: 1,
+      height: 5,
+      borderRadius: 3,
+      overflow: 'hidden',
+      backgroundColor: '#EFE6E6',
+    },
 
-      color:
-        COLORS.muted,
+    strengthFill: {
+      height: '100%',
+      borderRadius: 3,
+    },
 
-      fontFamily:
-        'Inter_500Medium',
-
+    strengthLabel: {
+      minWidth: 52,
+      fontFamily: 'Inter_600SemiBold',
       fontSize: 11.5,
+      textAlign: 'right',
     },
 
-    requirementsGrid: {
-      flexDirection:
-        'row',
-
-      flexWrap:
-        'wrap',
-
+    // Rules, shown while typing until all are met.
+    requirementsList: {
+      marginTop: 8,
+      marginHorizontal: 6,
+      flexDirection: 'row',
+      flexWrap: 'wrap',
       columnGap: 12,
-
       rowGap: 5,
     },
 
@@ -2291,37 +2178,6 @@ const styles =
     requirementTextValid: {
       color:
         COLORS.requirementActive,
-    },
-
-    passwordMatchRow: {
-      marginTop: 6,
-
-      marginLeft: 5,
-
-      flexDirection:
-        'row',
-
-      alignItems:
-        'center',
-
-      gap: 4,
-    },
-
-    passwordMatchText: {
-      fontFamily:
-        'Inter_400Regular',
-
-      fontSize: 11.5,
-    },
-
-    passwordMatchTextSuccess: {
-      color:
-        COLORS.success,
-    },
-
-    passwordMatchTextError: {
-      color:
-        COLORS.redButton,
     },
 
     // ========================================================
@@ -2359,6 +2215,11 @@ const styles =
         'center',
     },
 
+    checkboxError: {
+      borderWidth: 1.5,
+      borderColor: COLORS.redButton,
+    },
+
     checkboxChecked: {
       borderColor:
         COLORS.red,
@@ -2391,6 +2252,10 @@ const styles =
     // ========================================================
 
     primaryButton: {
+      flexDirection: 'row',
+
+      gap: 8,
+
       height: 50,
 
       marginTop: 26,

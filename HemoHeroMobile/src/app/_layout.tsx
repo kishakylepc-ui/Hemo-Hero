@@ -16,6 +16,7 @@ import {
   Inter_700Bold,
 } from '@expo-google-fonts/inter';
 
+import AppIntro from '../components/AppIntro';
 import PushNotificationsBridge from '../components/PushNotificationsBridge';
 
 SplashScreen.preventAutoHideAsync();
@@ -117,6 +118,9 @@ export default function RootLayout() {
 
       {/* Push notifications: setup + opening tapped ones */}
       <PushNotificationsBridge />
+
+      {/* Opening animation, once per launch, over the first screen */}
+      <AppIntro />
     </>
   );
 }
