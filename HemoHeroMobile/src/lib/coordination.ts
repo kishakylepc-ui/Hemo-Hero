@@ -19,6 +19,7 @@ export type CoordinationPerson = {
   verified?: boolean;
   availability_status?: string | null;
   travel_radius_km?: number | null;
+  profile_photo_url?: string | null;
 };
 
 export type CoordinationRequest = {
@@ -109,6 +110,14 @@ export type CoordinationInboxItem = {
   } | null;
   // Unread message/schedule alerts for the viewer.
   unread_count: number;
+  // Donor travelling to the facility ("on my way" map).
+  trip?: {
+    status: 'on_the_way' | 'arrived';
+    distance_m: number | null;
+    eta_seconds: number | null;
+    location_updated_at: string | null;
+    arrived_at: string | null;
+  } | null;
   last_activity_at: string | null;
 };
 

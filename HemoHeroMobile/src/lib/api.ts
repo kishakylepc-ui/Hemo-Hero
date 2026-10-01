@@ -2,10 +2,8 @@
 // HEMO-HERO API CLIENT
 // ============================================================
 
-import {
-  Platform,
-} from 'react-native';
 import { authorizedFetch } from './authFetch';
+import { appendImage } from './imageUpload';
 import { API_URL } from './apiUrl';
 
 // ============================================================
@@ -252,6 +250,9 @@ export type NotificationType =
   | 'coordination_message'
   | 'coordination_schedule'
   | 'coordination_no_show'
+  | 'coordination_trip_started'
+  | 'coordination_trip_near'
+  | 'coordination_trip_arrived'
   | 'donation_recorded'
   | 'donation_verified'
   | 'donation_rejected'
@@ -822,38 +823,22 @@ export async function uploadProfilePhoto(
   const formData =
     new FormData();
 
-  if (
-    Platform.OS === 'web' &&
-    photo.webFile
-  ) {
-    formData.append(
+  // Phone photos must be attached as File objects (SDK 57
+  // fetch); see lib/imageUpload.
+  try {
+    await appendImage(
+      formData,
       'photo',
-      photo.webFile,
-      photo.fileName ||
-        photo.webFile?.name ||
-        'profile-photo.jpg'
+      photo
     );
-  } else {
-    const fileName =
-      photo.fileName ||
-      `profile-${Date.now()}.jpg`;
+  } catch (error) {
+    console.log(
+      'PROFILE PHOTO READ ERROR:',
+      error
+    );
 
-    const mimeType =
-      photo.mimeType ||
-      'image/jpeg';
-
-    formData.append(
-      'photo',
-      {
-        uri:
-          photo.uri,
-
-        name:
-          fileName,
-
-        type:
-          mimeType,
-      } as any
+    throw new Error(
+      'Unable to read the selected photo. Please choose another one.'
     );
   }
 

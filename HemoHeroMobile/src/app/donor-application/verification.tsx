@@ -16,7 +16,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { router, useLocalSearchParams } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import * as ImagePicker from 'expo-image-picker';
+import { pickImage } from '../../lib/imageUpload';
 
 import {
   submitDonorApplication,
@@ -227,13 +227,20 @@ export default function DonorVerificationScreen() {
     }
 
     try {
-      const permission =
-        await ImagePicker
-          .requestMediaLibraryPermissionsAsync();
+      // Saved as a JPEG up to 2000 px so the ID stays readable
+      // and under the 5 MB upload limit.
+      const result =
+        await pickImage(
+          'library',
+          {
+            maxSize:
+              2000,
+          }
+        );
 
       if (
-        permission.status !==
-        'granted'
+        result.status ===
+        'denied'
       ) {
         showMessage(
           'Permission Required',
@@ -243,44 +250,25 @@ export default function DonorVerificationScreen() {
         return;
       }
 
-      const result =
-        await ImagePicker
-          .launchImageLibraryAsync({
-            mediaTypes:
-              ImagePicker
-                .MediaTypeOptions
-                .Images,
-
-            allowsEditing:
-              false,
-
-            quality:
-              0.85,
-          });
-
       if (
-        result.canceled ||
-        !result.assets?.[0]
+        result.status !==
+        'picked'
       ) {
         return;
       }
 
-      const asset =
-        result.assets[0];
-
       setVerificationImage({
         uri:
-          asset.uri,
+          result.image.uri,
 
         fileName:
-          asset.fileName,
+          result.image.fileName,
 
         mimeType:
-          asset.mimeType,
+          result.image.mimeType,
 
         file:
-          (asset as any)
-            .file ||
+          result.image.webFile ||
           null,
       });
 

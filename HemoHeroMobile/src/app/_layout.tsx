@@ -16,6 +16,8 @@ import {
   Inter_700Bold,
 } from '@expo-google-fonts/inter';
 
+import PushNotificationsBridge from '../components/PushNotificationsBridge';
+
 SplashScreen.preventAutoHideAsync();
 
 // ------------------------------------------------------------
@@ -69,47 +71,52 @@ export default function RootLayout() {
   }
 
   return (
-    <Stack
-      screenOptions={{
-        headerShown: false,
+    <>
+      <Stack
+        screenOptions={{
+          headerShown: false,
 
-        // Short, subtle cross-fade between screens. Works for
-        // both bottom-nav tab switches (router.replace) and
-        // detail screens (router.push).
-        animation: 'fade',
-        animationDuration: 200,
+          // Short, subtle cross-fade between screens. Works for
+          // both bottom-nav tab switches (router.replace) and
+          // detail screens (router.push).
+          animation: 'fade',
+          animationDuration: 200,
 
-        contentStyle: {
-          backgroundColor: '#FFF8F8',
-        },
-      }}
-    >
-      {/* SIGN IN */}
-      <Stack.Screen name="index" />
+          contentStyle: {
+            backgroundColor: '#FFF8F8',
+          },
+        }}
+      >
+        {/* SIGN IN */}
+        <Stack.Screen name="index" />
 
-      {/* SIGN UP */}
-      <Stack.Screen name="signup" />
+        {/* SIGN UP */}
+        <Stack.Screen name="signup" />
 
-      {/* EMAIL VERIFICATION */}
-      <Stack.Screen
-        name="verify-email"
-      />
-
-      {/* COMPLETE PROFILE FLOW */}
-      <Stack.Screen
-        name="complete-profile"
-      />
-
-      {/* USER DASHBOARD */}
-      <Stack.Screen
-        name="dashboard"
-      />
-
-      {/* Blood request */}
-
-      <Stack.Screen
-        name="blood-request"
+        {/* EMAIL VERIFICATION */}
+        <Stack.Screen
+          name="verify-email"
         />
-    </Stack>
+
+        {/* COMPLETE PROFILE FLOW */}
+        <Stack.Screen
+          name="complete-profile"
+        />
+
+        {/* USER DASHBOARD */}
+        <Stack.Screen
+          name="dashboard"
+        />
+
+        {/* Blood request */}
+
+        <Stack.Screen
+          name="blood-request"
+          />
+      </Stack>
+
+      {/* Push notifications: setup + opening tapped ones */}
+      <PushNotificationsBridge />
+    </>
   );
 }

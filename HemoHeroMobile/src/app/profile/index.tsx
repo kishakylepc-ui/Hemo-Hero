@@ -1,12 +1,16 @@
 import { useCallback, useState, } from 'react';
-import { Image, Modal, Platform, ScrollView, StyleSheet, Text, TouchableOpacity, View, } from 'react-native';
+import { ActivityIndicator, Image, Modal, Platform, ScrollView, StyleSheet, Text, TouchableOpacity, View, } from 'react-native';
 import { MaterialIcons, } from '@expo/vector-icons';
 import { LinearGradient, } from 'expo-linear-gradient';
 import { router, useFocusEffect, } from 'expo-router';
 import { StatusBar, } from 'expo-status-bar';
 import { SafeAreaView, } from 'react-native-safe-area-context';
 import MainBottomNav from '../../components/MainBottomNav';
-import { getCurrentUser, logoutUser, } from '../../lib/api';
+import { deleteProfilePhoto, getCurrentUser, logoutUser, uploadProfilePhoto, } from '../../lib/api';
+import AppModal from '../../components/AppModal';
+import PhotoSourceSheet from '../../components/PhotoSourceSheet';
+import type { PickedImage } from '../../lib/imageUpload';
+import { unregisterPushNotifications } from '../../lib/pushNotifications';
 import { getMyDonorApplication, } from '../../lib/donorApplication';
 import type { DonorApplication, } from '../../lib/donorApplication';
 import { clearSession, getAccessToken, } from '../../lib/session';
@@ -97,6 +101,29 @@ export default function ProfileScreen() {
     const [
         logoutModalVisible,
         setLogoutModalVisible,
+    ] = useState(
+        false
+    );
+
+    // Profile photo: source sheet, upload/remove in progress, and
+    // the remove confirmation.
+    const [
+        photoSheetVisible,
+        setPhotoSheetVisible,
+    ] = useState(
+        false
+    );
+
+    const [
+        photoBusy,
+        setPhotoBusy,
+    ] = useState(
+        false
+    );
+
+    const [
+        removePhotoVisible,
+        setRemovePhotoVisible,
     ] = useState(
         false
     );
@@ -280,6 +307,142 @@ export default function ProfileScreen() {
                     title
                 ),
         });
+    }
+
+    // ==========================================================
+    // PROFILE PHOTO (camera icon)
+    // ==========================================================
+
+    function openPhotoSheet() {
+        if (
+            photoBusy ||
+            loading
+        ) {
+            return;
+        }
+
+        setPhotoSheetVisible(
+            true
+        );
+    }
+
+    async function handlePhotoPicked(
+        image: PickedImage
+    ) {
+        try {
+            setPhotoBusy(
+                true
+            );
+
+            const token =
+                await getAccessToken();
+
+            if (!token) {
+                router.replace(
+                    '/'
+                );
+
+                return;
+            }
+
+            const result =
+                await uploadProfilePhoto(
+                    token,
+                    image
+                );
+
+            const newPhotoUrl =
+                result?.profile_photo_url ||
+                result?.user
+                    ?.profile_photo_url ||
+                '';
+
+            if (!newPhotoUrl) {
+                throw new Error(
+                    'Your photo was uploaded, but it could not be shown. Pull to refresh.'
+                );
+            }
+
+            setProfile(
+                (current: any) => ({
+                    ...(current || {}),
+                    ...(result?.user || {}),
+                    profile_photo_url:
+                        newPhotoUrl,
+                })
+            );
+
+            showMessage(
+                'Profile Photo Updated',
+                'Your new profile photo has been saved.'
+            );
+        } catch (error) {
+            console.log(
+                'PROFILE PHOTO UPLOAD ERROR:',
+                error
+            );
+
+            showMessage(
+                'Unable to Update Photo',
+                error instanceof Error
+                    ? error.message
+                    : 'Please try again.'
+            );
+        } finally {
+            setPhotoBusy(
+                false
+            );
+        }
+    }
+
+    async function performRemovePhoto() {
+        try {
+            setPhotoBusy(
+                true
+            );
+
+            const token =
+                await getAccessToken();
+
+            if (!token) {
+                router.replace(
+                    '/'
+                );
+
+                return;
+            }
+
+            await deleteProfilePhoto(
+                token
+            );
+
+            setRemovePhotoVisible(
+                false
+            );
+
+            setProfile(
+                (current: any) => ({
+                    ...(current || {}),
+                    profile_photo_url:
+                        null,
+                })
+            );
+        } catch (error) {
+            setRemovePhotoVisible(
+                false
+            );
+
+            showMessage(
+                'Unable to Remove Photo',
+                error instanceof Error
+                    ? error.message
+                    : 'Please try again.'
+            );
+        } finally {
+            setPhotoBusy(
+                false
+            );
+        }
     }
 
     const fullName =
@@ -539,6 +702,10 @@ export default function ProfileScreen() {
             if (
                 token
             ) {
+                await unregisterPushNotifications(
+                    token
+                );
+
                 try {
                     await logoutUser(
                         token
@@ -721,9 +888,16 @@ export default function ProfileScreen() {
                                         styles.avatarContainer
                                     }
                                 >
-                                    <View
+                                    <TouchableOpacity
                                         style={
                                             styles.avatar
+                                        }
+                                        activeOpacity={
+                                            0.85
+                                        }
+                                        accessibilityLabel="Change profile photo"
+                                        onPress={
+                                            openPhotoSheet
                                         }
                                     >
                                         {profilePhotoUrl ? (
@@ -746,7 +920,21 @@ export default function ProfileScreen() {
                                                 }
                                             />
                                         )}
-                                    </View>
+
+                                        {photoBusy ? (
+                                            <View
+                                                style={
+                                                    styles.avatarBusy
+                                                }
+                                            >
+                                                <ActivityIndicator
+                                                    color={
+                                                        COLORS.white
+                                                    }
+                                                />
+                                            </View>
+                                        ) : null}
+                                    </TouchableOpacity>
 
                                     <TouchableOpacity
                                         style={
@@ -755,8 +943,12 @@ export default function ProfileScreen() {
                                         activeOpacity={
                                             0.8
                                         }
+                                        accessibilityLabel="Take or choose a profile photo"
+                                        disabled={
+                                            photoBusy
+                                        }
                                         onPress={
-                                            handleEditProfile
+                                            openPhotoSheet
                                         }
                                     >
                                         <MaterialIcons
@@ -1619,6 +1811,56 @@ export default function ProfileScreen() {
                             </View>
                         </View>
                     </Modal>
+
+                    <PhotoSourceSheet
+                        visible={
+                            photoSheetVisible
+                        }
+                        hasPhoto={Boolean(
+                            profilePhotoUrl
+                        )}
+                        onClose={() =>
+                            setPhotoSheetVisible(
+                                false
+                            )
+                        }
+                        onPicked={
+                            handlePhotoPicked
+                        }
+                        onRemove={() =>
+                            setRemovePhotoVisible(
+                                true
+                            )
+                        }
+                        onError={message =>
+                            showMessage(
+                                'Permission Required',
+                                message
+                            )
+                        }
+                    />
+
+                    <AppModal
+                        visible={
+                            removePhotoVisible
+                        }
+                        variant="danger"
+                        title="Remove Photo?"
+                        message="Your profile will show the default picture."
+                        confirmLabel="Remove"
+                        cancelLabel="Keep"
+                        loading={
+                            photoBusy
+                        }
+                        onConfirm={
+                            performRemovePhoto
+                        }
+                        onClose={() =>
+                            setRemovePhotoVisible(
+                                false
+                            )
+                        }
+                    />
                 </SafeAreaView>
             </View>
         </View>
@@ -2137,6 +2379,27 @@ const styles =
 
             height:
                 '100%',
+        },
+
+        // Upload / remove in progress.
+        avatarBusy: {
+            position:
+                'absolute',
+
+            top: 0,
+            right: 0,
+            bottom: 0,
+            left: 0,
+
+
+            alignItems:
+                'center',
+
+            justifyContent:
+                'center',
+
+            backgroundColor:
+                'rgba(0,0,0,0.35)',
         },
 
         cameraButton: {

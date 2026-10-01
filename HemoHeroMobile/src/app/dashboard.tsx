@@ -61,6 +61,11 @@ import {
   type CoordinationInboxItem,
 } from '../lib/coordination';
 
+import { formatEta } from '../lib/trips';
+
+import { ensurePushRegistered } from '../lib/pushNotifications';
+import { openPendingNotification } from '../components/PushNotificationsBridge';
+
 import {
   getCurrentUser,
   getMyActiveBloodRequest,
@@ -564,6 +569,13 @@ export default function DashboardScreen() {
   useFocusEffect(
     useCallback(() => {
       loadDashboard();
+
+      // Notifications for this phone (first visit after signing
+      // in), then any notification tapped while the app was
+      // closed.
+      void ensurePushRegistered();
+
+      openPendingNotification();
     }, [loadDashboard])
   );
 
@@ -1586,6 +1598,16 @@ function showMessage(
     )}`;
   }
 
+  // An accepted donor travelling to (or at) the facility.
+  const activeTrip =
+    activeAccepted.find(
+      item =>
+        item.trip?.status ===
+          'on_the_way' ||
+        item.trip?.status ===
+          'arrived'
+    ) || null;
+
   function getActiveRequestStatus(): {
     icon: keyof typeof MaterialIcons.glyphMap;
     tone: 'green' | 'orange' | 'muted';
@@ -1609,6 +1631,26 @@ function showMessage(
             ? `${activeDonation.units_donated} ${activeDonation.units_donated === 1 ? 'bag' : 'bags'} recorded · quick review`
             : `${activeDonation.units_donated} ${activeDonation.units_donated === 1 ? 'bag' : 'bags'} recorded · mark fulfilled when done`,
       };
+    }
+
+    if (activeTrip?.trip) {
+      const eta =
+        formatEta(
+          activeTrip.trip.eta_seconds
+        );
+
+      return activeTrip.trip.status ===
+        'arrived'
+        ? {
+            icon: 'where-to-vote',
+            tone: 'green',
+            text: `${personName(activeTrip)} has arrived at the facility`,
+          }
+        : {
+            icon: 'directions-car',
+            tone: 'green',
+            text: `${personName(activeTrip)} is on the way${eta ? ` · ${eta} away` : ''}`,
+          };
     }
 
     if (activeScheduled?.schedule) {
@@ -1673,7 +1715,7 @@ function showMessage(
 
   // ==========================================================
   // UI
-  // ==========================================================  // ==========================================================
+  // ==========================================================
   // UI
   // ==========================================================
 

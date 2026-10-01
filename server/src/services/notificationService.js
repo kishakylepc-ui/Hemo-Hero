@@ -4,6 +4,12 @@ const {
   '../config/supabase'
 );
 
+const {
+  sendPushForNotifications
+} = require(
+  './pushService'
+);
+
 // ============================================================
 // HELPERS
 // ============================================================
@@ -131,6 +137,12 @@ async function createNotification({
       return null;
     }
 
+    // Also to the user's phones. Not awaited: the action that
+    // created the notification doesn't wait for delivery.
+    void sendPushForNotifications([
+      notification
+    ]);
+
     return notification;
   } catch (error) {
     console.error(
@@ -245,6 +257,10 @@ async function createNotifications(
 
       return [];
     }
+
+    void sendPushForNotifications(
+      data || []
+    );
 
     return data || [];
   } catch (error) {

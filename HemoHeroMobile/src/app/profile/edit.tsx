@@ -14,7 +14,8 @@ import {
 } from 'react-native';
 
 import { MaterialIcons } from '@expo/vector-icons';
-import * as ImagePicker from 'expo-image-picker';
+import PhotoSourceSheet from '../../components/PhotoSourceSheet';
+import type { PickedImage } from '../../lib/imageUpload';
 import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
@@ -212,6 +213,15 @@ export default function EditProfileScreen() {
   const [
     photoBusy,
     setPhotoBusy,
+  ] =
+    useState(
+      false
+    );
+
+  // Take Photo / Choose from Library sheet.
+  const [
+    photoSheetVisible,
+    setPhotoSheetVisible,
   ] =
     useState(
       false
@@ -1270,7 +1280,7 @@ export default function EditProfileScreen() {
   // PROFILE PHOTO
   // ==========================================================
 
-  async function handleChooseProfilePhoto() {
+  function handleChooseProfilePhoto() {
     if (
       photoBusy ||
       saving
@@ -1278,6 +1288,14 @@ export default function EditProfileScreen() {
       return;
     }
 
+    setPhotoSheetVisible(
+      true
+    );
+  }
+
+  async function handlePhotoPicked(
+    image: PickedImage
+  ) {
     try {
       setPhotoBusy(
         true
@@ -1286,55 +1304,6 @@ export default function EditProfileScreen() {
       setErrorMessage(
         ''
       );
-
-      if (
-        Platform.OS !==
-        'web'
-      ) {
-        const permission =
-          await ImagePicker
-            .requestMediaLibraryPermissionsAsync();
-
-        if (
-          !permission.granted
-        ) {
-          showMessage(
-            'Permission Required',
-            'Please allow Hemo-Hero to access your photos so you can choose a profile picture.'
-          );
-
-          return;
-        }
-      }
-
-      const result =
-        await ImagePicker
-          .launchImageLibraryAsync({
-            mediaTypes: [
-              'images',
-            ],
-
-            allowsEditing:
-              true,
-
-            aspect: [
-              1,
-              1,
-            ],
-
-            quality:
-              0.8,
-          });
-
-      if (
-        result.canceled ||
-        !result.assets?.length
-      ) {
-        return;
-      }
-
-      const asset =
-        result.assets[0];
 
       const accessToken =
         await getAccessToken();
@@ -1352,23 +1321,7 @@ export default function EditProfileScreen() {
       const uploadResult =
         await uploadProfilePhoto(
           accessToken,
-          {
-            uri:
-              asset.uri,
-
-            fileName:
-              asset.fileName ||
-              `profile-${Date.now()}.jpg`,
-
-            mimeType:
-              asset.mimeType ||
-              'image/jpeg',
-
-            webFile:
-              (asset as any)
-                .file ||
-              null,
-          }
+          image
         );
 
       const newPhotoUrl =
@@ -3454,6 +3407,26 @@ export default function EditProfileScreen() {
           </View>
         </View>
       </Modal>
+
+      <PhotoSourceSheet
+        visible={
+          photoSheetVisible
+        }
+        onClose={() =>
+          setPhotoSheetVisible(
+            false
+          )
+        }
+        onPicked={
+          handlePhotoPicked
+        }
+        onError={message =>
+          showMessage(
+            'Permission Required',
+            message
+          )
+        }
+      />
     </View>
   );
 }

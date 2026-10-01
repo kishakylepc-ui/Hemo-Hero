@@ -57,6 +57,17 @@ const {
   );
 
 const {
+  getTrip,
+  startTrip,
+  updateTripLocation,
+  arriveTrip,
+  endTrip,
+} =
+  require(
+    '../controllers/tripController'
+  );
+
+const {
   submitConversationReport,
   submitNoShowReport,
   submitRequestReport,
@@ -535,6 +546,99 @@ router.put(
   }),
 
   setCoordinationSchedule
+);
+
+// ============================================================
+// DONOR TRIP ("ON THE WAY" MAP)
+//
+// GET  /api/requests/:id/responses/:responseId/trip
+// POST /api/requests/:id/responses/:responseId/trip/start
+// POST /api/requests/:id/responses/:responseId/trip/location
+// POST /api/requests/:id/responses/:responseId/trip/arrive
+// POST /api/requests/:id/responses/:responseId/trip/end
+//
+// Request owner and accepted donor only; only the donor can
+// change it. Coordinates are never written to the activity log,
+// and location updates (every few seconds) are not logged.
+// ============================================================
+
+router.get(
+  '/:id/responses/:responseId/trip',
+  getTrip
+);
+
+router.post(
+  '/:id/responses/:responseId/trip/start',
+
+  activityLog({
+    action:
+      'START_DONOR_TRIP',
+
+    module:
+      'Coordination',
+
+    successDescription:
+      'Donor started sharing their trip to the facility.',
+
+    failureDescription:
+      'Donor trip start attempt failed.',
+
+    entityType:
+      'donor_trip',
+  }),
+
+  startTrip
+);
+
+router.post(
+  '/:id/responses/:responseId/trip/location',
+  updateTripLocation
+);
+
+router.post(
+  '/:id/responses/:responseId/trip/arrive',
+
+  activityLog({
+    action:
+      'ARRIVE_DONOR_TRIP',
+
+    module:
+      'Coordination',
+
+    successDescription:
+      'Donor marked that they arrived at the facility.',
+
+    failureDescription:
+      'Donor arrival update failed.',
+
+    entityType:
+      'donor_trip',
+  }),
+
+  arriveTrip
+);
+
+router.post(
+  '/:id/responses/:responseId/trip/end',
+
+  activityLog({
+    action:
+      'END_DONOR_TRIP',
+
+    module:
+      'Coordination',
+
+    successDescription:
+      'Donor stopped sharing their trip.',
+
+    failureDescription:
+      'Donor trip stop attempt failed.',
+
+    entityType:
+      'donor_trip',
+  }),
+
+  endTrip
 );
 
 // ============================================================

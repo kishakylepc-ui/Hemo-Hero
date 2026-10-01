@@ -26,6 +26,13 @@ const {
     '../utils/bloodCompatibility'
   );
 
+const {
+  endTripForResponse
+} =
+  require(
+    '../services/tripService'
+  );
+
 // ============================================================
 // BLOOD DONATIONS (TRANSACTION RECORD)
 //
@@ -1314,6 +1321,11 @@ async function recordDonation(
             insertedDonation
           )
         : insertedDonation;
+
+    // The donor made it: stop sharing their location.
+    await endTripForResponse(
+      responseId
+    );
 
     // --------------------------------------------------------
     // NOTIFY DONOR (+ ADMINS only when flagged)

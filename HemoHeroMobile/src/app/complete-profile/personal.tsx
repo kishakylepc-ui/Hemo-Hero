@@ -19,7 +19,7 @@ import { router } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import * as ImagePicker from 'expo-image-picker';
+import PhotoSourceSheet from '../../components/PhotoSourceSheet';
 
 const COLORS = {
   red: '#DB0A0A',
@@ -149,6 +149,15 @@ export default function PersonalInformationScreen() {
       null
     );
 
+  // Take Photo / Choose from Library sheet.
+  const [
+    photoSheetVisible,
+    setPhotoSheetVisible,
+  ] =
+    useState(
+      false
+    );
+
   // ==========================================================
   // CALENDAR
   // ==========================================================
@@ -266,65 +275,11 @@ export default function PersonalInformationScreen() {
   // PROFILE PHOTO PICKER
   // ==========================================================
 
-  async function handlePhotoPress() {
-    try {
-      const permission =
-        await ImagePicker
-          .requestMediaLibraryPermissionsAsync();
-
-      if (
-        !permission.granted
-      ) {
-        showMessage(
-          'Permission Required',
-          'Hemo-Hero needs permission to access your photos so you can choose a profile picture.'
-        );
-
-        return;
-      }
-
-      const result =
-        await ImagePicker
-          .launchImageLibraryAsync({
-            mediaTypes: [
-              'images',
-            ],
-
-            allowsEditing:
-              true,
-
-            aspect: [
-              1,
-              1,
-            ],
-
-            quality:
-              0.8,
-          });
-
-      if (
-        !result.canceled &&
-        result.assets &&
-        result.assets.length >
-          0
-      ) {
-        setProfilePhoto(
-          result.assets[0].uri
-        );
-      }
-    } catch (
-      error
-    ) {
-      console.log(
-        'IMAGE PICKER ERROR:',
-        error
-      );
-
-      showMessage(
-        'Unable to Select Photo',
-        'Something went wrong while selecting your profile photo.'
-      );
-    }
+  // The photo is uploaded when the last step saves the profile.
+  function handlePhotoPress() {
+    setPhotoSheetVisible(
+      true
+    );
   }
 
   function handleRemovePhoto() {
@@ -1746,6 +1701,28 @@ export default function PersonalInformationScreen() {
           </View>
         </View>
       </Modal>
+
+      <PhotoSourceSheet
+        visible={
+          photoSheetVisible
+        }
+        onClose={() =>
+          setPhotoSheetVisible(
+            false
+          )
+        }
+        onPicked={image =>
+          setProfilePhoto(
+            image.uri
+          )
+        }
+        onError={message =>
+          showMessage(
+            'Permission Required',
+            message
+          )
+        }
+      />
     </View>
   );
 }

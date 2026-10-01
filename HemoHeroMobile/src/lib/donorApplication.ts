@@ -1,5 +1,5 @@
-import { Platform } from 'react-native';
 import { authorizedFetch } from './authFetch';
+import { appendImage } from './imageUpload';
 import { API_URL } from './apiUrl';
 
 // ============================================================
@@ -123,23 +123,14 @@ export async function uploadDonorVerificationId(
 ) {
   const formData = new FormData();
 
-  const fileName =
-    asset.fileName || `verification-${Date.now()}.jpg`;
-
-  const mimeType = asset.mimeType || 'image/jpeg';
-
-  if (Platform.OS === 'web' && asset.file) {
-    formData.append('file', asset.file, fileName);
-  } else {
-    formData.append(
-      'file',
-      {
-        uri: asset.uri,
-        name: fileName,
-        type: mimeType,
-      } as any
-    );
-  }
+  // Phone images must be attached as File objects (SDK 57
+  // fetch); see lib/imageUpload.
+  await appendImage(formData, 'file', {
+    uri: asset.uri,
+    fileName: asset.fileName || `verification-${Date.now()}.jpg`,
+    mimeType: asset.mimeType || 'image/jpeg',
+    webFile: asset.file || null,
+  });
 
   const response = await authorizedFetch(
     `${API_URL}/api/donors/verification-id`,

@@ -8,6 +8,12 @@ const {
   '../middleware/activityLogMiddleware'
 );
 
+const {
+  isExpoPushToken
+} = require(
+  '../services/pushService'
+);
+
 // ============================================================
 // HELPERS
 // ============================================================
@@ -598,6 +604,217 @@ async function markAllNotificationsAsRead(
 }
 
 // ============================================================
+// REGISTER THIS PHONE FOR PUSH NOTIFICATIONS
+//
+// PUT /api/notifications/push-token
+// Body: { token, platform }
+//
+// A token belongs to one phone: if another account registered
+// it before, it moves to the signed-in account.
+// ============================================================
+
+async function registerPushToken(
+  req,
+  res
+) {
+  try {
+    const userId =
+      getAuthenticatedUserId(
+        req
+      );
+
+    if (!userId) {
+      return res
+        .status(401)
+        .json({
+          error:
+            'Unauthorized'
+        });
+    }
+
+    const token =
+      String(
+        req.body?.token ||
+        ''
+      ).trim();
+
+    const platform =
+      ['ios', 'android'].includes(
+        req.body?.platform
+      )
+        ? req.body.platform
+        : null;
+
+    if (
+      !isExpoPushToken(
+        token
+      )
+    ) {
+      return res
+        .status(400)
+        .json({
+          error:
+            'A valid Expo push token is required.'
+        });
+    }
+
+    const {
+      error
+    } =
+      await supabaseAdmin
+        .from(
+          'push_tokens'
+        )
+        .upsert(
+          {
+            user_id:
+              userId,
+
+            token,
+
+            platform,
+
+            updated_at:
+              new Date()
+                .toISOString()
+          },
+          {
+            onConflict:
+              'token'
+          }
+        );
+
+    if (error) {
+      console.error(
+        'REGISTER PUSH TOKEN ERROR:',
+        error
+      );
+
+      return res
+        .status(500)
+        .json({
+          error:
+            'Unable to turn on notifications for this phone.'
+        });
+    }
+
+    return res
+      .status(200)
+      .json({
+        message:
+          'Push notifications are on for this phone.'
+      });
+  } catch (error) {
+    console.error(
+      'REGISTER PUSH TOKEN ERROR:',
+      error
+    );
+
+    return res
+      .status(500)
+      .json({
+        error:
+          'Internal server error'
+      });
+  }
+}
+
+// ============================================================
+// UNREGISTER THIS PHONE (sign out)
+//
+// DELETE /api/notifications/push-token
+// Body: { token }
+//
+// Only removes the token from the signed-in account.
+// ============================================================
+
+async function removePushToken(
+  req,
+  res
+) {
+  try {
+    const userId =
+      getAuthenticatedUserId(
+        req
+      );
+
+    if (!userId) {
+      return res
+        .status(401)
+        .json({
+          error:
+            'Unauthorized'
+        });
+    }
+
+    const token =
+      String(
+        req.body?.token ||
+        ''
+      ).trim();
+
+    if (!token) {
+      return res
+        .status(400)
+        .json({
+          error:
+            'Push token is required.'
+        });
+    }
+
+    const {
+      error
+    } =
+      await supabaseAdmin
+        .from(
+          'push_tokens'
+        )
+        .delete()
+        .eq(
+          'user_id',
+          userId
+        )
+        .eq(
+          'token',
+          token
+        );
+
+    if (error) {
+      console.error(
+        'REMOVE PUSH TOKEN ERROR:',
+        error
+      );
+
+      return res
+        .status(500)
+        .json({
+          error:
+            'Unable to turn off notifications for this phone.'
+        });
+    }
+
+    return res
+      .status(200)
+      .json({
+        message:
+          'Push notifications are off for this phone.'
+      });
+  } catch (error) {
+    console.error(
+      'REMOVE PUSH TOKEN ERROR:',
+      error
+    );
+
+    return res
+      .status(500)
+      .json({
+        error:
+          'Internal server error'
+      });
+  }
+}
+
+// ============================================================
 // EXPORTS
 // ============================================================
 
@@ -605,5 +822,7 @@ module.exports = {
   getMyNotifications,
   getUnreadNotificationCount,
   markNotificationAsRead,
-  markAllNotificationsAsRead
+  markAllNotificationsAsRead,
+  registerPushToken,
+  removePushToken
 };

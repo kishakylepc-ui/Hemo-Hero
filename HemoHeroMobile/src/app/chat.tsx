@@ -40,6 +40,9 @@ import {
 } from 'expo-linear-gradient';
 
 import MainBottomNav from '../components/MainBottomNav';
+import PersonAvatar from '../components/PersonAvatar';
+
+import { formatEta } from '../lib/trips';
 
 import {
   FadeInView,
@@ -353,6 +356,41 @@ function getStatus(
       icon: 'error-outline',
       label: 'Record not accepted',
       tone: 'accent',
+    };
+  }
+
+  if (
+    item.trip?.status ===
+    'arrived'
+  ) {
+    return {
+      icon: 'where-to-vote',
+      label:
+        item.viewer_role ===
+        'requester'
+          ? `${firstName(item)} has arrived`
+          : 'You’ve arrived',
+      tone: 'green',
+    };
+  }
+
+  if (
+    item.trip?.status ===
+    'on_the_way'
+  ) {
+    const eta =
+      formatEta(
+        item.trip.eta_seconds
+      );
+
+    return {
+      icon: 'directions-car',
+      label:
+        item.viewer_role ===
+        'requester'
+          ? `${firstName(item)} is on the way${eta ? ` · ${eta}` : ''}`
+          : `You’re on the way${eta ? ` · ${eta}` : ''}`,
+      tone: 'blue',
     };
   }
 
@@ -761,15 +799,19 @@ export default function ChatScreen() {
             openConversation(item)
           }
         >
-          <View style={styles.avatar}>
-            <Text style={styles.avatarText}>
-              {initials(name)}
-            </Text>
-
+          <PersonAvatar
+            uri={
+              item.other_participant
+                ?.profile_photo_url
+            }
+            label={initials(name)}
+            style={styles.avatar}
+            textStyle={styles.avatarText}
+          >
             {unread > 0 ? (
               <View style={styles.avatarDot} />
             ) : null}
-          </View>
+          </PersonAvatar>
 
           <View style={styles.rowBody}>
             <View style={styles.rowTop}>

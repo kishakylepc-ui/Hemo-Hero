@@ -23,6 +23,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import {
   updateProfile,
+  uploadProfilePhoto,
 } from '../../lib/api';
 
 import {
@@ -349,6 +350,34 @@ export default function MedicalInformationScreen() {
         throw new Error(
           'Profile information was saved, but onboarding was not completed.'
         );
+      }
+
+      // Photo chosen on the first step. The profile is already
+      // saved, so a failed upload doesn't block finishing; the
+      // photo can be added later from Profile.
+      if (
+        params.profile_photo_uri
+      ) {
+        try {
+          await uploadProfilePhoto(
+            accessToken,
+            {
+              uri:
+                params.profile_photo_uri,
+
+              fileName:
+                `profile-${Date.now()}.jpg`,
+
+              mimeType:
+                'image/jpeg',
+            }
+          );
+        } catch (photoError) {
+          console.log(
+            'ONBOARDING PHOTO UPLOAD ERROR:',
+            photoError
+          );
+        }
       }
 
       router.replace({

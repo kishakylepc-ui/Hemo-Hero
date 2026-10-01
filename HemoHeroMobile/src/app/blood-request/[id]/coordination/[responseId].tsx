@@ -74,6 +74,17 @@ import {
 } from '../../../../lib/session';
 
 import {
+  formatDistance,
+  formatEta,
+  getTrip,
+  type TripPayload,
+} from '../../../../lib/trips';
+
+import {
+  setActiveConversation,
+} from '../../../../lib/pushNotifications';
+
+import {
   FadeInView,
   PressableScale,
 } from '../../../../components/Motion';
@@ -83,6 +94,7 @@ import TimeWheelPicker from '../../../../components/TimeWheelPicker';
 import ConfirmDonationSheet from '../../../../components/ConfirmDonationSheet';
 
 import DonationFeedbackModal from '../../../../components/DonationFeedbackModal';
+import PersonAvatar from '../../../../components/PersonAvatar';
 
 // ============================================================
 // COLORS (same palette as Dashboard / Request Blood)
@@ -480,6 +492,15 @@ export default function DonationCoordinationScreen() {
       null
     );
 
+  // Donor's live trip to the facility ("On my way" map).
+  const [
+    tripInfo,
+    setTripInfo,
+  ] =
+    useState<TripPayload | null>(
+      null
+    );
+
   // Pinned coordination card: collapsed shows the next step,
   // expanded shows place, schedule and donation details.
   const [
@@ -707,6 +728,53 @@ export default function DonationCoordinationScreen() {
             'CHAT DONATION ERROR:',
             donationError
           );
+        }
+      },
+      [
+        requestId,
+        responseId,
+      ]
+    );
+
+  // ==========================================================
+  // LOAD TRIP
+  //
+  // Only adds the "on the way" status; a failure (or a database
+  // without the trips table yet) just hides it.
+  // ==========================================================
+
+  const loadTrip =
+    useCallback(
+      async () => {
+        if (
+          !requestId ||
+          !responseId
+        ) {
+          return;
+        }
+
+        try {
+          const token =
+            await getAccessToken();
+
+          if (!token) {
+            return;
+          }
+
+          setTripInfo(
+            await getTrip(
+              token,
+              requestId,
+              responseId
+            )
+          );
+        } catch (tripError) {
+          console.log(
+            'CHAT TRIP ERROR:',
+            tripError
+          );
+
+          setTripInfo(null);
         }
       },
       [
@@ -982,9 +1050,32 @@ export default function DonationCoordinationScreen() {
     useCallback(
       () => {
         loadCoordination();
+        loadTrip();
       },
       [
         loadCoordination,
+        loadTrip,
+      ]
+    )
+  );
+
+  // Message notifications for this chat stay quiet while it's
+  // on screen.
+  useFocusEffect(
+    useCallback(
+      () => {
+        setActiveConversation(
+          responseId ||
+            null
+        );
+
+        return () =>
+          setActiveConversation(
+            null
+          );
+      },
+      [
+        responseId,
       ]
     )
   );
@@ -1020,6 +1111,15 @@ export default function DonationCoordinationScreen() {
           15000
         );
 
+      // Donor's position / ETA while they travel.
+      const tripTimer =
+        setInterval(
+          () => {
+            loadTrip();
+          },
+          10000
+        );
+
       return () => {
         clearInterval(
           timer
@@ -1028,6 +1128,10 @@ export default function DonationCoordinationScreen() {
         clearInterval(
           donationTimer
         );
+
+        clearInterval(
+          tripTimer
+        );
       };
     },
     [
@@ -1035,6 +1139,7 @@ export default function DonationCoordinationScreen() {
       responseId,
       loadMessages,
       loadDonation,
+      loadTrip,
     ]
   );
 
@@ -1636,6 +1741,25 @@ export default function DonationCoordinationScreen() {
 
     router.push(
       `/blood-request/${request.id}` as any
+    );
+  }
+
+  // ==========================================================
+  // TRIP MAP ("on my way" / track donor)
+  // ==========================================================
+
+  function openTrip() {
+    if (
+      !requestId ||
+      !responseId
+    ) {
+      return;
+    }
+
+    Keyboard.dismiss();
+
+    router.push(
+      `/blood-request/${requestId}/coordination/${responseId}/trip` as any
     );
   }
 
@@ -2884,6 +3008,87 @@ export default function DonationCoordinationScreen() {
         };
       }
 
+      const trip =
+        tripInfo?.can_track
+          ? tripInfo.trip
+          : null;
+
+      if (
+        trip?.status ===
+        'arrived'
+      ) {
+        return myRole ===
+          'requester'
+          ? {
+              icon: 'where-to-vote',
+              tone: 'green',
+              title: `${first} has arrived`,
+              detail: 'After they donate, confirm it here.',
+              action: {
+                label: 'Confirm',
+                onPress: handleConfirmDonation,
+              },
+            }
+          : {
+              icon: 'where-to-vote',
+              tone: 'green',
+              title: 'You’ve arrived',
+              detail: `${first} was notified.`,
+            };
+      }
+
+      if (
+        trip?.status ===
+        'on_the_way'
+      ) {
+        const away =
+          [
+            formatEta(
+              trip.eta_seconds
+            ),
+
+            formatDistance(
+              trip.distance_m
+            ),
+          ]
+            .filter(Boolean)
+            .join(' · ');
+
+        return myRole ===
+          'requester'
+          ? {
+              icon: trip.stale
+                ? 'location-disabled'
+                : 'directions-car',
+              tone: trip.stale ||
+                trip.near_notified_at
+                ? 'orange'
+                : 'accent',
+              title: trip.stale
+                ? `${first}'s location paused`
+                : trip.near_notified_at
+                  ? `${first} is almost there`
+                  : `${first} is on the way`,
+              detail: trip.stale
+                ? 'Last known position on the map.'
+                : `${away} away`,
+              action: {
+                label: 'Track',
+                onPress: openTrip,
+              },
+            }
+          : {
+              icon: 'directions-car',
+              tone: 'accent',
+              title: 'You’re on the way',
+              detail: `${away} to ${request?.facility_name || 'the facility'}`,
+              action: {
+                label: 'Map',
+                onPress: openTrip,
+              },
+            };
+      }
+
       if (!schedule) {
         return {
           icon: 'event',
@@ -2922,10 +3127,15 @@ export default function DonationCoordinationScreen() {
           schedule.scheduled_at
         ),
         detail: `Donate at ${request?.facility_name || 'the facility'}.`,
-        action: {
-          label: 'Directions',
-          onPress: openLocation,
-        },
+        action: tripInfo?.can_start
+          ? {
+              label: 'On my way',
+              onPress: openTrip,
+            }
+          : {
+              label: 'Directions',
+              onPress: openLocation,
+            },
       };
     }
 
@@ -3241,11 +3451,15 @@ export default function DonationCoordinationScreen() {
                 />
               </TouchableOpacity>
 
-              <View style={styles.headerAvatar}>
-                <Text style={styles.headerAvatarText}>
-                  {getInitials()}
-                </Text>
-              </View>
+              <PersonAvatar
+                uri={
+                  otherPerson
+                    ?.profile_photo_url
+                }
+                label={getInitials()}
+                style={styles.headerAvatar}
+                textStyle={styles.headerAvatarText}
+              />
 
               <View style={styles.headerText}>
                 <View style={styles.headerNameRow}>
@@ -3809,11 +4023,15 @@ export default function DonationCoordinationScreen() {
                                 groupedWithNext ? (
                                   <View style={styles.avatarSpacer} />
                                 ) : (
-                                  <View style={styles.messageAvatar}>
-                                    <Text style={styles.messageAvatarText}>
-                                      {getInitials().charAt(0)}
-                                    </Text>
-                                  </View>
+                                  <PersonAvatar
+                                    uri={
+                                      otherPerson
+                                        ?.profile_photo_url
+                                    }
+                                    label={getInitials().charAt(0)}
+                                    style={styles.messageAvatar}
+                                    textStyle={styles.messageAvatarText}
+                                  />
                                 )
                               ) : null}
 
@@ -4188,6 +4406,36 @@ export default function DonationCoordinationScreen() {
                     void openLocation();
                   }}
                 />
+
+                {tripInfo?.can_track &&
+                tripInfo.destination &&
+                (myRole ===
+                  'donor' ||
+                  tripInfo.trip?.status ===
+                    'on_the_way' ||
+                  tripInfo.trip?.status ===
+                    'arrived') ? (
+                  <OptionRow
+                    icon="directions-car"
+                    title={
+                      myRole ===
+                      'donor'
+                        ? 'On my way (live map)'
+                        : 'Track donor'
+                    }
+                    subtitle={
+                      myRole ===
+                      'donor'
+                        ? 'Share your location until you arrive'
+                        : 'See where your donor is on the map'
+                    }
+                    onPress={() => {
+                      closeSupport();
+
+                      openTrip();
+                    }}
+                  />
+                ) : null}
 
                 {canRate ? (
                   <OptionRow

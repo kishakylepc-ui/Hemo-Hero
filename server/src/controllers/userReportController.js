@@ -15,6 +15,12 @@ const {
   '../services/notificationService'
 );
 
+const {
+  endTripForResponse
+} = require(
+  '../services/tripService'
+);
+
 // ============================================================
 // USER REPORT CONTROLLER
 //
@@ -1003,6 +1009,12 @@ async function submitNoShowReport(
         Boolean(
           releasedRows?.length
         );
+
+      if (released) {
+        await endTripForResponse(
+          responseId
+        );
+      }
     }
 
     // --------------------------------------------------------

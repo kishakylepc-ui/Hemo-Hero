@@ -209,6 +209,11 @@ function buildSafeProfile(user) {
 
     province:
       user.province ??
+      null,
+
+    // Shown as the avatar in chats.
+    profile_photo_url:
+      user.profile_photo_url ??
       null
   };
 }
@@ -402,7 +407,8 @@ async function getCoordinationContext(
         last_name,
         suffix,
         city,
-        province
+        province,
+        profile_photo_url
       `)
       .in(
         'id',
@@ -1533,7 +1539,7 @@ const INBOX_REQUEST_FIELDS =
   'id,requester_id,blood_type,units_needed,facility_name,status,created_at';
 
 const INBOX_PERSON_FIELDS =
-  'id,first_name,middle_name,last_name,suffix,city,province';
+  'id,first_name,middle_name,last_name,suffix,city,province,profile_photo_url';
 
 const INBOX_SCHEDULE_FIELDS =
   'id,request_id,response_id,scheduled_at,note,created_by,updated_by,created_at,updated_at';
@@ -1544,8 +1550,14 @@ const INBOX_DONATION_FIELDS =
 // Notifications that belong to one conversation (unread badge).
 const COORDINATION_NOTIFICATION_TYPES = [
   'coordination_message',
-  'coordination_schedule'
+  'coordination_schedule',
+  'coordination_trip_started',
+  'coordination_trip_near',
+  'coordination_trip_arrived'
 ];
+
+const INBOX_TRIP_FIELDS =
+  'response_id,status,distance_m,eta_seconds,started_at,location_updated_at,arrived_at';
 
 // Newest record per conversation, preferring one that was not
 // rejected (a rejected record can be confirmed again).
@@ -1575,6 +1587,41 @@ function pickInboxDonation(
     sorted[0] ||
     null
   );
+}
+
+// Live trip summary for an open conversation.
+function buildInboxTrip(
+  row,
+  response,
+  request
+) {
+  if (
+    !row ||
+    response.status !==
+      'accepted' ||
+    request.status !==
+      'active'
+  ) {
+    return null;
+  }
+
+  return {
+    status:
+      row.status,
+
+    distance_m:
+      row.distance_m,
+
+    eta_seconds:
+      row.eta_seconds,
+
+    location_updated_at:
+      row.location_updated_at ||
+      row.started_at,
+
+    arrived_at:
+      row.arrived_at
+  };
 }
 
 // ============================================================
@@ -2013,7 +2060,8 @@ async function getCoordinationInbox(
       applications,
       schedules,
       donations,
-      unreadNotifications
+      unreadNotifications,
+      trips
     ] =
       await Promise.all([
         readInboxRowsByIds(
@@ -2147,8 +2195,57 @@ async function getCoordinationInbox(
                     true
                 }
               )
-        )
+        ),
+
+        // Live "on the way" trips (optional detail).
+        readInboxRowsByIds(
+          visibleResponses.map(
+            row =>
+              row.id
+          ),
+
+          ids =>
+            supabaseAdmin
+              .from(
+                'blood_request_trips'
+              )
+              .select(
+                INBOX_TRIP_FIELDS
+              )
+              .in(
+                'response_id',
+                ids
+              )
+              .neq(
+                'status',
+                'ended'
+              )
+              .order(
+                'response_id',
+                {
+                  ascending:
+                    true
+                }
+              )
+        ).catch(tripError => {
+          console.error(
+            'COORDINATION INBOX TRIPS ERROR:',
+            tripError
+          );
+
+          return [];
+        })
       ]);
+
+    const tripMap =
+      new Map(
+        trips.map(
+          row => [
+            row.response_id,
+            row
+          ]
+        )
+      );
 
     // Donation record per conversation, and who has rated it.
     const donationsByResponse =
@@ -2554,6 +2651,16 @@ async function getCoordinationInbox(
               ) ||
               0,
 
+            // Donor travelling to the facility (null when none).
+            trip:
+              buildInboxTrip(
+                tripMap.get(
+                  response.id
+                ),
+                response,
+                request
+              ),
+
             last_activity_at:
               activity
           };
@@ -2712,6 +2819,9 @@ async function markCoordinationRead(
 // ============================================================
 
 module.exports = {
+  // Shared with the trip controller (participant check).
+  getCoordinationContext,
+
   getCoordinationInbox,
 
   markCoordinationRead,
