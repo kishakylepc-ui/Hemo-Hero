@@ -53,6 +53,9 @@ export type AuthFieldProps =
     invalid?: boolean;
     // Password field with a show/hide eye.
     password?: boolean;
+    // Optional: the screen controls show/hide itself.
+    passwordVisible?: boolean;
+    onTogglePassword?: () => void;
     // Green check on the right (e.g. passwords match).
     valid?: boolean;
     // Extra content under the field (e.g. strength meter).
@@ -67,6 +70,8 @@ const AuthField = forwardRef<TextInput, AuthFieldProps>(
       error,
       invalid,
       password,
+      passwordVisible,
+      onTogglePassword,
       valid,
       children,
       editable = true,
@@ -82,9 +87,25 @@ const AuthField = forwardRef<TextInput, AuthFieldProps>(
     ] = useState(false);
 
     const [
-      visible,
-      setVisible,
+      ownVisible,
+      setOwnVisible,
     ] = useState(false);
+
+    const visible =
+      passwordVisible ??
+      ownVisible;
+
+    function toggleVisible() {
+      if (onTogglePassword) {
+        onTogglePassword();
+
+        return;
+      }
+
+      setOwnVisible(
+        current => !current
+      );
+    }
 
     const showInvalid =
       Boolean(error) ||
@@ -158,10 +179,8 @@ const AuthField = forwardRef<TextInput, AuthFieldProps>(
                   ? 'Hide password'
                   : 'Show password'
               }
-              onPress={() =>
-                setVisible(
-                  current => !current
-                )
+              onPress={
+                toggleVisible
               }
             >
               <MaterialIcons

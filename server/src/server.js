@@ -56,6 +56,12 @@ const adminDonationRoutes =
 // APP
 // ============================================================
 
+const {
+  startRequestExpiry
+} = require(
+  './services/requestExpiryService'
+);
+
 const app =
   express();
 
@@ -332,6 +338,9 @@ function getLanAddresses() {
 app.listen(
   PORT,
   () => {
+    // Closes requests that are past their time (see service).
+    startRequestExpiry();
+
     console.log(
       '========================================'
     );

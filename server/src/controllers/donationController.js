@@ -57,8 +57,13 @@ const DONATION_STATUSES = [
   'rejected'
 ];
 
-// Whole-blood donors can usually donate again after ~3 months.
-const ELIGIBILITY_DAYS = 90;
+// Whole-blood donors can usually donate again after ~3 months
+// (shared with offers and invitations).
+const {
+  ELIGIBILITY_DAYS
+} = require(
+  '../services/eligibilityService'
+);
 
 const MAX_UNITS = 20;
 

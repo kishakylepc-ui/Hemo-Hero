@@ -833,17 +833,6 @@ export default function SignInScreen() {
         );
       }
 
-      console.log(
-        'LOGIN PROFILE:',
-        data.profile
-      );
-
-      console.log(
-        'ONBOARDING COMPLETE:',
-        data.profile
-          .onboarding_complete
-      );
-
       // ------------------------------------------------------
       // COMPLETED USER
       // ------------------------------------------------------

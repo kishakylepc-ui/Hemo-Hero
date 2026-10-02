@@ -13,7 +13,6 @@ import {
   ScrollView,
   StyleSheet,
   Text,
-  useWindowDimensions,
   View,
 } from 'react-native';
 
@@ -22,6 +21,8 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { SafeAreaView } from 'react-native-safe-area-context';
+
+import { useAdminCanvas } from '../../components/AdminCanvas';
 
 import AdminBottomNav from '../AdminBottomNav';
 import AdminHeader from '../AdminHeader';
@@ -33,6 +34,7 @@ import {
   getAdminActivityLogSummary,
   getAdminBloodRequests,
   getAdminBloodTypeDemand,
+  getAdminDonations,
   getAdminDonorSummary,
   getAdminReportSummary,
   getAdminUserSummary,
@@ -41,6 +43,8 @@ import {
   type AdminBloodRequestSummary,
   type AdminBloodTypeDemandItem,
   type AdminBloodTypeDemandResponse,
+  type AdminDonation,
+  type AdminDonationSummary,
   type AdminProfile,
   type AdminReportSummary,
   type AdminUserSummary,
@@ -54,11 +58,8 @@ import {
 } from '../../lib/session';
 
 // ============================================================
-// DESIGN SIZE
+// LIMITS
 // ============================================================
-
-const DESIGN_WIDTH = 1366;
-const DESIGN_HEIGHT = 1024;
 
 // Server caps activity-log page size at 100.
 const ACTIVITY_SAMPLE_LIMIT = 100;
@@ -121,6 +122,7 @@ type SectionErrors = {
   activity: string;
   modules: string;
   issues: string;
+  donations: string;
 };
 
 const EMPTY_ERRORS: SectionErrors = {
@@ -131,6 +133,7 @@ const EMPTY_ERRORS: SectionErrors = {
   activity: '',
   modules: '',
   issues: '',
+  donations: '',
 };
 
 type ModuleStat = {
@@ -144,49 +147,12 @@ type ModuleStat = {
 // ============================================================
 
 export default function AdminAnalyticsScreen() {
-  const { width, height } = useWindowDimensions();
 
   // ==========================================================
   // RESPONSIVE IPAD FRAME
   // ==========================================================
 
-  const tablet = useMemo(() => {
-    if (Platform.OS !== 'web') {
-      return {
-        width,
-        height,
-
-        scale: Math.min(
-          width / DESIGN_WIDTH,
-          height / DESIGN_HEIGHT
-        ),
-      };
-    }
-
-    const padding = 24;
-
-    const availableWidth = Math.max(
-      width - padding * 2,
-      320
-    );
-
-    const availableHeight = Math.max(
-      height - padding * 2,
-      320
-    );
-
-    const scale = Math.min(
-      availableWidth / DESIGN_WIDTH,
-      availableHeight / DESIGN_HEIGHT,
-      1
-    );
-
-    return {
-      width: DESIGN_WIDTH * scale,
-      height: DESIGN_HEIGHT * scale,
-      scale,
-    };
-  }, [width, height]);
+  const tablet = useAdminCanvas();
 
   // ==========================================================
   // SCALE
@@ -228,6 +194,14 @@ export default function AdminAnalyticsScreen() {
 
   const [issueSummary, setIssueSummary] =
     useState<AdminReportSummary | null>(null);
+
+  // Donations (the transaction record): totals plus the most
+  // recent records for the blood-type and 30-day figures.
+  const [donationSummary, setDonationSummary] =
+    useState<AdminDonationSummary | null>(null);
+
+  const [recentDonations, setRecentDonations] =
+    useState<AdminDonation[]>([]);
 
   const [errors, setErrors] =
     useState<SectionErrors>(EMPTY_ERRORS);
@@ -296,6 +270,7 @@ export default function AdminAnalyticsScreen() {
         activitySummaryResult,
         activityLogsResult,
         issuesResult,
+        donationsResult,
       ] = await Promise.allSettled([
         getAdminUserSummary(token),
 
@@ -317,6 +292,12 @@ export default function AdminAnalyticsScreen() {
         }),
 
         getAdminReportSummary(token),
+
+        // Summary + the latest 100 records.
+        getAdminDonations(token, {
+          page: 1,
+          limit: 100,
+        }),
       ]);
 
       const nextErrors: SectionErrors = {
@@ -471,6 +452,32 @@ export default function AdminAnalyticsScreen() {
         );
       }
 
+      // DONATIONS
+
+      if (donationsResult.status === 'fulfilled') {
+        setDonationSummary(
+          donationsResult.value.summary
+        );
+
+        setRecentDonations(
+          donationsResult.value.donations || []
+        );
+      } else {
+        console.log(
+          'ADMIN ANALYTICS DONATIONS ERROR:',
+          donationsResult.reason
+        );
+
+        setDonationSummary(null);
+
+        setRecentDonations([]);
+
+        nextErrors.donations = getErrorMessage(
+          donationsResult.reason,
+          'Unable to load donations.'
+        );
+      }
+
       setErrors(nextErrors);
 
       setLastUpdated(new Date());
@@ -488,6 +495,7 @@ export default function AdminAnalyticsScreen() {
         activity: 'Unable to load analytics.',
         modules: 'Unable to load analytics.',
         issues: 'Unable to load analytics.',
+        donations: 'Unable to load analytics.',
       });
     } finally {
       setLoading(false);
@@ -528,7 +536,8 @@ export default function AdminAnalyticsScreen() {
 
   const closedRequests =
     (requestSummary?.fulfilled ?? 0) +
-    (requestSummary?.cancelled ?? 0);
+    (requestSummary?.cancelled ?? 0) +
+    (requestSummary?.expired ?? 0);
 
   const fulfillmentRate = percentOf(
     requestSummary?.fulfilled ?? 0,
@@ -546,6 +555,47 @@ export default function AdminAnalyticsScreen() {
   const issueClosureRate = percentOf(
     closedIssues,
     issueSummary?.total ?? 0
+  );
+
+  // DONATIONS
+
+  const donationRecordedRate = percentOf(
+    donationSummary?.completed ?? 0,
+    donationSummary?.total ?? 0
+  );
+
+  const monthAgo =
+    Date.now() - 30 * 24 * 60 * 60 * 1000;
+
+  const donationsLast30Days =
+    recentDonations.filter(
+      donation =>
+        donation.status !== 'rejected' &&
+        Date.parse(donation.donated_at) >= monthAgo
+    ).length;
+
+  // Bags from recorded donations, per blood type (largest first).
+  const bagsByBloodType = Object.entries(
+    recentDonations
+      .filter(
+        donation =>
+          donation.status === 'completed'
+      )
+      .reduce<Record<string, number>>(
+        (totals, donation) => {
+          totals[donation.blood_type] =
+            (totals[donation.blood_type] || 0) +
+            (Number(donation.units_donated) || 0);
+
+          return totals;
+        },
+        {}
+      )
+  ).sort((a, b) => b[1] - a[1]);
+
+  const bagsTotal = bagsByBloodType.reduce(
+    (sum, [, bags]) => sum + bags,
+    0
   );
 
   // ACTIVITY
@@ -1417,6 +1467,15 @@ export default function AdminAnalyticsScreen() {
                               value={requestSummary.cancelled}
                               total={requestSummary.total}
                               tone="neutral"
+                            />
+
+                            <ProgressRow
+                              scale={s}
+                              fontScale={fs}
+                              label="Expired"
+                              value={requestSummary.expired ?? 0}
+                              total={requestSummary.total}
+                              tone="neutral"
                               last
                             />
                           </View>
@@ -1575,6 +1634,154 @@ export default function AdminAnalyticsScreen() {
                               tone="neutral"
                               last
                             />
+                          </View>
+                        </View>
+                      )}
+                    </AnalyticsCard>
+                  </View>
+
+                  {/* ============================================
+                      DONATIONS
+                  ============================================ */}
+
+                  <View
+                    style={{
+                      marginBottom: 18 * s,
+                    }}
+                  >
+                    <AnalyticsCard scale={s}>
+                      <CardHeader
+                        scale={s}
+                        fontScale={fs}
+                        icon="volunteer-activism"
+                        title="Donations"
+                        description="Recorded blood donations and how they were confirmed"
+                        actionLabel="View Donations"
+                        onAction={() =>
+                          router.push('/donations' as any)
+                        }
+                      />
+
+                      {errors.donations ? (
+                        <SectionMessage
+                          scale={s}
+                          fontScale={fs}
+                          type="error"
+                          title="Donations unavailable"
+                          text={errors.donations}
+                        />
+                      ) : !donationSummary ||
+                        donationSummary.total === 0 ? (
+                        <SectionMessage
+                          scale={s}
+                          fontScale={fs}
+                          type="empty"
+                          icon="volunteer-activism"
+                          title="No donations yet"
+                          text="Donation analytics will appear once requesters confirm donations."
+                        />
+                      ) : (
+                        <View
+                          style={[
+                            styles.splitBody,
+
+                            {
+                              gap: 22 * s,
+                              marginTop: 18 * s,
+                            },
+                          ]}
+                        >
+                          <View style={styles.flexFill}>
+                            <View
+                              style={[
+                                styles.row,
+
+                                {
+                                  gap: 10 * s,
+                                  marginBottom: 14 * s,
+                                },
+                              ]}
+                            >
+                              <MiniStat
+                                scale={s}
+                                fontScale={fs}
+                                icon="task-alt"
+                                label="Recorded"
+                                value={donationSummary.completed}
+                                tone="green"
+                              />
+
+                              <MiniStat
+                                scale={s}
+                                fontScale={fs}
+                                icon="hourglass-top"
+                                label="In review"
+                                value={donationSummary.needs_review}
+                                tone={
+                                  donationSummary.needs_review > 0
+                                    ? 'orange'
+                                    : 'neutral'
+                                }
+                              />
+
+                              <MiniStat
+                                scale={s}
+                                fontScale={fs}
+                                icon="water-drop"
+                                label="Bags donated"
+                                value={donationSummary.completed_units}
+                                tone="red"
+                              />
+                            </View>
+
+                            <RateBlock
+                              scale={s}
+                              fontScale={fs}
+                              percent={donationRecordedRate}
+                              label="Recorded without review"
+                              detail={`${donationSummary.completed} of ${donationSummary.total} confirmations`}
+                              tone="green"
+                              horizontal
+                            />
+                          </View>
+
+                          <View style={styles.verticalDivider} />
+
+                          <View style={styles.flexFill}>
+                            <MiniCountRow
+                              scale={s}
+                              fontScale={fs}
+                              label="Last 30 days"
+                              value={donationsLast30Days}
+                            />
+
+                            {donationSummary.average_rating !== null ? (
+                              <MiniCountRow
+                                scale={s}
+                                fontScale={fs}
+                                label={`Average rating (${donationSummary.feedback_count} ratings)`}
+                                value={Number(
+                                  donationSummary.average_rating.toFixed(1)
+                                )}
+                              />
+                            ) : null}
+
+                            {bagsByBloodType.slice(0, 4).map(
+                              ([bloodType, bags], index, list) => (
+                                <ProgressRow
+                                  key={bloodType}
+                                  scale={s}
+                                  fontScale={fs}
+                                  label={`${bloodType} bags`}
+                                  value={bags}
+                                  total={bagsTotal}
+                                  tone="red"
+                                  last={
+                                    index === list.length - 1
+                                  }
+                                />
+                              )
+                            )}
                           </View>
                         </View>
                       )}
@@ -2969,10 +3176,6 @@ const styles = StyleSheet.create({
   ipadCanvas: {
     overflow: 'hidden',
     backgroundColor: COLORS.navy,
-    borderRadius:
-      Platform.OS === 'web'
-        ? 24
-        : 0,
   },
 
   nativeCanvas: {

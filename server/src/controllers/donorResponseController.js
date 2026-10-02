@@ -25,6 +25,20 @@ const {
     '../utils/bloodCompatibility'
   );
 
+const {
+  getDonorStats
+} = require(
+  '../services/donorStatsService'
+);
+
+const {
+  getNextEligibleDate,
+  isEligibleToDonate,
+  formatEligibleDate
+} = require(
+  '../services/eligibilityService'
+);
+
 // ============================================================
 // HELPERS
 // ============================================================
@@ -150,7 +164,8 @@ async function getVerifiedDonorApplication(
         blood_type,
         availability_status,
         travel_radius_km,
-        allow_urgent_requests
+        allow_urgent_requests,
+        last_donation_date
       `)
       .eq(
         'user_id',
@@ -424,6 +439,12 @@ async function enrichDonorResponses(
     );
   }
 
+  // Completed donations and requester ratings per donor.
+  const statsMap =
+    await getDonorStats(
+      donorIds
+    );
+
   return responses.map(
     response => {
       const user =
@@ -436,14 +457,24 @@ async function enrichDonorResponses(
           response.donor_id
         );
 
+      const profile =
+        buildSafeDonorProfile(
+          user,
+          donorApplication
+        );
+
       return {
         ...response,
 
         donor:
-          buildSafeDonorProfile(
-            user,
-            donorApplication
-          )
+          profile
+            ? {
+                ...profile,
+                ...(statsMap.get(
+                  response.donor_id
+                ) || {})
+              }
+            : profile
       };
     }
   );
@@ -733,6 +764,38 @@ async function respondToBloodRequest(
         .json({
           error:
             'Only verified donors can offer to donate.'
+        });
+    }
+
+    // ========================================================
+    // WAITING PERIOD SINCE THE LAST DONATION
+    // ========================================================
+
+    if (
+      !isEligibleToDonate(
+        donorApplication
+          .last_donation_date
+      )
+    ) {
+      const nextEligible =
+        getNextEligibleDate(
+          donorApplication
+            .last_donation_date
+        );
+
+      return res
+        .status(409)
+        .json({
+          code:
+            'DONOR_NOT_YET_ELIGIBLE',
+
+          error:
+            `You donated recently. You can donate again from ${formatEligibleDate(
+              nextEligible
+            )}.`,
+
+          next_eligible_at:
+            nextEligible.toISOString()
         });
     }
 

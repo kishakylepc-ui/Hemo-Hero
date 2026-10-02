@@ -49,6 +49,8 @@ import {
   getAccessToken,
 } from '../../lib/session';
 
+import AuthField from '../../components/AuthField';
+
 // ============================================================
 // COLORS
 // ============================================================
@@ -2670,49 +2672,24 @@ function ModalField({
     (value: string) => void;
 }) {
   return (
-    <View
-      style={
-        styles.modalField
+    <AuthField
+      label={label}
+      icon={
+        keyboardType ===
+        'email-address'
+          ? 'mail-outline'
+          : 'edit'
       }
-    >
-      <Text
-        style={
-          styles.modalFieldLabel
-        }
-      >
-        {label}
-      </Text>
-
-      <TextInput
-        style={
-          styles.modalInput
-        }
-        value={
-          value
-        }
-        placeholder={
-          placeholder
-        }
-        placeholderTextColor={
-          COLORS.lightMuted
-        }
-        keyboardType={
-          keyboardType
-        }
-        autoCapitalize={
-          autoCapitalize
-        }
-        autoCorrect={
-          false
-        }
-        autoComplete="off"
-        textContentType="none"
-        importantForAutofill="no"
-        onChangeText={
-          onChangeText
-        }
-      />
-    </View>
+      value={value}
+      placeholder={placeholder}
+      keyboardType={keyboardType}
+      autoCapitalize={autoCapitalize}
+      autoCorrect={false}
+      autoComplete="off"
+      textContentType="none"
+      importantForAutofill="no"
+      onChangeText={onChangeText}
+    />
   );
 }
 
@@ -2743,74 +2720,21 @@ function PasswordField({
     (value: string) => void;
 }) {
   return (
-    <View
-      style={
-        styles.modalField
-      }
-    >
-      <Text
-        style={
-          styles.modalFieldLabel
-        }
-      >
-        {label}
-      </Text>
-
-      <View
-        style={
-          styles.passwordInputContainer
-        }
-      >
-        <TextInput
-          style={
-            styles.passwordInput
-          }
-          value={
-            value
-          }
-          placeholder={
-            placeholder
-          }
-          placeholderTextColor={
-            COLORS.lightMuted
-          }
-          secureTextEntry={
-            !visible
-          }
-          autoCapitalize="none"
-          autoCorrect={
-            false
-          }
-          autoComplete="off"
-          textContentType="none"
-          importantForAutofill="no"
-          onChangeText={
-            onChangeText
-          }
-        />
-
-        <TouchableOpacity
-          style={
-            styles.eyeButton
-          }
-          onPress={
-            onToggle
-          }
-        >
-          <MaterialIcons
-            name={
-              visible
-                ? 'visibility-off'
-                : 'visibility'
-            }
-            size={19}
-            color={
-              COLORS.muted
-            }
-          />
-        </TouchableOpacity>
-      </View>
-    </View>
+    <AuthField
+      label={label}
+      icon="lock-outline"
+      password
+      passwordVisible={visible}
+      onTogglePassword={onToggle}
+      value={value}
+      placeholder={placeholder}
+      autoCapitalize="none"
+      autoCorrect={false}
+      autoComplete="off"
+      textContentType="none"
+      importantForAutofill="no"
+      onChangeText={onChangeText}
+    />
   );
 }
 
@@ -3649,56 +3573,6 @@ const styles =
         'Inter_400Regular',
 
       fontSize: 13.5,
-    },
-
-    passwordInputContainer: {
-      height: 48,
-
-      flexDirection:
-        'row',
-
-      alignItems:
-        'center',
-
-      borderWidth: 1,
-
-      borderColor:
-        '#DDDDE2',
-
-      borderRadius: 11,
-
-      backgroundColor:
-        '#FCFCFD',
-    },
-
-    passwordInput: {
-      flex: 1,
-
-      height:
-        '100%',
-
-      paddingHorizontal: 13,
-
-      color:
-        COLORS.black,
-
-      fontFamily:
-        'Inter_400Regular',
-
-      fontSize: 13.5,
-    },
-
-    eyeButton: {
-      width: 45,
-
-      height:
-        '100%',
-
-      alignItems:
-        'center',
-
-      justifyContent:
-        'center',
     },
 
     modalError: {

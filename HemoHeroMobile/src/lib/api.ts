@@ -245,6 +245,7 @@ export type NotificationType =
   | 'blood_request_fulfilled'
   | 'blood_request_cancelled'
   | 'blood_request_removed'
+  | 'blood_request_expired'
   | 'donor_application_approved'
   | 'donor_application_rejected'
   | 'coordination_message'

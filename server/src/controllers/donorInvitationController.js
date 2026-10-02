@@ -16,6 +16,14 @@ const {
   areRedBloodCellsCompatible,
 } = require('../utils/bloodCompatibility');
 
+const {
+  getNextEligibleDate,
+  isEligibleToDonate,
+  formatEligibleDate
+} = require(
+  '../services/eligibilityService'
+);
+
 // ============================================================
 // HELPERS
 // ============================================================
@@ -116,7 +124,8 @@ async function getVerifiedDonor(donorId) {
       blood_type,
       availability_status,
       allow_urgent_requests,
-      travel_radius_km
+      travel_radius_km,
+      last_donation_date
     `)
     .eq('user_id', donorId)
     .maybeSingle();
@@ -756,6 +765,26 @@ async function sendDonorInvitation(
         .json({
           error:
             'This donor is currently unavailable.',
+        });
+    }
+
+    if (
+      !isEligibleToDonate(
+        donorApplication.last_donation_date
+      )
+    ) {
+      return res
+        .status(409)
+        .json({
+          code:
+            'DONOR_NOT_YET_ELIGIBLE',
+
+          error:
+            `This donor donated recently and can donate again from ${formatEligibleDate(
+              getNextEligibleDate(
+                donorApplication.last_donation_date
+              )
+            )}.`,
         });
     }
 
@@ -1414,6 +1443,36 @@ async function acceptDonorInvitation(
         .json({
           error:
             'Your donor verification is no longer active.',
+        });
+    }
+
+    // --------------------------------------------------------
+    // WAITING PERIOD SINCE THE LAST DONATION
+    // --------------------------------------------------------
+
+    if (
+      !isEligibleToDonate(
+        donorApplication.last_donation_date
+      )
+    ) {
+      const nextEligible =
+        getNextEligibleDate(
+          donorApplication.last_donation_date
+        );
+
+      return res
+        .status(409)
+        .json({
+          code:
+            'DONOR_NOT_YET_ELIGIBLE',
+
+          error:
+            `You donated recently. You can donate again from ${formatEligibleDate(
+              nextEligible
+            )}.`,
+
+          next_eligible_at:
+            nextEligible.toISOString(),
         });
     }
 

@@ -5,7 +5,17 @@ import { API_URL } from './apiUrl';
 // TYPES
 // ============================================================
 
-export type PublicDonorProfile = {
+// Completed donations and the average requester rating
+// (1 decimal; null before the first rating).
+export type DonorStats = {
+  donations_count: number;
+
+  ratings_count: number;
+
+  average_rating: number | null;
+};
+
+export type PublicDonorProfile = Partial<DonorStats> & {
   id: string;
 
   full_name: string;

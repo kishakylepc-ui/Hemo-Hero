@@ -1097,6 +1097,59 @@ export default function DonorDetailsScreen() {
                     }
                   />
                 </View>
+
+                {/* Completed donations and requester ratings */}
+                {typeof donor.donations_count ===
+                'number' ? (
+                  <View
+                    style={[
+                      styles.summaryCard,
+                      styles.summaryCardStacked,
+                    ]}
+                  >
+                    <SummaryItem
+                      icon="volunteer-activism"
+                      label={
+                        donor.donations_count ===
+                        1
+                          ? 'Donation'
+                          : 'Donations'
+                      }
+                      value={
+                        donor.donations_count ===
+                        0
+                          ? 'New donor'
+                          : String(
+                              donor.donations_count
+                            )
+                      }
+                    />
+
+                    <View
+                      style={
+                        styles.summaryDivider
+                      }
+                    />
+
+                    <SummaryItem
+                      icon="star"
+                      label={
+                        donor.ratings_count
+                          ? `Rating (${donor.ratings_count})`
+                          : 'Rating'
+                      }
+                      value={
+                        donor.ratings_count &&
+                        typeof donor.average_rating ===
+                          'number'
+                          ? `${donor.average_rating.toFixed(
+                              1
+                            )} / 5`
+                          : 'No ratings yet'
+                      }
+                    />
+                  </View>
+                ) : null}
               </>
             ) : null}
           </LinearGradient>
@@ -2706,6 +2759,14 @@ const styles =
 
       elevation:
         3,
+    },
+
+    summaryCardStacked: {
+      minHeight:
+        58,
+
+      marginTop:
+        8,
     },
 
     summaryItem: {

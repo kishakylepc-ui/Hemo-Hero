@@ -4,6 +4,7 @@ import {
 } from 'react';
 
 import {
+  ActivityIndicator,
   Image,
   KeyboardAvoidingView,
   Platform,
@@ -41,6 +42,12 @@ import {
   resetPassword,
   verifyRecoveryCode,
 } from '../lib/api';
+
+import AuthField from '../components/AuthField';
+
+import {
+  FadeInView,
+} from '../components/Motion';
 
 // ============================================================
 // CONSTANTS
@@ -142,17 +149,22 @@ export default function ResetPasswordScreen() {
   ] =
     useState('');
 
+  // Rules show while typing the new password.
   const [
-    showPassword,
-    setShowPassword,
+    passwordFocused,
+    setPasswordFocused,
   ] =
     useState(false);
 
+  // "Passwords don't match" waits until the field is left.
   const [
-    showConfirmPassword,
-    setShowConfirmPassword,
+    confirmTouched,
+    setConfirmTouched,
   ] =
     useState(false);
+
+  const confirmRef =
+    useRef<TextInput>(null);
 
   const [
     verifying,
@@ -218,6 +230,31 @@ export default function ResetPasswordScreen() {
     passwordHasUppercase &&
     passwordHasNumber &&
     passwordHasSpecialCharacter;
+
+  const passwordScore =
+    [
+      passwordHasMinimumLength,
+      passwordHasLowercase,
+      passwordHasUppercase,
+      passwordHasNumber,
+      passwordHasSpecialCharacter,
+    ].filter(Boolean).length;
+
+  const strength =
+    passwordIsValid
+      ? {
+          label: 'Strong',
+          color: COLORS.successText,
+        }
+      : passwordScore >= 3
+        ? {
+            label: 'Fair',
+            color: '#DF721D',
+          }
+        : {
+            label: 'Weak',
+            color: COLORS.redButton,
+          };
 
   const passwordsMatch =
     confirmPassword.length >
@@ -1142,263 +1179,197 @@ export default function ResetPasswordScreen() {
 
                     {codeVerified ? (
                       <>
-                        <Text
-                          style={
-                            styles.label
+                        <AuthField
+                          label="New Password"
+                          icon="lock-outline"
+                          password
+                          placeholder="Enter new password"
+                          value={
+                            password
                           }
-                        >
-                          New Password
-                        </Text>
-
-                        <View
-                          style={
-                            styles.passwordBox
+                          autoCapitalize="none"
+                          autoCorrect={
+                            false
                           }
-                        >
-                          <TextInput
-                            style={
-                              styles.passwordInput
-                            }
-                            placeholder="Enter new password"
-                            placeholderTextColor={
-                              COLORS.placeholder
-                            }
-                            value={
-                              password
-                            }
-                            secureTextEntry={
-                              !showPassword
-                            }
-                            autoCapitalize="none"
-                            autoCorrect={
+                          autoComplete="new-password"
+                          textContentType="newPassword"
+                          editable={
+                            !resetting
+                          }
+                          returnKeyType="next"
+                          submitBehavior="submit"
+                          onFocus={() =>
+                            setPasswordFocused(
+                              true
+                            )
+                          }
+                          onBlur={() =>
+                            setPasswordFocused(
                               false
-                            }
-                            autoComplete="new-password"
-                            editable={
-                              !resetting
-                            }
-                            onChangeText={value => {
-                              setPassword(
-                                value
-                              );
+                            )
+                          }
+                          onChangeText={value => {
+                            setPassword(
+                              value
+                            );
 
-                              setErrorMessage(
-                                ''
-                              );
+                            setErrorMessage(
+                              ''
+                            );
 
-                              setSuccessMessage(
-                                ''
-                              );
-                            }}
-                          />
-
-                          <TouchableOpacity
-                            disabled={
-                              resetting
-                            }
-                            onPress={() =>
-                              setShowPassword(
-                                current =>
-                                  !current
-                              )
-                            }
-                          >
-                            <Text
+                            setSuccessMessage(
+                              ''
+                            );
+                          }}
+                          onSubmitEditing={() =>
+                            confirmRef.current?.focus()
+                          }
+                        >
+                          {password.length >
+                          0 ? (
+                            <View
                               style={
-                                styles.showText
+                                styles.strengthRow
                               }
                             >
-                              {showPassword
-                                ? 'Hide'
-                                : 'Show'}
-                            </Text>
-                          </TouchableOpacity>
-                        </View>
+                              <View
+                                style={
+                                  styles.strengthTrack
+                                }
+                              >
+                                <View
+                                  style={[
+                                    styles.strengthFill,
+                                    {
+                                      width: `${
+                                        (passwordScore /
+                                          5) *
+                                        100
+                                      }%`,
+                                      backgroundColor:
+                                        strength.color,
+                                    },
+                                  ]}
+                                />
+                              </View>
 
-                        {/* ==========================================
-                            PASSWORD REQUIREMENTS
-                        ========================================== */}
+                              <Text
+                                style={[
+                                  styles.strengthLabel,
+                                  {
+                                    color:
+                                      strength.color,
+                                  },
+                                ]}
+                              >
+                                {passwordIsValid
+                                  ? 'Password looks good'
+                                  : strength.label}
+                              </Text>
+                            </View>
+                          ) : null}
 
-                        <View
-                          style={
-                            styles.requirementsContainer
+                          {/* Rules: while typing, until all are met */}
+                          {!passwordIsValid &&
+                          passwordFocused ? (
+                            <FadeInView
+                              offset={-4}
+                              style={
+                                styles.requirementsList
+                              }
+                            >
+                              <PasswordRequirement
+                                valid={
+                                  passwordHasMinimumLength
+                                }
+                                label="8+ characters"
+                              />
+
+                              <PasswordRequirement
+                                valid={
+                                  passwordHasLowercase
+                                }
+                                label="Lowercase letter"
+                              />
+
+                              <PasswordRequirement
+                                valid={
+                                  passwordHasUppercase
+                                }
+                                label="Uppercase letter"
+                              />
+
+                              <PasswordRequirement
+                                valid={
+                                  passwordHasNumber
+                                }
+                                label="Number"
+                              />
+
+                              <PasswordRequirement
+                                valid={
+                                  passwordHasSpecialCharacter
+                                }
+                                label="Special character"
+                              />
+                            </FadeInView>
+                          ) : null}
+                        </AuthField>
+
+                        <AuthField
+                          ref={
+                            confirmRef
                           }
-                        >
-                          <Text
-                            style={
-                              styles.requirementsTitle
-                            }
-                          >
-                            Password must contain:
-                          </Text>
-
-                          <View
-                            style={
-                              styles.requirementsGrid
-                            }
-                          >
-                            <PasswordRequirement
-                              valid={
-                                passwordHasMinimumLength
-                              }
-                              label="8+ characters"
-                            />
-
-                            <PasswordRequirement
-                              valid={
-                                passwordHasLowercase
-                              }
-                              label="Lowercase letter"
-                            />
-
-                            <PasswordRequirement
-                              valid={
-                                passwordHasUppercase
-                              }
-                              label="Uppercase letter"
-                            />
-
-                            <PasswordRequirement
-                              valid={
-                                passwordHasNumber
-                              }
-                              label="Number"
-                            />
-
-                            <PasswordRequirement
-                              valid={
-                                passwordHasSpecialCharacter
-                              }
-                              label="Special character"
-                            />
-                          </View>
-                        </View>
-
-                        {/* ==========================================
-                            CONFIRM PASSWORD
-                        ========================================== */}
-
-                        <Text
-                          style={
-                            styles.confirmLabel
+                          label="Confirm Password"
+                          icon="lock-outline"
+                          password
+                          placeholder="Confirm new password"
+                          value={
+                            confirmPassword
                           }
-                        >
-                          Confirm Password
-                        </Text>
-
-                        <View
-                          style={[
-                            styles.passwordBox,
-
+                          autoCapitalize="none"
+                          autoCorrect={
+                            false
+                          }
+                          autoComplete="new-password"
+                          textContentType="newPassword"
+                          editable={
+                            !resetting
+                          }
+                          returnKeyType="done"
+                          valid={
+                            passwordsMatch
+                          }
+                          error={
+                            confirmTouched &&
                             confirmPassword.length >
                               0 &&
-                              passwordsMatch &&
-                              styles.passwordBoxSuccess,
-                          ]}
-                        >
-                          <TextInput
-                            style={
-                              styles.passwordInput
-                            }
-                            placeholder="Confirm new password"
-                            placeholderTextColor={
-                              COLORS.placeholder
-                            }
-                            value={
-                              confirmPassword
-                            }
-                            secureTextEntry={
-                              !showConfirmPassword
-                            }
-                            autoCapitalize="none"
-                            autoCorrect={
-                              false
-                            }
-                            autoComplete="new-password"
-                            editable={
-                              !resetting
-                            }
-                            onChangeText={value => {
-                              setConfirmPassword(
-                                value
-                              );
+                            !passwordsMatch
+                              ? 'Passwords don’t match.'
+                              : null
+                          }
+                          onBlur={() =>
+                            setConfirmTouched(
+                              true
+                            )
+                          }
+                          onChangeText={value => {
+                            setConfirmPassword(
+                              value
+                            );
 
-                              setErrorMessage(
-                                ''
-                              );
+                            setErrorMessage(
+                              ''
+                            );
 
-                              setSuccessMessage(
-                                ''
-                              );
-                            }}
-                            onSubmitEditing={
-                              handleResetPassword
-                            }
-                          />
-
-                          <TouchableOpacity
-                            disabled={
-                              resetting
-                            }
-                            onPress={() =>
-                              setShowConfirmPassword(
-                                current =>
-                                  !current
-                              )
-                            }
-                          >
-                            <Text
-                              style={
-                                styles.showText
-                              }
-                            >
-                              {showConfirmPassword
-                                ? 'Hide'
-                                : 'Show'}
-                            </Text>
-                          </TouchableOpacity>
-                        </View>
-
-                        {/* ==========================================
-                            PASSWORD MATCH
-                        ========================================== */}
-
-                        {confirmPassword.length >
-                        0 ? (
-                          <View
-                            style={
-                              styles.passwordMatchRow
-                            }
-                          >
-                            <MaterialIcons
-                              name={
-                                passwordsMatch
-                                  ? 'check-circle'
-                                  : 'cancel'
-                              }
-                              size={13}
-                              color={
-                                passwordsMatch
-                                  ? COLORS.successText
-                                  : COLORS.redButton
-                              }
-                            />
-
-                            <Text
-                              style={[
-                                styles.passwordMatchText,
-
-                                passwordsMatch
-                                  ? styles.passwordMatchTextSuccess
-                                  : styles.passwordMatchTextError,
-                              ]}
-                            >
-                              {passwordsMatch
-                                ? 'Passwords match'
-                                : 'Passwords do not match'}
-                            </Text>
-                          </View>
-                        ) : null}
+                            setSuccessMessage(
+                              ''
+                            );
+                          }}
+                          onSubmitEditing={
+                            handleResetPassword
+                          }
+                        />
 
                         {/* ==========================================
                             CHANGE PASSWORD BUTTON
@@ -1418,6 +1389,14 @@ export default function ResetPasswordScreen() {
                             handleResetPassword
                           }
                         >
+                          {resetting ? (
+                            <ActivityIndicator
+                              color={
+                                COLORS.white
+                              }
+                            />
+                          ) : null}
+
                           <Text
                             style={
                               styles.primaryButtonText
@@ -2000,119 +1979,46 @@ const styles =
     // PASSWORD
     // ========================================================
 
-    label: {
-      marginBottom: 6,
-
-      color:
-        COLORS.black,
-
-      fontFamily:
-        'Inter_500Medium',
-
-      fontSize: 12.5,
-    },
-
-    confirmLabel: {
-      marginTop: 14,
-
-      marginBottom: 6,
-
-      color:
-        COLORS.black,
-
-      fontFamily:
-        'Inter_500Medium',
-
-      fontSize: 12.5,
-    },
-
-    passwordBox: {
-      height: 43,
-
-      flexDirection:
-        'row',
-
-      alignItems:
-        'center',
-
-      paddingLeft: 15,
-
-      paddingRight: 13,
-
-      borderWidth: 1,
-
-      borderColor:
-        COLORS.inputBorder,
-
-      borderRadius: 22,
-
-      backgroundColor:
-        COLORS.white,
-    },
-
-    passwordBoxSuccess: {
-      borderColor:
-        COLORS.successText,
-    },
-
-    passwordInput: {
-      flex: 1,
-
-      color:
-        COLORS.black,
-
-      fontFamily:
-        'Inter_400Regular',
-
-      fontSize: 13.5,
-
-      outlineStyle:
-        Platform.OS === 'web'
-          ? 'none'
-          : undefined,
-    } as any,
-
-    showText: {
-      color:
-        COLORS.muted,
-
-      fontFamily:
-        'Inter_400Regular',
-
-      fontSize: 12,
-    },
-
     // ========================================================
     // PASSWORD REQUIREMENTS
     // ========================================================
 
-    requirementsContainer: {
-      marginTop: 10,
-
-      paddingHorizontal: 5,
+    // Password strength bar under the field.
+    strengthRow: {
+      marginTop: 8,
+      marginHorizontal: 6,
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 10,
     },
 
-    requirementsTitle: {
-      marginBottom: 6,
+    strengthTrack: {
+      flex: 1,
+      height: 5,
+      borderRadius: 3,
+      overflow: 'hidden',
+      backgroundColor: '#EFE6E6',
+    },
 
-      color:
-        COLORS.muted,
+    strengthFill: {
+      height: '100%',
+      borderRadius: 3,
+    },
 
-      fontFamily:
-        'Inter_500Medium',
-
+    strengthLabel: {
+      minWidth: 52,
+      fontFamily: 'Inter_600SemiBold',
       fontSize: 11.5,
+      textAlign: 'right',
     },
 
-    requirementsGrid: {
-      flexDirection:
-        'row',
-
-      flexWrap:
-        'wrap',
-
+    // Rules, shown while typing until all are met.
+    requirementsList: {
+      marginTop: 8,
+      marginHorizontal: 6,
+      flexDirection: 'row',
+      flexWrap: 'wrap',
       columnGap: 12,
-
       rowGap: 5,
     },
 
@@ -2141,42 +2047,15 @@ const styles =
         COLORS.requirementActive,
     },
 
-    passwordMatchRow: {
-      marginTop: 6,
-
-      marginLeft: 5,
-
-      flexDirection:
-        'row',
-
-      alignItems:
-        'center',
-
-      gap: 4,
-    },
-
-    passwordMatchText: {
-      fontFamily:
-        'Inter_400Regular',
-
-      fontSize: 11.5,
-    },
-
-    passwordMatchTextSuccess: {
-      color:
-        COLORS.successText,
-    },
-
-    passwordMatchTextError: {
-      color:
-        COLORS.redButton,
-    },
-
     // ========================================================
     // BUTTON
     // ========================================================
 
     primaryButton: {
+      flexDirection: 'row',
+
+      gap: 8,
+
       height: 50,
 
       marginTop: 22,

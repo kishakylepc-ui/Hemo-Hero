@@ -517,6 +517,16 @@ export default function DonorBloodRequestScreen() {
       null
     );
 
+  // First day this donor may donate again after their last
+  // donation (null = they can donate now).
+  const [
+    nextEligibleAt,
+    setNextEligibleAt,
+  ] =
+    useState<string | null>(
+      null
+    );
+
   const hasLoadedOnce =
     useRef(false);
 
@@ -677,6 +687,12 @@ export default function DonorBloodRequestScreen() {
 
           setDonorApplication(
             currentApplication
+          );
+
+          setNextEligibleAt(
+            donorApplicationData
+              ?.next_eligible_at ||
+              null
           );
 
           hasLoadedOnce.current = true;
@@ -2431,6 +2447,23 @@ export default function DonorBloodRequestScreen() {
       'pending' &&
     !requestClosed;
 
+  // Donated recently: can't offer or accept until this date.
+  const waitingUntil =
+    nextEligibleAt &&
+    Date.parse(nextEligibleAt) >
+      Date.now()
+      ? nextEligibleAt
+      : null;
+
+  const showWaiting =
+    Boolean(waitingUntil) &&
+    !activeResponse &&
+    !requestClosed &&
+    isApprovedDonor() &&
+    (!isInvitationMode ||
+      invitation?.status ===
+        'pending');
+
   // Approved, compatible donor who can still send an offer.
   const canOffer =
     !isInvitationMode &&
@@ -2438,7 +2471,8 @@ export default function DonorBloodRequestScreen() {
     !requestClosed &&
     !requestFlagged &&
     isApprovedDonor() &&
-    bloodTypeCompatible;
+    bloodTypeCompatible &&
+    !waitingUntil;
 
   // Not a verified donor yet: show where their application is.
   const needsApplication =
@@ -3570,6 +3604,53 @@ export default function DonorBloodRequestScreen() {
                   ) : null}
 
                   {/* ==============================================
+                      WAITING PERIOD AFTER DONATING
+                  ============================================== */}
+
+                  {showWaiting &&
+                  waitingUntil ? (
+                    <View
+                      style={[
+                        styles.notice,
+                        styles.noticeSuccess,
+                        styles.sectionGap,
+                      ]}
+                    >
+                      <MaterialIcons
+                        name="event-available"
+                        size={18}
+                        color={
+                          COLORS.green
+                        }
+                      />
+
+                      <Text
+                        style={
+                          styles.noticeText
+                        }
+                      >
+                        <Text
+                          style={[
+                            styles.noticeTitle,
+                            {
+                              color:
+                                COLORS.green,
+                            },
+                          ]}
+                        >
+                          Thank you for donating!{' '}
+                        </Text>
+                        You can donate again from{' '}
+                        {formatShortDate(
+                          waitingUntil,
+                          true
+                        )}
+                        .
+                      </Text>
+                    </View>
+                  ) : null}
+
+                  {/* ==============================================
                       SEND AN OFFER
                   ============================================== */}
 
@@ -3834,7 +3915,8 @@ export default function DonorBloodRequestScreen() {
                         acceptingInvitation ||
                         decliningInvitation ||
                         !isApprovedDonor() ||
-                        !bloodTypeCompatible
+                        !bloodTypeCompatible ||
+                        Boolean(waitingUntil)
                       }
                       accessibilityRole="button"
                       onPress={

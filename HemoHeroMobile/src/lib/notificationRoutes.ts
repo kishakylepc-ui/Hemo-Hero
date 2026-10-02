@@ -352,15 +352,23 @@ export function openNotificationDestination(
   // the outcome and where to rate the donation.
   // ========================================================
 
+  // Requests closed automatically (expired, or closed as
+  // fulfilled after their date) also tell the requester; their
+  // notification has recipient_role 'requester'.
   if (
     notification.type ===
       'blood_request_fulfilled' ||
     notification.type ===
-      'blood_request_cancelled'
+      'blood_request_cancelled' ||
+    notification.type ===
+      'blood_request_expired'
   ) {
     router.push(
       (requestId
-        ? `/blood-request/donor/${requestId}`
+        ? data.recipient_role ===
+          'requester'
+          ? `/blood-request/${requestId}`
+          : `/blood-request/donor/${requestId}`
         : '/dashboard') as any
     );
 

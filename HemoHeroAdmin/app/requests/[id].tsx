@@ -2,7 +2,6 @@ import {
   type ComponentProps,
   type ReactNode,
   useCallback,
-  useMemo,
   useState,
 } from 'react';
 
@@ -13,7 +12,6 @@ import {
   ScrollView,
   StyleSheet,
   Text,
-  useWindowDimensions,
   View,
 } from 'react-native';
 
@@ -28,6 +26,8 @@ import {
 
 import { StatusBar } from 'expo-status-bar';
 import { SafeAreaView } from 'react-native-safe-area-context';
+
+import { useAdminCanvas } from '../../components/AdminCanvas';
 
 import AdminHeader from '../AdminHeader';
 
@@ -54,9 +54,6 @@ import {
 // Layout follows the Donor Application review screen
 // (applications/[id].tsx). Uses the shared AdminHeader.
 // ============================================================
-
-const DESIGN_WIDTH = 1366;
-const DESIGN_HEIGHT = 1024;
 
 const COLORS = {
   outer: '#02040A',
@@ -105,49 +102,12 @@ export default function AdminBloodRequestDetailScreen() {
       id: string;
     }>();
 
-  const { width, height } = useWindowDimensions();
 
   // ==========================================================
   // RESPONSIVE IPAD CANVAS
   // ==========================================================
 
-  const tablet = useMemo(() => {
-    if (Platform.OS !== 'web') {
-      return {
-        width,
-        height,
-
-        scale: Math.min(
-          width / DESIGN_WIDTH,
-          height / DESIGN_HEIGHT
-        ),
-      };
-    }
-
-    const padding = 24;
-
-    const availableWidth = Math.max(
-      width - padding * 2,
-      320
-    );
-
-    const availableHeight = Math.max(
-      height - padding * 2,
-      320
-    );
-
-    const scale = Math.min(
-      availableWidth / DESIGN_WIDTH,
-      availableHeight / DESIGN_HEIGHT,
-      1
-    );
-
-    return {
-      width: DESIGN_WIDTH * scale,
-      height: DESIGN_HEIGHT * scale,
-      scale,
-    };
-  }, [width, height]);
+  const tablet = useAdminCanvas();
 
   const s = Math.max(tablet.scale, 0.68);
   const fs = Math.max(tablet.scale, 0.92);
@@ -1517,6 +1477,9 @@ function getStatusColor(
     case 'fulfilled':
       return COLORS.green;
 
+    case 'expired':
+      return COLORS.soft;
+
     default:
       return COLORS.muted;
   }
@@ -1550,6 +1513,13 @@ function getResponseStatus(
       return {
         label: 'Withdrawn',
         color: COLORS.muted,
+      };
+
+    // The requester reported the donor didn't come.
+    case 'no_show':
+      return {
+        label: 'No-show',
+        color: COLORS.orange,
       };
 
     default:
@@ -1738,10 +1708,6 @@ const styles = StyleSheet.create({
   ipadCanvas: {
     overflow: 'hidden',
     backgroundColor: COLORS.navy,
-    borderRadius:
-      Platform.OS === 'web'
-        ? 24
-        : 0,
   },
 
   nativeCanvas: {

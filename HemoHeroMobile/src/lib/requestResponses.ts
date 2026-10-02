@@ -1,11 +1,12 @@
 import { authorizedFetch } from './authFetch';
 import { API_URL } from './apiUrl';
+import type { DonorStats } from './donorProfile';
 
 // ============================================================
 // TYPES
 // ============================================================
 
-export type RequestDonorProfile = {
+export type RequestDonorProfile = Partial<DonorStats> & {
   id: string | null;
 
   first_name: string | null;

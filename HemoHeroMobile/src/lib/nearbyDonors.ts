@@ -1,11 +1,12 @@
 import { authorizedFetch } from './authFetch';
 import { API_URL } from './apiUrl';
+import type { DonorStats } from './donorProfile';
 
 // ============================================================
 // TYPES
 // ============================================================
 
-export type NearbyDonor = {
+export type NearbyDonor = Partial<DonorStats> & {
   id: string;
 
   full_name: string;

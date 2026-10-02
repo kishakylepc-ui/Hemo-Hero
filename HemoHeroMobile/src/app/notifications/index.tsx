@@ -1295,6 +1295,18 @@ function getNotificationAppearance(
           COLORS.greenLight,
       };
 
+    case 'blood_request_expired':
+      return {
+        icon:
+          'history',
+
+        color:
+          COLORS.muted,
+
+        background:
+          COLORS.grayLight,
+      };
+
     case 'blood_request_cancelled':
       return {
         icon:

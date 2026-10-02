@@ -21,7 +21,8 @@ const {
   getNearbyDonors,
   uploadVerificationId,
   submitDonorApplication,
-  withdrawDonorApplication
+  withdrawDonorApplication,
+  updateDonorPreferences
 } =
   require(
     '../controllers/donorApplicationController'
@@ -221,6 +222,35 @@ router.patch(
   }),
 
   withdrawDonorApplication
+);
+
+// ============================================================
+// DONOR SETTINGS (availability, travel distance, urgent)
+//
+// PATCH /api/donors/me/preferences
+// ============================================================
+
+router.patch(
+  '/me/preferences',
+
+  activityLog({
+    action:
+      'UPDATE_DONOR_PREFERENCES',
+
+    module:
+      'Donor Applications',
+
+    successDescription:
+      'Donor updated their availability or travel settings.',
+
+    failureDescription:
+      'Donor settings update failed.',
+
+    entityType:
+      'donor_application'
+  }),
+
+  updateDonorPreferences
 );
 
 // ============================================================

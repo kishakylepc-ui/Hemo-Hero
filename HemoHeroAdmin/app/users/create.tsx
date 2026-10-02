@@ -16,7 +16,6 @@ import {
   StyleSheet,
   Text,
   TextInput,
-  useWindowDimensions,
   View,
 } from 'react-native';
 
@@ -41,6 +40,8 @@ import {
   SafeAreaView,
 } from 'react-native-safe-area-context';
 
+import { useAdminCanvas } from '../../components/AdminCanvas';
+
 import AdminHeader from '../AdminHeader';
 
 import { FadeInView } from '../../components/AdminMotion';
@@ -56,12 +57,6 @@ import {
   getAdminAccessToken,
   getAdminProfile,
 } from '../../lib/session';
-
-const DESIGN_WIDTH =
-  1366;
-
-const DESIGN_HEIGHT =
-  1024;
 
 const COLORS = {
   outer:
@@ -108,81 +103,9 @@ const GENDER_OPTIONS = [
 ] as const;
 
 export default function AdminCreateUserScreen() {
-  const {
-    width,
-    height,
-  } =
-    useWindowDimensions();
 
   const tablet =
-    useMemo(
-      () => {
-        if (
-          Platform.OS !==
-          'web'
-        ) {
-          return {
-            width,
-            height,
-
-            scale:
-              Math.min(
-                width /
-                  DESIGN_WIDTH,
-
-                height /
-                  DESIGN_HEIGHT
-              ),
-          };
-        }
-
-        const padding =
-          24;
-
-        const availableWidth =
-          Math.max(
-            width -
-              padding * 2,
-
-            320
-          );
-
-        const availableHeight =
-          Math.max(
-            height -
-              padding * 2,
-
-            320
-          );
-
-        const scale =
-          Math.min(
-            availableWidth /
-              DESIGN_WIDTH,
-
-            availableHeight /
-              DESIGN_HEIGHT,
-
-            1
-          );
-
-        return {
-          width:
-            DESIGN_WIDTH *
-            scale,
-
-          height:
-            DESIGN_HEIGHT *
-            scale,
-
-          scale,
-        };
-      },
-      [
-        width,
-        height,
-      ]
-    );
+    useAdminCanvas();
 
   const s =
     Math.max(
@@ -2524,11 +2447,6 @@ const styles =
       backgroundColor:
         COLORS.navy,
 
-      borderRadius:
-        Platform.OS ===
-          'web'
-          ? 24
-          : 0,
     },
 
     nativeCanvas: {

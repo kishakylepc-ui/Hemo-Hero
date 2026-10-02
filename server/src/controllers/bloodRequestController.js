@@ -15,6 +15,12 @@ const {
   '../middleware/activityLogMiddleware'
 );
 
+const {
+  closeOpenOffers
+} = require(
+  '../services/requestClosingService'
+);
+
 // ============================================================
 // CONSTANTS
 // ============================================================
@@ -1418,21 +1424,35 @@ async function fulfillBloodRequest(
     );
 
     // --------------------------------------------------------
-    // NOTIFY ACCEPTED DONORS
+    // CLOSE PENDING OFFERS / INVITATIONS, END TRIPS
+    // --------------------------------------------------------
+
+    const closed =
+      await closeOpenOffers(
+        requestId
+      );
+
+    // --------------------------------------------------------
+    // NOTIFY ACCEPTED DONORS (+ donors whose offer or
+    // invitation just closed)
     // --------------------------------------------------------
 
     const donorIds =
       [
         ...new Set(
-          (
-            acceptedResponses ||
-            []
-          )
-            .map(
+          [
+            ...(
+              acceptedResponses ||
+              []
+            ).map(
               response =>
                 response.donor_id
-            )
-            .filter(Boolean)
+            ),
+
+            ...closed.pendingDonorIds,
+
+            ...closed.invitedDonorIds
+          ].filter(Boolean)
         )
       ];
 
@@ -1750,21 +1770,32 @@ async function cancelBloodRequest(
     );
 
     // --------------------------------------------------------
-    // NOTIFY DONORS
+    // CLOSE PENDING OFFERS / INVITATIONS, END TRIPS
+    // --------------------------------------------------------
+
+    const closed =
+      await closeOpenOffers(
+        requestId
+      );
+
+    // --------------------------------------------------------
+    // NOTIFY DONORS (offers + invitations)
     // --------------------------------------------------------
 
     const donorIds =
       [
         ...new Set(
-          (
-            donorResponses ||
-            []
-          )
-            .map(
+          [
+            ...(
+              donorResponses ||
+              []
+            ).map(
               response =>
                 response.donor_id
-            )
-            .filter(Boolean)
+            ),
+
+            ...closed.invitedDonorIds
+          ].filter(Boolean)
         )
       ];
 

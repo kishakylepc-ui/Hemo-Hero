@@ -110,6 +110,9 @@ export async function getMyDonorApplication(
   return data as {
     application: DonorApplication | null;
     can_respond: boolean;
+    // First day they may donate again after their last
+    // donation (null = they can donate now).
+    next_eligible_at?: string | null;
   };
 }
 
@@ -220,4 +223,49 @@ export async function withdrawDonorApplication(
   }
 
   return data;
+}
+// ============================================================
+// DONOR SETTINGS (verified donors)
+//
+// Pause/resume being available, travel distance, and whether
+// urgent requests reach them.
+// ============================================================
+
+export type DonorPreferences = {
+  availability_status: DonorAvailabilityStatus;
+  travel_radius_km: number;
+  allow_urgent_requests: boolean;
+};
+
+export const TRAVEL_RADIUS_OPTIONS = [5, 10, 20, 30, 50] as const;
+
+export async function updateDonorPreferences(
+  accessToken: string,
+  changes: Partial<DonorPreferences>
+) {
+  const response = await authorizedFetch(
+    `${API_URL}/api/donors/me/preferences`,
+    {
+      method: 'PATCH',
+      headers: {
+        Accept: 'application/json',
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${accessToken}`,
+      },
+      body: JSON.stringify(changes),
+    }
+  );
+
+  const data = await readJson(response);
+
+  if (!response.ok) {
+    throw new Error(
+      data?.error || 'Unable to save your donor settings.'
+    );
+  }
+
+  return data as {
+    message: string;
+    preferences: DonorPreferences;
+  };
 }

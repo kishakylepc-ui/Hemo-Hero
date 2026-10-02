@@ -1,5 +1,5 @@
 import { useCallback, useState, } from 'react';
-import { ActivityIndicator, Image, Modal, Platform, ScrollView, StyleSheet, Text, TouchableOpacity, View, } from 'react-native';
+import { ActivityIndicator, Image, Modal, Platform, ScrollView, StyleSheet, Switch, Text, TouchableOpacity, View, } from 'react-native';
 import { MaterialIcons, } from '@expo/vector-icons';
 import { LinearGradient, } from 'expo-linear-gradient';
 import { router, useFocusEffect, } from 'expo-router';
@@ -11,8 +11,8 @@ import AppModal from '../../components/AppModal';
 import PhotoSourceSheet from '../../components/PhotoSourceSheet';
 import type { PickedImage } from '../../lib/imageUpload';
 import { unregisterPushNotifications } from '../../lib/pushNotifications';
-import { getMyDonorApplication, } from '../../lib/donorApplication';
-import type { DonorApplication, } from '../../lib/donorApplication';
+import { getMyDonorApplication, TRAVEL_RADIUS_OPTIONS, updateDonorPreferences, } from '../../lib/donorApplication';
+import type { DonorApplication, DonorPreferences, } from '../../lib/donorApplication';
 import { clearSession, getAccessToken, } from '../../lib/session';
 
 const COLORS = {
@@ -103,6 +103,22 @@ export default function ProfileScreen() {
         setLogoutModalVisible,
     ] = useState(
         false
+    );
+
+    // Verified donors: first day they can donate again (null =
+    // now), and which donor setting is saving.
+    const [
+        nextEligibleAt,
+        setNextEligibleAt,
+    ] = useState<string | null>(
+        null
+    );
+
+    const [
+        savingPreference,
+        setSavingPreference,
+    ] = useState<keyof DonorPreferences | null>(
+        null
     );
 
     // Profile photo: source sheet, upload/remove in progress, and
@@ -208,6 +224,11 @@ export default function ProfileScreen() {
                         data?.application ||
                         null
                     );
+
+                    setNextEligibleAt(
+                        data?.next_eligible_at ||
+                        null
+                    );
                 } catch (error) {
                     console.log(
                         'PROFILE DONOR STATUS ERROR:',
@@ -307,6 +328,92 @@ export default function ProfileScreen() {
                     title
                 ),
         });
+    }
+
+    // ==========================================================
+    // DONOR SETTINGS
+    // ==========================================================
+
+    async function saveDonorPreference<
+        Key extends keyof DonorPreferences,
+    >(
+        key: Key,
+        value: DonorPreferences[Key]
+    ) {
+        if (
+            !donorApplication ||
+            savingPreference
+        ) {
+            return;
+        }
+
+        const previous =
+            donorApplication;
+
+        setDonorApplication({
+            ...donorApplication,
+            [key]: value,
+        });
+
+        try {
+            setSavingPreference(
+                key
+            );
+
+            const token =
+                await getAccessToken();
+
+            if (!token) {
+                router.replace(
+                    '/'
+                );
+
+                return;
+            }
+
+            await updateDonorPreferences(
+                token,
+                {
+                    [key]: value,
+                }
+            );
+        } catch (error) {
+            setDonorApplication(
+                previous
+            );
+
+            showMessage(
+                'Unable to Save',
+                error instanceof Error
+                    ? error.message
+                    : 'Please try again.'
+            );
+        } finally {
+            setSavingPreference(
+                null
+            );
+        }
+    }
+
+    // "Nov 30, 2026"
+    function formatEligibleDate(
+        value: string
+    ) {
+        const date =
+            new Date(value);
+
+        return Number.isNaN(
+            date.getTime()
+        )
+            ? ''
+            : date.toLocaleDateString(
+                  'en-US',
+                  {
+                      month: 'short',
+                      day: 'numeric',
+                      year: 'numeric',
+                  }
+              );
     }
 
     // ==========================================================
@@ -1264,6 +1371,292 @@ export default function ProfileScreen() {
                                 </>
                             ) : null}
                         </View>
+
+                        {donorApplication?.status ===
+                        'approved' ? (
+                            <>
+                                <SectionTitle
+                                    title="Donor Settings"
+                                />
+
+                                <View
+                                    style={
+                                        styles.card
+                                    }
+                                >
+                                    {/* Available to donate */}
+                                    <View
+                                        style={
+                                            styles.menuRow
+                                        }
+                                    >
+                                        <View
+                                            style={[
+                                                styles.menuIcon,
+                                                {
+                                                    backgroundColor:
+                                                        donorApplication.availability_status ===
+                                                        'available'
+                                                            ? COLORS.greenSoft
+                                                            : COLORS.graySoft,
+                                                },
+                                            ]}
+                                        >
+                                            <MaterialIcons
+                                                name={
+                                                    donorApplication.availability_status ===
+                                                    'available'
+                                                        ? 'volunteer-activism'
+                                                        : 'pause-circle-outline'
+                                                }
+                                                size={20}
+                                                color={
+                                                    donorApplication.availability_status ===
+                                                    'available'
+                                                        ? COLORS.green
+                                                        : COLORS.muted
+                                                }
+                                            />
+                                        </View>
+
+                                        <View
+                                            style={
+                                                styles.menuContent
+                                            }
+                                        >
+                                            <Text
+                                                style={
+                                                    styles.menuTitle
+                                                }
+                                            >
+                                                Available to donate
+                                            </Text>
+
+                                            <Text
+                                                style={
+                                                    styles.menuSubtitle
+                                                }
+                                            >
+                                                {donorApplication.availability_status ===
+                                                'available'
+                                                    ? 'Requesters can find and invite you'
+                                                    : 'Paused: you won’t appear in donor search'}
+                                            </Text>
+                                        </View>
+
+                                        <Switch
+                                            value={
+                                                donorApplication.availability_status ===
+                                                'available'
+                                            }
+                                            disabled={Boolean(
+                                                savingPreference
+                                            )}
+                                            onValueChange={value =>
+                                                saveDonorPreference(
+                                                    'availability_status',
+                                                    value
+                                                        ? 'available'
+                                                        : 'unavailable'
+                                                )
+                                            }
+                                            trackColor={{
+                                                false: '#D9CFCF',
+                                                true: '#E8A3A3',
+                                            }}
+                                            thumbColor={
+                                                donorApplication.availability_status ===
+                                                'available'
+                                                    ? COLORS.redButton
+                                                    : '#FFFFFF'
+                                            }
+                                            accessibilityLabel="Available to donate"
+                                        />
+                                    </View>
+
+                                    <Divider />
+
+                                    {/* Urgent requests */}
+                                    <View
+                                        style={
+                                            styles.menuRow
+                                        }
+                                    >
+                                        <View
+                                            style={[
+                                                styles.menuIcon,
+                                                {
+                                                    backgroundColor:
+                                                        COLORS.orangeSoft,
+                                                },
+                                            ]}
+                                        >
+                                            <MaterialIcons
+                                                name="bolt"
+                                                size={20}
+                                                color={
+                                                    COLORS.orange
+                                                }
+                                            />
+                                        </View>
+
+                                        <View
+                                            style={
+                                                styles.menuContent
+                                            }
+                                        >
+                                            <Text
+                                                style={
+                                                    styles.menuTitle
+                                                }
+                                            >
+                                                Urgent requests
+                                            </Text>
+
+                                            <Text
+                                                style={
+                                                    styles.menuSubtitle
+                                                }
+                                            >
+                                                {donorApplication.allow_urgent_requests
+                                                    ? 'You’ll be asked for urgent needs'
+                                                    : 'Only scheduled requests'}
+                                            </Text>
+                                        </View>
+
+                                        <Switch
+                                            value={
+                                                donorApplication.allow_urgent_requests
+                                            }
+                                            disabled={Boolean(
+                                                savingPreference
+                                            )}
+                                            onValueChange={value =>
+                                                saveDonorPreference(
+                                                    'allow_urgent_requests',
+                                                    value
+                                                )
+                                            }
+                                            trackColor={{
+                                                false: '#D9CFCF',
+                                                true: '#E8A3A3',
+                                            }}
+                                            thumbColor={
+                                                donorApplication.allow_urgent_requests
+                                                    ? COLORS.redButton
+                                                    : '#FFFFFF'
+                                            }
+                                            accessibilityLabel="Accept urgent requests"
+                                        />
+                                    </View>
+
+                                    <Divider />
+
+                                    {/* Travel distance */}
+                                    <View
+                                        style={
+                                            styles.settingBlock
+                                        }
+                                    >
+                                        <Text
+                                            style={
+                                                styles.menuTitle
+                                            }
+                                        >
+                                            How far you can travel
+                                        </Text>
+
+                                        <View
+                                            style={
+                                                styles.radiusRow
+                                            }
+                                        >
+                                            {TRAVEL_RADIUS_OPTIONS.map(
+                                                radius => {
+                                                    const selected =
+                                                        donorApplication.travel_radius_km ===
+                                                        radius;
+
+                                                    return (
+                                                        <TouchableOpacity
+                                                            key={
+                                                                radius
+                                                            }
+                                                            style={[
+                                                                styles.radiusChip,
+
+                                                                selected &&
+                                                                    styles.radiusChipActive,
+                                                            ]}
+                                                            activeOpacity={
+                                                                0.8
+                                                            }
+                                                            disabled={Boolean(
+                                                                savingPreference
+                                                            )}
+                                                            accessibilityRole="button"
+                                                            accessibilityState={{
+                                                                selected,
+                                                            }}
+                                                            onPress={() =>
+                                                                saveDonorPreference(
+                                                                    'travel_radius_km',
+                                                                    radius
+                                                                )
+                                                            }
+                                                        >
+                                                            <Text
+                                                                style={[
+                                                                    styles.radiusChipText,
+
+                                                                    selected &&
+                                                                        styles.radiusChipTextActive,
+                                                                ]}
+                                                            >
+                                                                {radius} km
+                                                            </Text>
+                                                        </TouchableOpacity>
+                                                    );
+                                                }
+                                            )}
+                                        </View>
+                                    </View>
+
+                                    {/* Waiting period after donating */}
+                                    {nextEligibleAt ? (
+                                        <>
+                                            <Divider />
+
+                                            <View
+                                                style={
+                                                    styles.eligibleRow
+                                                }
+                                            >
+                                                <MaterialIcons
+                                                    name="event-available"
+                                                    size={17}
+                                                    color={
+                                                        COLORS.orange
+                                                    }
+                                                />
+
+                                                <Text
+                                                    style={
+                                                        styles.eligibleText
+                                                    }
+                                                >
+                                                    You can donate again from{' '}
+                                                    {formatEligibleDate(
+                                                        nextEligibleAt
+                                                    )}
+                                                    .
+                                                </Text>
+                                            </View>
+                                        </>
+                                    ) : null}
+                                </View>
+                            </>
+                        ) : null}
 
                         <SectionTitle
                             title="Personal Information"
@@ -2808,6 +3201,59 @@ const styles =
 
             paddingRight:
                 6,
+        },
+
+        // Donor Settings
+        settingBlock: {
+            paddingVertical: 14,
+        },
+
+        radiusRow: {
+            marginTop: 10,
+            flexDirection: 'row',
+            flexWrap: 'wrap',
+            gap: 8,
+        },
+
+        radiusChip: {
+            minWidth: 56,
+            height: 34,
+            paddingHorizontal: 12,
+            alignItems: 'center',
+            justifyContent: 'center',
+            borderRadius: 17,
+            borderWidth: 1,
+            borderColor: COLORS.border,
+            backgroundColor: COLORS.white,
+        },
+
+        radiusChipActive: {
+            borderColor: COLORS.redButton,
+            backgroundColor: COLORS.redButton,
+        },
+
+        radiusChipText: {
+            color: COLORS.black,
+            fontFamily: 'Inter_600SemiBold',
+            fontSize: 12.5,
+        },
+
+        radiusChipTextActive: {
+            color: COLORS.white,
+        },
+
+        eligibleRow: {
+            paddingVertical: 13,
+            flexDirection: 'row',
+            alignItems: 'center',
+            gap: 8,
+        },
+
+        eligibleText: {
+            flex: 1,
+            color: COLORS.orange,
+            fontFamily: 'Inter_600SemiBold',
+            fontSize: 12.5,
         },
 
         menuTitle: {

@@ -294,7 +294,8 @@ export type AdminBloodTypeDemandResponse = {
 export type AdminBloodRequestStatus =
   | 'active'
   | 'fulfilled'
-  | 'cancelled';
+  | 'cancelled'
+  | 'expired';
 
 export type AdminBloodRequestUrgency =
   | 'urgent'
@@ -387,6 +388,8 @@ export type AdminBloodRequestSummary = {
   fulfilled: number;
 
   cancelled: number;
+
+  expired: number;
 
   urgent_active: number;
 

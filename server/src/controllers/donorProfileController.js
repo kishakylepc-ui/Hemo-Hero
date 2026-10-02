@@ -3,6 +3,12 @@ const {
 } =
   require('../config/supabase');
 
+const {
+  getDonorStats
+} = require(
+  '../services/donorStatsService'
+);
+
 // ============================================================
 // HELPERS
 // ============================================================
@@ -474,10 +480,20 @@ async function getPublicDonorProfile(
     // - verification document
     // ========================================================
 
+    // Completed donations and requester ratings.
+    const stats =
+      (
+        await getDonorStats([
+          user.id
+        ])
+      ).get(user.id);
+
     return res
       .status(200)
       .json({
         donor: {
+          ...stats,
+
           id:
             user.id,
 

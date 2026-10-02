@@ -1,6 +1,5 @@
 import {
   useEffect,
-  useMemo,
   useRef,
   useState,
 } from 'react';
@@ -16,7 +15,6 @@ import {
   StyleSheet,
   Text,
   TextInput,
-  useWindowDimensions,
   View,
 } from 'react-native';
 
@@ -40,6 +38,8 @@ import {
   SafeAreaView,
 } from 'react-native-safe-area-context';
 
+import { useAdminCanvas } from '../components/AdminCanvas';
+
 import {
   loginAdmin,
   requestAdminPasswordReset,
@@ -52,16 +52,6 @@ import {
   getRememberAdmin,
   saveAdminSession,
 } from '../lib/session';
-
-// ============================================================
-// IPAD PRO DESIGN SIZE
-// ============================================================
-
-const DESIGN_WIDTH =
-  1366;
-
-const DESIGN_HEIGHT =
-  1024;
 
 // ============================================================
 // COLORS
@@ -122,85 +112,13 @@ const COLORS = {
 // ============================================================
 
 export default function AdminLoginScreen() {
-  const {
-    width,
-    height,
-  } =
-    useWindowDimensions();
 
   // ==========================================================
   // IPAD PRO RESPONSIVE FRAME
   // ==========================================================
 
   const tablet =
-    useMemo(
-      () => {
-        if (
-          Platform.OS !==
-          'web'
-        ) {
-          return {
-            width,
-            height,
-
-            scale:
-              Math.min(
-                width /
-                  DESIGN_WIDTH,
-
-                height /
-                  DESIGN_HEIGHT
-              ),
-          };
-        }
-
-        const padding =
-          24;
-
-        const availableWidth =
-          Math.max(
-            width -
-              padding * 2,
-
-            320
-          );
-
-        const availableHeight =
-          Math.max(
-            height -
-              padding * 2,
-
-            320
-          );
-
-        const scale =
-          Math.min(
-            availableWidth /
-              DESIGN_WIDTH,
-
-            availableHeight /
-              DESIGN_HEIGHT,
-
-            1
-          );
-
-        return {
-          width:
-            DESIGN_WIDTH *
-            scale,
-
-          height:
-            DESIGN_HEIGHT *
-            scale,
-
-          scale,
-        };
-      },
-      [
-        width,
-        height,
-      ]
-    );
+    useAdminCanvas();
 
   const s =
     Math.max(
@@ -1928,11 +1846,6 @@ const styles =
       backgroundColor:
         COLORS.navy,
 
-      borderRadius:
-        Platform.OS ===
-          'web'
-          ? 24
-          : 0,
     },
 
     nativeCanvas: {

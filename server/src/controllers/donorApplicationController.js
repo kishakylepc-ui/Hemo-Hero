@@ -20,6 +20,19 @@ const {
   '../services/notificationService'
 );
 
+const {
+  getNextEligibleDate,
+  isEligibleToDonate
+} = require(
+  '../services/eligibilityService'
+);
+
+const {
+  getDonorStats
+} = require(
+  '../services/donorStatsService'
+);
+
 // ============================================================
 // ADMIN NOTIFICATION
 //
@@ -844,7 +857,18 @@ async function getMyDonorApplication(
 
         can_respond:
           data?.status ===
-          'approved'
+          'approved',
+
+        // First day they may donate again (null = now).
+        next_eligible_at:
+          data &&
+          !isEligibleToDonate(
+            data.last_donation_date
+          )
+            ? getNextEligibleDate(
+                data.last_donation_date
+              ).toISOString()
+            : null
       });
   } catch (
     error
@@ -1053,6 +1077,7 @@ async function getNearbyDonors(
           travel_radius_km,
           availability_status,
           allow_urgent_requests,
+          last_donation_date,
           status,
           reviewed_at,
           updated_at
@@ -1223,6 +1248,16 @@ async function getNearbyDonors(
                 0 &&
               distance >
                 donorTravelRadius
+            ) {
+              return null;
+            }
+
+            // Still in the waiting period after donating.
+            if (
+              !isEligibleToDonate(
+                application
+                  .last_donation_date
+              )
             ) {
               return null;
             }
@@ -1432,10 +1467,28 @@ async function getNearbyDonors(
     const totalCount =
       safeDonors.length;
 
-    const limitedDonors =
+    // Completed donations and ratings for the donors shown.
+    const shownDonors =
       safeDonors.slice(
         0,
         limit
+      );
+
+    const statsMap =
+      await getDonorStats(
+        shownDonors.map(
+          donor => donor.id
+        )
+      );
+
+    const limitedDonors =
+      shownDonors.map(
+        donor => ({
+          ...donor,
+          ...(statsMap.get(
+            donor.id
+          ) || {})
+        })
       );
 
     return res
@@ -2415,10 +2468,219 @@ async function withdrawDonorApplication(
 // EXPORT
 // ============================================================
 
+// ============================================================
+// UPDATE DONOR SETTINGS (verified donors)
+//
+// PATCH /api/donors/me/preferences
+// Body (any of):
+//   availability_status    'available' | 'unavailable'
+//   travel_radius_km       one of VALID_RADII
+//   allow_urgent_requests  true | false
+//
+// Lets a donor pause (e.g. sick or away) and change how far
+// they travel without applying again. Unavailable donors are
+// left out of donor search and can't be invited.
+// ============================================================
+
+async function updateDonorPreferences(
+  req,
+  res
+) {
+  try {
+    const userId =
+      getAuthenticatedUserId(
+        req
+      );
+
+    if (!userId) {
+      return res
+        .status(401)
+        .json({
+          error:
+            'Unauthorized'
+        });
+    }
+
+    const body =
+      req.body ||
+      {};
+
+    const updates = {};
+
+    if (
+      body.availability_status !==
+      undefined
+    ) {
+      if (
+        !VALID_AVAILABILITY.includes(
+          body.availability_status
+        )
+      ) {
+        return res
+          .status(400)
+          .json({
+            error:
+              'Availability must be available or unavailable.'
+          });
+      }
+
+      updates.availability_status =
+        body.availability_status;
+    }
+
+    if (
+      body.travel_radius_km !==
+      undefined
+    ) {
+      const radius =
+        Number(
+          body.travel_radius_km
+        );
+
+      if (
+        !VALID_RADII.includes(
+          radius
+        )
+      ) {
+        return res
+          .status(400)
+          .json({
+            error:
+              `Travel distance must be one of ${VALID_RADII.join(', ')} km.`
+          });
+      }
+
+      updates.travel_radius_km =
+        radius;
+    }
+
+    if (
+      body.allow_urgent_requests !==
+      undefined
+    ) {
+      if (
+        typeof body.allow_urgent_requests !==
+        'boolean'
+      ) {
+        return res
+          .status(400)
+          .json({
+            error:
+              'Urgent requests must be on or off.'
+          });
+      }
+
+      updates.allow_urgent_requests =
+        body.allow_urgent_requests;
+    }
+
+    if (
+      !Object.keys(
+        updates
+      ).length
+    ) {
+      return res
+        .status(400)
+        .json({
+          error:
+            'Nothing to update.'
+        });
+    }
+
+    updates.updated_at =
+      new Date()
+        .toISOString();
+
+    const {
+      data,
+      error
+    } =
+      await supabaseAdmin
+        .from(
+          'donor_applications'
+        )
+        .update(
+          updates
+        )
+        .eq(
+          'user_id',
+          userId
+        )
+        .eq(
+          'status',
+          'approved'
+        )
+        .select(
+          'id,status,availability_status,travel_radius_km,allow_urgent_requests,last_donation_date'
+        )
+        .maybeSingle();
+
+    if (error) {
+      console.error(
+        'UPDATE DONOR PREFERENCES ERROR:',
+        error
+      );
+
+      return res
+        .status(500)
+        .json({
+          error:
+            'Unable to save your donor settings.'
+        });
+    }
+
+    if (!data) {
+      return res
+        .status(409)
+        .json({
+          error:
+            'Only verified donors can change donor settings.'
+        });
+    }
+
+    setActivityEntity(
+      res,
+      'donor_application',
+      data.id
+    );
+
+    return res
+      .status(200)
+      .json({
+        message:
+          'Donor settings saved.',
+
+        preferences: {
+          availability_status:
+            data.availability_status,
+
+          travel_radius_km:
+            data.travel_radius_km,
+
+          allow_urgent_requests:
+            data.allow_urgent_requests
+        }
+      });
+  } catch (error) {
+    console.error(
+      'UPDATE DONOR PREFERENCES ERROR:',
+      error
+    );
+
+    return res
+      .status(500)
+      .json({
+        error:
+          'Internal server error'
+      });
+  }
+}
+
 module.exports = {
   getMyDonorApplication,
   getNearbyDonors,
   uploadVerificationId,
   submitDonorApplication,
-  withdrawDonorApplication
+  withdrawDonorApplication,
+  updateDonorPreferences
 };

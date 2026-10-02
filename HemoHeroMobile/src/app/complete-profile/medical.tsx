@@ -318,21 +318,11 @@ export default function MedicalInformationScreen() {
           true,
       };
 
-      console.log(
-        'SAVING COMPLETE PROFILE:',
-        profileData
-      );
-
       const result =
         await updateProfile(
           accessToken,
           profileData
         );
-
-      console.log(
-        'PROFILE SAVE RESPONSE:',
-        result
-      );
 
       if (
         !result?.user

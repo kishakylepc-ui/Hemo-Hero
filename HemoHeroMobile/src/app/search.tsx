@@ -8,6 +8,7 @@ import { StatusBar, } from 'expo-status-bar';
 import { SafeAreaView, } from 'react-native-safe-area-context';
 import * as Location from 'expo-location';
 import MainBottomNav from '../components/MainBottomNav';
+import DonorTrust from '../components/DonorTrust';
 import { FadeInView, } from '../components/Motion';
 import { getNearbyBloodRequests, } from '../lib/nearbyRequests';
 import type { NearbyBloodRequest, } from '../lib/nearbyRequests';
@@ -1141,6 +1142,8 @@ export default function SearchScreen() {
                     'Location unavailable'}
                             </Text>
                           </View>
+
+                          <DonorTrust stats={donor} style={styles.donorTrust}/>
                         </View>
 
                         <View style={styles.donorBloodBadge}>
@@ -1974,6 +1977,9 @@ const styles = StyleSheet.create({
         color: COLORS.lightMuted,
         fontFamily: 'Inter_400Regular',
         fontSize: 12,
+    },
+    donorTrust: {
+        marginTop: 6,
     },
     donorBloodBadge: {
         minWidth: 62,

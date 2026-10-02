@@ -3,13 +3,13 @@ import {
 } from 'react';
 
 import {
+  ActivityIndicator,
   Image,
   KeyboardAvoidingView,
   Platform,
   ScrollView,
   StyleSheet,
   Text,
-  TextInput,
   TouchableOpacity,
   View,
 } from 'react-native';
@@ -38,6 +38,8 @@ import {
 import {
   forgotPassword,
 } from '../lib/api';
+
+import AuthField from '../components/AuthField';
 
 // ============================================================
 // COLORS
@@ -427,22 +429,10 @@ export default function ForgotPasswordScreen() {
                         EMAIL
                     ======================================== */}
 
-                    <Text
-                      style={
-                        styles.label
-                      }
-                    >
-                      Email Address
-                    </Text>
-
-                    <TextInput
-                      style={
-                        styles.input
-                      }
+                    <AuthField
+                      label="Email Address"
+                      icon="mail-outline"
                       placeholder="Enter your email"
-                      placeholderTextColor={
-                        COLORS.placeholder
-                      }
                       value={
                         email
                       }
@@ -452,6 +442,7 @@ export default function ForgotPasswordScreen() {
                         false
                       }
                       autoComplete="email"
+                      textContentType="emailAddress"
                       editable={
                         !loading
                       }
@@ -469,6 +460,12 @@ export default function ForgotPasswordScreen() {
                           );
                         }
                       }}
+                      onBlur={() =>
+                        setEmail(
+                          current =>
+                            current.trim()
+                        )
+                      }
                       onSubmitEditing={
                         handleSendCode
                       }
@@ -495,6 +492,14 @@ export default function ForgotPasswordScreen() {
                         handleSendCode
                       }
                     >
+                      {loading ? (
+                        <ActivityIndicator
+                          color={
+                            COLORS.white
+                          }
+                        />
+                      ) : null}
+
                       <Text
                         style={
                           styles.primaryButtonText
@@ -977,59 +982,15 @@ const styles =
     // FORM
     // ========================================================
 
-    label: {
-      marginBottom:
-        7,
-
-      color:
-        COLORS.black,
-
-      fontFamily:
-        'Inter_500Medium',
-
-      fontSize:
-        12.5,
-    },
-
-    input: {
-      height:
-        45,
-
-      paddingHorizontal:
-        15,
-
-      borderWidth:
-        1,
-
-      borderColor:
-        COLORS.inputBorder,
-
-      borderRadius:
-        23,
-
-      color:
-        COLORS.black,
-
-      backgroundColor:
-        COLORS.white,
-
-      fontFamily:
-        'Inter_400Regular',
-
-      fontSize:
-        13.5,
-
-      outlineStyle:
-        Platform.OS === 'web'
-          ? 'none'
-          : undefined,
-    } as any,
-
     // ========================================================
     // BUTTON
     // ========================================================
 
     primaryButton: {
+      flexDirection: 'row',
+
+      gap: 8,
+
       height:
         50,
 

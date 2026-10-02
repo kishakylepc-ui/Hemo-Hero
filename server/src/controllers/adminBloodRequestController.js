@@ -17,6 +17,12 @@ const {
   '../middleware/activityLogMiddleware'
 );
 
+const {
+  closeOpenOffers,
+} = require(
+  '../services/requestClosingService'
+);
+
 // ============================================================
 // CONSTANTS
 // ============================================================
@@ -36,6 +42,7 @@ const REQUEST_STATUSES = [
   'active',
   'fulfilled',
   'cancelled',
+  'expired',
 ];
 
 const URGENCY_TYPES = [
@@ -251,6 +258,14 @@ function buildRequestSummary(
         'cancelled'
     );
 
+  // Closed by the expiry sweep without a recorded donation.
+  const expired =
+    rows.filter(
+      request =>
+        request.status ===
+        'expired'
+    );
+
   const urgentActive =
     active.filter(
       request =>
@@ -302,6 +317,9 @@ function buildRequestSummary(
 
     cancelled:
       cancelled.length,
+
+    expired:
+      expired.length,
 
     urgent_active:
       urgentActive.length,
@@ -1638,14 +1656,22 @@ async function removeAdminBloodRequest(
       },
     });
 
+    // Pending offers/invitations close and trips end.
+    const closed =
+      await closeOpenOffers(
+        requestId
+      );
+
     const donorIds = [
       ...new Set(
-        (responses || [])
-          .map(
+        [
+          ...(responses || []).map(
             row =>
               row.donor_id
-          )
-          .filter(Boolean)
+          ),
+
+          ...closed.invitedDonorIds,
+        ].filter(Boolean)
       ),
     ];
 

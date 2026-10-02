@@ -64,6 +64,7 @@ import {
 } from '../../components/Motion';
 
 import AppModal from '../../components/AppModal';
+import DonorTrust from '../../components/DonorTrust';
 import ConfirmDonationSheet from '../../components/ConfirmDonationSheet';
 
 import {
@@ -3242,6 +3243,15 @@ export default function BloodRequestDetailsScreen() {
                                       ) ||
                                       'Donor'}
                                   </Text>
+
+                                  <DonorTrust
+                                    stats={
+                                      response.donor
+                                    }
+                                    style={
+                                      styles.donorTrust
+                                    }
+                                  />
                                 </View>
                               </TouchableOpacity>
 
@@ -4731,6 +4741,10 @@ const styles =
       color: COLORS.muted,
       fontFamily: 'Inter_400Regular',
       fontSize: 12,
+    },
+
+    donorTrust: {
+      marginTop: 5,
     },
 
     chip: {
