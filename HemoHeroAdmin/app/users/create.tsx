@@ -3,6 +3,7 @@ import {
   type ReactNode,
   useCallback,
   useMemo,
+  useRef,
   useState,
 } from 'react';
 
@@ -15,7 +16,6 @@ import {
   StyleSheet,
   Text,
   TextInput,
-  useWindowDimensions,
   View,
 } from 'react-native';
 
@@ -40,7 +40,11 @@ import {
   SafeAreaView,
 } from 'react-native-safe-area-context';
 
-import AdminHeader from '../AdminHeader';
+import { useAdminCanvas } from '../../components/AdminCanvas';
+
+import AdminHeader from '../../components/AdminHeader';
+
+import { FadeInView } from '../../components/AdminMotion';
 
 import {
   createAdminUser,
@@ -53,12 +57,6 @@ import {
   getAdminAccessToken,
   getAdminProfile,
 } from '../../lib/session';
-
-const DESIGN_WIDTH =
-  1366;
-
-const DESIGN_HEIGHT =
-  1024;
 
 const COLORS = {
   outer:
@@ -105,81 +103,9 @@ const GENDER_OPTIONS = [
 ] as const;
 
 export default function AdminCreateUserScreen() {
-  const {
-    width,
-    height,
-  } =
-    useWindowDimensions();
 
   const tablet =
-    useMemo(
-      () => {
-        if (
-          Platform.OS !==
-          'web'
-        ) {
-          return {
-            width,
-            height,
-
-            scale:
-              Math.min(
-                width /
-                  DESIGN_WIDTH,
-
-                height /
-                  DESIGN_HEIGHT
-              ),
-          };
-        }
-
-        const padding =
-          24;
-
-        const availableWidth =
-          Math.max(
-            width -
-              padding * 2,
-
-            320
-          );
-
-        const availableHeight =
-          Math.max(
-            height -
-              padding * 2,
-
-            320
-          );
-
-        const scale =
-          Math.min(
-            availableWidth /
-              DESIGN_WIDTH,
-
-            availableHeight /
-              DESIGN_HEIGHT,
-
-            1
-          );
-
-        return {
-          width:
-            DESIGN_WIDTH *
-            scale,
-
-          height:
-            DESIGN_HEIGHT *
-            scale,
-
-          scale,
-        };
-      },
-      [
-        width,
-        height,
-      ]
-    );
+    useAdminCanvas();
 
   const s =
     Math.max(
@@ -361,6 +287,18 @@ export default function AdminCreateUserScreen() {
       null
     );
 
+  // Used to bring the success/error message into view after
+  // pressing Create User at the bottom of the form.
+  const scrollRef =
+    useRef<ScrollView>(null);
+
+  function scrollToTop() {
+    scrollRef.current?.scrollTo({
+      y: 0,
+      animated: true,
+    });
+  }
+
   useFocusEffect(
     useCallback(
       () => {
@@ -370,12 +308,11 @@ export default function AdminCreateUserScreen() {
     )
   );
 
+  // The full-screen spinner only shows on the first check
+  // (checkingSession starts true); later focus checks run
+  // silently so the form does not flash.
   async function validateAdminSession() {
     try {
-      setCheckingSession(
-        true
-      );
-
       const token =
         await getAdminAccessToken();
 
@@ -561,6 +498,8 @@ export default function AdminCreateUserScreen() {
         validationError
       );
 
+      scrollToTop();
+
       return;
     }
 
@@ -646,6 +585,8 @@ export default function AdminCreateUserScreen() {
         result.message ||
         'User account created successfully.'
       );
+
+      scrollToTop();
     } catch (
       error
     ) {
@@ -660,6 +601,8 @@ export default function AdminCreateUserScreen() {
           ? error.message
           : 'Unable to create user account.'
       );
+
+      scrollToTop();
     } finally {
       setSubmitting(
         false
@@ -823,9 +766,6 @@ export default function AdminCreateUserScreen() {
               fontScale={
                 fs
               }
-              notificationCount={
-                0
-              }
             />
 
             <KeyboardAvoidingView
@@ -840,6 +780,9 @@ export default function AdminCreateUserScreen() {
               }
             >
               <ScrollView
+                ref={
+                  scrollRef
+                }
                 style={
                   styles.scroll
                 }
@@ -1221,6 +1164,7 @@ export default function AdminCreateUserScreen() {
                   </View>
                 ) : null}
 
+                <FadeInView delay={40}>
                 <FormSection
                   scale={
                     s
@@ -1467,6 +1411,7 @@ export default function AdminCreateUserScreen() {
                     </View>
                   </View>
                 </FormSection>
+                </FadeInView>
 
                 <View
                   style={{
@@ -1475,6 +1420,7 @@ export default function AdminCreateUserScreen() {
                   }}
                 />
 
+                <FadeInView delay={90}>
                 <FormSection
                   scale={
                     s
@@ -1795,6 +1741,7 @@ export default function AdminCreateUserScreen() {
                     </View>
                   </View>
                 </FormSection>
+                </FadeInView>
 
                 <View
                   style={{
@@ -1803,6 +1750,7 @@ export default function AdminCreateUserScreen() {
                   }}
                 />
 
+                <FadeInView delay={140}>
                 <FormSection
                   scale={
                     s
@@ -1909,6 +1857,7 @@ export default function AdminCreateUserScreen() {
                     </View>
                   </View>
                 </FormSection>
+                </FadeInView>
 
                 <View
                   style={[
@@ -2498,11 +2447,6 @@ const styles =
       backgroundColor:
         COLORS.navy,
 
-      borderRadius:
-        Platform.OS ===
-          'web'
-          ? 24
-          : 0,
     },
 
     nativeCanvas: {

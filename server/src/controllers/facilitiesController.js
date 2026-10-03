@@ -217,10 +217,6 @@ async function getNearbyFacilities(
           )
         : DEFAULT_RADIUS_KM;
 
-    console.log(
-      `Facility directory search: ${latitude}, ${longitude}, ${radiusKm} km`
-    );
-
     // ========================================================
     // GET VERIFIED / ACTIVE FACILITIES
     // ========================================================

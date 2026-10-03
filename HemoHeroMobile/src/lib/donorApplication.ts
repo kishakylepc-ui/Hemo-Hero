@@ -1,14 +1,6 @@
-import { Platform } from 'react-native';
-
-// ============================================================
-// API URL
-// ============================================================
-
-const API_URL = (
-  Platform.OS === 'web'
-    ? 'http://localhost:5000'
-    : process.env.EXPO_PUBLIC_API_URL || 'http://localhost:5000'
-).replace(/\/+$/, '');
+import { authorizedFetch } from './authFetch';
+import { appendImage } from './imageUpload';
+import { API_URL } from './apiUrl';
 
 // ============================================================
 // TYPES
@@ -99,7 +91,7 @@ async function readJson(response: Response) {
 export async function getMyDonorApplication(
   accessToken: string
 ) {
-  const response = await fetch(`${API_URL}/api/donors/me`, {
+  const response = await authorizedFetch(`${API_URL}/api/donors/me`, {
     method: 'GET',
     headers: {
       Accept: 'application/json',
@@ -118,6 +110,9 @@ export async function getMyDonorApplication(
   return data as {
     application: DonorApplication | null;
     can_respond: boolean;
+    // First day they may donate again after their last
+    // donation (null = they can donate now).
+    next_eligible_at?: string | null;
   };
 }
 
@@ -131,25 +126,16 @@ export async function uploadDonorVerificationId(
 ) {
   const formData = new FormData();
 
-  const fileName =
-    asset.fileName || `verification-${Date.now()}.jpg`;
+  // Phone images must be attached as File objects (SDK 57
+  // fetch); see lib/imageUpload.
+  await appendImage(formData, 'file', {
+    uri: asset.uri,
+    fileName: asset.fileName || `verification-${Date.now()}.jpg`,
+    mimeType: asset.mimeType || 'image/jpeg',
+    webFile: asset.file || null,
+  });
 
-  const mimeType = asset.mimeType || 'image/jpeg';
-
-  if (Platform.OS === 'web' && asset.file) {
-    formData.append('file', asset.file, fileName);
-  } else {
-    formData.append(
-      'file',
-      {
-        uri: asset.uri,
-        name: fileName,
-        type: mimeType,
-      } as any
-    );
-  }
-
-  const response = await fetch(
+  const response = await authorizedFetch(
     `${API_URL}/api/donors/verification-id`,
     {
       method: 'POST',
@@ -183,7 +169,7 @@ export async function submitDonorApplication(
   accessToken: string,
   input: SubmitDonorApplicationInput
 ) {
-  const response = await fetch(
+  const response = await authorizedFetch(
     `${API_URL}/api/donors/apply`,
     {
       method: 'POST',
@@ -217,7 +203,7 @@ export async function submitDonorApplication(
 export async function withdrawDonorApplication(
   accessToken: string
 ) {
-  const response = await fetch(
+  const response = await authorizedFetch(
     `${API_URL}/api/donors/me/withdraw`,
     {
       method: 'PATCH',
@@ -237,4 +223,49 @@ export async function withdrawDonorApplication(
   }
 
   return data;
+}
+// ============================================================
+// DONOR SETTINGS (verified donors)
+//
+// Pause/resume being available, travel distance, and whether
+// urgent requests reach them.
+// ============================================================
+
+export type DonorPreferences = {
+  availability_status: DonorAvailabilityStatus;
+  travel_radius_km: number;
+  allow_urgent_requests: boolean;
+};
+
+export const TRAVEL_RADIUS_OPTIONS = [5, 10, 20, 30, 50] as const;
+
+export async function updateDonorPreferences(
+  accessToken: string,
+  changes: Partial<DonorPreferences>
+) {
+  const response = await authorizedFetch(
+    `${API_URL}/api/donors/me/preferences`,
+    {
+      method: 'PATCH',
+      headers: {
+        Accept: 'application/json',
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${accessToken}`,
+      },
+      body: JSON.stringify(changes),
+    }
+  );
+
+  const data = await readJson(response);
+
+  if (!response.ok) {
+    throw new Error(
+      data?.error || 'Unable to save your donor settings.'
+    );
+  }
+
+  return data as {
+    message: string;
+    preferences: DonorPreferences;
+  };
 }

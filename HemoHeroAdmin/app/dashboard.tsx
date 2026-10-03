@@ -1,7 +1,8 @@
 import {
   type ComponentProps,
-  useEffect,
-  useMemo,
+  type ReactNode,
+  useCallback,
+  useRef,
   useState,
 } from 'react';
 
@@ -12,27 +13,36 @@ import {
   ScrollView,
   StyleSheet,
   Text,
-  useWindowDimensions,
   View,
 } from 'react-native';
 
 import { MaterialIcons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
-import { router } from 'expo-router';
+import { router, useFocusEffect } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import AdminBottomNav from './AdminBottomNav';
-import AdminHeader from './AdminHeader';
+import { useAdminCanvas } from '../components/AdminCanvas';
+
+import AdminBottomNav from '../components/AdminBottomNav';
+import AdminHeader from '../components/AdminHeader';
+
+import { FadeInView } from '../components/AdminMotion';
 
 import {
   getAdminActivityLogs,
   getAdminBloodTypeDemand,
   getAdminDonorSummary,
+  getAdminDonationSummary,
+  getAdminReportSummary,
+  getAdminUserSummary,
   type ActivityLog,
   type AdminBloodTypeDemandItem,
   type AdminBloodTypeDemandResponse,
+  type AdminDonationSummary,
   type AdminProfile,
+  type AdminReportSummary,
+  type AdminUserSummary,
   type DonorApplicationSummary,
 } from '../lib/api';
 
@@ -43,14 +53,10 @@ import {
 } from '../lib/session';
 
 // ============================================================
-// DESIGN SIZE
-// ============================================================
-
-const DESIGN_WIDTH = 1366;
-const DESIGN_HEIGHT = 1024;
-
-// ============================================================
-// COLORS
+// DESIGN
+//
+// Card / section styling follows the Donor Applications
+// screens for a consistent Admin UI.
 // ============================================================
 
 const COLORS = {
@@ -72,6 +78,33 @@ const COLORS = {
 
   green: '#35C982',
   orange: '#F3A34A',
+  blue: '#4A8CFF',
+
+  track: '#17233D',
+  neutralBar: '#6E7E9C',
+};
+
+type IconName =
+  ComponentProps<
+    typeof MaterialIcons
+  >['name'];
+
+type SectionErrors = {
+  applications: string;
+  users: string;
+  issues: string;
+  donations: string;
+  demand: string;
+  activity: string;
+};
+
+const EMPTY_ERRORS: SectionErrors = {
+  applications: '',
+  users: '',
+  issues: '',
+  donations: '',
+  demand: '',
+  activity: '',
 };
 
 // ============================================================
@@ -79,133 +112,77 @@ const COLORS = {
 // ============================================================
 
 export default function AdminDashboardScreen() {
-  const { width, height } = useWindowDimensions();
 
   // ==========================================================
   // RESPONSIVE IPAD FRAME
   // ==========================================================
 
-  const tablet = useMemo(() => {
-    if (Platform.OS !== 'web') {
-      return {
-        width,
-        height,
+  const tablet = useAdminCanvas();
 
-        scale: Math.min(
-          width / DESIGN_WIDTH,
-          height / DESIGN_HEIGHT
-        ),
-      };
-    }
-
-    const padding = 24;
-
-    const availableWidth = Math.max(
-      width - padding * 2,
-      320
-    );
-
-    const availableHeight = Math.max(
-      height - padding * 2,
-      320
-    );
-
-    const scale = Math.min(
-      availableWidth / DESIGN_WIDTH,
-      availableHeight / DESIGN_HEIGHT,
-      1
-    );
-
-    return {
-      width: DESIGN_WIDTH * scale,
-      height: DESIGN_HEIGHT * scale,
-      scale,
-    };
-  }, [width, height]);
-
-  // ==========================================================
-  // SCALE
-  //
-  // s  = layout / dimensions
-  // fs = readable font scale
-  // ==========================================================
-
-  const s = Math.max(
-    tablet.scale,
-    0.68
-  );
-
-  const fs = Math.max(
-    tablet.scale,
-    0.9
-  );
-
-  const headerFs = Math.max(
-    tablet.scale,
-    0.92
-  );
+  const s = Math.max(tablet.scale, 0.68);
+  const fs = Math.max(tablet.scale, 0.92);
 
   // ==========================================================
   // STATE
   // ==========================================================
 
   const [profile, setProfile] =
-    useState<AdminProfile | null>(
-      null
-    );
+    useState<AdminProfile | null>(null);
 
-  const [summary, setSummary] =
-    useState<DonorApplicationSummary | null>(
-      null
-    );
+  const [applicationSummary, setApplicationSummary] =
+    useState<DonorApplicationSummary | null>(null);
+
+  const [userSummary, setUserSummary] =
+    useState<AdminUserSummary | null>(null);
+
+  const [issueSummary, setIssueSummary] =
+    useState<AdminReportSummary | null>(null);
+
+  const [donationSummary, setDonationSummary] =
+    useState<AdminDonationSummary | null>(null);
 
   const [bloodDemand, setBloodDemand] =
-    useState<AdminBloodTypeDemandResponse | null>(
-      null
-    );
+    useState<AdminBloodTypeDemandResponse | null>(null);
 
-  const [
-    bloodDemandError,
-    setBloodDemandError,
-  ] = useState('');
+  const [recentActivities, setRecentActivities] =
+    useState<ActivityLog[]>([]);
 
-  const [
-    recentActivities,
-    setRecentActivities,
-  ] = useState<ActivityLog[]>([]);
+  const [errors, setErrors] =
+    useState<SectionErrors>(EMPTY_ERRORS);
 
-  const [
-    recentActivityError,
-    setRecentActivityError,
-  ] = useState('');
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
 
-  const [loading, setLoading] =
-    useState(true);
+  const hasLoadedOnce = useRef(false);
 
   // ==========================================================
-  // LOAD DASHBOARD
+  // LOAD
+  //
+  // Reloads whenever the Dashboard gains focus, so counts are
+  // current after reviewing an application or issue.
+  // Each source loads independently; one failure only affects
+  // its own card.
   // ==========================================================
 
-  useEffect(() => {
-    loadDashboard();
-  }, []);
+  useFocusEffect(
+    useCallback(() => {
+      loadDashboard();
+    }, [])
+  );
 
   async function loadDashboard() {
     try {
-      setLoading(true);
-
-      setBloodDemandError('');
-      setRecentActivityError('');
+      if (hasLoadedOnce.current) {
+        setRefreshing(true);
+      } else {
+        setLoading(true);
+      }
 
       const token =
         await getAdminAccessToken();
 
       const savedProfile =
         await getAdminProfile();
-
-      // ------------------------------------------------------
-      // ADMIN PROTECTION
-      // ------------------------------------------------------
 
       if (
         !token ||
@@ -220,101 +197,105 @@ export default function AdminDashboardScreen() {
 
       setProfile(savedProfile);
 
-      // ------------------------------------------------------
-      // APPLICATION SUMMARY
-      // ------------------------------------------------------
+      const [
+        applicationsResult,
+        usersResult,
+        issuesResult,
+        donationsResult,
+        demandResult,
+        activityResult,
+      ] = await Promise.allSettled([
+        getAdminDonorSummary(token),
+        getAdminUserSummary(token),
+        getAdminReportSummary(token),
+        getAdminDonationSummary(token),
+        getAdminBloodTypeDemand(token),
+        getAdminActivityLogs(token, {
+          page: 1,
+          limit: 6,
+        }),
+      ]);
 
-      try {
-        const result =
-          await getAdminDonorSummary(
-            token
-          );
+      const nextErrors: SectionErrors = {
+        ...EMPTY_ERRORS,
+      };
 
-        setSummary(
-          result.summary
+      if (applicationsResult.status === 'fulfilled') {
+        setApplicationSummary(
+          applicationsResult.value.summary
         );
-      } catch (error) {
-        console.log(
-          'ADMIN DASHBOARD SUMMARY ERROR:',
-          error
+      } else {
+        nextErrors.applications = getErrorMessage(
+          applicationsResult.reason,
+          'Unable to load donor applications.'
         );
-
-        setSummary(null);
       }
 
-      // ------------------------------------------------------
-      // BLOOD TYPE DEMAND
-      // ------------------------------------------------------
+      if (usersResult.status === 'fulfilled') {
+        setUserSummary(
+          usersResult.value.summary
+        );
+      } else {
+        nextErrors.users = getErrorMessage(
+          usersResult.reason,
+          'Unable to load user accounts.'
+        );
+      }
 
-      try {
-        const result =
-          await getAdminBloodTypeDemand(
-            token
-          );
+      if (issuesResult.status === 'fulfilled') {
+        setIssueSummary(
+          issuesResult.value.summary
+        );
+      } else {
+        nextErrors.issues = getErrorMessage(
+          issuesResult.reason,
+          'Unable to load issues.'
+        );
+      }
 
+      if (donationsResult.status === 'fulfilled') {
+        setDonationSummary(
+          donationsResult.value.summary
+        );
+      } else {
+        nextErrors.donations = getErrorMessage(
+          donationsResult.reason,
+          'Unable to load donations.'
+        );
+      }
+
+      if (demandResult.status === 'fulfilled') {
         setBloodDemand(
-          result
+          demandResult.value
         );
-      } catch (error) {
-        console.log(
-          'ADMIN BLOOD DEMAND ERROR:',
-          error
-        );
-
-        setBloodDemand(null);
-
-        setBloodDemandError(
-          error instanceof Error
-            ? error.message
-            : 'Unable to load blood type demand.'
+      } else {
+        nextErrors.demand = getErrorMessage(
+          demandResult.reason,
+          'Unable to load blood type demand.'
         );
       }
 
-      // ------------------------------------------------------
-      // RECENT ACTIVITY
-      // ------------------------------------------------------
-
-      try {
-        const result =
-          await getAdminActivityLogs(
-            token,
-            {
-              page: 1,
-              limit: 6,
-            }
-          );
-
-        const latestActivities =
-          (result.logs || [])
+      if (activityResult.status === 'fulfilled') {
+        setRecentActivities(
+          (activityResult.value.logs || [])
             .slice()
             .sort(
               (a, b) =>
-                new Date(
-                  b.created_at
-                ).getTime() -
-                new Date(
-                  a.created_at
-                ).getTime()
+                new Date(b.created_at).getTime() -
+                new Date(a.created_at).getTime()
             )
-            .slice(0, 4);
-
-        setRecentActivities(
-          latestActivities
+            .slice(0, 5)
         );
-      } catch (error) {
-        console.log(
-          'ADMIN DASHBOARD ACTIVITY ERROR:',
-          error
-        );
-
-        setRecentActivities([]);
-
-        setRecentActivityError(
-          error instanceof Error
-            ? error.message
-            : 'Unable to load recent activity.'
+      } else {
+        nextErrors.activity = getErrorMessage(
+          activityResult.reason,
+          'Unable to load recent activity.'
         );
       }
+
+      setErrors(nextErrors);
+
+      hasLoadedOnce.current = true;
     } catch (error) {
       console.log(
         'ADMIN DASHBOARD ERROR:',
@@ -322,32 +303,62 @@ export default function AdminDashboardScreen() {
       );
     } finally {
       setLoading(false);
+      setRefreshing(false);
     }
   }
 
   // ==========================================================
-  // BLOOD DEMAND DISPLAY
+  // DERIVED
   // ==========================================================
 
+  const firstName =
+    profile?.first_name?.trim() ||
+    'Admin';
+
+  const pendingApplications =
+    applicationSummary?.pending ?? 0;
+
+  const unresolvedIssues =
+    (issueSummary?.open ?? 0) +
+    (issueSummary?.in_review ?? 0);
+
+  const urgentRequests =
+    bloodDemand?.summary.urgent_requests ?? 0;
+
+  // Donations are recorded automatically; only flagged
+  // records need an admin.
+  const donationsToReview =
+    donationSummary?.needs_review ?? 0;
+
   const visibleBloodDemand =
-    (
-      bloodDemand?.demand ||
-      []
-    )
+    (bloodDemand?.demand || [])
       .filter(
         item =>
           item.request_count > 0 ||
           item.units_needed > 0
       )
-      .slice(0, 4);
+      .sort(
+        (a, b) =>
+          b.units_needed - a.units_needed
+      )
+      .slice(0, 5);
 
-  const highestUnits =
-    Math.max(
-      ...visibleBloodDemand.map(
-        item =>
-          item.units_needed
-      ),
-      1
+  const highestUnits = Math.max(
+    ...visibleBloodDemand.map(
+      item => item.units_needed
+    ),
+    1
+  );
+
+  const today =
+    new Date().toLocaleDateString(
+      undefined,
+      {
+        weekday: 'long',
+        month: 'long',
+        day: 'numeric',
+        year: 'numeric',
+      }
     );
 
   // ==========================================================
@@ -361,11 +372,8 @@ export default function AdminDashboardScreen() {
           styles.ipadCanvas,
 
           {
-            width:
-              tablet.width,
-
-            height:
-              tablet.height,
+            width: tablet.width,
+            height: tablet.height,
           },
 
           Platform.OS !== 'web' &&
@@ -382,23 +390,12 @@ export default function AdminDashboardScreen() {
           ]}
           style={styles.gradient}
         >
-          <SafeAreaView
-            style={styles.safeArea}
-          >
-            {/* ==================================================
-                HEADER
-            ================================================== */}
-
+          <SafeAreaView style={styles.safeArea}>
             <AdminHeader
               profile={profile}
               scale={s}
-              fontScale={headerFs}
-              notificationCount={0}
+              fontScale={fs}
             />
-
-            {/* ==================================================
-                CONTENT
-            ================================================== */}
 
             <ScrollView
               style={styles.scroll}
@@ -406,1075 +403,656 @@ export default function AdminDashboardScreen() {
                 styles.content,
 
                 {
-                  paddingHorizontal:
-                    48 * s,
-
-                  paddingTop:
-                    34 * s,
-
-                  paddingBottom:
-                    28 * s,
+                  paddingHorizontal: 48 * s,
+                  paddingTop: 32 * s,
+                  paddingBottom: 28 * s,
                 },
               ]}
-              showsVerticalScrollIndicator={
-                false
-              }
+              showsVerticalScrollIndicator={false}
             >
               {/* ================================================
                   TITLE
               ================================================ */}
 
-              <View
-                style={[
-                  styles.titleRow,
-
-                  {
-                    marginBottom:
-                      28 * s,
-                  },
-                ]}
-              >
-                <View>
-                  <Text
-                    style={[
-                      styles.title,
-
-                      {
-                        fontSize:
-                          30 * fs,
-
-                        lineHeight:
-                          38 * fs,
-                      },
-                    ]}
-                  >
-                    Welcome back, Admin
-                  </Text>
-
-                  <Text
-                    style={[
-                      styles.subtitle,
-
-                      {
-                        fontSize:
-                          14 * fs,
-
-                        lineHeight:
-                          21 * fs,
-
-                        marginTop:
-                          4 * s,
-                      },
-                    ]}
-                  >
-                    Here's what's happening in Hemo-Hero today.
-                  </Text>
-                </View>
-
-                {/* REFRESH */}
-
-                <Pressable
-                  disabled={loading}
-                  onPress={
-                    loadDashboard
-                  }
-                  style={({ pressed }) => [
-                    styles.refreshButton,
+              <FadeInView>
+                <View
+                  style={[
+                    styles.titleRow,
 
                     {
-                      height:
-                        46 * s,
-
-                      paddingHorizontal:
-                        18 * s,
-
-                      borderRadius:
-                        10 * s,
-
-                      gap:
-                        8 * s,
+                      marginBottom: 24 * s,
                     },
-
-                    pressed &&
-                      styles.refreshPressed,
-
-                    loading &&
-                      styles.refreshDisabled,
                   ]}
                 >
-                  {loading ? (
-                    <ActivityIndicator
-                      size="small"
-                      color={
-                        COLORS.white
-                      }
-                    />
-                  ) : (
-                    <>
-                      <MaterialIcons
-                        name="refresh"
-                        size={
-                          21 * s
-                        }
-                        color={
-                          COLORS.white
-                        }
+                  <View style={styles.flexFill}>
+                    <Text
+                      style={[
+                        styles.title,
+
+                        {
+                          fontSize: 30 * fs,
+                          lineHeight: 38 * fs,
+                        },
+                      ]}
+                    >
+                      Welcome back, {firstName}
+                    </Text>
+
+                    <Text
+                      style={[
+                        styles.subtitle,
+
+                        {
+                          fontSize: 13.5 * fs,
+                          marginTop: 4 * s,
+                        },
+                      ]}
+                    >
+                      {today} • Here's what's happening in Hemo-Hero.
+                    </Text>
+                  </View>
+
+                  <Pressable
+                    disabled={loading || refreshing}
+                    onPress={loadDashboard}
+                    style={({ pressed }) => [
+                      styles.refreshButton,
+
+                      {
+                        height: 44 * s,
+                        minWidth: 116 * s,
+                        paddingHorizontal: 16 * s,
+                        borderRadius: 10 * s,
+                        gap: 8 * s,
+                      },
+
+                      pressed &&
+                        styles.pressed,
+
+                      (loading || refreshing) &&
+                        styles.disabled,
+                    ]}
+                  >
+                    {loading || refreshing ? (
+                      <ActivityIndicator
+                        size="small"
+                        color={COLORS.white}
                       />
+                    ) : (
+                      <>
+                        <MaterialIcons
+                          name="refresh"
+                          size={20 * s}
+                          color={COLORS.white}
+                        />
 
-                      <Text
-                        style={[
-                          styles.refreshText,
+                        <Text
+                          style={[
+                            styles.refreshText,
 
-                          {
-                            fontSize:
-                              13 * fs,
-                          },
-                        ]}
-                      >
-                        Refresh
-                      </Text>
-                    </>
-                  )}
-                </Pressable>
-              </View>
-
-              {/* ================================================
-                  LOADING
-              ================================================ */}
+                            {
+                              fontSize: 13 * fs,
+                            },
+                          ]}
+                        >
+                          Refresh
+                        </Text>
+                      </>
+                    )}
+                  </Pressable>
+                </View>
+              </FadeInView>
 
               {loading ? (
                 <View
                   style={[
-                    styles.loading,
+                    styles.centerArea,
 
                     {
-                      minHeight:
-                        500 * s,
+                      minHeight: 500 * s,
                     },
                   ]}
                 >
                   <ActivityIndicator
                     size="large"
-                    color={
-                      COLORS.redBright
-                    }
+                    color={COLORS.redBright}
                   />
+
+                  <Text
+                    style={[
+                      styles.mutedText,
+
+                      {
+                        fontSize: 13 * fs,
+                        marginTop: 14 * s,
+                      },
+                    ]}
+                  >
+                    Loading dashboard...
+                  </Text>
                 </View>
               ) : (
                 <>
                   {/* ============================================
-                      STAT CARDS
-                  ============================================ */}
-
-                  <View
-                    style={[
-                      styles.statRow,
-
-                      {
-                        gap:
-                          18 * s,
-
-                        marginBottom:
-                          22 * s,
-                      },
-                    ]}
-                  >
-                    <StatCard
-                      scale={s}
-                      fontScale={fs}
-                      icon="assignment"
-                      title="TOTAL APPLICATIONS"
-                      value={
-                        summary?.total ??
-                        0
-                      }
-                    />
-
-                    <StatCard
-                      scale={s}
-                      fontScale={fs}
-                      icon="verified"
-                      title="VERIFIED DONORS"
-                      value={
-                        summary?.approved ??
-                        0
-                      }
-                      positive
-                    />
-
-                    <StatCard
-                      scale={s}
-                      fontScale={fs}
-                      icon="pending-actions"
-                      title="PENDING APPLICATIONS"
-                      value={
-                        summary?.pending ??
-                        0
-                      }
-                      alert
-                      onPress={() =>
-                        router.push(
-                          '/applications'
-                        )
-                      }
-                    />
-
-                    <StatCard
-                      scale={s}
-                      fontScale={fs}
-                      icon="cancel"
-                      title="REJECTED"
-                      value={
-                        summary?.rejected ??
-                        0
-                      }
-                    />
-                  </View>
-
-                  {/* ============================================
                       NEEDS ATTENTION
                   ============================================ */}
 
-                  <View
-                    style={[
-                      styles.attention,
+                  <FadeInView delay={50}>
+                    <SectionLabel
+                      scale={s}
+                      fontScale={fs}
+                      text="NEEDS ATTENTION"
+                    />
 
-                      {
-                        minHeight:
-                          112 * s,
-
-                        paddingHorizontal:
-                          24 * s,
-
-                        borderRadius:
-                          14 * s,
-
-                        marginBottom:
-                          22 * s,
-                      },
-                    ]}
-                  >
                     <View
                       style={[
-                        styles.attentionIcon,
+                        styles.row,
 
                         {
-                          width:
-                            55 * s,
-
-                          height:
-                            55 * s,
-
-                          borderRadius:
-                            28 * s,
-
-                          marginRight:
-                            17 * s,
+                          gap: 16 * s,
+                          marginBottom: 26 * s,
                         },
                       ]}
                     >
-                      <MaterialIcons
-                        name="priority-high"
-                        size={
-                          29 * s
+                      <AttentionCard
+                        scale={s}
+                        fontScale={fs}
+                        icon="assignment-ind"
+                        title="Pending Applications"
+                        value={pendingApplications}
+                        error={errors.applications}
+                        activeText={`${pendingApplications === 1 ? 'Donor is' : 'Donors are'} waiting for verification`}
+                        clearText="No applications waiting"
+                        actionLabel="Review"
+                        onPress={() =>
+                          router.push('/applications')
                         }
-                        color={
-                          COLORS.redBright
+                      />
+
+                      <AttentionCard
+                        scale={s}
+                        fontScale={fs}
+                        icon="report-problem"
+                        title="Unresolved Issues"
+                        value={unresolvedIssues}
+                        error={errors.issues}
+                        activeText={
+                          issueSummary?.open
+                            ? `${issueSummary.open} open • ${issueSummary.in_review} in review`
+                            : 'Reports and feedback in review'
+                        }
+                        clearText="No open reports or feedback"
+                        actionLabel="View Issues"
+                        onPress={() =>
+                          router.push('/issues' as any)
+                        }
+                      />
+
+                      <AttentionCard
+                        scale={s}
+                        fontScale={fs}
+                        icon="priority-high"
+                        title="Urgent Requests"
+                        value={urgentRequests}
+                        error={errors.demand}
+                        activeText={`Urgent ${urgentRequests === 1 ? 'request needs' : 'requests need'} donors now`}
+                        clearText="No urgent blood requests"
+                        actionLabel="View Requests"
+                        onPress={() =>
+                          router.push('/requests')
+                        }
+                      />
+
+                      <AttentionCard
+                        scale={s}
+                        fontScale={fs}
+                        icon="volunteer-activism"
+                        title="Donations to Review"
+                        value={donationsToReview}
+                        error={errors.donations}
+                        activeText={
+                          donationsToReview === 1
+                            ? 'Flagged donation record'
+                            : 'Flagged donation records'
+                        }
+                        clearText={`${donationSummary?.completed ?? 0} donations recorded automatically`}
+                        actionLabel="View Donations"
+                        onPress={() =>
+                          router.push('/donations' as any)
                         }
                       />
                     </View>
-
-                    <View
-                      style={
-                        styles.attentionBody
-                      }
-                    >
-                      <Text
-                        style={[
-                          styles.attentionTitle,
-
-                          {
-                            fontSize:
-                              18 * fs,
-                          },
-                        ]}
-                      >
-                        Needs Attention
-                      </Text>
-
-                      <Text
-                        style={[
-                          styles.attentionText,
-
-                          {
-                            fontSize:
-                              14 * fs,
-
-                            lineHeight:
-                              21 * fs,
-
-                            marginTop:
-                              3 * s,
-                          },
-                        ]}
-                      >
-                        {summary?.pending ??
-                          0}{' '}
-                        donor{' '}
-                        {(summary?.pending ??
-                          0) === 1
-                          ? 'application is'
-                          : 'applications are'}{' '}
-                        waiting for review.
-                      </Text>
-                    </View>
-
-                    <Pressable
-                      onPress={() =>
-                        router.push(
-                          '/applications'
-                        )
-                      }
-                      style={({ pressed }) => [
-                        styles.reviewButton,
-
-                        {
-                          height:
-                            48 * s,
-
-                          paddingHorizontal:
-                            20 * s,
-
-                          borderRadius:
-                            10 * s,
-                        },
-
-                        pressed &&
-                          styles.reviewPressed,
-                      ]}
-                    >
-                      <Text
-                        style={[
-                          styles.reviewText,
-
-                          {
-                            fontSize:
-                              13 * fs,
-                          },
-                        ]}
-                      >
-                        Review Applications
-                      </Text>
-                    </Pressable>
-                  </View>
+                  </FadeInView>
 
                   {/* ============================================
-                      LOWER DASHBOARD
+                      OVERVIEW
+                  ============================================ */}
+
+                  <FadeInView delay={100}>
+                    <SectionLabel
+                      scale={s}
+                      fontScale={fs}
+                      text="OVERVIEW"
+                    />
+
+                    <View
+                      style={[
+                        styles.row,
+
+                        {
+                          gap: 16 * s,
+                          marginBottom: 26 * s,
+                        },
+                      ]}
+                    >
+                      <StatCard
+                        scale={s}
+                        fontScale={fs}
+                        icon="groups"
+                        label="TOTAL USERS"
+                        value={
+                          errors.users
+                            ? null
+                            : userSummary?.total ?? 0
+                        }
+                        caption={
+                          userSummary
+                            ? `${userSummary.active} active • ${userSummary.inactive} inactive`
+                            : 'Registered accounts'
+                        }
+                        onPress={() =>
+                          router.push('/users')
+                        }
+                      />
+
+                      <StatCard
+                        scale={s}
+                        fontScale={fs}
+                        icon="verified"
+                        iconColor={COLORS.green}
+                        label="VERIFIED DONORS"
+                        value={
+                          errors.applications
+                            ? null
+                            : applicationSummary?.approved ?? 0
+                        }
+                        caption={`${applicationSummary?.total ?? 0} applications total`}
+                        onPress={() =>
+                          router.push('/applications')
+                        }
+                      />
+
+                      <StatCard
+                        scale={s}
+                        fontScale={fs}
+                        icon="assignment"
+                        iconColor={COLORS.orange}
+                        label="ACTIVE REQUESTS"
+                        value={
+                          errors.demand
+                            ? null
+                            : bloodDemand?.summary.active_requests ?? 0
+                        }
+                        caption={`${bloodDemand?.summary.scheduled_requests ?? 0} scheduled`}
+                        onPress={() =>
+                          router.push('/requests')
+                        }
+                      />
+
+                      <StatCard
+                        scale={s}
+                        fontScale={fs}
+                        icon="water-drop"
+                        iconColor={COLORS.redBright}
+                        label="UNITS NEEDED"
+                        value={
+                          errors.demand
+                            ? null
+                            : bloodDemand?.summary.units_needed ?? 0
+                        }
+                        caption="Across active requests"
+                        onPress={() =>
+                          router.push('/analytics')
+                        }
+                      />
+                    </View>
+                  </FadeInView>
+
+                  {/* ============================================
+                      DEMAND + ACTIVITY
                   ============================================ */}
 
                   <View
                     style={[
-                      styles.lowerRow,
+                      styles.row,
 
                       {
-                        gap:
-                          18 * s,
+                        gap: 18 * s,
+                        alignItems: 'stretch',
                       },
                     ]}
                   >
-                    {/* ==========================================
-                        BLOOD TYPE DEMAND
-                    ========================================== */}
-
-                    <View
-                      style={[
-                        styles.largeCard,
-
-                        {
-                          minHeight:
-                            335 * s,
-
-                          borderRadius:
-                            14 * s,
-
-                          padding:
-                            22 * s,
-                        },
-                      ]}
+                    <FadeInView
+                      delay={150}
+                      style={styles.flexFill}
                     >
-                      {/* HEADER */}
-
-                      <View
-                        style={
-                          styles.demandHeader
+                      <SectionCard
+                        scale={s}
+                        fontScale={fs}
+                        icon="bloodtype"
+                        title="Blood Type Demand"
+                        description="Active requests by blood type"
+                        badge={
+                          bloodDemand?.highest_demand &&
+                          !errors.demand
+                            ? `${bloodDemand.highest_demand.blood_type} highest`
+                            : undefined
                         }
                       >
-                        <View
-                          style={
-                            styles.demandHeading
-                          }
-                        >
-                          <View
-                            style={[
-                              styles.demandHeaderIcon,
-
-                              {
-                                width:
-                                  44 * s,
-
-                                height:
-                                  44 * s,
-
-                                borderRadius:
-                                  11 * s,
-                              },
-                            ]}
-                          >
-                            <MaterialIcons
-                              name="bloodtype"
-                              size={
-                                24 * s
-                              }
-                              color={
-                                COLORS.redBright
-                              }
-                            />
-                          </View>
-
-                          <View
-                            style={
-                              styles.demandHeadingText
-                            }
-                          >
-                            <Text
-                              style={[
-                                styles.cardTitle,
-
-                                {
-                                  fontSize:
-                                    18 * fs,
-                                },
-                              ]}
-                            >
-                              Blood Type Demand
-                            </Text>
-
-                            <Text
-                              style={[
-                                styles.cardDescription,
-
-                                {
-                                  fontSize:
-                                    13 * fs,
-
-                                  lineHeight:
-                                    18 * fs,
-
-                                  marginTop:
-                                    2 * s,
-                                },
-                              ]}
-                            >
-                              Current active blood requests
-                            </Text>
-                          </View>
-                        </View>
-
-                        {bloodDemand
-                          ?.highest_demand ? (
-                          <View
-                            style={[
-                              styles.highDemandBadge,
-
-                              {
-                                minHeight:
-                                  34 * s,
-
-                                borderRadius:
-                                  17 * s,
-
-                                paddingHorizontal:
-                                  11 * s,
-                              },
-                            ]}
-                          >
-                            <MaterialIcons
-                              name="priority-high"
-                              size={
-                                15 * s
-                              }
-                              color={
-                                COLORS.redBright
-                              }
-                            />
-
-                            <Text
-                              style={[
-                                styles.highDemandBadgeText,
-
-                                {
-                                  fontSize:
-                                    11 * fs,
-                                },
-                              ]}
-                            >
-                              {
-                                bloodDemand
-                                  .highest_demand
-                                  .blood_type
-                              }{' '}
-                              highest
-                            </Text>
-                          </View>
-                        ) : null}
-                      </View>
-
-                      {/* ERROR */}
-
-                      {bloodDemandError ? (
-                        <View
-                          style={
-                            styles.centerMessage
-                          }
-                        >
-                          <MaterialIcons
-                            name="error-outline"
-                            size={
-                              30 * s
-                            }
-                            color={
-                              COLORS.redBright
-                            }
+                        {errors.demand ? (
+                          <CardMessage
+                            scale={s}
+                            fontScale={fs}
+                            error
+                            title="Demand unavailable"
+                            text={errors.demand}
                           />
-
-                          <Text
-                            style={[
-                              styles.messageTitle,
-
-                              {
-                                fontSize:
-                                  14 * fs,
-
-                                marginTop:
-                                  9 * s,
-                              },
-                            ]}
-                          >
-                            Demand unavailable
-                          </Text>
-
-                          <Text
-                            style={[
-                              styles.messageText,
-
-                              {
-                                fontSize:
-                                  12 * fs,
-
-                                lineHeight:
-                                  18 * fs,
-
-                                marginTop:
-                                  3 * s,
-                              },
-                            ]}
-                          >
-                            Unable to load active blood request demand.
-                          </Text>
-                        </View>
-                      ) : !bloodDemand ||
-                        bloodDemand.summary
-                          .active_requests ===
-                          0 ? (
-                        /* EMPTY */
-
-                        <View
-                          style={
-                            styles.centerMessage
-                          }
-                        >
-                          <View
-                            style={[
-                              styles.emptyCircle,
-
-                              {
-                                width:
-                                  50 * s,
-
-                                height:
-                                  50 * s,
-
-                                borderRadius:
-                                  25 * s,
-                              },
-                            ]}
-                          >
-                            <MaterialIcons
-                              name="bloodtype"
-                              size={
-                                27 * s
-                              }
-                              color={
-                                COLORS.muted
-                              }
-                            />
-                          </View>
-
-                          <Text
-                            style={[
-                              styles.messageTitle,
-
-                              {
-                                fontSize:
-                                  14 * fs,
-
-                                marginTop:
-                                  10 * s,
-                              },
-                            ]}
-                          >
-                            No active blood requests
-                          </Text>
-
-                          <Text
-                            style={[
-                              styles.messageText,
-
-                              {
-                                fontSize:
-                                  12 * fs,
-
-                                lineHeight:
-                                  18 * fs,
-
-                                marginTop:
-                                  3 * s,
-                              },
-                            ]}
-                          >
-                            Demand information will appear when a request becomes active.
-                          </Text>
-                        </View>
-                      ) : (
-                        <>
-                          {/* SUMMARY */}
-
-                          <View
-                            style={[
-                              styles.demandSummary,
-
-                              {
-                                gap:
-                                  8 * s,
-
-                                marginTop:
-                                  14 * s,
-                              },
-                            ]}
-                          >
-                            <DemandMiniStat
-                              scale={s}
-                              fontScale={fs}
-                              value={
-                                bloodDemand
-                                  .summary
-                                  .active_requests
-                              }
-                              label="Active"
-                              icon="assignment"
-                            />
-
-                            <DemandMiniStat
-                              scale={s}
-                              fontScale={fs}
-                              value={
-                                bloodDemand
-                                  .summary
-                                  .units_needed
-                              }
-                              label="Units"
-                              icon="water-drop"
-                            />
-
-                            <DemandMiniStat
-                              scale={s}
-                              fontScale={fs}
-                              value={
-                                bloodDemand
-                                  .summary
-                                  .urgent_requests
-                              }
-                              label="Urgent"
-                              icon="priority-high"
-                              urgent
-                            />
-                          </View>
-
-                          {/* DEMAND LIST */}
-
-                          <View
-                            style={[
-                              styles.demandList,
-
-                              {
-                                marginTop:
-                                  12 * s,
-                              },
-                            ]}
-                          >
-                            {visibleBloodDemand.map(
-                              (
-                                item,
-                                index
-                              ) => (
-                                <BloodDemandRow
-                                  key={
-                                    item.blood_type
-                                  }
-                                  item={
-                                    item
-                                  }
-                                  highestUnits={
-                                    highestUnits
-                                  }
-                                  scale={s}
-                                  fontScale={fs}
-                                  highlight={
-                                    index === 0
-                                  }
-                                  last={
-                                    index ===
-                                    visibleBloodDemand.length -
-                                      1
-                                  }
-                                />
-                              )
-                            )}
-                          </View>
-                        </>
-                      )}
-                    </View>
-
-                    {/* ==========================================
-                        RECENT ACTIVITY
-                    ========================================== */}
-
-                    <View
-                      style={[
-                        styles.largeCard,
-
-                        {
-                          minHeight:
-                            335 * s,
-
-                          borderRadius:
-                            14 * s,
-
-                          padding:
-                            22 * s,
-                        },
-                      ]}
-                    >
-                      {/* HEADER */}
-
-                      <View
-                        style={
-                          styles.activityCardHeader
-                        }
-                      >
-                        <View
-                          style={
-                            styles.activityHeading
-                          }
-                        >
-                          <View
-                            style={[
-                              styles.activityHeaderIcon,
-
-                              {
-                                width:
-                                  44 * s,
-
-                                height:
-                                  44 * s,
-
-                                borderRadius:
-                                  11 * s,
-                              },
-                            ]}
-                          >
-                            <MaterialIcons
-                              name="history"
-                              size={
-                                24 * s
-                              }
-                              color={
-                                COLORS.redBright
-                              }
-                            />
-                          </View>
-
-                          <View
-                            style={
-                              styles.activityHeadingText
-                            }
-                          >
-                            <Text
-                              style={[
-                                styles.cardTitle,
-
-                                {
-                                  fontSize:
-                                    18 * fs,
-                                },
-                              ]}
-                            >
-                              Recent Activity
-                            </Text>
-
-                            <Text
-                              numberOfLines={1}
-                              style={[
-                                styles.cardDescription,
-
-                                {
-                                  fontSize:
-                                    13 * fs,
-
-                                  lineHeight:
-                                    18 * fs,
-
-                                  marginTop:
-                                    2 * s,
-                                },
-                              ]}
-                            >
-                              Latest administrator and system events
-                            </Text>
-                          </View>
-                        </View>
-
-                        <Pressable
-                          onPress={() =>
-                            router.push(
-                              '/activity-logs'
+                        ) : visibleBloodDemand.length === 0 ? (
+                          <CardMessage
+                            scale={s}
+                            fontScale={fs}
+                            icon="bloodtype"
+                            title="No active blood requests"
+                            text="Demand will appear when a request becomes active."
+                          />
+                        ) : (
+                          visibleBloodDemand.map(
+                            (item, index) => (
+                              <BloodDemandRow
+                                key={item.blood_type}
+                                item={item}
+                                highestUnits={highestUnits}
+                                scale={s}
+                                fontScale={fs}
+                                highlight={
+                                  item.blood_type ===
+                                  bloodDemand?.highest_demand
+                                    ?.blood_type
+                                }
+                                last={
+                                  index ===
+                                  visibleBloodDemand.length - 1
+                                }
+                              />
                             )
-                          }
-                          style={({ pressed }) => [
-                            styles.viewAllButton,
+                          )
+                        )}
+                      </SectionCard>
+                    </FadeInView>
 
-                            {
-                              height:
-                                38 * s,
-
-                              borderRadius:
-                                8 * s,
-
-                              paddingHorizontal:
-                                12 * s,
-                            },
-
-                            pressed &&
-                              styles.viewAllPressed,
-                          ]}
-                        >
-                          <Text
-                            style={[
-                              styles.viewAllText,
-
-                              {
-                                fontSize:
-                                  12 * fs,
-                              },
-                            ]}
-                          >
-                            View All
-                          </Text>
-
-                          <MaterialIcons
-                            name="chevron-right"
-                            size={
-                              18 * s
-                            }
-                            color={
-                              COLORS.soft
-                            }
+                    <FadeInView
+                      delay={200}
+                      style={styles.flexFill}
+                    >
+                      <SectionCard
+                        scale={s}
+                        fontScale={fs}
+                        icon="history"
+                        title="Recent Activity"
+                        description="Latest administrator and system events"
+                        actionLabel="View All"
+                        onAction={() =>
+                          router.push('/activity-logs')
+                        }
+                      >
+                        {errors.activity ? (
+                          <CardMessage
+                            scale={s}
+                            fontScale={fs}
+                            error
+                            title="Activity unavailable"
+                            text={errors.activity}
                           />
-                        </Pressable>
-                      </View>
-
-                      {/* ERROR */}
-
-                      {recentActivityError ? (
-                        <View
-                          style={
-                            styles.centerMessage
-                          }
-                        >
-                          <MaterialIcons
-                            name="error-outline"
-                            size={
-                              30 * s
-                            }
-                            color={
-                              COLORS.redBright
-                            }
+                        ) : recentActivities.length === 0 ? (
+                          <CardMessage
+                            scale={s}
+                            fontScale={fs}
+                            icon="history"
+                            title="No recent activity"
+                            text="New system events will appear here."
                           />
-
-                          <Text
-                            style={[
-                              styles.messageTitle,
-
-                              {
-                                fontSize:
-                                  14 * fs,
-
-                                marginTop:
-                                  9 * s,
-                              },
-                            ]}
-                          >
-                            Activity unavailable
-                          </Text>
-
-                          <Text
-                            style={[
-                              styles.messageText,
-
-                              {
-                                fontSize:
-                                  12 * fs,
-
-                                marginTop:
-                                  3 * s,
-                              },
-                            ]}
-                          >
-                            Unable to load recent activity.
-                          </Text>
-                        </View>
-                      ) : recentActivities.length ===
-                        0 ? (
-                        /* EMPTY */
-
-                        <View
-                          style={
-                            styles.centerMessage
-                          }
-                        >
-                          <View
-                            style={[
-                              styles.emptyCircle,
-
-                              {
-                                width:
-                                  50 * s,
-
-                                height:
-                                  50 * s,
-
-                                borderRadius:
-                                  25 * s,
-                              },
-                            ]}
-                          >
-                            <MaterialIcons
-                              name="history"
-                              size={
-                                27 * s
-                              }
-                              color={
-                                COLORS.muted
-                              }
-                            />
-                          </View>
-
-                          <Text
-                            style={[
-                              styles.messageTitle,
-
-                              {
-                                fontSize:
-                                  14 * fs,
-
-                                marginTop:
-                                  10 * s,
-                              },
-                            ]}
-                          >
-                            No recent activity
-                          </Text>
-
-                          <Text
-                            style={[
-                              styles.messageText,
-
-                              {
-                                fontSize:
-                                  12 * fs,
-
-                                marginTop:
-                                  3 * s,
-                              },
-                            ]}
-                          >
-                            New system events will appear here.
-                          </Text>
-                        </View>
-                      ) : (
-                        /* ACTIVITY LIST */
-
-                        <View
-                          style={[
-                            styles.activityList,
-
-                            {
-                              marginTop:
-                                12 * s,
-                            },
-                          ]}
-                        >
-                          {recentActivities.map(
-                            (
-                              activity,
-                              index
-                            ) => (
-                              <DashboardActivityRow
-                                key={
-                                  activity.id
-                                }
-                                activity={
-                                  activity
-                                }
+                        ) : (
+                          recentActivities.map(
+                            (activity, index) => (
+                              <ActivityRow
+                                key={activity.id}
+                                activity={activity}
                                 scale={s}
                                 fontScale={fs}
                                 last={
                                   index ===
-                                  recentActivities.length -
-                                    1
+                                  recentActivities.length - 1
                                 }
                               />
                             )
-                          )}
-                        </View>
-                      )}
-                    </View>
+                          )
+                        )}
+                      </SectionCard>
+                    </FadeInView>
                   </View>
                 </>
               )}
             </ScrollView>
 
-            {/* ==================================================
-                BOTTOM NAV
-            ================================================== */}
-
-            <AdminBottomNav
-              activeTab="dashboard"
-            />
+            <AdminBottomNav activeTab="dashboard" />
           </SafeAreaView>
         </LinearGradient>
       </View>
     </View>
+  );
+}
+
+// ============================================================
+// SECTION LABEL
+// ============================================================
+
+function SectionLabel({
+  scale,
+  fontScale,
+  text,
+}: {
+  scale: number;
+  fontScale: number;
+  text: string;
+}) {
+  return (
+    <Text
+      style={[
+        styles.sectionLabel,
+
+        {
+          fontSize: 11 * fontScale,
+          letterSpacing: 1.2 * scale,
+          marginBottom: 12 * scale,
+        },
+      ]}
+    >
+      {text}
+    </Text>
+  );
+}
+
+// ============================================================
+// ATTENTION CARD
+//
+// Red when something needs action, calm green when clear.
+// ============================================================
+
+function AttentionCard({
+  scale,
+  fontScale,
+  icon,
+  title,
+  value,
+  error,
+  activeText,
+  clearText,
+  actionLabel,
+  onPress,
+}: {
+  scale: number;
+  fontScale: number;
+  icon: IconName;
+  title: string;
+  value: number;
+  error: string;
+  activeText: string;
+  clearText: string;
+  actionLabel: string;
+  onPress: () => void;
+}) {
+  const active =
+    !error &&
+    value > 0;
+
+  return (
+    <Pressable
+      onPress={onPress}
+      style={({ pressed }) => [
+        styles.attentionCard,
+
+        {
+          padding: 20 * scale,
+          borderRadius: 14 * scale,
+          minHeight: 150 * scale,
+        },
+
+        active &&
+          styles.attentionCardActive,
+
+        pressed &&
+          styles.pressed,
+      ]}
+    >
+      <View style={styles.attentionTop}>
+        <View
+          style={[
+            styles.attentionIcon,
+
+            {
+              width: 44 * scale,
+              height: 44 * scale,
+              borderRadius: 12 * scale,
+            },
+
+            active
+              ? styles.attentionIconActive
+              : styles.attentionIconClear,
+          ]}
+        >
+          <MaterialIcons
+            name={
+              error
+                ? 'error-outline'
+                : active
+                  ? icon
+                  : 'check-circle'
+            }
+            size={24 * scale}
+            color={
+              error
+                ? COLORS.muted
+                : active
+                  ? COLORS.redBright
+                  : COLORS.green
+            }
+          />
+        </View>
+
+        <Text
+          style={[
+            styles.attentionValue,
+
+            {
+              fontSize: 30 * fontScale,
+              lineHeight: 36 * fontScale,
+            },
+
+            active &&
+              styles.attentionValueActive,
+          ]}
+        >
+          {error ? '—' : value}
+        </Text>
+      </View>
+
+      <Text
+        style={[
+          styles.cardTitle,
+
+          {
+            fontSize: 15 * fontScale,
+            marginTop: 14 * scale,
+          },
+        ]}
+      >
+        {title}
+      </Text>
+
+      <Text
+        numberOfLines={1}
+        style={[
+          styles.mutedText,
+
+          {
+            fontSize: 12.5 * fontScale,
+            marginTop: 3 * scale,
+          },
+        ]}
+      >
+        {error
+          ? 'Unavailable'
+          : active
+            ? activeText
+            : clearText}
+      </Text>
+
+      <View
+        style={[
+          styles.attentionAction,
+
+          {
+            marginTop: 12 * scale,
+            gap: 3 * scale,
+          },
+        ]}
+      >
+        <Text
+          style={[
+            styles.attentionActionText,
+
+            {
+              fontSize: 12.5 * fontScale,
+            },
+
+            active &&
+              styles.attentionActionTextActive,
+          ]}
+        >
+          {actionLabel}
+        </Text>
+
+        <MaterialIcons
+          name="arrow-forward"
+          size={15 * scale}
+          color={
+            active
+              ? COLORS.redBright
+              : COLORS.soft
+          }
+        />
+      </View>
+    </Pressable>
   );
 }
 
@@ -1486,91 +1064,344 @@ function StatCard({
   scale,
   fontScale,
   icon,
-  title,
+  iconColor = COLORS.soft,
+  label,
   value,
-  alert = false,
-  positive = false,
+  caption,
   onPress,
 }: {
   scale: number;
   fontScale: number;
-
-  icon:
-    ComponentProps<
-      typeof MaterialIcons
-    >['name'];
-
-  title: string;
-
-  value: number;
-
-  alert?: boolean;
-
-  positive?: boolean;
-
-  onPress?: () => void;
+  icon: IconName;
+  iconColor?: string;
+  label: string;
+  value: number | null;
+  caption: string;
+  onPress: () => void;
 }) {
-  const content = (
-    <>
-      <View
-        style={
-          styles.statTop
-        }
-      >
+  return (
+    <Pressable
+      onPress={onPress}
+      style={({ pressed }) => [
+        styles.card,
+        styles.flexFill,
+
+        {
+          padding: 18 * scale,
+          borderRadius: 14 * scale,
+        },
+
+        pressed &&
+          styles.pressed,
+      ]}
+    >
+      <View style={styles.attentionTop}>
         <View
           style={[
             styles.statIcon,
 
             {
-              width:
-                48 * scale,
-
-              height:
-                48 * scale,
-
-              borderRadius:
-                12 * scale,
+              width: 40 * scale,
+              height: 40 * scale,
+              borderRadius: 11 * scale,
             },
           ]}
         >
           <MaterialIcons
             name={icon}
-            size={
-              26 * scale
-            }
-            color={
-              alert
-                ? COLORS.redBright
-                : positive
-                  ? COLORS.green
-                  : COLORS.soft
-            }
+            size={22 * scale}
+            color={iconColor}
           />
         </View>
 
-        {onPress ? (
-          <MaterialIcons
-            name="chevron-right"
-            size={
-              23 * scale
-            }
-            color={
-              COLORS.muted
-            }
-          />
-        ) : null}
+        <MaterialIcons
+          name="chevron-right"
+          size={21 * scale}
+          color={COLORS.muted}
+        />
       </View>
 
       <Text
         style={[
-          styles.statTitle,
+          styles.statLabel,
 
           {
-            fontSize:
-              12 * fontScale,
+            fontSize: 11 * fontScale,
+            marginTop: 14 * scale,
+          },
+        ]}
+      >
+        {label}
+      </Text>
 
-            marginTop:
-              15 * scale,
+      <Text
+        style={[
+          styles.statValue,
+
+          {
+            fontSize: 28 * fontScale,
+            lineHeight: 36 * fontScale,
+          },
+
+          value === null && {
+            color: COLORS.muted,
+          },
+        ]}
+      >
+        {value === null ? '—' : value}
+      </Text>
+
+      <Text
+        numberOfLines={1}
+        style={[
+          styles.mutedText,
+
+          {
+            fontSize: 11.5 * fontScale,
+          },
+        ]}
+      >
+        {value === null
+          ? 'Unavailable'
+          : caption}
+      </Text>
+    </Pressable>
+  );
+}
+
+// ============================================================
+// SECTION CARD
+// ============================================================
+
+function SectionCard({
+  scale,
+  fontScale,
+  icon,
+  title,
+  description,
+  badge,
+  actionLabel,
+  onAction,
+  children,
+}: {
+  scale: number;
+  fontScale: number;
+  icon: IconName;
+  title: string;
+  description: string;
+  badge?: string;
+  actionLabel?: string;
+  onAction?: () => void;
+  children: ReactNode;
+}) {
+  return (
+    <View
+      style={[
+        styles.card,
+
+        {
+          padding: 21 * scale,
+          borderRadius: 15 * scale,
+          minHeight: 340 * scale,
+        },
+      ]}
+    >
+      <View
+        style={[
+          styles.sectionHeader,
+
+          {
+            marginBottom: 12 * scale,
+          },
+        ]}
+      >
+        <View
+          style={[
+            styles.sectionIcon,
+
+            {
+              width: 40 * scale,
+              height: 40 * scale,
+              borderRadius: 10 * scale,
+              marginRight: 11 * scale,
+            },
+          ]}
+        >
+          <MaterialIcons
+            name={icon}
+            size={22 * scale}
+            color={COLORS.redBright}
+          />
+        </View>
+
+        <View style={styles.flexFill}>
+          <Text
+            style={[
+              styles.cardTitle,
+
+              {
+                fontSize: 16 * fontScale,
+              },
+            ]}
+          >
+            {title}
+          </Text>
+
+          <Text
+            numberOfLines={1}
+            style={[
+              styles.mutedText,
+
+              {
+                fontSize: 12.5 * fontScale,
+                marginTop: 2 * scale,
+              },
+            ]}
+          >
+            {description}
+          </Text>
+        </View>
+
+        {badge ? (
+          <View
+            style={[
+              styles.highBadge,
+
+              {
+                height: 30 * scale,
+                borderRadius: 15 * scale,
+                paddingHorizontal: 11 * scale,
+                gap: 3 * scale,
+              },
+            ]}
+          >
+            <MaterialIcons
+              name="priority-high"
+              size={14 * scale}
+              color={COLORS.redBright}
+            />
+
+            <Text
+              style={[
+                styles.highBadgeText,
+
+                {
+                  fontSize: 11.5 * fontScale,
+                },
+              ]}
+            >
+              {badge}
+            </Text>
+          </View>
+        ) : null}
+
+        {actionLabel && onAction ? (
+          <Pressable
+            onPress={onAction}
+            style={({ pressed }) => [
+              styles.smallButton,
+
+              {
+                height: 34 * scale,
+                borderRadius: 8 * scale,
+                paddingLeft: 12 * scale,
+                paddingRight: 8 * scale,
+              },
+
+              pressed &&
+                styles.pressed,
+            ]}
+          >
+            <Text
+              style={[
+                styles.smallButtonText,
+
+                {
+                  fontSize: 12 * fontScale,
+                },
+              ]}
+            >
+              {actionLabel}
+            </Text>
+
+            <MaterialIcons
+              name="chevron-right"
+              size={18 * scale}
+              color={COLORS.soft}
+            />
+          </Pressable>
+        ) : null}
+      </View>
+
+      {children}
+    </View>
+  );
+}
+
+// ============================================================
+// CARD MESSAGE (empty / error)
+// ============================================================
+
+function CardMessage({
+  scale,
+  fontScale,
+  error = false,
+  icon = 'inbox',
+  title,
+  text,
+}: {
+  scale: number;
+  fontScale: number;
+  error?: boolean;
+  icon?: IconName;
+  title: string;
+  text: string;
+}) {
+  return (
+    <View
+      style={[
+        styles.centerArea,
+        styles.flexFill,
+
+        {
+          paddingVertical: 30 * scale,
+          paddingHorizontal: 18 * scale,
+        },
+      ]}
+    >
+      <View
+        style={[
+          styles.messageCircle,
+
+          {
+            width: 50 * scale,
+            height: 50 * scale,
+            borderRadius: 25 * scale,
+          },
+        ]}
+      >
+        <MaterialIcons
+          name={
+            error
+              ? 'error-outline'
+              : icon
+          }
+          size={26 * scale}
+          color={
+            error
+              ? COLORS.redBright
+              : COLORS.muted
+          }
+        />
+      </View>
+
+      <Text
+        style={[
+          styles.messageTitle,
+
+          {
+            fontSize: 14 * fontScale,
+            marginTop: 10 * scale,
           },
         ]}
       >
@@ -1579,172 +1410,18 @@ function StatCard({
 
       <Text
         style={[
-          styles.statValue,
+          styles.mutedText,
+          styles.centerText,
 
           {
-            fontSize:
-              30 * fontScale,
-
-            marginTop:
-              3 * scale,
+            fontSize: 12 * fontScale,
+            lineHeight: 18 * fontScale,
+            marginTop: 3 * scale,
           },
-
-          alert &&
-            styles.statValueAlert,
         ]}
       >
-        {value}
+        {text}
       </Text>
-    </>
-  );
-
-  if (onPress) {
-    return (
-      <Pressable
-        onPress={
-          onPress
-        }
-        style={({ pressed }) => [
-          styles.statCard,
-
-          {
-            minHeight:
-              175 * scale,
-
-            padding:
-              20 * scale,
-
-            borderRadius:
-              14 * scale,
-          },
-
-          alert &&
-            styles.statCardAlert,
-
-          pressed &&
-            styles.statCardPressed,
-        ]}
-      >
-        {content}
-      </Pressable>
-    );
-  }
-
-  return (
-    <View
-      style={[
-        styles.statCard,
-
-        {
-          minHeight:
-            175 * scale,
-
-          padding:
-            20 * scale,
-
-          borderRadius:
-            14 * scale,
-        },
-
-        alert &&
-          styles.statCardAlert,
-      ]}
-    >
-      {content}
-    </View>
-  );
-}
-
-// ============================================================
-// DEMAND MINI STAT
-// ============================================================
-
-function DemandMiniStat({
-  scale,
-  fontScale,
-  value,
-  label,
-  icon,
-  urgent = false,
-}: {
-  scale: number;
-  fontScale: number;
-
-  value: number;
-
-  label: string;
-
-  icon:
-    ComponentProps<
-      typeof MaterialIcons
-    >['name'];
-
-  urgent?: boolean;
-}) {
-  return (
-    <View
-      style={[
-        styles.demandMiniStat,
-
-        {
-          minHeight:
-            58 * scale,
-
-          borderRadius:
-            10 * scale,
-
-          paddingHorizontal:
-            10 * scale,
-        },
-
-        urgent &&
-          styles.demandMiniStatUrgent,
-      ]}
-    >
-      <MaterialIcons
-        name={icon}
-        size={
-          18 * scale
-        }
-        color={
-          urgent
-            ? COLORS.redBright
-            : COLORS.soft
-        }
-      />
-
-      <View
-        style={{
-          marginLeft:
-            7 * scale,
-        }}
-      >
-        <Text
-          style={[
-            styles.demandMiniValue,
-
-            {
-              fontSize:
-                17 * fontScale,
-            },
-          ]}
-        >
-          {value}
-        </Text>
-
-        <Text
-          style={[
-            styles.demandMiniLabel,
-
-            {
-              fontSize:
-                11 * fontScale,
-            },
-          ]}
-        >
-          {label}
-        </Text>
-      </View>
     </View>
   );
 }
@@ -1761,84 +1438,60 @@ function BloodDemandRow({
   highlight,
   last,
 }: {
-  item:
-    AdminBloodTypeDemandItem;
-
-  highestUnits:
-    number;
-
-  scale:
-    number;
-
-  fontScale:
-    number;
-
-  highlight:
-    boolean;
-
-  last:
-    boolean;
+  item: AdminBloodTypeDemandItem;
+  highestUnits: number;
+  scale: number;
+  fontScale: number;
+  highlight: boolean;
+  last: boolean;
 }) {
-  const progress =
-    Math.max(
-      8,
-      Math.min(
-        100,
-        (
-          item.units_needed /
-          highestUnits
-        ) *
-          100
-      )
-    );
+  const progress = Math.max(
+    6,
+    Math.min(
+      100,
+      (item.units_needed / highestUnits) * 100
+    )
+  );
 
   return (
     <View
       style={[
-        styles.demandRow,
+        styles.listRow,
 
         {
-          minHeight:
-            49 * scale,
-
-          paddingVertical:
-            6 * scale,
+          minHeight: 52 * scale,
+          paddingVertical: 7 * scale,
         },
 
         last &&
-          styles.noBottomBorder,
+          styles.noBorder,
       ]}
     >
       <View
         style={[
-          styles.bloodTypeCircle,
+          styles.bloodCircle,
 
           {
-            width:
-              36 * scale,
-
-            height:
-              36 * scale,
-
-            borderRadius:
-              18 * scale,
+            width: 38 * scale,
+            height: 38 * scale,
+            borderRadius: 19 * scale,
           },
 
           highlight &&
-            styles.bloodTypeCircleHighlight,
+            styles.bloodCircleHighlight,
         ]}
       >
         <Text
           style={[
-            styles.bloodTypeText,
+            styles.bloodText,
 
             {
-              fontSize:
-                13 * fontScale,
+              fontSize: 13 * fontScale,
             },
 
-            highlight &&
-              styles.bloodTypeTextHighlight,
+            highlight && {
+              color: COLORS.redBright,
+            },
           ]}
         >
           {item.blood_type}
@@ -1847,26 +1500,20 @@ function BloodDemandRow({
 
       <View
         style={[
-          styles.demandRowBody,
+          styles.flexFill,
 
           {
-            marginLeft:
-              10 * scale,
+            marginLeft: 12 * scale,
           },
         ]}
       >
-        <View
-          style={
-            styles.demandRowTop
-          }
-        >
+        <View style={styles.spaceBetween}>
           <Text
             style={[
-              styles.demandRowLabel,
+              styles.rowTitle,
 
               {
-                fontSize:
-                  13 * fontScale,
+                fontSize: 13 * fontScale,
               },
             ]}
           >
@@ -1879,11 +1526,10 @@ function BloodDemandRow({
 
           <Text
             style={[
-              styles.demandRowMeta,
+              styles.mutedText,
 
               {
-                fontSize:
-                  11 * fontScale,
+                fontSize: 11.5 * fontScale,
               },
             ]}
           >
@@ -1896,75 +1542,64 @@ function BloodDemandRow({
 
         <View
           style={[
-            styles.demandProgressTrack,
+            styles.progressTrack,
 
             {
-              height:
-                5 * scale,
-
-              borderRadius:
-                3 * scale,
-
-              marginTop:
-                5 * scale,
+              height: 6 * scale,
+              borderRadius: 3 * scale,
+              marginTop: 6 * scale,
             },
           ]}
         >
           <View
-            style={[
-              styles.demandProgressFill,
-
-              {
-                width:
-                  `${progress}%`,
-
-                borderRadius:
-                  3 * scale,
-              },
-
-              highlight &&
-                styles.demandProgressHighlight,
-            ]}
+            style={{
+              width: `${progress}%`,
+              height: '100%',
+              borderRadius: 3 * scale,
+              backgroundColor: highlight
+                ? COLORS.redBright
+                : COLORS.neutralBar,
+            }}
           />
         </View>
       </View>
 
-      {item.urgent_requests >
-      0 ? (
-        <View
-          style={[
-            styles.urgentCount,
+      <View
+        style={[
+          styles.urgentSlot,
 
-            {
-              marginLeft:
-                8 * scale,
-
-              paddingHorizontal:
-                8 * scale,
-
-              minHeight:
-                24 * scale,
-
-              borderRadius:
-                12 * scale,
-            },
-          ]}
-        >
-          <Text
+          {
+            width: 76 * scale,
+            marginLeft: 10 * scale,
+          },
+        ]}
+      >
+        {item.urgent_requests > 0 ? (
+          <View
             style={[
-              styles.urgentCountText,
+              styles.urgentPill,
 
               {
-                fontSize:
-                  11 * fontScale,
+                minHeight: 24 * scale,
+                borderRadius: 12 * scale,
+                paddingHorizontal: 8 * scale,
               },
             ]}
           >
-            {item.urgent_requests}{' '}
-            urgent
-          </Text>
-        </View>
-      ) : null}
+            <Text
+              style={[
+                styles.urgentPillText,
+
+                {
+                  fontSize: 11 * fontScale,
+                },
+              ]}
+            >
+              {item.urgent_requests} urgent
+            </Text>
+          </View>
+        ) : null}
+      </View>
     </View>
   );
 }
@@ -1973,90 +1608,56 @@ function BloodDemandRow({
 // ACTIVITY ROW
 // ============================================================
 
-function DashboardActivityRow({
+function ActivityRow({
   activity,
   scale,
   fontScale,
   last,
 }: {
-  activity:
-    ActivityLog;
-
-  scale:
-    number;
-
-  fontScale:
-    number;
-
-  last:
-    boolean;
+  activity: ActivityLog;
+  scale: number;
+  fontScale: number;
+  last: boolean;
 }) {
-  const action =
-    formatActivityAction(
-      activity.action
-    );
-
-  const time =
-    formatActivityDate(
-      activity.created_at
-    );
-
   return (
     <Pressable
       onPress={() =>
-        router.push(
-          '/activity-logs'
-        )
+        router.push('/activity-logs')
       }
       style={({ pressed }) => [
-        styles.activityRow,
+        styles.listRow,
 
         {
-          minHeight:
-            54 * scale,
-
-          paddingVertical:
-            7 * scale,
+          minHeight: 54 * scale,
+          paddingVertical: 8 * scale,
         },
 
         last &&
-          styles.noBottomBorder,
+          styles.noBorder,
 
-        pressed &&
-          styles.activityRowPressed,
+        pressed && {
+          opacity: 0.7,
+        },
       ]}
     >
       <View
         style={[
-          styles.activityRowIcon,
+          styles.activityIcon,
 
           {
-            width:
-              35 * scale,
-
-            height:
-              35 * scale,
-
-            borderRadius:
-              9 * scale,
-
-            marginRight:
-              10 * scale,
+            width: 36 * scale,
+            height: 36 * scale,
+            borderRadius: 9 * scale,
+            marginRight: 11 * scale,
           },
 
           !activity.success &&
-            styles.activityRowIconFailed,
+            styles.activityIconFailed,
         ]}
       >
         <MaterialIcons
-          name={
-            getActivityIcon(
-              activity.action
-            )
-          }
-          size={
-            18 * scale
-          }
+          name={getActivityIcon(activity.action)}
+          size={18 * scale}
           color={
             activity.success
               ? COLORS.soft
@@ -2066,92 +1667,71 @@ function DashboardActivityRow({
       </View>
 
       <View
-        style={
-          styles.activityRowBody
-        }
+        style={[
+          styles.flexFill,
+
+          {
+            paddingRight: 8 * scale,
+          },
+        ]}
       >
         <Text
           numberOfLines={1}
           style={[
-            styles.activityRowTitle,
+            styles.rowTitle,
 
             {
-              fontSize:
-                13 * fontScale,
+              fontSize: 13 * fontScale,
             },
           ]}
         >
-          {action}
+          {formatActivityAction(activity.action)}
         </Text>
 
         <Text
           numberOfLines={1}
           style={[
-            styles.activityRowMeta,
+            styles.mutedText,
 
             {
-              fontSize:
-                11.5 * fontScale,
-
-              lineHeight:
-                16 * fontScale,
-
-              marginTop:
-                1 * scale,
+              fontSize: 11.5 * fontScale,
+              marginTop: 2 * scale,
             },
           ]}
         >
           {activity.user_email ||
             activity.user_role ||
             'System activity'}
-
           {activity.module
             ? ` • ${activity.module}`
             : ''}
         </Text>
       </View>
 
-      <View
-        style={
-          styles.activityRowRight
-        }
-      >
+      <View style={styles.activityRight}>
         <Text
           numberOfLines={1}
           style={[
-            styles.activityTime,
+            styles.mutedText,
 
             {
-              fontSize:
-                11 * fontScale,
+              fontSize: 11 * fontScale,
             },
           ]}
         >
-          {time}
+          {formatActivityDate(activity.created_at)}
         </Text>
 
         <View
-          style={[
-            styles.activityStatusDot,
-
-            {
-              width:
-                7 * scale,
-
-              height:
-                7 * scale,
-
-              borderRadius:
-                4 * scale,
-
-              marginTop:
-                5 * scale,
-            },
-
-            activity.success
-              ? styles.activityStatusSuccess
-              : styles.activityStatusFailed,
-          ]}
+          style={{
+            width: 7 * scale,
+            height: 7 * scale,
+            borderRadius: 4 * scale,
+            marginTop: 5 * scale,
+            backgroundColor: activity.success
+              ? COLORS.green
+              : COLORS.redBright,
+          }}
         />
       </View>
     </Pressable>
@@ -2159,8 +1739,18 @@ function DashboardActivityRow({
 }
 
 // ============================================================
-// FORMAT ACTIVITY ACTION
+// HELPERS
 // ============================================================
+
+function getErrorMessage(
+  error: unknown,
+  fallback: string
+) {
+  return error instanceof Error &&
+    error.message
+    ? error.message
+    : fallback;
+}
 
 function formatActivityAction(
   action?: string | null
@@ -2174,122 +1764,59 @@ function formatActivityAction(
     .split('_')
     .map(
       word =>
-        word
-          .charAt(0)
-          .toUpperCase() +
+        word.charAt(0).toUpperCase() +
         word.slice(1)
     )
     .join(' ');
 }
 
-// ============================================================
-// ACTIVITY ICON
-// ============================================================
-
 function getActivityIcon(
   action?: string | null
-):
-  ComponentProps<
-    typeof MaterialIcons
-  >['name'] {
+): IconName {
   const normalized =
-    String(
-      action || ''
-    ).toUpperCase();
+    String(action || '').toUpperCase();
+
+  if (normalized.includes('LOGIN')) return 'login';
+  if (normalized.includes('LOGOUT')) return 'logout';
 
   if (
-    normalized.includes(
-      'LOGIN'
-    )
-  ) {
-    return 'login';
-  }
-
-  if (
-    normalized.includes(
-      'LOGOUT'
-    )
-  ) {
-    return 'logout';
-  }
-
-  if (
-    normalized.includes(
-      'PASSWORD'
-    ) ||
-    normalized.includes(
-      'EMAIL'
-    )
+    normalized.includes('PASSWORD') ||
+    normalized.includes('EMAIL')
   ) {
     return 'lock';
   }
 
-  if (
-    normalized.includes(
-      'APPROVE'
-    )
-  ) {
-    return 'check-circle';
-  }
+  if (normalized.includes('APPROVE')) return 'check-circle';
 
   if (
-    normalized.includes(
-      'REJECT'
-    ) ||
-    normalized.includes(
-      'FAIL'
-    )
+    normalized.includes('REJECT') ||
+    normalized.includes('FAIL')
   ) {
     return 'cancel';
   }
 
+  if (normalized.includes('REPORT')) return 'flag';
+
   if (
-    normalized.includes(
-      'UPDATE'
-    ) ||
-    normalized.includes(
-      'EDIT'
-    )
+    normalized.includes('UPDATE') ||
+    normalized.includes('EDIT')
   ) {
     return 'edit';
   }
 
-  if (
-    normalized.includes(
-      'CREATE'
-    )
-  ) {
-    return 'add-circle-outline';
-  }
+  if (normalized.includes('CREATE')) return 'add-circle-outline';
+  if (normalized.includes('DELETE')) return 'delete-outline';
 
   if (
-    normalized.includes(
-      'DELETE'
-    )
-  ) {
-    return 'delete-outline';
-  }
-
-  if (
-    normalized.includes(
-      'PROFILE'
-    ) ||
-    normalized.includes(
-      'USER'
-    ) ||
-    normalized.includes(
-      'ACCOUNT'
-    )
+    normalized.includes('PROFILE') ||
+    normalized.includes('USER') ||
+    normalized.includes('ACCOUNT')
   ) {
     return 'person';
   }
 
   return 'history';
 }
-
-// ============================================================
-// FORMAT ACTIVITY DATE
-// ============================================================
 
 function formatActivityDate(
   value?: string | null
@@ -2298,52 +1825,34 @@ function formatActivityDate(
     return '—';
   }
 
-  const date =
-    new Date(value);
+  const date = new Date(value);
 
-  if (
-    Number.isNaN(
-      date.getTime()
-    )
-  ) {
+  if (Number.isNaN(date.getTime())) {
     return '—';
   }
 
-  const now =
-    new Date();
+  const now = new Date();
 
   const sameDay =
-    date.getFullYear() ===
-      now.getFullYear() &&
-    date.getMonth() ===
-      now.getMonth() &&
-    date.getDate() ===
-      now.getDate();
+    date.getFullYear() === now.getFullYear() &&
+    date.getMonth() === now.getMonth() &&
+    date.getDate() === now.getDate();
 
   if (sameDay) {
     return date.toLocaleTimeString(
-      'en-PH',
+      undefined,
       {
-        hour:
-          'numeric',
-
-        minute:
-          '2-digit',
-
-        hour12:
-          true,
+        hour: 'numeric',
+        minute: '2-digit',
       }
     );
   }
 
   return date.toLocaleDateString(
-    'en-PH',
+    undefined,
     {
-      month:
-        'short',
-
-      day:
-        'numeric',
+      month: 'short',
+      day: 'numeric',
     }
   );
 }
@@ -2352,1067 +1861,330 @@ function formatActivityDate(
 // STYLES
 // ============================================================
 
-const styles =
-  StyleSheet.create({
-    // ========================================================
-    // PAGE
-    // ========================================================
-
-    outer: {
-      flex: 1,
-
-      alignItems:
-        'center',
-
-      justifyContent:
-        'center',
-
-      backgroundColor:
-        COLORS.outer,
-    },
-
-    ipadCanvas: {
-      overflow:
-        'hidden',
-
-      backgroundColor:
-        COLORS.navy,
-
-      borderRadius:
-        Platform.OS ===
-        'web'
-          ? 24
-          : 0,
-    },
-
-    nativeCanvas: {
-      width:
-        '100%',
-
-      height:
-        '100%',
-    },
-
-    gradient: {
-      flex: 1,
-    },
-
-    safeArea: {
-      flex: 1,
-    },
-
-    // ========================================================
-    // HEADER
-    // ========================================================
-
-    header: {
-      flexDirection:
-        'row',
-
-      alignItems:
-        'center',
-
-      justifyContent:
-        'space-between',
-
-      borderBottomWidth:
-        1,
-
-      borderBottomColor:
-        COLORS.border,
-    },
-
-    brandArea: {
-      flexDirection:
-        'row',
-
-      alignItems:
-        'center',
-
-      gap:
-        14,
-    },
-
-    logoCircle: {
-      alignItems:
-        'center',
-
-      justifyContent:
-        'center',
-
-      overflow:
-        'hidden',
-
-      backgroundColor:
-        COLORS.white,
-    },
-
-    brand: {
-      color:
-        COLORS.white,
-
-      fontFamily:
-        'Poppins_700Bold',
-    },
-
-    brandRed: {
-      color:
-        COLORS.redBright,
-    },
-
-    portal: {
-      marginTop:
-        1,
-
-      color:
-        COLORS.redBright,
-
-      fontFamily:
-        'Inter_600SemiBold',
-    },
-
-    // ========================================================
-    // ADMIN HEADER
-    // ========================================================
-
-    adminSection: {
-      flexDirection:
-        'row',
-
-      alignItems:
-        'center',
-
-      gap:
-        12,
-    },
-
-    notificationWrap: {
-      position:
-        'relative',
-
-      width:
-        30,
-
-      marginRight:
-        4,
-
-      alignItems:
-        'center',
-
-      justifyContent:
-        'center',
-    },
-
-    notificationBadge: {
-      position:
-        'absolute',
-
-      top:
-        -4,
-
-      right:
-        -6,
-
-      paddingHorizontal:
-        4,
-
-      alignItems:
-        'center',
-
-      justifyContent:
-        'center',
-
-      backgroundColor:
-        COLORS.redBright,
-    },
-
-    notificationBadgeText: {
-      color:
-        COLORS.white,
-
-      fontFamily:
-        'Inter_700Bold',
-    },
-
-    headerButtonPressed: {
-      opacity:
-        0.65,
-    },
-
-    avatar: {
-      alignItems:
-        'center',
-
-      justifyContent:
-        'center',
-
-      backgroundColor:
-        '#ECECEC',
-    },
-
-    avatarText: {
-      color:
-        '#111111',
-
-      fontFamily:
-        'Poppins_600SemiBold',
-    },
-
-    adminInfoButton: {
-      minWidth:
-        100,
-    },
-
-    adminInfoPressed: {
-      opacity:
-        0.7,
-    },
-
-    adminName: {
-      color:
-        COLORS.white,
-
-      fontFamily:
-        'Inter_600SemiBold',
-    },
-
-    adminRole: {
-      marginTop:
-        1,
-
-      color:
-        COLORS.muted,
-
-      fontFamily:
-        'Inter_400Regular',
-    },
-
-    // ========================================================
-    // CONTENT
-    // ========================================================
-
-    scroll: {
-      flex: 1,
-    },
-
-    content: {
-      flexGrow: 1,
-    },
-
-    // ========================================================
-    // TITLE
-    // ========================================================
-
-    titleRow: {
-      flexDirection:
-        'row',
-
-      alignItems:
-        'center',
-
-      justifyContent:
-        'space-between',
-    },
-
-    title: {
-      color:
-        COLORS.white,
-
-      fontFamily:
-        'Poppins_700Bold',
-    },
-
-    subtitle: {
-      color:
-        COLORS.muted,
-
-      fontFamily:
-        'Inter_400Regular',
-    },
-
-    // ========================================================
-    // REFRESH
-    // ========================================================
-
-    refreshButton: {
-      flexDirection:
-        'row',
-
-      alignItems:
-        'center',
-
-      justifyContent:
-        'center',
-
-      borderWidth:
-        1,
-
-      borderColor:
-        COLORS.border,
-
-      backgroundColor:
-        COLORS.card,
-    },
-
-    refreshPressed: {
-      opacity:
-        0.76,
-
-      transform: [
-        {
-          scale:
-            0.98,
-        },
-      ],
-    },
-
-    refreshDisabled: {
-      opacity:
-        0.55,
-    },
-
-    refreshText: {
-      color:
-        COLORS.white,
-
-      fontFamily:
-        'Inter_600SemiBold',
-    },
-
-    // ========================================================
-    // LOADING
-    // ========================================================
-
-    loading: {
-      alignItems:
-        'center',
-
-      justifyContent:
-        'center',
-    },
-
-    // ========================================================
-    // STAT CARDS
-    // ========================================================
-
-    statRow: {
-      flexDirection:
-        'row',
-    },
-
-    statCard: {
-      flex: 1,
-
-      borderWidth:
-        1,
-
-      borderColor:
-        COLORS.border,
-
-      backgroundColor:
-        COLORS.card,
-    },
-
-    statCardAlert: {
-      borderColor:
-        'rgba(239,51,64,0.58)',
-
-      backgroundColor:
-        'rgba(65,17,31,0.76)',
-    },
-
-    statCardPressed: {
-      opacity:
-        0.85,
-
-      transform: [
-        {
-          scale:
-            0.99,
-        },
-      ],
-    },
-
-    statTop: {
-      flexDirection:
-        'row',
-
-      alignItems:
-        'center',
-
-      justifyContent:
-        'space-between',
-    },
-
-    statIcon: {
-      alignItems:
-        'center',
-
-      justifyContent:
-        'center',
-
-      backgroundColor:
-        COLORS.cardLight,
-    },
-
-    statTitle: {
-      color:
-        COLORS.soft,
-
-      fontFamily:
-        'Inter_600SemiBold',
-
-      letterSpacing:
-        0.3,
-    },
-
-    statValue: {
-      color:
-        COLORS.white,
-
-      fontFamily:
-        'Poppins_700Bold',
-    },
-
-    statValueAlert: {
-      color:
-        COLORS.redBright,
-    },
-
-    // ========================================================
-    // NEEDS ATTENTION
-    // ========================================================
-
-    attention: {
-      flexDirection:
-        'row',
-
-      alignItems:
-        'center',
-
-      borderWidth:
-        1,
-
-      borderColor:
-        'rgba(239,51,64,0.60)',
-
-      backgroundColor:
-        'rgba(68,15,28,0.57)',
-    },
-
-    attentionIcon: {
-      alignItems:
-        'center',
-
-      justifyContent:
-        'center',
-
-      backgroundColor:
-        'rgba(239,51,64,0.13)',
-    },
-
-    attentionBody: {
-      flex: 1,
-    },
-
-    attentionTitle: {
-      color:
-        COLORS.white,
-
-      fontFamily:
-        'Poppins_600SemiBold',
-    },
-
-    attentionText: {
-      color:
-        COLORS.muted,
-
-      fontFamily:
-        'Inter_400Regular',
-    },
-
-    reviewButton: {
-      alignItems:
-        'center',
-
-      justifyContent:
-        'center',
-
-      backgroundColor:
-        COLORS.red,
-    },
-
-    reviewPressed: {
-      opacity:
-        0.82,
-
-      transform: [
-        {
-          scale:
-            0.985,
-        },
-      ],
-    },
-
-    reviewText: {
-      color:
-        COLORS.white,
-
-      fontFamily:
-        'Inter_600SemiBold',
-    },
-
-    // ========================================================
-    // LOWER CARDS
-    // ========================================================
-
-    lowerRow: {
-      flexDirection:
-        'row',
-
-      alignItems:
-        'stretch',
-    },
-
-    largeCard: {
-      flex: 1,
-
-      justifyContent:
-        'flex-start',
-
-      borderWidth:
-        1,
-
-      borderColor:
-        COLORS.border,
-
-      backgroundColor:
-        COLORS.card,
-    },
-
-    cardTitle: {
-      color:
-        COLORS.white,
-
-      fontFamily:
-        'Poppins_600SemiBold',
-    },
-
-    cardDescription: {
-      color:
-        COLORS.muted,
-
-      fontFamily:
-        'Inter_400Regular',
-    },
-
-    // ========================================================
-    // BLOOD DEMAND HEADER
-    // ========================================================
-
-    demandHeader: {
-      flexDirection:
-        'row',
-
-      alignItems:
-        'center',
-
-      justifyContent:
-        'space-between',
-    },
-
-    demandHeading: {
-      flex: 1,
-
-      minWidth: 0,
-
-      flexDirection:
-        'row',
-
-      alignItems:
-        'center',
-    },
-
-    demandHeadingText: {
-      flex: 1,
-
-      minWidth: 0,
-
-      marginLeft: 11,
-    },
-
-    demandHeaderIcon: {
-      alignItems:
-        'center',
-
-      justifyContent:
-        'center',
-
-      backgroundColor:
-        'rgba(239,51,64,0.10)',
-    },
-
-    highDemandBadge: {
-      flexDirection:
-        'row',
-
-      alignItems:
-        'center',
-
-      justifyContent:
-        'center',
-
-      gap: 3,
-
-      marginLeft: 8,
-
-      borderWidth: 1,
-
-      borderColor:
-        'rgba(239,51,64,0.36)',
-
-      backgroundColor:
-        'rgba(239,51,64,0.10)',
-    },
-
-    highDemandBadgeText: {
-      color:
-        COLORS.redBright,
-
-      fontFamily:
-        'Inter_600SemiBold',
-    },
-
-    // ========================================================
-    // BLOOD DEMAND SUMMARY
-    // ========================================================
-
-    demandSummary: {
-      flexDirection:
-        'row',
-    },
-
-    demandMiniStat: {
-      flex: 1,
-
-      flexDirection:
-        'row',
-
-      alignItems:
-        'center',
-
-      borderWidth:
-        1,
-
-      borderColor:
-        COLORS.border,
-
-      backgroundColor:
-        COLORS.cardLight,
-    },
-
-    demandMiniStatUrgent: {
-      borderColor:
-        'rgba(239,51,64,0.34)',
-
-      backgroundColor:
-        'rgba(239,51,64,0.08)',
-    },
-
-    demandMiniValue: {
-      color:
-        COLORS.white,
-
-      fontFamily:
-        'Poppins_600SemiBold',
-    },
-
-    demandMiniLabel: {
-      marginTop:
-        -1,
-
-      color:
-        COLORS.muted,
-
-      fontFamily:
-        'Inter_500Medium',
-    },
-
-    // ========================================================
-    // BLOOD DEMAND ROW
-    // ========================================================
-
-    demandList: {
-      flex: 1,
-    },
-
-    demandRow: {
-      flexDirection:
-        'row',
-
-      alignItems:
-        'center',
-
-      borderBottomWidth:
-        1,
-
-      borderBottomColor:
-        'rgba(36,53,84,0.58)',
-    },
-
-    bloodTypeCircle: {
-      alignItems:
-        'center',
-
-      justifyContent:
-        'center',
-
-      borderWidth:
-        1,
-
-      borderColor:
-        COLORS.border,
-
-      backgroundColor:
-        COLORS.cardLight,
-    },
-
-    bloodTypeCircleHighlight: {
-      borderColor:
-        'rgba(239,51,64,0.50)',
-
-      backgroundColor:
-        'rgba(239,51,64,0.12)',
-    },
-
-    bloodTypeText: {
-      color:
-        COLORS.soft,
-
-      fontFamily:
-        'Poppins_600SemiBold',
-    },
-
-    bloodTypeTextHighlight: {
-      color:
-        COLORS.redBright,
-    },
-
-    demandRowBody: {
-      flex: 1,
-
-      minWidth: 0,
-    },
-
-    demandRowTop: {
-      flexDirection:
-        'row',
-
-      alignItems:
-        'center',
-
-      justifyContent:
-        'space-between',
-    },
-
-    demandRowLabel: {
-      color:
-        COLORS.white,
-
-      fontFamily:
-        'Inter_600SemiBold',
-    },
-
-    demandRowMeta: {
-      color:
-        COLORS.muted,
-
-      fontFamily:
-        'Inter_400Regular',
-    },
-
-    demandProgressTrack: {
-      overflow:
-        'hidden',
-
-      width:
-        '100%',
-
-      backgroundColor:
-        '#17233D',
-    },
-
-    demandProgressFill: {
-      height:
-        '100%',
-
-      backgroundColor:
-        '#6E7E9C',
-    },
-
-    demandProgressHighlight: {
-      backgroundColor:
-        COLORS.redBright,
-    },
-
-    urgentCount: {
-      alignItems:
-        'center',
-
-      justifyContent:
-        'center',
-
-      borderWidth:
-        1,
-
-      borderColor:
-        'rgba(243,163,74,0.38)',
-
-      backgroundColor:
-        'rgba(243,163,74,0.10)',
-    },
-
-    urgentCountText: {
-      color:
-        COLORS.orange,
-
-      fontFamily:
-        'Inter_600SemiBold',
-    },
-
-    // ========================================================
-    // ACTIVITY
-    // ========================================================
-
-    activityCardHeader: {
-      flexDirection:
-        'row',
-
-      alignItems:
-        'center',
-
-      justifyContent:
-        'space-between',
-    },
-
-    activityHeading: {
-      flex: 1,
-
-      minWidth: 0,
-
-      flexDirection:
-        'row',
-
-      alignItems:
-        'center',
-    },
-
-    activityHeaderIcon: {
-      alignItems:
-        'center',
-
-      justifyContent:
-        'center',
-
-      marginRight: 11,
-
-      backgroundColor:
-        'rgba(239,51,64,0.10)',
-    },
-
-    activityHeadingText: {
-      flex: 1,
-
-      minWidth: 0,
-    },
-
-    viewAllButton: {
-      flexDirection:
-        'row',
-
-      alignItems:
-        'center',
-
-      justifyContent:
-        'center',
-
-      marginLeft: 10,
-
-      borderWidth: 1,
-
-      borderColor:
-        COLORS.border,
-
-      backgroundColor:
-        COLORS.cardLight,
-    },
-
-    viewAllPressed: {
-      opacity:
-        0.72,
-
-      transform: [
-        {
-          scale:
-            0.98,
-        },
-      ],
-    },
-
-    viewAllText: {
-      marginRight: 2,
-
-      color:
-        COLORS.soft,
-
-      fontFamily:
-        'Inter_600SemiBold',
-    },
-
-    activityList: {
-      flex: 1,
-    },
-
-    activityRow: {
-      flexDirection:
-        'row',
-
-      alignItems:
-        'center',
-
-      borderBottomWidth:
-        1,
-
-      borderBottomColor:
-        'rgba(36,53,84,0.58)',
-    },
-
-    noBottomBorder: {
-      borderBottomWidth: 0,
-    },
-
-    activityRowPressed: {
-      opacity: 0.7,
-    },
-
-    activityRowIcon: {
-      alignItems:
-        'center',
-
-      justifyContent:
-        'center',
-
-      backgroundColor:
-        COLORS.cardLight,
-    },
-
-    activityRowIconFailed: {
-      backgroundColor:
-        'rgba(239,51,64,0.10)',
-    },
-
-    activityRowBody: {
-      flex: 1,
-
-      minWidth: 0,
-
-      paddingRight: 8,
-    },
-
-    activityRowTitle: {
-      color:
-        COLORS.white,
-
-      fontFamily:
-        'Inter_600SemiBold',
-    },
-
-    activityRowMeta: {
-      color:
-        COLORS.muted,
-
-      fontFamily:
-        'Inter_400Regular',
-    },
-
-    activityRowRight: {
-      width: 78,
-
-      alignItems:
-        'flex-end',
-
-      justifyContent:
-        'center',
-    },
-
-    activityTime: {
-      color:
-        COLORS.muted,
-
-      fontFamily:
-        'Inter_400Regular',
-    },
-
-    activityStatusDot: {},
-
-    activityStatusSuccess: {
-      backgroundColor:
-        COLORS.green,
-    },
-
-    activityStatusFailed: {
-      backgroundColor:
-        COLORS.redBright,
-    },
-
-    // ========================================================
-    // EMPTY / ERROR STATES
-    // ========================================================
-
-    centerMessage: {
-      flex: 1,
-
-      alignItems:
-        'center',
-
-      justifyContent:
-        'center',
-
-      paddingHorizontal: 18,
-    },
-
-    emptyCircle: {
-      alignItems:
-        'center',
-
-      justifyContent:
-        'center',
-
-      backgroundColor:
-        COLORS.cardLight,
-    },
-
-    messageTitle: {
-      color:
-        COLORS.white,
-
-      textAlign:
-        'center',
-
-      fontFamily:
-        'Poppins_600SemiBold',
-    },
-
-    messageText: {
-      maxWidth: 300,
-
-      color:
-        COLORS.muted,
-
-      textAlign:
-        'center',
-
-      fontFamily:
-        'Inter_400Regular',
-    },
-  });
+const styles = StyleSheet.create({
+  outer: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: COLORS.outer,
+  },
+
+  ipadCanvas: {
+    overflow: 'hidden',
+    backgroundColor: COLORS.navy,
+  },
+
+  nativeCanvas: {
+    width: '100%',
+    height: '100%',
+  },
+
+  gradient: {
+    flex: 1,
+  },
+
+  safeArea: {
+    flex: 1,
+  },
+
+  scroll: {
+    flex: 1,
+  },
+
+  content: {
+    flexGrow: 1,
+  },
+
+  row: {
+    flexDirection: 'row',
+  },
+
+  flexFill: {
+    flex: 1,
+    minWidth: 0,
+  },
+
+  spaceBetween: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+
+  centerArea: {
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  centerText: {
+    textAlign: 'center',
+  },
+
+  mutedText: {
+    color: COLORS.muted,
+    fontFamily: 'Inter_400Regular',
+  },
+
+  card: {
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    backgroundColor: COLORS.card,
+  },
+
+  // TITLE
+
+  titleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+
+  title: {
+    color: COLORS.white,
+    fontFamily: 'Poppins_700Bold',
+  },
+
+  subtitle: {
+    color: COLORS.muted,
+    fontFamily: 'Inter_400Regular',
+  },
+
+  refreshButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginLeft: 16,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    backgroundColor: COLORS.card,
+  },
+
+  refreshText: {
+    color: COLORS.white,
+    fontFamily: 'Inter_600SemiBold',
+  },
+
+  sectionLabel: {
+    color: COLORS.muted,
+    fontFamily: 'Inter_600SemiBold',
+  },
+
+  // ATTENTION
+
+  attentionCard: {
+    flex: 1,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    backgroundColor: COLORS.card,
+  },
+
+  attentionCardActive: {
+    borderColor: 'rgba(239,51,64,0.55)',
+    backgroundColor: 'rgba(65,17,31,0.62)',
+  },
+
+  attentionTop: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+
+  attentionIcon: {
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  attentionIconActive: {
+    backgroundColor: 'rgba(239,51,64,0.14)',
+  },
+
+  attentionIconClear: {
+    backgroundColor: 'rgba(53,201,130,0.10)',
+  },
+
+  attentionValue: {
+    color: COLORS.white,
+    fontFamily: 'Poppins_700Bold',
+  },
+
+  attentionValueActive: {
+    color: COLORS.redBright,
+  },
+
+  attentionAction: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+
+  attentionActionText: {
+    color: COLORS.soft,
+    fontFamily: 'Inter_600SemiBold',
+  },
+
+  attentionActionTextActive: {
+    color: COLORS.redBright,
+  },
+
+  // STATS
+
+  statIcon: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: COLORS.cardLight,
+  },
+
+  statLabel: {
+    color: COLORS.soft,
+    fontFamily: 'Inter_600SemiBold',
+    letterSpacing: 0.3,
+  },
+
+  statValue: {
+    color: COLORS.white,
+    fontFamily: 'Poppins_700Bold',
+  },
+
+  // SECTION CARD
+
+  sectionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+
+  sectionIcon: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(239,51,64,0.10)',
+  },
+
+  cardTitle: {
+    color: COLORS.white,
+    fontFamily: 'Poppins_600SemiBold',
+  },
+
+  highBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginLeft: 8,
+    borderWidth: 1,
+    borderColor: 'rgba(239,51,64,0.36)',
+    backgroundColor: 'rgba(239,51,64,0.10)',
+  },
+
+  highBadgeText: {
+    color: COLORS.redBright,
+    fontFamily: 'Inter_600SemiBold',
+  },
+
+  smallButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginLeft: 10,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    backgroundColor: COLORS.cardLight,
+  },
+
+  smallButtonText: {
+    marginRight: 2,
+    color: COLORS.soft,
+    fontFamily: 'Inter_600SemiBold',
+  },
+
+  messageCircle: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: COLORS.cardLight,
+  },
+
+  messageTitle: {
+    color: COLORS.white,
+    textAlign: 'center',
+    fontFamily: 'Poppins_600SemiBold',
+  },
+
+  // LIST ROWS
+
+  listRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(36,53,84,0.58)',
+  },
+
+  noBorder: {
+    borderBottomWidth: 0,
+  },
+
+  rowTitle: {
+    color: COLORS.white,
+    fontFamily: 'Inter_600SemiBold',
+  },
+
+  bloodCircle: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    backgroundColor: COLORS.cardLight,
+  },
+
+  bloodCircleHighlight: {
+    borderColor: 'rgba(239,51,64,0.50)',
+    backgroundColor: 'rgba(239,51,64,0.12)',
+  },
+
+  bloodText: {
+    color: COLORS.soft,
+    fontFamily: 'Poppins_600SemiBold',
+  },
+
+  progressTrack: {
+    overflow: 'hidden',
+    width: '100%',
+    backgroundColor: COLORS.track,
+  },
+
+  urgentSlot: {
+    alignItems: 'flex-end',
+  },
+
+  urgentPill: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(243,163,74,0.38)',
+    backgroundColor: 'rgba(243,163,74,0.10)',
+  },
+
+  urgentPillText: {
+    color: COLORS.orange,
+    fontFamily: 'Inter_600SemiBold',
+  },
+
+  activityIcon: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: COLORS.cardLight,
+  },
+
+  activityIconFailed: {
+    backgroundColor: 'rgba(239,51,64,0.10)',
+  },
+
+  activityRight: {
+    width: 78,
+    alignItems: 'flex-end',
+    justifyContent: 'center',
+  },
+
+  // INTERACTION
+
+  pressed: {
+    opacity: 0.8,
+    transform: [{ scale: 0.99 }],
+  },
+
+  disabled: {
+    opacity: 0.55,
+  },
+});

@@ -1,511 +1,692 @@
 import {
   type ComponentProps,
-  useEffect,
-  useMemo,
+  type ReactNode,
+  useCallback,
   useState,
 } from 'react';
 
 import {
   ActivityIndicator,
+  KeyboardAvoidingView,
   Modal,
   Platform,
   Pressable,
   ScrollView,
   StyleSheet,
   Text,
-  useWindowDimensions,
+  TextInput,
   View,
 } from 'react-native';
 
-import {
-  MaterialIcons,
-} from '@expo/vector-icons';
+import { MaterialIcons } from '@expo/vector-icons';
+import { LinearGradient } from 'expo-linear-gradient';
+import { router, useFocusEffect } from 'expo-router';
+import { StatusBar } from 'expo-status-bar';
+import { SafeAreaView } from 'react-native-safe-area-context';
+
+import { useAdminCanvas } from '../../components/AdminCanvas';
+
+import AdminBottomNav from '../../components/AdminBottomNav';
+import AdminHeader from '../../components/AdminHeader';
+
+import { FadeInView } from '../../components/AdminMotion';
 
 import {
-  LinearGradient,
-} from 'expo-linear-gradient';
-
-import {
-  router,
-} from 'expo-router';
-
-import {
-  StatusBar,
-} from 'expo-status-bar';
-
-import {
-  SafeAreaView,
-} from 'react-native-safe-area-context';
-
-import AdminBottomNav from '../AdminBottomNav';
-import AdminHeader from '../AdminHeader';
-
-import {
+  API_URL,
+  changeAdminEmail,
+  changeAdminPassword,
+  getAdminAccount,
+  logoutAdmin,
+  updateAdminAccount,
+  type AdminManagedUser,
   type AdminProfile,
 } from '../../lib/api';
 
 import {
   clearAdminSession,
+  getAdminAccessToken,
   getAdminProfile,
+  getRememberAdmin,
+  updateStoredAdminProfile,
 } from '../../lib/session';
 
 // ============================================================
-// IPAD PRO LANDSCAPE
-// ============================================================
-
-const DESIGN_WIDTH =
-  1366;
-
-const DESIGN_HEIGHT =
-  1024;
-
-// ============================================================
-// COLORS
+// DESIGN
+//
+// Layout follows the Donor Application review screen
+// (applications/[id].tsx) for a consistent Admin UI.
+//
+// Every setting on this screen is backed by a real endpoint:
+//   GET   /api/auth/me            profile
+//   PATCH /api/auth/me            edit profile
+//   PATCH /api/auth/me/password   change password
+//   PATCH /api/auth/me/email      change email
+//   POST  /api/auth/logout        sign out
 // ============================================================
 
 const COLORS = {
-  outer:
-    '#02040A',
+  outer: '#02040A',
+  navy: '#050B19',
 
-  navy:
-    '#050B19',
+  card: '#091126',
+  cardLight: '#101A35',
 
-  card:
-    '#091126',
+  border: '#243554',
 
-  cardLight:
-    '#101A35',
+  red: '#DB0A0A',
+  redBright: '#EF3340',
+  redDark: '#8E1118',
 
-  border:
-    '#243554',
+  white: '#FFFFFF',
 
-  red:
-    '#DB0A0A',
+  muted: '#7F889F',
+  soft: '#B7C1D8',
 
-  redBright:
-    '#EF3340',
-
-  white:
-    '#FFFFFF',
-
-  text:
-    '#F7F8FC',
-
-  muted:
-    '#7F889F',
-
-  soft:
-    '#B7C1D8',
-
-  green:
-    '#35C982',
-
-  orange:
-    '#F3A34A',
-
-  blue:
-    '#6EA8FE',
-
-  overlay:
-    'rgba(0,0,0,0.76)',
+  green: '#35C982',
+  orange: '#F3A34A',
+  blue: '#4A8CFF',
 };
+
+type IconName =
+  ComponentProps<
+    typeof MaterialIcons
+  >['name'];
+
+// Must match validatePassword() in accountController.js
+const PASSWORD_RULES: {
+  label: string;
+  test: (value: string) => boolean;
+}[] = [
+  {
+    label: 'At least 8 characters',
+    test: value => value.length >= 8,
+  },
+  {
+    label: 'One uppercase letter',
+    test: value => /[A-Z]/.test(value),
+  },
+  {
+    label: 'One lowercase letter',
+    test: value => /[a-z]/.test(value),
+  },
+  {
+    label: 'One number',
+    test: value => /[0-9]/.test(value),
+  },
+  {
+    label: 'One special character',
+    test: value => /[^A-Za-z0-9]/.test(value),
+  },
+];
+
+// ============================================================
+// MESSAGE / CONFIRM MODAL TYPES
+// ============================================================
+
+type ActionModalVariant =
+  | 'info'
+  | 'success'
+  | 'error'
+  | 'warning'
+  | 'reject';
+
+type ActionModalState = {
+  visible: boolean;
+  title: string;
+  message: string;
+  variant: ActionModalVariant;
+  confirmLabel: string;
+  showCancel: boolean;
+  onConfirm?: () => void | Promise<void>;
+};
+
+const INITIAL_ACTION_MODAL: ActionModalState = {
+  visible: false,
+  title: '',
+  message: '',
+  variant: 'info',
+  confirmLabel: 'Continue',
+  showCancel: false,
+  onConfirm: undefined,
+};
+
+type FormModal =
+  | null
+  | 'profile'
+  | 'password'
+  | 'email';
 
 // ============================================================
 // SCREEN
 // ============================================================
 
 export default function AdminSettingsScreen() {
-  const {
-    width,
-    height,
-  } =
-    useWindowDimensions();
 
   // ==========================================================
-  // RESPONSIVE TABLET FRAME
+  // RESPONSIVE IPAD CANVAS
   // ==========================================================
 
-  const tablet =
-    useMemo(
-      () => {
-        if (
-          Platform.OS !==
-          'web'
-        ) {
-          return {
-            width,
-            height,
+  const tablet = useAdminCanvas();
 
-            scale:
-              Math.min(
-                width /
-                  DESIGN_WIDTH,
-
-                height /
-                  DESIGN_HEIGHT
-              ),
-          };
-        }
-
-        const padding =
-          24;
-
-        const availableWidth =
-          Math.max(
-            width -
-              padding * 2,
-
-            320
-          );
-
-        const availableHeight =
-          Math.max(
-            height -
-              padding * 2,
-
-            320
-          );
-
-        const scale =
-          Math.min(
-            availableWidth /
-              DESIGN_WIDTH,
-
-            availableHeight /
-              DESIGN_HEIGHT,
-
-            1
-          );
-
-        return {
-          width:
-            DESIGN_WIDTH *
-            scale,
-
-          height:
-            DESIGN_HEIGHT *
-            scale,
-
-          scale,
-        };
-      },
-      [
-        width,
-        height,
-      ]
-    );
-
-  const s =
-    Math.max(
-      tablet.scale,
-      0.68
-    );
-
-  const fs =
-    Math.max(
-      tablet.scale,
-      0.92
-    );
+  const s = Math.max(tablet.scale, 0.68);
+  const fs = Math.max(tablet.scale, 0.92);
 
   // ==========================================================
-  // PROFILE
+  // STATE
   // ==========================================================
 
-  const [
-    profile,
-    setProfile,
-  ] =
-    useState<AdminProfile | null>(
-      null
-    );
+  const [profile, setProfile] =
+    useState<AdminProfile | null>(null);
 
-  const [
-    loading,
-    setLoading,
-  ] =
-    useState(
-      true
-    );
+  const [account, setAccount] =
+    useState<AdminManagedUser | null>(null);
 
-  // ==========================================================
-  // NOTIFICATION PREFERENCES
-  // ==========================================================
+  const [rememberMe, setRememberMe] =
+    useState<boolean | null>(null);
 
-  const [
-    donorApplicationAlerts,
-    setDonorApplicationAlerts,
-  ] =
-    useState(
-      true
-    );
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState('');
 
-  const [
-    bloodRequestAlerts,
-    setBloodRequestAlerts,
-  ] =
-    useState(
-      true
-    );
+  const [actionModal, setActionModal] =
+    useState<ActionModalState>(INITIAL_ACTION_MODAL);
 
-  const [
-    userAccountAlerts,
-    setUserAccountAlerts,
-  ] =
-    useState(
-      true
-    );
+  const [formModal, setFormModal] =
+    useState<FormModal>(null);
 
-  const [
-    securityAlerts,
-    setSecurityAlerts,
-  ] =
-    useState(
-      true
-    );
+  const [formError, setFormError] = useState('');
+  const [saving, setSaving] = useState(false);
+
+  const [signingOut, setSigningOut] = useState(false);
+
+  // PROFILE FORM
+
+  const [firstName, setFirstName] = useState('');
+  const [middleName, setMiddleName] = useState('');
+  const [lastName, setLastName] = useState('');
+  const [suffix, setSuffix] = useState('');
+  const [phone, setPhone] = useState('');
+
+  // PASSWORD FORM
+
+  const [currentPassword, setCurrentPassword] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+
+  // EMAIL FORM
+
+  const [emailPassword, setEmailPassword] = useState('');
+  const [newEmail, setNewEmail] = useState('');
+  const [confirmEmail, setConfirmEmail] = useState('');
 
   // ==========================================================
-  // MODALS
+  // LOAD
   // ==========================================================
 
-  const [
-    profileModalVisible,
-    setProfileModalVisible,
-  ] =
-    useState(
-      false
-    );
-
-  const [
-    securityModalVisible,
-    setSecurityModalVisible,
-  ] =
-    useState(
-      false
-    );
-
-  const [
-    sessionModalVisible,
-    setSessionModalVisible,
-  ] =
-    useState(
-      false
-    );
-
-  const [
-    aboutModalVisible,
-    setAboutModalVisible,
-  ] =
-    useState(
-      false
-    );
-
-  const [
-    passwordModalVisible,
-    setPasswordModalVisible,
-  ] =
-    useState(
-      false
-    );
-
-  const [
-    logoutVisible,
-    setLogoutVisible,
-  ] =
-    useState(
-      false
-    );
-
-  const [
-    loggingOut,
-    setLoggingOut,
-  ] =
-    useState(
-      false
-    );
-
-  // ==========================================================
-  // LOAD PROFILE
-  // ==========================================================
-
-  useEffect(
-    () => {
-      loadProfile();
-    },
-    []
-  );
-
-  async function loadProfile() {
+  const loadSettings = useCallback(async () => {
     try {
-      const savedProfile =
+      setLoadError('');
+
+      const token =
+        await getAdminAccessToken();
+
+      const storedProfile =
         await getAdminProfile();
 
       if (
-        !savedProfile ||
-        savedProfile.role !==
-          'admin'
+        !token ||
+        storedProfile?.role !== 'admin'
       ) {
         await clearAdminSession();
 
-        router.replace(
-          '/'
-        );
+        router.replace('/');
 
         return;
       }
 
-      setProfile(
-        savedProfile
+      setProfile(storedProfile);
+
+      setRememberMe(
+        await getRememberAdmin()
       );
-    } catch (
-      error
-    ) {
+
+      const result =
+        await getAdminAccount(token);
+
+      setAccount(result.user);
+    } catch (error) {
       console.log(
-        'ADMIN SETTINGS ERROR:',
+        'ADMIN SETTINGS LOAD ERROR:',
         error
       );
 
-      await clearAdminSession();
-
-      router.replace(
-        '/'
+      setLoadError(
+        error instanceof Error
+          ? error.message
+          : 'Unable to load your account.'
       );
     } finally {
-      setLoading(
-        false
-      );
+      setLoading(false);
     }
-  }
+  }, []);
+
+  useFocusEffect(
+    useCallback(() => {
+      loadSettings();
+    }, [loadSettings])
+  );
 
   // ==========================================================
-  // ADMIN DISPLAY
+  // DISPLAY
   // ==========================================================
+
+  const source =
+    account ||
+    profile;
 
   const adminName =
     [
-      profile?.first_name,
-      profile?.middle_name,
-      profile?.last_name,
-      profile?.suffix,
+      source?.first_name,
+      source?.middle_name,
+      source?.last_name,
+      source?.suffix,
     ]
-      .filter(
-        Boolean
-      )
+      .filter(Boolean)
       .join(' ')
-      .replace(
-        /\s+/g,
-        ' '
-      )
+      .replace(/\s+/g, ' ')
       .trim() ||
-    profile?.email ||
+    source?.email ||
     'Administrator';
 
-  const adminInitial =
-    adminName
-      .charAt(
-        0
+  const adminInitials =
+    [
+      source?.first_name,
+      source?.last_name,
+    ]
+      .filter(Boolean)
+      .map(value =>
+        String(value)
+          .charAt(0)
+          .toUpperCase()
       )
-      .toUpperCase();
+      .join('') ||
+    'A';
 
   // ==========================================================
-  // LOGOUT
+  // MESSAGE MODAL
   // ==========================================================
 
-  function openLogout() {
-    if (
-      loggingOut
-    ) {
+  function closeActionModal() {
+    setActionModal(INITIAL_ACTION_MODAL);
+  }
+
+  function showMessage(
+    title: string,
+    message: string,
+    variant: ActionModalVariant = 'info',
+    onConfirm?: () => void
+  ) {
+    setActionModal({
+      visible: true,
+      title,
+      message,
+      variant,
+      confirmLabel: 'Continue',
+      showCancel: false,
+      onConfirm,
+    });
+  }
+
+  function handleActionModalConfirm() {
+    const action = actionModal.onConfirm;
+
+    closeActionModal();
+
+    if (action) {
+      void action();
+    }
+  }
+
+  // ==========================================================
+  // FORM MODALS
+  // ==========================================================
+
+  function openProfileForm() {
+    setFirstName(source?.first_name || '');
+    setMiddleName(source?.middle_name || '');
+    setLastName(source?.last_name || '');
+    setSuffix(source?.suffix || '');
+    setPhone(account?.phone || '');
+
+    setFormError('');
+    setFormModal('profile');
+  }
+
+  function openPasswordForm() {
+    setCurrentPassword('');
+    setNewPassword('');
+    setConfirmPassword('');
+
+    setFormError('');
+    setFormModal('password');
+  }
+
+  function openEmailForm() {
+    setEmailPassword('');
+    setNewEmail('');
+    setConfirmEmail('');
+
+    setFormError('');
+    setFormModal('email');
+  }
+
+  function closeFormModal() {
+    if (saving) {
       return;
     }
 
-    setLogoutVisible(
-      true
+    setFormModal(null);
+    setFormError('');
+  }
+
+  // Password/email changes revoke the session on the server,
+  // so the local session is cleared and the admin signs in again.
+  async function finishWithRelogin(
+    title: string,
+    message: string
+  ) {
+    await clearAdminSession();
+
+    setFormModal(null);
+
+    showMessage(
+      title,
+      message,
+      'success',
+      () => router.replace('/')
     );
   }
 
-  function cancelLogout() {
-    if (
-      loggingOut
-    ) {
+  async function getTokenOrRedirect() {
+    const token =
+      await getAdminAccessToken();
+
+    if (!token) {
+      await clearAdminSession();
+
+      router.replace('/');
+
+      return null;
+    }
+
+    return token;
+  }
+
+  // ==========================================================
+  // SAVE PROFILE
+  // ==========================================================
+
+  async function saveProfile() {
+    if (saving) {
       return;
     }
 
-    setLogoutVisible(
-      false
-    );
-  }
-
-  async function confirmLogout() {
     if (
-      loggingOut
+      !firstName.trim() ||
+      !lastName.trim()
     ) {
+      setFormError(
+        'First name and last name are required.'
+      );
+
       return;
     }
 
     try {
-      setLoggingOut(
-        true
-      );
+      setSaving(true);
+      setFormError('');
 
-      await clearAdminSession();
+      const token =
+        await getTokenOrRedirect();
 
-      setLogoutVisible(
-        false
-      );
+      if (!token) {
+        return;
+      }
 
-      router.replace(
-        '/'
+      const result =
+        await updateAdminAccount(token, {
+          first_name: firstName.trim(),
+          middle_name: middleName.trim() || null,
+          last_name: lastName.trim(),
+          suffix: suffix.trim() || null,
+          phone: phone.trim() || null,
+        });
+
+      setAccount(result.user);
+
+      // Keep the shared header in sync.
+      if (profile) {
+        const nextProfile: AdminProfile = {
+          ...profile,
+          first_name: result.user.first_name,
+          middle_name: result.user.middle_name,
+          last_name: result.user.last_name,
+          suffix: result.user.suffix,
+        };
+
+        await updateStoredAdminProfile(
+          nextProfile
+        );
+
+        setProfile(nextProfile);
+      }
+
+      setFormModal(null);
+
+      showMessage(
+        'Profile Updated',
+        'Your administrator profile has been saved.',
+        'success'
       );
-    } catch (
-      error
-    ) {
-      console.log(
-        'ADMIN LOGOUT ERROR:',
-        error
+    } catch (error) {
+      setFormError(
+        error instanceof Error
+          ? error.message
+          : 'Unable to update your profile.'
       );
     } finally {
-      setLoggingOut(
-        false
-      );
+      setSaving(false);
     }
   }
 
   // ==========================================================
-  // LOADING
+  // CHANGE PASSWORD
   // ==========================================================
 
-  if (
-    loading
-  ) {
-    return (
-      <View
-        style={
-          styles.loadingScreen
-        }
-      >
-        <ActivityIndicator
-          size="large"
-          color={
-            COLORS.redBright
-          }
-        />
-
-        <Text
-          style={[
-            styles.loadingText,
-
-            {
-              fontSize:
-                13 * fs,
-
-              marginTop:
-                14 * s,
-            },
-          ]}
-        >
-          Loading settings...
-        </Text>
-      </View>
+  const passwordRulesMet =
+    PASSWORD_RULES.every(rule =>
+      rule.test(newPassword)
     );
+
+  async function savePassword() {
+    if (saving) {
+      return;
+    }
+
+    if (
+      !currentPassword ||
+      !newPassword ||
+      !confirmPassword
+    ) {
+      setFormError(
+        'Please fill in all password fields.'
+      );
+
+      return;
+    }
+
+    if (!passwordRulesMet) {
+      setFormError(
+        'Your new password does not meet all requirements.'
+      );
+
+      return;
+    }
+
+    if (newPassword !== confirmPassword) {
+      setFormError(
+        'New password and confirm password do not match.'
+      );
+
+      return;
+    }
+
+    try {
+      setSaving(true);
+      setFormError('');
+
+      const token =
+        await getTokenOrRedirect();
+
+      if (!token) {
+        return;
+      }
+
+      const result =
+        await changeAdminPassword(token, {
+          current_password: currentPassword,
+          new_password: newPassword,
+          confirm_password: confirmPassword,
+        });
+
+      await finishWithRelogin(
+        'Password Changed',
+        result.message ||
+          'Password changed successfully. Please sign in again.'
+      );
+    } catch (error) {
+      setFormError(
+        error instanceof Error
+          ? error.message
+          : 'Unable to change your password.'
+      );
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  // ==========================================================
+  // CHANGE EMAIL
+  // ==========================================================
+
+  async function saveEmail() {
+    if (saving) {
+      return;
+    }
+
+    if (
+      !emailPassword ||
+      !newEmail.trim() ||
+      !confirmEmail.trim()
+    ) {
+      setFormError(
+        'Please fill in all fields.'
+      );
+
+      return;
+    }
+
+    if (
+      newEmail.trim().toLowerCase() !==
+      confirmEmail.trim().toLowerCase()
+    ) {
+      setFormError(
+        'New email and confirm email do not match.'
+      );
+
+      return;
+    }
+
+    try {
+      setSaving(true);
+      setFormError('');
+
+      const token =
+        await getTokenOrRedirect();
+
+      if (!token) {
+        return;
+      }
+
+      const result =
+        await changeAdminEmail(token, {
+          current_password: emailPassword,
+          new_email: newEmail,
+          confirm_email: confirmEmail,
+        });
+
+      await finishWithRelogin(
+        'Email Changed',
+        result.message ||
+          'Email address changed successfully. Please sign in again using your new email.'
+      );
+    } catch (error) {
+      setFormError(
+        error instanceof Error
+          ? error.message
+          : 'Unable to change your email address.'
+      );
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  // ==========================================================
+  // SIGN OUT
+  // ==========================================================
+
+  function openSignOut() {
+    setActionModal({
+      visible: true,
+      title: 'Sign Out',
+      message:
+        'End your administrator session on this device?',
+      variant: 'reject',
+      confirmLabel: 'Sign Out',
+      showCancel: true,
+      onConfirm: performSignOut,
+    });
+  }
+
+  async function performSignOut() {
+    if (signingOut) {
+      return;
+    }
+
+    try {
+      setSigningOut(true);
+
+      const token =
+        await getAdminAccessToken();
+
+      // Revoke the server session. If the server cannot be
+      // reached, still sign out locally.
+      if (token) {
+        try {
+          await logoutAdmin(token);
+        } catch (error) {
+          console.log(
+            'ADMIN SERVER LOGOUT ERROR:',
+            error
+          );
+        }
+      }
+    } finally {
+      await clearAdminSession();
+
+      setSigningOut(false);
+
+      router.replace('/');
+    }
   }
 
   // ==========================================================
@@ -513,31 +694,21 @@ export default function AdminSettingsScreen() {
   // ==========================================================
 
   return (
-    <View
-      style={
-        styles.outer
-      }
-    >
+    <View style={styles.outer}>
       <View
         style={[
           styles.ipadCanvas,
 
           {
-            width:
-              tablet.width,
-
-            height:
-              tablet.height,
+            width: tablet.width,
+            height: tablet.height,
           },
 
-          Platform.OS !==
-            'web' &&
+          Platform.OS !== 'web' &&
             styles.nativeCanvas,
         ]}
       >
-        <StatusBar
-          style="light"
-        />
+        <StatusBar style="light" />
 
         <LinearGradient
           colors={[
@@ -545,2628 +716,1027 @@ export default function AdminSettingsScreen() {
             '#050B19',
             '#030814',
           ]}
-          style={
-            styles.gradient
-          }
+          style={styles.gradient}
         >
-          <SafeAreaView
-            style={
-              styles.safeArea
-            }
-          >
-            {/* ==================================================
-                HEADER
-            ================================================== */}
-
+          <SafeAreaView style={styles.safeArea}>
             <AdminHeader
-              profile={
-                profile
-              }
-              scale={
-                s
-              }
-              fontScale={
-                fs
-              }
-              notificationCount={
-                0
-              }
+              profile={profile}
+              scale={s}
+              fontScale={fs}
             />
 
-            {/* ==================================================
-                CONTENT
-            ================================================== */}
-
-            <ScrollView
-              style={
-                styles.scroll
-              }
-              contentContainerStyle={[
-                styles.content,
-
-                {
-                  paddingHorizontal:
-                    48 * s,
-
-                  paddingTop:
-                    30 * s,
-
-                  paddingBottom:
-                    36 * s,
-                },
-              ]}
-              showsVerticalScrollIndicator={
-                false
-              }
-            >
-              {/* =================================================
-                  PAGE TITLE
-              ================================================= */}
-
-              <View
-                style={{
-                  marginBottom:
-                    24 * s,
-                }}
-              >
-                <Text
-                  style={[
-                    styles.pageTitle,
-
-                    {
-                      fontSize:
-                        30 * fs,
-
-                      lineHeight:
-                        38 * fs,
-                    },
-                  ]}
-                >
-                  Settings
-                </Text>
+            {loading ? (
+              <View style={styles.loadingArea}>
+                <ActivityIndicator
+                  size="large"
+                  color={COLORS.redBright}
+                />
 
                 <Text
                   style={[
-                    styles.pageSubtitle,
+                    styles.mutedText,
 
                     {
-                      fontSize:
-                        14 * fs,
-
-                      marginTop:
-                        4 * s,
+                      fontSize: 14 * fs,
+                      marginTop: 14 * s,
                     },
                   ]}
                 >
-                  Manage administrator account settings, security, notifications, and portal preferences.
+                  Loading settings...
                 </Text>
               </View>
-
-              {/* =================================================
-                  ADMINISTRATOR ACCOUNT
-              ================================================= */}
-
-              <SectionLabel
-                scale={
-                  s
-                }
-                fontScale={
-                  fs
-                }
-              >
-                ADMINISTRATOR ACCOUNT
-              </SectionLabel>
-
-              <View
-                style={[
-                  styles.profileCard,
+            ) : (
+              <ScrollView
+                style={styles.scroll}
+                contentContainerStyle={[
+                  styles.content,
 
                   {
-                    padding:
-                      22 * s,
-
-                    borderRadius:
-                      15 * s,
-
-                    marginBottom:
-                      24 * s,
+                    paddingHorizontal: 48 * s,
+                    paddingTop: 30 * s,
+                    paddingBottom: 40 * s,
                   },
                 ]}
+                showsVerticalScrollIndicator={false}
               >
-                <View
-                  style={
-                    styles.profileRow
-                  }
-                >
+                {/* TITLE */}
+
+                <FadeInView>
                   <View
-                    style={
-                      styles.profileLeft
-                    }
+                    style={{
+                      marginBottom: 22 * s,
+                    }}
                   >
-                    <View
+                    <Text
                       style={[
-                        styles.profileAvatar,
+                        styles.title,
 
                         {
-                          width:
-                            68 * s,
-
-                          height:
-                            68 * s,
-
-                          borderRadius:
-                            34 * s,
-
-                          marginRight:
-                            17 * s,
+                          fontSize: 30 * fs,
+                          lineHeight: 38 * fs,
                         },
                       ]}
                     >
-                      <Text
-                        style={[
-                          styles.profileAvatarText,
+                      Settings
+                    </Text>
 
-                          {
-                            fontSize:
-                              21 * fs,
-                          },
-                        ]}
-                      >
+                    <Text
+                      style={[
+                        styles.subtitle,
+
                         {
-                          adminInitial
-                        }
-                      </Text>
-                    </View>
-
-                    <View
-                      style={
-                        styles.profileBody
-                      }
+                          fontSize: 13.5 * fs,
+                          marginTop: 4 * s,
+                        },
+                      ]}
                     >
-                      <Text
-                        numberOfLines={
-                          1
-                        }
-                        style={[
-                          styles.profileName,
+                      Manage your administrator account, security, and session.
+                    </Text>
+                  </View>
+                </FadeInView>
 
-                          {
-                            fontSize:
-                              18 * fs,
-                          },
-                        ]}
-                      >
-                        {
-                          adminName
-                        }
-                      </Text>
+                {/* ==================================================
+                    PROFILE SUMMARY
+                ================================================== */}
 
-                      <Text
-                        numberOfLines={
-                          1
-                        }
-                        style={[
-                          styles.profileEmail,
+                <FadeInView delay={50}>
+                  <View
+                    style={[
+                      styles.profileCard,
 
-                          {
-                            fontSize:
-                              12.5 * fs,
-
-                            marginTop:
-                              3 * s,
-                          },
-                        ]}
-                      >
-                        {profile?.email ||
-                          'Administrator account'}
-                      </Text>
-
+                      {
+                        padding: 24 * s,
+                        borderRadius: 16 * s,
+                        marginBottom: 20 * s,
+                      },
+                    ]}
+                  >
+                    <View style={styles.profileMain}>
                       <View
                         style={[
-                          styles.profileBadges,
+                          styles.avatar,
 
                           {
-                            gap:
-                              8 * s,
-
-                            marginTop:
-                              9 * s,
+                            width: 66 * s,
+                            height: 66 * s,
+                            borderRadius: 33 * s,
+                            marginRight: 17 * s,
                           },
                         ]}
                       >
-                        <View
+                        <Text
                           style={[
-                            styles.adminBadge,
+                            styles.avatarText,
 
                             {
-                              paddingHorizontal:
-                                10 * s,
-
-                              paddingVertical:
-                                5 * s,
-
-                              borderRadius:
-                                9 * s,
+                              fontSize: 19 * fs,
                             },
                           ]}
                         >
-                          <MaterialIcons
-                            name="admin-panel-settings"
-                            size={
-                              13 * s
-                            }
-                            color={
-                              COLORS.redBright
-                            }
-                          />
+                          {adminInitials}
+                        </Text>
+                      </View>
 
-                          <Text
-                            style={[
-                              styles.adminBadgeText,
-
-                              {
-                                fontSize:
-                                  10.5 * fs,
-                              },
-                            ]}
-                          >
-                            ADMINISTRATOR
-                          </Text>
-                        </View>
-
-                        <View
+                      <View style={styles.flexFill}>
+                        <Text
+                          numberOfLines={1}
                           style={[
-                            styles.activeBadge,
+                            styles.profileName,
 
                             {
-                              paddingHorizontal:
-                                10 * s,
-
-                              paddingVertical:
-                                5 * s,
-
-                              borderRadius:
-                                9 * s,
+                              fontSize: 23 * fs,
                             },
                           ]}
                         >
-                          <View
-                            style={[
-                              styles.activeDot,
+                          {adminName}
+                        </Text>
 
-                              {
-                                width:
-                                  6 * s,
+                        <Text
+                          numberOfLines={1}
+                          style={[
+                            styles.profileEmail,
 
-                                height:
-                                  6 * s,
+                            {
+                              fontSize: 13 * fs,
+                              marginTop: 3 * s,
+                            },
+                          ]}
+                        >
+                          {source?.email ||
+                            'Email unavailable'}
+                        </Text>
 
-                                borderRadius:
-                                  3 * s,
-                              },
-                            ]}
-                          />
-
+                        {account?.created_at ? (
                           <Text
                             style={[
-                              styles.activeBadgeText,
+                              styles.mutedText,
 
                               {
-                                fontSize:
-                                  10.5 * fs,
+                                fontSize: 12 * fs,
+                                marginTop: 6 * s,
                               },
                             ]}
                           >
-                            ACTIVE SESSION
+                            Account created{' '}
+                            {formatDateTime(
+                              account.created_at
+                            )}
                           </Text>
-                        </View>
+                        ) : null}
                       </View>
                     </View>
-                  </View>
 
-                  <Pressable
-                    onPress={() =>
-                      setProfileModalVisible(
-                        true
-                      )
-                    }
-                    style={({ pressed }) => [
-                      styles.profileButton,
+                    <View
+                      style={[
+                        styles.row,
+
+                        {
+                          gap: 10 * s,
+                          marginLeft: 16 * s,
+                        },
+                      ]}
+                    >
+                      <View
+                        style={[
+                          styles.roleBadge,
+
+                          {
+                            height: 38 * s,
+                            borderRadius: 8 * s,
+                            paddingHorizontal: 13 * s,
+                            gap: 6 * s,
+                          },
+                        ]}
+                      >
+                        <MaterialIcons
+                          name="admin-panel-settings"
+                          size={17 * s}
+                          color={COLORS.redBright}
+                        />
+
+                        <Text
+                          style={[
+                            styles.roleBadgeText,
+
+                            {
+                              fontSize: 12 * fs,
+                            },
+                          ]}
+                        >
+                          Administrator
+                        </Text>
+                      </View>
+
+                      {account ? (
+                        <View
+                          style={[
+                            styles.roleBadge,
+                            account.is_active === false
+                              ? styles.inactiveBadge
+                              : styles.activeBadge,
+
+                            {
+                              height: 38 * s,
+                              borderRadius: 8 * s,
+                              paddingHorizontal: 13 * s,
+                            },
+                          ]}
+                        >
+                          <Text
+                            style={[
+                              styles.roleBadgeText,
+
+                              {
+                                fontSize: 12 * fs,
+                                color:
+                                  account.is_active === false
+                                    ? COLORS.redBright
+                                    : COLORS.green,
+                              },
+                            ]}
+                          >
+                            {account.is_active === false
+                              ? 'Inactive'
+                              : 'Active'}
+                          </Text>
+                        </View>
+                      ) : null}
+                    </View>
+                  </View>
+                </FadeInView>
+
+                {/* LOAD ERROR */}
+
+                {loadError ? (
+                  <View
+                    style={[
+                      styles.errorBanner,
 
                       {
-                        height:
-                          42 * s,
-
-                        paddingHorizontal:
-                          15 * s,
-
-                        borderRadius:
-                          9 * s,
-
-                        gap:
-                          7 * s,
+                        padding: 14 * s,
+                        borderRadius: 12 * s,
+                        marginBottom: 18 * s,
+                        gap: 10 * s,
                       },
-
-                      pressed &&
-                        styles.pressed,
                     ]}
                   >
                     <MaterialIcons
-                      name="person-outline"
-                      size={
-                        18 * s
-                      }
-                      color={
-                        COLORS.white
-                      }
+                      name="error-outline"
+                      size={21 * s}
+                      color={COLORS.redBright}
                     />
 
                     <Text
                       style={[
-                        styles.profileButtonText,
+                        styles.errorBannerText,
 
                         {
-                          fontSize:
-                            12 * fs,
+                          fontSize: 12.5 * fs,
                         },
                       ]}
                     >
-                      View Profile
+                      Unable to load your account from the server: {loadError}
                     </Text>
-                  </Pressable>
-                </View>
-              </View>
 
-              {/* =================================================
-                  ACCOUNT + SECURITY
-              ================================================= */}
+                    <Pressable
+                      onPress={loadSettings}
+                      style={({ pressed }) => [
+                        styles.smallButton,
 
-              <View
-                style={[
-                  styles.twoColumns,
+                        {
+                          height: 34 * s,
+                          paddingHorizontal: 14 * s,
+                          borderRadius: 8 * s,
+                        },
 
-                  {
-                    gap:
-                      20 * s,
+                        pressed &&
+                          styles.buttonPressed,
+                      ]}
+                    >
+                      <Text
+                        style={[
+                          styles.smallButtonText,
 
-                    marginBottom:
-                      24 * s,
-                  },
-                ]}
-              >
-                {/* ===============================================
-                    ACCOUNT & PROFILE
-                =============================================== */}
+                          {
+                            fontSize: 12 * fs,
+                          },
+                        ]}
+                      >
+                        Retry
+                      </Text>
+                    </Pressable>
+                  </View>
+                ) : null}
+
+                {/* ==================================================
+                    MAIN GRID
+                ================================================== */}
 
                 <View
-                  style={
-                    styles.column
-                  }
+                  style={[
+                    styles.mainGrid,
+
+                    {
+                      gap: 18 * s,
+                    },
+                  ]}
                 >
-                  <SectionLabel
-                    scale={
-                      s
-                    }
-                    fontScale={
-                      fs
-                    }
+                  {/* LEFT */}
+
+                  <FadeInView
+                    delay={100}
+                    style={styles.leftColumn}
                   >
-                    ACCOUNT & PROFILE
-                  </SectionLabel>
-
-                  <View
-                    style={[
-                      styles.settingsCard,
-
-                      {
-                        borderRadius:
-                          14 * s,
-
-                        paddingHorizontal:
-                          20 * s,
-                      },
-                    ]}
-                  >
-                    <SettingsRow
-                      scale={
-                        s
-                      }
-                      fontScale={
-                        fs
-                      }
+                    <SectionCard
+                      scale={s}
+                      fontScale={fs}
                       icon="person-outline"
                       title="Administrator Profile"
-                      description="View the administrator name, email address, and assigned role."
-                      onPress={() =>
-                        setProfileModalVisible(
-                          true
-                        )
+                      action={
+                        account ? (
+                          <SmallAction
+                            label="Edit Profile"
+                            icon="edit"
+                            scale={s}
+                            fontScale={fs}
+                            onPress={openProfileForm}
+                          />
+                        ) : null
                       }
-                    />
+                    >
+                      {account ? (
+                        <InfoGrid>
+                          <InfoItem
+                            fontScale={fs}
+                            label="First Name"
+                            value={account.first_name || '—'}
+                          />
 
-                    <Divider />
+                          <InfoItem
+                            fontScale={fs}
+                            label="Last Name"
+                            value={account.last_name || '—'}
+                          />
 
-                    <SettingsRow
-                      scale={
-                        s
-                      }
-                      fontScale={
-                        fs
-                      }
+                          <InfoItem
+                            fontScale={fs}
+                            label="Middle Name"
+                            value={account.middle_name || '—'}
+                          />
+
+                          <InfoItem
+                            fontScale={fs}
+                            label="Suffix"
+                            value={account.suffix || '—'}
+                          />
+
+                          <InfoItem
+                            fontScale={fs}
+                            label="Email Address"
+                            value={account.email || '—'}
+                          />
+
+                          <InfoItem
+                            fontScale={fs}
+                            label="Phone Number"
+                            value={account.phone || '—'}
+                          />
+
+                          <InfoItem
+                            fontScale={fs}
+                            label="Role"
+                            value="Administrator"
+                            highlight
+                          />
+
+                          <InfoItem
+                            fontScale={fs}
+                            label="Last Updated"
+                            value={formatDateTime(
+                              account.updated_at
+                            )}
+                          />
+                        </InfoGrid>
+                      ) : (
+                        <Text
+                          style={[
+                            styles.mutedText,
+
+                            {
+                              fontSize: 13 * fs,
+                            },
+                          ]}
+                        >
+                          Profile details are unavailable until your account loads.
+                        </Text>
+                      )}
+                    </SectionCard>
+
+                    <SectionCard
+                      scale={s}
+                      fontScale={fs}
                       icon="lock-outline"
-                      title="Change Password"
-                      description="Update the password used to sign in to the Admin Portal."
-                      status="Setup required"
-                      onPress={() =>
-                        setPasswordModalVisible(
-                          true
-                        )
-                      }
-                    />
-
-                    <Divider />
-
-                    <SettingsRow
-                      scale={
-                        s
-                      }
-                      fontScale={
-                        fs
-                      }
-                      icon="badge"
-                      title="Account Role"
-                      description="Administrator permissions and account access level."
-                      value="Admin"
-                    />
-                  </View>
-                </View>
-
-                {/* ===============================================
-                    SECURITY & SESSIONS
-                =============================================== */}
-
-                <View
-                  style={
-                    styles.column
-                  }
-                >
-                  <SectionLabel
-                    scale={
-                      s
-                    }
-                    fontScale={
-                      fs
-                    }
-                  >
-                    SECURITY & SESSIONS
-                  </SectionLabel>
-
-                  <View
-                    style={[
-                      styles.settingsCard,
-
-                      {
-                        borderRadius:
-                          14 * s,
-
-                        paddingHorizontal:
-                          20 * s,
-                      },
-                    ]}
-                  >
-                    <SettingsRow
-                      scale={
-                        s
-                      }
-                      fontScale={
-                        fs
-                      }
-                      icon="security"
                       title="Account Security"
-                      description="Review administrator security recommendations and access information."
-                      onPress={() =>
-                        setSecurityModalVisible(
-                          true
-                        )
-                      }
-                    />
+                    >
+                      <SettingsRow
+                        scale={s}
+                        fontScale={fs}
+                        icon="password"
+                        title="Change Password"
+                        description="Requires your current password. You will be signed out and asked to sign in again."
+                        onPress={openPasswordForm}
+                      />
 
-                    <Divider />
+                      <SettingsRow
+                        scale={s}
+                        fontScale={fs}
+                        icon="alternate-email"
+                        title="Change Email Address"
+                        description="Update the email used to sign in to the Admin Portal. You will be signed out afterwards."
+                        onPress={openEmailForm}
+                        last
+                      />
+                    </SectionCard>
+                  </FadeInView>
 
-                    <SettingsRow
-                      scale={
-                        s
-                      }
-                      fontScale={
-                        fs
-                      }
+                  {/* RIGHT */}
+
+                  <FadeInView
+                    delay={150}
+                    style={styles.rightColumn}
+                  >
+                    <SectionCard
+                      scale={s}
+                      fontScale={fs}
                       icon="devices"
-                      title="Current Session"
-                      description="View information about the currently authenticated admin session."
-                      value="Active"
-                      valueColor={
-                        COLORS.green
-                      }
-                      onPress={() =>
-                        setSessionModalVisible(
-                          true
-                        )
-                      }
-                    />
-
-                    <Divider />
-
-                    <SettingsRow
-                      scale={
-                        s
-                      }
-                      fontScale={
-                        fs
-                      }
-                      icon="history"
-                      title="Audit & Log Trails"
-                      description="Review administrator actions and recorded system activity."
-                      onPress={() =>
-                        router.push(
-                          '/activity-logs' as any
-                        )
-                      }
-                    />
-                  </View>
-                </View>
-              </View>
-
-              {/* =================================================
-                  NOTIFICATIONS
-              ================================================= */}
-
-              <SectionLabel
-                scale={
-                  s
-                }
-                fontScale={
-                  fs
-                }
-              >
-                NOTIFICATIONS
-              </SectionLabel>
-
-              <View
-                style={[
-                  styles.notificationCard,
-
-                  {
-                    padding:
-                      20 * s,
-
-                    borderRadius:
-                      14 * s,
-
-                    marginBottom:
-                      24 * s,
-                  },
-                ]}
-              >
-                <View
-                  style={[
-                    styles.sectionIntro,
-
-                    {
-                      marginBottom:
-                        14 * s,
-                    },
-                  ]}
-                >
-                  <View
-                    style={[
-                      styles.sectionIntroIcon,
-
-                      {
-                        width:
-                          38 * s,
-
-                        height:
-                          38 * s,
-
-                        borderRadius:
-                          10 * s,
-
-                        marginRight:
-                          11 * s,
-                      },
-                    ]}
-                  >
-                    <MaterialIcons
-                      name="notifications-none"
-                      size={
-                        20 * s
-                      }
-                      color={
-                        COLORS.redBright
-                      }
-                    />
-                  </View>
-
-                  <View
-                    style={
-                      styles.sectionIntroText
-                    }
-                  >
-                    <Text
-                      style={[
-                        styles.sectionIntroTitle,
-
-                        {
-                          fontSize:
-                            14 * fs,
-                        },
-                      ]}
+                      title="This Device"
                     >
-                      Admin Notification Preferences
-                    </Text>
+                      <DeviceRow
+                        scale={s}
+                        fontScale={fs}
+                        label="Signed in as"
+                        value={source?.email || '—'}
+                      />
 
-                    <Text
-                      style={[
-                        styles.sectionIntroDescription,
+                      <DeviceRow
+                        scale={s}
+                        fontScale={fs}
+                        label="Remember me"
+                        value={
+                          rememberMe === null
+                            ? '—'
+                            : rememberMe
+                              ? 'On'
+                              : 'Off'
+                        }
+                      />
 
-                        {
-                          fontSize:
-                            11.5 * fs,
+                      <DeviceRow
+                        scale={s}
+                        fontScale={fs}
+                        label="Platform"
+                        value={formatPlatform(Platform.OS)}
+                      />
 
-                          lineHeight:
-                            17 * fs,
+                      <DeviceRow
+                        scale={s}
+                        fontScale={fs}
+                        label="API server"
+                        value={API_URL}
+                        last
+                      />
+                    </SectionCard>
 
-                          marginTop:
-                            2 * s,
-                        },
-                      ]}
+                    <SectionCard
+                      scale={s}
+                      fontScale={fs}
+                      icon="logout"
+                      title="Sign Out"
                     >
-                      Choose which important activities should be highlighted to administrators.
-                    </Text>
-                  </View>
+                      <Text
+                        style={[
+                          styles.mutedText,
+
+                          {
+                            fontSize: 13 * fs,
+                            lineHeight: 20 * fs,
+                          },
+                        ]}
+                      >
+                        Ends your administrator session on the server and removes it from this device.
+                      </Text>
+
+                      <Pressable
+                        disabled={signingOut}
+                        onPress={openSignOut}
+                        style={({ pressed }) => [
+                          styles.signOutButton,
+
+                          {
+                            height: 48 * s,
+                            borderRadius: 10 * s,
+                            marginTop: 16 * s,
+                            gap: 7 * s,
+                          },
+
+                          signingOut &&
+                            styles.disabledButton,
+
+                          pressed &&
+                            !signingOut &&
+                            styles.buttonPressed,
+                        ]}
+                      >
+                        {signingOut ? (
+                          <ActivityIndicator
+                            color={COLORS.redBright}
+                          />
+                        ) : (
+                          <>
+                            <MaterialIcons
+                              name="logout"
+                              size={20 * s}
+                              color={COLORS.redBright}
+                            />
+
+                            <Text
+                              style={[
+                                styles.signOutText,
+
+                                {
+                                  fontSize: 13 * fs,
+                                },
+                              ]}
+                            >
+                              Sign Out
+                            </Text>
+                          </>
+                        )}
+                      </Pressable>
+                    </SectionCard>
+                  </FadeInView>
                 </View>
+              </ScrollView>
+            )}
 
-                <View
-                  style={[
-                    styles.preferenceGrid,
-
-                    {
-                      gap:
-                        12 * s,
-                    },
-                  ]}
-                >
-                  <PreferenceTile
-                    scale={
-                      s
-                    }
-                    fontScale={
-                      fs
-                    }
-                    icon="assignment"
-                    title="Donor Applications"
-                    description="New applications and application status activity."
-                    value={
-                      donorApplicationAlerts
-                    }
-                    onChange={
-                      setDonorApplicationAlerts
-                    }
-                  />
-
-                  <PreferenceTile
-                    scale={
-                      s
-                    }
-                    fontScale={
-                      fs
-                    }
-                    icon="bloodtype"
-                    title="Blood Requests"
-                    description="New requests and important request updates."
-                    value={
-                      bloodRequestAlerts
-                    }
-                    onChange={
-                      setBloodRequestAlerts
-                    }
-                  />
-
-                  <PreferenceTile
-                    scale={
-                      s
-                    }
-                    fontScale={
-                      fs
-                    }
-                    icon="manage-accounts"
-                    title="User Account Activity"
-                    description="Important changes involving registered user accounts."
-                    value={
-                      userAccountAlerts
-                    }
-                    onChange={
-                      setUserAccountAlerts
-                    }
-                  />
-
-                  <PreferenceTile
-                    scale={
-                      s
-                    }
-                    fontScale={
-                      fs
-                    }
-                    icon="verified-user"
-                    title="Security Alerts"
-                    description="Security-related and administrator account notices."
-                    value={
-                      securityAlerts
-                    }
-                    onChange={
-                      setSecurityAlerts
-                    }
-                  />
-                </View>
-
-                <View
-                  style={[
-                    styles.preferenceNotice,
-
-                    {
-                      padding:
-                        11 * s,
-
-                      borderRadius:
-                        9 * s,
-
-                      marginTop:
-                        14 * s,
-                    },
-                  ]}
-                >
-                  <MaterialIcons
-                    name="info-outline"
-                    size={
-                      17 * s
-                    }
-                    color={
-                      COLORS.blue
-                    }
-                  />
-
-                  <Text
-                    style={[
-                      styles.preferenceNoticeText,
-
-                      {
-                        fontSize:
-                          10.5 * fs,
-
-                        lineHeight:
-                          16 * fs,
-                      },
-                    ]}
-                  >
-                    These switches currently control the Admin Portal interface only. Server-saved notification preferences can be connected later.
-                  </Text>
-                </View>
-              </View>
-
-              {/* =================================================
-                  SYSTEM + DATA
-              ================================================= */}
-
-              <View
-                style={[
-                  styles.twoColumns,
-
-                  {
-                    gap:
-                      20 * s,
-
-                    marginBottom:
-                      24 * s,
-                  },
-                ]}
-              >
-                {/* ===============================================
-                    SYSTEM PREFERENCES
-                =============================================== */}
-
-                <View
-                  style={
-                    styles.column
-                  }
-                >
-                  <SectionLabel
-                    scale={
-                      s
-                    }
-                    fontScale={
-                      fs
-                    }
-                  >
-                    SYSTEM PREFERENCES
-                  </SectionLabel>
-
-                  <View
-                    style={[
-                      styles.settingsCard,
-
-                      {
-                        borderRadius:
-                          14 * s,
-
-                        paddingHorizontal:
-                          20 * s,
-                      },
-                    ]}
-                  >
-                    <SettingsRow
-                      scale={
-                        s
-                      }
-                      fontScale={
-                        fs
-                      }
-                      icon="dark-mode"
-                      title="Appearance"
-                      description="Visual theme used by the Hemo-Hero Admin Portal."
-                      value="Dark"
-                    />
-
-                    <Divider />
-
-                    <SettingsRow
-                      scale={
-                        s
-                      }
-                      fontScale={
-                        fs
-                      }
-                      icon="dashboard"
-                      title="Default Landing Page"
-                      description="The first page shown after administrator sign-in."
-                      value="Dashboard"
-                    />
-
-                    <Divider />
-
-                    <SettingsRow
-                      scale={
-                        s
-                      }
-                      fontScale={
-                        fs
-                      }
-                      icon="format-list-numbered"
-                      title="Records Per Page"
-                      description="Default number of records displayed in management tables."
-                      value="12"
-                    />
-
-                    <Divider />
-
-                    <SettingsRow
-                      scale={
-                        s
-                      }
-                      fontScale={
-                        fs
-                      }
-                      icon="schedule"
-                      title="Date & Time"
-                      description="Date and time values follow the device and system locale."
-                      value="System"
-                    />
-                  </View>
-                </View>
-
-                {/* ===============================================
-                    DATA & RECORDS
-                =============================================== */}
-
-                <View
-                  style={
-                    styles.column
-                  }
-                >
-                  <SectionLabel
-                    scale={
-                      s
-                    }
-                    fontScale={
-                      fs
-                    }
-                  >
-                    DATA & RECORDS
-                  </SectionLabel>
-
-                  <View
-                    style={[
-                      styles.settingsCard,
-
-                      {
-                        borderRadius:
-                          14 * s,
-
-                        paddingHorizontal:
-                          20 * s,
-                      },
-                    ]}
-                  >
-                    <SettingsRow
-                      scale={
-                        s
-                      }
-                      fontScale={
-                        fs
-                      }
-                      icon="history"
-                      title="System Log Trails"
-                      description="View activity records created by administrator and system actions."
-                      onPress={() =>
-                        router.push(
-                          '/activity-logs' as any
-                        )
-                      }
-                    />
-
-                    <Divider />
-
-                    <SettingsRow
-                      scale={
-                        s
-                      }
-                      fontScale={
-                        fs
-                      }
-                      icon="file-download"
-                      title="Report Exports"
-                      description="Export administrative reports and system records."
-                      status="Not configured"
-                    />
-
-                    <Divider />
-
-                    <SettingsRow
-                      scale={
-                        s
-                      }
-                      fontScale={
-                        fs
-                      }
-                      icon="storage"
-                      title="Data Management"
-                      description="Application data is managed by the Hemo-Hero backend and database."
-                      value="System"
-                    />
-                  </View>
-                </View>
-              </View>
-
-              {/* =================================================
-                  ABOUT
-              ================================================= */}
-
-              <SectionLabel
-                scale={
-                  s
-                }
-                fontScale={
-                  fs
-                }
-              >
-                ABOUT
-              </SectionLabel>
-
-              <View
-                style={[
-                  styles.aboutCard,
-
-                  {
-                    padding:
-                      20 * s,
-
-                    borderRadius:
-                      14 * s,
-
-                    marginBottom:
-                      24 * s,
-                  },
-                ]}
-              >
-                <View
-                  style={
-                    styles.aboutLeft
-                  }
-                >
-                  <View
-                    style={[
-                      styles.aboutIcon,
-
-                      {
-                        width:
-                          46 * s,
-
-                        height:
-                          46 * s,
-
-                        borderRadius:
-                          12 * s,
-
-                        marginRight:
-                          14 * s,
-                      },
-                    ]}
-                  >
-                    <MaterialIcons
-                      name="bloodtype"
-                      size={
-                        24 * s
-                      }
-                      color={
-                        COLORS.redBright
-                      }
-                    />
-                  </View>
-
-                  <View
-                    style={
-                      styles.aboutText
-                    }
-                  >
-                    <Text
-                      style={[
-                        styles.aboutTitle,
-
-                        {
-                          fontSize:
-                            14 * fs,
-                        },
-                      ]}
-                    >
-                      Hemo-Hero Admin Portal
-                    </Text>
-
-                    <Text
-                      style={[
-                        styles.aboutDescription,
-
-                        {
-                          fontSize:
-                            11.5 * fs,
-
-                          lineHeight:
-                            17 * fs,
-
-                          marginTop:
-                            3 * s,
-                        },
-                      ]}
-                    >
-                      Administrative interface for managing users, donor applications, blood requests, and system records.
-                    </Text>
-                  </View>
-                </View>
-
-                <Pressable
-                  onPress={() =>
-                    setAboutModalVisible(
-                      true
-                    )
-                  }
-                  style={({ pressed }) => [
-                    styles.aboutButton,
-
-                    {
-                      height:
-                        40 * s,
-
-                      paddingHorizontal:
-                        14 * s,
-
-                      borderRadius:
-                        9 * s,
-                    },
-
-                    pressed &&
-                      styles.pressed,
-                  ]}
-                >
-                  <Text
-                    style={[
-                      styles.aboutButtonText,
-
-                      {
-                        fontSize:
-                          11.5 * fs,
-                      },
-                    ]}
-                  >
-                    Portal Info
-                  </Text>
-
-                  <MaterialIcons
-                    name="chevron-right"
-                    size={
-                      18 * s
-                    }
-                    color={
-                      COLORS.white
-                    }
-                  />
-                </Pressable>
-              </View>
-
-              {/* =================================================
-                  ACCOUNT ACTIONS
-              ================================================= */}
-
-              <SectionLabel
-                scale={
-                  s
-                }
-                fontScale={
-                  fs
-                }
-              >
-                ACCOUNT ACTIONS
-              </SectionLabel>
-
-              <View
-                style={[
-                  styles.signOutCard,
-
-                  {
-                    minHeight:
-                      100 * s,
-
-                    paddingHorizontal:
-                      22 * s,
-
-                    borderRadius:
-                      14 * s,
-                  },
-                ]}
-              >
-                <View
-                  style={
-                    styles.signOutLeft
-                  }
-                >
-                  <View
-                    style={[
-                      styles.signOutIcon,
-
-                      {
-                        width:
-                          44 * s,
-
-                        height:
-                          44 * s,
-
-                        borderRadius:
-                          11 * s,
-
-                        marginRight:
-                          14 * s,
-                      },
-                    ]}
-                  >
-                    <MaterialIcons
-                      name="logout"
-                      size={
-                        22 * s
-                      }
-                      color={
-                        COLORS.redBright
-                      }
-                    />
-                  </View>
-
-                  <View
-                    style={
-                      styles.signOutText
-                    }
-                  >
-                    <Text
-                      style={[
-                        styles.signOutTitle,
-
-                        {
-                          fontSize:
-                            15 * fs,
-                        },
-                      ]}
-                    >
-                      Sign Out
-                    </Text>
-
-                    <Text
-                      style={[
-                        styles.signOutDescription,
-
-                        {
-                          fontSize:
-                            12 * fs,
-
-                          marginTop:
-                            3 * s,
-                        },
-                      ]}
-                    >
-                      End the current administrator session on this device.
-                    </Text>
-                  </View>
-                </View>
-
-                <Pressable
-                  onPress={
-                    openLogout
-                  }
-                  style={({ pressed }) => [
-                    styles.signOutButton,
-
-                    {
-                      height:
-                        44 * s,
-
-                      minWidth:
-                        128 * s,
-
-                      paddingHorizontal:
-                        18 * s,
-
-                      borderRadius:
-                        10 * s,
-                    },
-
-                    pressed &&
-                      styles.pressed,
-                  ]}
-                >
-                  <Text
-                    style={[
-                      styles.signOutButtonText,
-
-                      {
-                        fontSize:
-                          12.5 * fs,
-                      },
-                    ]}
-                  >
-                    Sign Out
-                  </Text>
-                </Pressable>
-              </View>
-            </ScrollView>
-
-            <AdminBottomNav
-              activeTab="settings"
-            />
+            <AdminBottomNav activeTab="settings" />
           </SafeAreaView>
         </LinearGradient>
-
-        {/* ======================================================
-            PROFILE MODAL
-        ====================================================== */}
-
-        <Modal
-          visible={
-            profileModalVisible
-          }
-          transparent
-          animationType="fade"
-          statusBarTranslucent
-          onRequestClose={() =>
-            setProfileModalVisible(
-              false
-            )
-          }
-        >
-          <View
-            style={
-              styles.modalOverlay
-            }
-          >
-            <Pressable
-              style={
-                StyleSheet.absoluteFillObject
-              }
-              onPress={() =>
-                setProfileModalVisible(
-                  false
-                )
-              }
-            />
-
-            <View
-              style={[
-                styles.modalCard,
-
-                {
-                  width:
-                    500 * s,
-
-                  maxWidth:
-                    '90%',
-
-                  padding:
-                    28 * s,
-
-                  borderRadius:
-                    20 * s,
-                },
-              ]}
-            >
-              <ModalIcon
-                scale={
-                  s
-                }
-                icon="person-outline"
-                color={
-                  COLORS.redBright
-                }
-              />
-
-              <Text
-                style={[
-                  styles.modalTitle,
-
-                  {
-                    fontSize:
-                      21 * fs,
-
-                    marginTop:
-                      15 * s,
-                  },
-                ]}
-              >
-                Administrator Profile
-              </Text>
-
-              <Text
-                style={[
-                  styles.modalSubtitle,
-
-                  {
-                    fontSize:
-                      12.5 * fs,
-
-                    lineHeight:
-                      19 * fs,
-
-                    marginTop:
-                      5 * s,
-
-                    marginBottom:
-                      18 * s,
-                  },
-                ]}
-              >
-                Account information associated with the currently signed-in administrator.
-              </Text>
-
-              <View
-                style={[
-                  styles.infoCard,
-
-                  {
-                    borderRadius:
-                      12 * s,
-
-                    paddingHorizontal:
-                      15 * s,
-                  },
-                ]}
-              >
-                <InfoRow
-                  scale={
-                    s
-                  }
-                  fontScale={
-                    fs
-                  }
-                  label="Name"
-                  value={
-                    adminName
-                  }
-                />
-
-                <InfoRow
-                  scale={
-                    s
-                  }
-                  fontScale={
-                    fs
-                  }
-                  label="Email"
-                  value={
-                    profile?.email ||
-                    'Unavailable'
-                  }
-                />
-
-                <InfoRow
-                  scale={
-                    s
-                  }
-                  fontScale={
-                    fs
-                  }
-                  label="Role"
-                  value="Administrator"
-                />
-
-                <InfoRow
-                  scale={
-                    s
-                  }
-                  fontScale={
-                    fs
-                  }
-                  label="Account Status"
-                  value="Active"
-                  last
-                />
-              </View>
-
-              <Pressable
-                onPress={() =>
-                  setProfileModalVisible(
-                    false
-                  )
-                }
-                style={({ pressed }) => [
-                  styles.primaryModalButton,
-
-                  {
-                    height:
-                      48 * s,
-
-                    borderRadius:
-                      10 * s,
-
-                    marginTop:
-                      20 * s,
-                  },
-
-                  pressed &&
-                    styles.pressed,
-                ]}
-              >
-                <Text
-                  style={[
-                    styles.primaryModalButtonText,
-
-                    {
-                      fontSize:
-                        13 * fs,
-                    },
-                  ]}
-                >
-                  Close
-                </Text>
-              </Pressable>
-            </View>
-          </View>
-        </Modal>
-
-        {/* ======================================================
-            CHANGE PASSWORD MODAL
-        ====================================================== */}
-
-        <Modal
-          visible={
-            passwordModalVisible
-          }
-          transparent
-          animationType="fade"
-          statusBarTranslucent
-          onRequestClose={() =>
-            setPasswordModalVisible(
-              false
-            )
-          }
-        >
-          <View
-            style={
-              styles.modalOverlay
-            }
-          >
-            <Pressable
-              style={
-                StyleSheet.absoluteFillObject
-              }
-              onPress={() =>
-                setPasswordModalVisible(
-                  false
-                )
-              }
-            />
-
-            <View
-              style={[
-                styles.modalCard,
-
-                {
-                  width:
-                    470 * s,
-
-                  maxWidth:
-                    '90%',
-
-                  padding:
-                    28 * s,
-
-                  borderRadius:
-                    20 * s,
-                },
-              ]}
-            >
-              <ModalIcon
-                scale={
-                  s
-                }
-                icon="lock-outline"
-                color={
-                  COLORS.orange
-                }
-              />
-
-              <Text
-                style={[
-                  styles.modalTitle,
-
-                  {
-                    fontSize:
-                      21 * fs,
-
-                    marginTop:
-                      15 * s,
-                  },
-                ]}
-              >
-                Change Password
-              </Text>
-
-              <Text
-                style={[
-                  styles.modalSubtitle,
-
-                  {
-                    fontSize:
-                      12.5 * fs,
-
-                    lineHeight:
-                      20 * fs,
-
-                    marginTop:
-                      6 * s,
-                  },
-                ]}
-              >
-                Password changes are not yet connected to an administrator password-update endpoint.
-              </Text>
-
-              <View
-                style={[
-                  styles.warningBox,
-
-                  {
-                    padding:
-                      12 * s,
-
-                    borderRadius:
-                      10 * s,
-
-                    marginTop:
-                      18 * s,
-                  },
-                ]}
-              >
-                <MaterialIcons
-                  name="info-outline"
-                  size={
-                    18 * s
-                  }
-                  color={
-                    COLORS.orange
-                  }
-                />
-
-                <Text
-                  style={[
-                    styles.warningText,
-
-                    {
-                      fontSize:
-                        11.5 * fs,
-
-                      lineHeight:
-                        18 * fs,
-                    },
-                  ]}
-                >
-                  This setting is shown because password management is normally part of an admin portal. It can be activated once the backend endpoint is added.
-                </Text>
-              </View>
-
-              <Pressable
-                onPress={() =>
-                  setPasswordModalVisible(
-                    false
-                  )
-                }
-                style={({ pressed }) => [
-                  styles.primaryModalButton,
-
-                  {
-                    height:
-                      48 * s,
-
-                    borderRadius:
-                      10 * s,
-
-                    marginTop:
-                      20 * s,
-                  },
-
-                  pressed &&
-                    styles.pressed,
-                ]}
-              >
-                <Text
-                  style={[
-                    styles.primaryModalButtonText,
-
-                    {
-                      fontSize:
-                        13 * fs,
-                    },
-                  ]}
-                >
-                  Close
-                </Text>
-              </Pressable>
-            </View>
-          </View>
-        </Modal>
-
-        {/* ======================================================
-            SECURITY MODAL
-        ====================================================== */}
-
-        <Modal
-          visible={
-            securityModalVisible
-          }
-          transparent
-          animationType="fade"
-          statusBarTranslucent
-          onRequestClose={() =>
-            setSecurityModalVisible(
-              false
-            )
-          }
-        >
-          <View
-            style={
-              styles.modalOverlay
-            }
-          >
-            <Pressable
-              style={
-                StyleSheet.absoluteFillObject
-              }
-              onPress={() =>
-                setSecurityModalVisible(
-                  false
-                )
-              }
-            />
-
-            <View
-              style={[
-                styles.modalCard,
-
-                {
-                  width:
-                    500 * s,
-
-                  maxWidth:
-                    '90%',
-
-                  padding:
-                    28 * s,
-
-                  borderRadius:
-                    20 * s,
-                },
-              ]}
-            >
-              <ModalIcon
-                scale={
-                  s
-                }
-                icon="security"
-                color={
-                  COLORS.green
-                }
-              />
-
-              <Text
-                style={[
-                  styles.modalTitle,
-
-                  {
-                    fontSize:
-                      21 * fs,
-
-                    marginTop:
-                      15 * s,
-                  },
-                ]}
-              >
-                Account Security
-              </Text>
-
-              <Text
-                style={[
-                  styles.modalSubtitle,
-
-                  {
-                    fontSize:
-                      12.5 * fs,
-
-                    lineHeight:
-                      19 * fs,
-
-                    marginTop:
-                      5 * s,
-
-                    marginBottom:
-                      18 * s,
-                  },
-                ]}
-              >
-                Security information for the administrator account currently using the portal.
-              </Text>
-
-              <View
-                style={[
-                  styles.infoCard,
-
-                  {
-                    borderRadius:
-                      12 * s,
-
-                    paddingHorizontal:
-                      15 * s,
-                  },
-                ]}
-              >
-                <InfoRow
-                  scale={
-                    s
-                  }
-                  fontScale={
-                    fs
-                  }
-                  label="Access Level"
-                  value="Administrator"
-                />
-
-                <InfoRow
-                  scale={
-                    s
-                  }
-                  fontScale={
-                    fs
-                  }
-                  label="Session Status"
-                  value="Authenticated"
-                />
-
-                <InfoRow
-                  scale={
-                    s
-                  }
-                  fontScale={
-                    fs
-                  }
-                  label="Audit Logging"
-                  value="Available"
-                  last
-                />
-              </View>
-
-              <View
-                style={[
-                  styles.securityTip,
-
-                  {
-                    padding:
-                      12 * s,
-
-                    borderRadius:
-                      10 * s,
-
-                    marginTop:
-                      15 * s,
-                  },
-                ]}
-              >
-                <MaterialIcons
-                  name="verified-user"
-                  size={
-                    18 * s
-                  }
-                  color={
-                    COLORS.green
-                  }
-                />
-
-                <Text
-                  style={[
-                    styles.securityTipText,
-
-                    {
-                      fontSize:
-                        11.5 * fs,
-
-                      lineHeight:
-                        18 * fs,
-                    },
-                  ]}
-                >
-                  Use a strong administrator password and sign out when the device is shared with another person.
-                </Text>
-              </View>
-
-              <View
-                style={[
-                  styles.modalButtonRow,
-
-                  {
-                    gap:
-                      10 * s,
-
-                    marginTop:
-                      20 * s,
-                  },
-                ]}
-              >
-                <Pressable
-                  onPress={() => {
-                    setSecurityModalVisible(
-                      false
-                    );
-
-                    router.push(
-                      '/activity-logs' as any
-                    );
-                  }}
-                  style={({ pressed }) => [
-                    styles.secondaryModalButton,
-
-                    {
-                      height:
-                        48 * s,
-
-                      borderRadius:
-                        10 * s,
-                    },
-
-                    pressed &&
-                      styles.pressed,
-                  ]}
-                >
-                  <MaterialIcons
-                    name="history"
-                    size={
-                      18 * s
-                    }
-                    color={
-                      COLORS.white
-                    }
-                  />
-
-                  <Text
-                    style={[
-                      styles.secondaryModalButtonText,
-
-                      {
-                        fontSize:
-                          12 * fs,
-                      },
-                    ]}
-                  >
-                    View Log Trails
-                  </Text>
-                </Pressable>
-
-                <Pressable
-                  onPress={() =>
-                    setSecurityModalVisible(
-                      false
-                    )
-                  }
-                  style={({ pressed }) => [
-                    styles.primaryModalButton,
-                    styles.flexModalButton,
-
-                    {
-                      height:
-                        48 * s,
-
-                      borderRadius:
-                        10 * s,
-                    },
-
-                    pressed &&
-                      styles.pressed,
-                  ]}
-                >
-                  <Text
-                    style={[
-                      styles.primaryModalButtonText,
-
-                      {
-                        fontSize:
-                          12 * fs,
-                      },
-                    ]}
-                  >
-                    Close
-                  </Text>
-                </Pressable>
-              </View>
-            </View>
-          </View>
-        </Modal>
-
-        {/* ======================================================
-            SESSION MODAL
-        ====================================================== */}
-
-        <Modal
-          visible={
-            sessionModalVisible
-          }
-          transparent
-          animationType="fade"
-          statusBarTranslucent
-          onRequestClose={() =>
-            setSessionModalVisible(
-              false
-            )
-          }
-        >
-          <View
-            style={
-              styles.modalOverlay
-            }
-          >
-            <Pressable
-              style={
-                StyleSheet.absoluteFillObject
-              }
-              onPress={() =>
-                setSessionModalVisible(
-                  false
-                )
-              }
-            />
-
-            <View
-              style={[
-                styles.modalCard,
-
-                {
-                  width:
-                    480 * s,
-
-                  maxWidth:
-                    '90%',
-
-                  padding:
-                    28 * s,
-
-                  borderRadius:
-                    20 * s,
-                },
-              ]}
-            >
-              <ModalIcon
-                scale={
-                  s
-                }
-                icon="devices"
-                color={
-                  COLORS.blue
-                }
-              />
-
-              <Text
-                style={[
-                  styles.modalTitle,
-
-                  {
-                    fontSize:
-                      21 * fs,
-
-                    marginTop:
-                      15 * s,
-                  },
-                ]}
-              >
-                Current Session
-              </Text>
-
-              <Text
-                style={[
-                  styles.modalSubtitle,
-
-                  {
-                    fontSize:
-                      12.5 * fs,
-
-                    lineHeight:
-                      19 * fs,
-
-                    marginTop:
-                      5 * s,
-
-                    marginBottom:
-                      18 * s,
-                  },
-                ]}
-              >
-                Details about the administrator session currently active on this device.
-              </Text>
-
-              <View
-                style={[
-                  styles.infoCard,
-
-                  {
-                    borderRadius:
-                      12 * s,
-
-                    paddingHorizontal:
-                      15 * s,
-                  },
-                ]}
-              >
-                <InfoRow
-                  scale={
-                    s
-                  }
-                  fontScale={
-                    fs
-                  }
-                  label="Administrator"
-                  value={
-                    adminName
-                  }
-                />
-
-                <InfoRow
-                  scale={
-                    s
-                  }
-                  fontScale={
-                    fs
-                  }
-                  label="Role"
-                  value="Admin"
-                />
-
-                <InfoRow
-                  scale={
-                    s
-                  }
-                  fontScale={
-                    fs
-                  }
-                  label="Session"
-                  value="Active"
-                />
-
-                <InfoRow
-                  scale={
-                    s
-                  }
-                  fontScale={
-                    fs
-                  }
-                  label="Interface"
-                  value="Admin Portal"
-                  last
-                />
-              </View>
-
-              <Pressable
-                onPress={() =>
-                  setSessionModalVisible(
-                    false
-                  )
-                }
-                style={({ pressed }) => [
-                  styles.primaryModalButton,
-
-                  {
-                    height:
-                      48 * s,
-
-                    borderRadius:
-                      10 * s,
-
-                    marginTop:
-                      20 * s,
-                  },
-
-                  pressed &&
-                    styles.pressed,
-                ]}
-              >
-                <Text
-                  style={[
-                    styles.primaryModalButtonText,
-
-                    {
-                      fontSize:
-                        13 * fs,
-                    },
-                  ]}
-                >
-                  Close
-                </Text>
-              </Pressable>
-            </View>
-          </View>
-        </Modal>
-
-        {/* ======================================================
-            ABOUT MODAL
-        ====================================================== */}
-
-        <Modal
-          visible={
-            aboutModalVisible
-          }
-          transparent
-          animationType="fade"
-          statusBarTranslucent
-          onRequestClose={() =>
-            setAboutModalVisible(
-              false
-            )
-          }
-        >
-          <View
-            style={
-              styles.modalOverlay
-            }
-          >
-            <Pressable
-              style={
-                StyleSheet.absoluteFillObject
-              }
-              onPress={() =>
-                setAboutModalVisible(
-                  false
-                )
-              }
-            />
-
-            <View
-              style={[
-                styles.modalCard,
-
-                {
-                  width:
-                    500 * s,
-
-                  maxWidth:
-                    '90%',
-
-                  padding:
-                    28 * s,
-
-                  borderRadius:
-                    20 * s,
-                },
-              ]}
-            >
-              <ModalIcon
-                scale={
-                  s
-                }
-                icon="bloodtype"
-                color={
-                  COLORS.redBright
-                }
-              />
-
-              <Text
-                style={[
-                  styles.modalTitle,
-
-                  {
-                    fontSize:
-                      21 * fs,
-
-                    marginTop:
-                      15 * s,
-                  },
-                ]}
-              >
-                Hemo-Hero Admin Portal
-              </Text>
-
-              <Text
-                style={[
-                  styles.modalSubtitle,
-
-                  {
-                    fontSize:
-                      12.5 * fs,
-
-                    lineHeight:
-                      20 * fs,
-
-                    marginTop:
-                      6 * s,
-
-                    marginBottom:
-                      18 * s,
-                  },
-                ]}
-              >
-                Administrative interface for managing Hemo-Hero operations and records.
-              </Text>
-
-              <View
-                style={[
-                  styles.infoCard,
-
-                  {
-                    borderRadius:
-                      12 * s,
-
-                    paddingHorizontal:
-                      15 * s,
-                  },
-                ]}
-              >
-                <InfoRow
-                  scale={
-                    s
-                  }
-                  fontScale={
-                    fs
-                  }
-                  label="Application"
-                  value="Hemo-Hero"
-                />
-
-                <InfoRow
-                  scale={
-                    s
-                  }
-                  fontScale={
-                    fs
-                  }
-                  label="Portal"
-                  value="Administrator"
-                />
-
-                <InfoRow
-                  scale={
-                    s
-                  }
-                  fontScale={
-                    fs
-                  }
-                  label="Interface"
-                  value="Tablet / Desktop"
-                />
-
-                <InfoRow
-                  scale={
-                    s
-                  }
-                  fontScale={
-                    fs
-                  }
-                  label="Theme"
-                  value="Dark"
-                  last
-                />
-              </View>
-
-              <Pressable
-                onPress={() =>
-                  setAboutModalVisible(
-                    false
-                  )
-                }
-                style={({ pressed }) => [
-                  styles.primaryModalButton,
-
-                  {
-                    height:
-                      48 * s,
-
-                    borderRadius:
-                      10 * s,
-
-                    marginTop:
-                      20 * s,
-                  },
-
-                  pressed &&
-                    styles.pressed,
-                ]}
-              >
-                <Text
-                  style={[
-                    styles.primaryModalButtonText,
-
-                    {
-                      fontSize:
-                        13 * fs,
-                    },
-                  ]}
-                >
-                  Close
-                </Text>
-              </Pressable>
-            </View>
-          </View>
-        </Modal>
-
-        {/* ======================================================
-            LOGOUT MODAL
-        ====================================================== */}
-
-        <Modal
-          visible={
-            logoutVisible
-          }
-          transparent
-          animationType="fade"
-          statusBarTranslucent
-          onRequestClose={
-            cancelLogout
-          }
-        >
-          <View
-            style={
-              styles.modalOverlay
-            }
-          >
-            <Pressable
-              style={
-                StyleSheet.absoluteFillObject
-              }
-              disabled={
-                loggingOut
-              }
-              onPress={
-                cancelLogout
-              }
-            />
-
-            <View
-              style={[
-                styles.modalCard,
-
-                {
-                  width:
-                    430 * s,
-
-                  maxWidth:
-                    '90%',
-
-                  padding:
-                    28 * s,
-
-                  borderRadius:
-                    20 * s,
-                },
-              ]}
-            >
-              <ModalIcon
-                scale={
-                  s
-                }
-                icon="logout"
-                color={
-                  COLORS.redBright
-                }
-              />
-
-              <Text
-                style={[
-                  styles.modalTitle,
-
-                  {
-                    fontSize:
-                      21 * fs,
-
-                    marginTop:
-                      15 * s,
-                  },
-                ]}
-              >
-                Sign Out?
-              </Text>
-
-              <Text
-                style={[
-                  styles.modalSubtitle,
-
-                  {
-                    fontSize:
-                      13 * fs,
-
-                    lineHeight:
-                      20 * fs,
-
-                    marginTop:
-                      6 * s,
-                  },
-                ]}
-              >
-                Are you sure you want to sign out of the Hemo-Hero Admin Portal?
-              </Text>
-
-              <View
-                style={[
-                  styles.modalButtonRow,
-
-                  {
-                    gap:
-                      12 * s,
-
-                    marginTop:
-                      24 * s,
-                  },
-                ]}
-              >
-                <Pressable
-                  disabled={
-                    loggingOut
-                  }
-                  onPress={
-                    cancelLogout
-                  }
-                  style={({ pressed }) => [
-                    styles.cancelButton,
-
-                    {
-                      height:
-                        49 * s,
-
-                      borderRadius:
-                        10 * s,
-                    },
-
-                    pressed &&
-                      styles.pressed,
-                  ]}
-                >
-                  <Text
-                    style={[
-                      styles.cancelButtonText,
-
-                      {
-                        fontSize:
-                          13 * fs,
-                      },
-                    ]}
-                  >
-                    Cancel
-                  </Text>
-                </Pressable>
-
-                <Pressable
-                  disabled={
-                    loggingOut
-                  }
-                  onPress={
-                    confirmLogout
-                  }
-                  style={({ pressed }) => [
-                    styles.logoutConfirmButton,
-
-                    {
-                      height:
-                        49 * s,
-
-                      borderRadius:
-                        10 * s,
-                    },
-
-                    pressed &&
-                      styles.pressed,
-
-                    loggingOut &&
-                      styles.disabled,
-                  ]}
-                >
-                  {loggingOut ? (
-                    <ActivityIndicator
-                      size="small"
-                      color={
-                        COLORS.white
-                      }
-                    />
-                  ) : (
-                    <Text
-                      style={[
-                        styles.logoutConfirmText,
-
-                        {
-                          fontSize:
-                            13 * fs,
-                        },
-                      ]}
-                    >
-                      Sign Out
-                    </Text>
-                  )}
-                </Pressable>
-              </View>
-            </View>
-          </View>
-        </Modal>
       </View>
+
+      {/* ========================================================
+          EDIT PROFILE
+      ======================================================== */}
+
+      <FormModalShell
+        visible={formModal === 'profile'}
+        scale={s}
+        fontScale={fs}
+        icon="edit"
+        title="Edit Profile"
+        description="Update your administrator name and contact number."
+        error={formError}
+        saving={saving}
+        submitLabel="Save Changes"
+        onClose={closeFormModal}
+        onSubmit={saveProfile}
+      >
+        <View
+          style={[
+            styles.row,
+
+            {
+              gap: 12 * s,
+            },
+          ]}
+        >
+          <FormField
+            scale={s}
+            fontScale={fs}
+            label="First Name *"
+            value={firstName}
+            onChangeText={setFirstName}
+            style={styles.flexFill}
+          />
+
+          <FormField
+            scale={s}
+            fontScale={fs}
+            label="Last Name *"
+            value={lastName}
+            onChangeText={setLastName}
+            style={styles.flexFill}
+          />
+        </View>
+
+        <View
+          style={[
+            styles.row,
+
+            {
+              gap: 12 * s,
+            },
+          ]}
+        >
+          <FormField
+            scale={s}
+            fontScale={fs}
+            label="Middle Name"
+            value={middleName}
+            onChangeText={setMiddleName}
+            style={styles.flexFill}
+          />
+
+          <FormField
+            scale={s}
+            fontScale={fs}
+            label="Suffix"
+            value={suffix}
+            onChangeText={setSuffix}
+            style={{ width: 120 * s }}
+          />
+        </View>
+
+        <FormField
+          scale={s}
+          fontScale={fs}
+          label="Phone Number"
+          value={phone}
+          onChangeText={setPhone}
+          keyboardType="phone-pad"
+        />
+      </FormModalShell>
+
+      {/* ========================================================
+          CHANGE PASSWORD
+      ======================================================== */}
+
+      <FormModalShell
+        visible={formModal === 'password'}
+        scale={s}
+        fontScale={fs}
+        icon="password"
+        title="Change Password"
+        description="You will be signed out after your password is changed."
+        error={formError}
+        saving={saving}
+        submitLabel="Change Password"
+        onClose={closeFormModal}
+        onSubmit={savePassword}
+      >
+        <FormField
+          scale={s}
+          fontScale={fs}
+          label="Current Password"
+          value={currentPassword}
+          onChangeText={setCurrentPassword}
+          secure
+        />
+
+        <FormField
+          scale={s}
+          fontScale={fs}
+          label="New Password"
+          value={newPassword}
+          onChangeText={setNewPassword}
+          secure
+        />
+
+        <View
+          style={[
+            styles.rulesPanel,
+
+            {
+              padding: 12 * s,
+              borderRadius: 10 * s,
+              marginBottom: 14 * s,
+              gap: 6 * s,
+            },
+          ]}
+        >
+          {PASSWORD_RULES.map(rule => {
+            const met =
+              rule.test(newPassword);
+
+            return (
+              <View
+                key={rule.label}
+                style={[
+                  styles.row,
+
+                  {
+                    alignItems: 'center',
+                    gap: 7 * s,
+                  },
+                ]}
+              >
+                <MaterialIcons
+                  name={
+                    met
+                      ? 'check-circle'
+                      : 'radio-button-unchecked'
+                  }
+                  size={16 * s}
+                  color={
+                    met
+                      ? COLORS.green
+                      : COLORS.muted
+                  }
+                />
+
+                <Text
+                  style={[
+                    styles.mutedText,
+
+                    {
+                      fontSize: 12 * fs,
+                    },
+
+                    met && {
+                      color: COLORS.soft,
+                    },
+                  ]}
+                >
+                  {rule.label}
+                </Text>
+              </View>
+            );
+          })}
+        </View>
+
+        <FormField
+          scale={s}
+          fontScale={fs}
+          label="Confirm New Password"
+          value={confirmPassword}
+          onChangeText={setConfirmPassword}
+          secure
+          hint={
+            confirmPassword &&
+            confirmPassword !== newPassword
+              ? 'Passwords do not match.'
+              : undefined
+          }
+        />
+      </FormModalShell>
+
+      {/* ========================================================
+          CHANGE EMAIL
+      ======================================================== */}
+
+      <FormModalShell
+        visible={formModal === 'email'}
+        scale={s}
+        fontScale={fs}
+        icon="alternate-email"
+        title="Change Email Address"
+        description={`Current email: ${source?.email || '—'}. You will be signed out afterwards.`}
+        error={formError}
+        saving={saving}
+        submitLabel="Change Email"
+        onClose={closeFormModal}
+        onSubmit={saveEmail}
+      >
+        <FormField
+          scale={s}
+          fontScale={fs}
+          label="New Email Address"
+          value={newEmail}
+          onChangeText={setNewEmail}
+          keyboardType="email-address"
+        />
+
+        <FormField
+          scale={s}
+          fontScale={fs}
+          label="Confirm New Email"
+          value={confirmEmail}
+          onChangeText={setConfirmEmail}
+          keyboardType="email-address"
+          hint={
+            confirmEmail &&
+            confirmEmail.trim().toLowerCase() !==
+              newEmail.trim().toLowerCase()
+              ? 'Email addresses do not match.'
+              : undefined
+          }
+        />
+
+        <FormField
+          scale={s}
+          fontScale={fs}
+          label="Current Password"
+          value={emailPassword}
+          onChangeText={setEmailPassword}
+          secure
+        />
+      </FormModalShell>
+
+      {/* ========================================================
+          MESSAGE / CONFIRM MODAL
+      ======================================================== */}
+
+      <ActionModal
+        state={actionModal}
+        scale={s}
+        fontScale={fs}
+        onClose={closeActionModal}
+        onConfirm={handleActionModalConfirm}
+      />
     </View>
   );
 }
 
 // ============================================================
-// SECTION LABEL
+// SECTION CARD
 // ============================================================
 
-function SectionLabel({
+function SectionCard({
   scale,
   fontScale,
+  icon,
+  title,
+  action,
   children,
 }: {
-  scale:
-    number;
-
-  fontScale:
-    number;
-
-  children:
-    string;
+  scale: number;
+  fontScale: number;
+  icon: IconName;
+  title: string;
+  action?: ReactNode;
+  children: ReactNode;
 }) {
   return (
-    <Text
+    <View
       style={[
-        styles.sectionLabel,
+        styles.sectionCard,
 
         {
-          fontSize:
-            11 * fontScale,
-
-          marginBottom:
-            10 * scale,
+          padding: 21 * scale,
+          borderRadius: 15 * scale,
+          marginBottom: 18 * scale,
         },
       ]}
     >
-      {
-        children
-      }
-    </Text>
+      <View
+        style={[
+          styles.sectionHeader,
+
+          {
+            gap: 9 * scale,
+            marginBottom: 19 * scale,
+          },
+        ]}
+      >
+        <View
+          style={[
+            styles.sectionIcon,
+
+            {
+              width: 38 * scale,
+              height: 38 * scale,
+              borderRadius: 10 * scale,
+            },
+          ]}
+        >
+          <MaterialIcons
+            name={icon}
+            size={21 * scale}
+            color={COLORS.redBright}
+          />
+        </View>
+
+        <Text
+          style={[
+            styles.sectionTitle,
+            styles.flexFill,
+
+            {
+              fontSize: 16 * fontScale,
+            },
+          ]}
+        >
+          {title}
+        </Text>
+
+        {action}
+      </View>
+
+      {children}
+    </View>
+  );
+}
+
+function SmallAction({
+  label,
+  icon,
+  scale,
+  fontScale,
+  onPress,
+}: {
+  label: string;
+  icon: IconName;
+  scale: number;
+  fontScale: number;
+  onPress: () => void;
+}) {
+  return (
+    <Pressable
+      onPress={onPress}
+      style={({ pressed }) => [
+        styles.smallButton,
+
+        {
+          height: 34 * scale,
+          paddingHorizontal: 12 * scale,
+          borderRadius: 8 * scale,
+          gap: 6 * scale,
+        },
+
+        pressed &&
+          styles.buttonPressed,
+      ]}
+    >
+      <MaterialIcons
+        name={icon}
+        size={16 * scale}
+        color={COLORS.soft}
+      />
+
+      <Text
+        style={[
+          styles.smallButtonText,
+
+          {
+            fontSize: 12 * fontScale,
+          },
+        ]}
+      >
+        {label}
+      </Text>
+    </Pressable>
+  );
+}
+
+// ============================================================
+// INFO GRID / ITEM
+// ============================================================
+
+function InfoGrid({
+  children,
+}: {
+  children: ReactNode;
+}) {
+  return (
+    <View style={styles.infoGrid}>
+      {children}
+    </View>
+  );
+}
+
+function InfoItem({
+  fontScale,
+  label,
+  value,
+  highlight = false,
+}: {
+  fontScale: number;
+  label: string;
+  value: string;
+  highlight?: boolean;
+}) {
+  return (
+    <View style={styles.infoItem}>
+      <Text
+        style={[
+          styles.infoLabel,
+
+          {
+            fontSize: 11 * fontScale,
+          },
+        ]}
+      >
+        {label}
+      </Text>
+
+      <Text
+        numberOfLines={2}
+        style={[
+          styles.infoValue,
+
+          {
+            fontSize: 13 * fontScale,
+            marginTop: 4,
+            lineHeight: 19 * fontScale,
+          },
+
+          highlight &&
+            styles.infoHighlight,
+        ]}
+      >
+        {value}
+      </Text>
+    </View>
   );
 }
 
@@ -3181,488 +1751,183 @@ function SettingsRow({
   title,
   description,
   onPress,
-  value,
-  valueColor,
-  status,
+  last = false,
 }: {
-  scale:
-    number;
-
-  fontScale:
-    number;
-
-  icon:
-    ComponentProps<
-      typeof MaterialIcons
-    >['name'];
-
-  title:
-    string;
-
-  description:
-    string;
-
-  onPress?:
-    () => void;
-
-  value?:
-    string;
-
-  valueColor?:
-    string;
-
-  status?:
-    string;
+  scale: number;
+  fontScale: number;
+  icon: IconName;
+  title: string;
+  description: string;
+  onPress: () => void;
+  last?: boolean;
 }) {
   return (
     <Pressable
-      disabled={
-        !onPress
-      }
-      onPress={
-        onPress
-      }
+      onPress={onPress}
       style={({ pressed }) => [
         styles.settingsRow,
 
         {
-          minHeight:
-            88 * scale,
+          paddingVertical: 14 * scale,
+          gap: 13 * scale,
         },
 
+        last &&
+          styles.noBorder,
+
         pressed &&
-          styles.settingsRowPressed,
+          styles.rowPressed,
       ]}
     >
       <View
         style={[
-          styles.settingsIcon,
+          styles.rowIcon,
 
           {
-            width:
-              42 * scale,
-
-            height:
-              42 * scale,
-
-            borderRadius:
-              10 * scale,
-
-            marginRight:
-              13 * scale,
+            width: 40 * scale,
+            height: 40 * scale,
+            borderRadius: 10 * scale,
           },
         ]}
       >
         <MaterialIcons
-          name={
-            icon
-          }
-          size={
-            21 * scale
-          }
-          color={
-            COLORS.redBright
-          }
+          name={icon}
+          size={20 * scale}
+          color={COLORS.soft}
         />
       </View>
 
-      <View
-        style={
-          styles.settingsText
-        }
-      >
+      <View style={styles.flexFill}>
         <Text
           style={[
-            styles.settingsTitle,
+            styles.rowTitle,
 
             {
-              fontSize:
-                13 * fontScale,
+              fontSize: 14 * fontScale,
             },
           ]}
         >
-          {
-            title
-          }
+          {title}
         </Text>
 
         <Text
           style={[
-            styles.settingsDescription,
+            styles.mutedText,
 
             {
-              fontSize:
-                11.5 * fontScale,
-
-              lineHeight:
-                17 * fontScale,
-
-              marginTop:
-                3 * scale,
+              fontSize: 12 * fontScale,
+              lineHeight: 18 * fontScale,
+              marginTop: 2 * scale,
             },
           ]}
         >
-          {
-            description
-          }
+          {description}
         </Text>
       </View>
 
-      {value ? (
-        <Text
-          style={[
-            styles.settingsValue,
-
-            {
-              fontSize:
-                11.5 * fontScale,
-
-              color:
-                valueColor ||
-                COLORS.soft,
-            },
-          ]}
-        >
-          {
-            value
-          }
-        </Text>
-      ) : null}
-
-      {status ? (
-        <View
-          style={[
-            styles.statusBadge,
-
-            {
-              paddingHorizontal:
-                8 * scale,
-
-              paddingVertical:
-                5 * scale,
-
-              borderRadius:
-                8 * scale,
-            },
-          ]}
-        >
-          <Text
-            style={[
-              styles.statusBadgeText,
-
-              {
-                fontSize:
-                  9.5 * fontScale,
-              },
-            ]}
-          >
-            {
-              status
-            }
-          </Text>
-        </View>
-      ) : null}
-
-      {onPress ? (
-        <MaterialIcons
-          name="chevron-right"
-          size={
-            22 * scale
-          }
-          color={
-            COLORS.muted
-          }
-          style={{
-            marginLeft:
-              7 * scale,
-          }}
-        />
-      ) : null}
+      <MaterialIcons
+        name="chevron-right"
+        size={22 * scale}
+        color={COLORS.muted}
+      />
     </Pressable>
   );
 }
 
 // ============================================================
-// PREFERENCE TILE
+// DEVICE ROW
 // ============================================================
 
-function PreferenceTile({
-  scale,
-  fontScale,
-  icon,
-  title,
-  description,
-  value,
-  onChange,
-}: {
-  scale:
-    number;
-
-  fontScale:
-    number;
-
-  icon:
-    ComponentProps<
-      typeof MaterialIcons
-    >['name'];
-
-  title:
-    string;
-
-  description:
-    string;
-
-  value:
-    boolean;
-
-  onChange:
-    (
-      value:
-        boolean
-    ) => void;
-}) {
-  return (
-    <View
-      style={[
-        styles.preferenceTile,
-
-        {
-          minHeight:
-            102 * scale,
-
-          padding:
-            15 * scale,
-
-          borderRadius:
-            12 * scale,
-        },
-      ]}
-    >
-      <View
-        style={
-          styles.preferenceTileTop
-        }
-      >
-        <View
-          style={[
-            styles.preferenceIcon,
-
-            {
-              width:
-                37 * scale,
-
-              height:
-                37 * scale,
-
-              borderRadius:
-                9 * scale,
-            },
-          ]}
-        >
-          <MaterialIcons
-            name={
-              icon
-            }
-            size={
-              19 * scale
-            }
-            color={
-              COLORS.redBright
-            }
-          />
-        </View>
-
-        <Pressable
-          onPress={() =>
-            onChange(
-              !value
-            )
-          }
-          style={[
-            styles.toggle,
-
-            {
-              width:
-                46 * scale,
-
-              height:
-                26 * scale,
-
-              borderRadius:
-                13 * scale,
-
-              padding:
-                3 * scale,
-            },
-
-            value &&
-              styles.toggleActive,
-          ]}
-        >
-          <View
-            style={[
-              styles.toggleThumb,
-
-              {
-                width:
-                  20 * scale,
-
-                height:
-                  20 * scale,
-
-                borderRadius:
-                  10 * scale,
-
-                transform: [
-                  {
-                    translateX:
-                      value
-                        ? 20 *
-                          scale
-                        : 0,
-                  },
-                ],
-              },
-            ]}
-          />
-        </Pressable>
-      </View>
-
-      <Text
-        style={[
-          styles.preferenceTitle,
-
-          {
-            fontSize:
-              12.5 * fontScale,
-
-            marginTop:
-              9 * scale,
-          },
-        ]}
-      >
-        {
-          title
-        }
-      </Text>
-
-      <Text
-        style={[
-          styles.preferenceDescription,
-
-          {
-            fontSize:
-              10.5 * fontScale,
-
-            lineHeight:
-              15 * fontScale,
-
-            marginTop:
-              3 * scale,
-          },
-        ]}
-      >
-        {
-          description
-        }
-      </Text>
-    </View>
-  );
-}
-
-// ============================================================
-// MODAL ICON
-// ============================================================
-
-function ModalIcon({
-  scale,
-  icon,
-  color,
-}: {
-  scale:
-    number;
-
-  icon:
-    ComponentProps<
-      typeof MaterialIcons
-    >['name'];
-
-  color:
-    string;
-}) {
-  return (
-    <View
-      style={[
-        styles.modalIcon,
-
-        {
-          width:
-            56 * scale,
-
-          height:
-            56 * scale,
-
-          borderRadius:
-            28 * scale,
-        },
-      ]}
-    >
-      <MaterialIcons
-        name={
-          icon
-        }
-        size={
-          27 * scale
-        }
-        color={
-          color
-        }
-      />
-    </View>
-  );
-}
-
-// ============================================================
-// INFO ROW
-// ============================================================
-
-function InfoRow({
+function DeviceRow({
   scale,
   fontScale,
   label,
   value,
   last = false,
 }: {
-  scale:
-    number;
-
-  fontScale:
-    number;
-
-  label:
-    string;
-
-  value:
-    string;
-
-  last?:
-    boolean;
+  scale: number;
+  fontScale: number;
+  label: string;
+  value: string;
+  last?: boolean;
 }) {
   return (
     <View
       style={[
-        styles.infoRow,
+        styles.deviceRow,
 
         {
-          minHeight:
-            52 * scale,
-
-          paddingVertical:
-            9 * scale,
+          paddingVertical: 11 * scale,
         },
 
         last &&
-          styles.infoRowLast,
+          styles.noBorder,
+      ]}
+    >
+      <Text
+        style={[
+          styles.mutedText,
+
+          {
+            fontSize: 12.5 * fontScale,
+          },
+        ]}
+      >
+        {label}
+      </Text>
+
+      <Text
+        numberOfLines={1}
+        style={[
+          styles.deviceValue,
+
+          {
+            fontSize: 13 * fontScale,
+            marginLeft: 12 * scale,
+          },
+        ]}
+      >
+        {value}
+      </Text>
+    </View>
+  );
+}
+
+// ============================================================
+// FORM FIELD
+// ============================================================
+
+function FormField({
+  scale,
+  fontScale,
+  label,
+  value,
+  onChangeText,
+  secure = false,
+  keyboardType,
+  hint,
+  style,
+}: {
+  scale: number;
+  fontScale: number;
+  label: string;
+  value: string;
+  onChangeText: (value: string) => void;
+  secure?: boolean;
+  keyboardType?: ComponentProps<typeof TextInput>['keyboardType'];
+  hint?: string;
+  style?: object;
+}) {
+  const [hidden, setHidden] = useState(true);
+
+  return (
+    <View
+      style={[
+        {
+          marginBottom: 14 * scale,
+        },
+
+        style,
       ]}
     >
       <Text
@@ -3670,48 +1935,650 @@ function InfoRow({
           styles.infoLabel,
 
           {
-            fontSize:
-              11.5 * fontScale,
+            fontSize: 11 * fontScale,
+            marginBottom: 7 * scale,
           },
         ]}
       >
-        {
-          label
-        }
+        {label}
       </Text>
 
-      <Text
-        numberOfLines={
-          1
-        }
+      <View
         style={[
-          styles.infoValue,
+          styles.inputWrap,
 
           {
-            fontSize:
-              11.5 * fontScale,
+            height: 46 * scale,
+            borderRadius: 10 * scale,
+            paddingHorizontal: 13 * scale,
           },
+
+          hint &&
+            styles.inputWrapError,
         ]}
       >
-        {
-          value
-        }
-      </Text>
+        <TextInput
+          value={value}
+          onChangeText={onChangeText}
+          secureTextEntry={secure && hidden}
+          keyboardType={keyboardType}
+          autoCapitalize={
+            secure ||
+            keyboardType === 'email-address'
+              ? 'none'
+              : 'words'
+          }
+          autoCorrect={false}
+          placeholderTextColor={COLORS.muted}
+          style={[
+            styles.input,
+
+            {
+              fontSize: 13.5 * fontScale,
+            },
+          ]}
+        />
+
+        {secure ? (
+          <Pressable
+            onPress={() =>
+              setHidden(value => !value)
+            }
+            hitSlop={8}
+          >
+            <MaterialIcons
+              name={
+                hidden
+                  ? 'visibility'
+                  : 'visibility-off'
+              }
+              size={19 * scale}
+              color={COLORS.muted}
+            />
+          </Pressable>
+        ) : null}
+      </View>
+
+      {hint ? (
+        <Text
+          style={[
+            styles.fieldHint,
+
+            {
+              fontSize: 11.5 * fontScale,
+              marginTop: 5 * scale,
+            },
+          ]}
+        >
+          {hint}
+        </Text>
+      ) : null}
     </View>
   );
 }
 
 // ============================================================
-// DIVIDER
+// FORM MODAL SHELL
 // ============================================================
 
-function Divider() {
+function FormModalShell({
+  visible,
+  scale,
+  fontScale,
+  icon,
+  title,
+  description,
+  error,
+  saving,
+  submitLabel,
+  onClose,
+  onSubmit,
+  children,
+}: {
+  visible: boolean;
+  scale: number;
+  fontScale: number;
+  icon: IconName;
+  title: string;
+  description: string;
+  error: string;
+  saving: boolean;
+  submitLabel: string;
+  onClose: () => void;
+  onSubmit: () => void;
+  children: ReactNode;
+}) {
   return (
-    <View
-      style={
-        styles.divider
+    <Modal
+      transparent
+      visible={visible}
+      animationType="fade"
+      statusBarTranslucent
+      onRequestClose={onClose}
+    >
+      <KeyboardAvoidingView
+        behavior={
+          Platform.OS === 'ios'
+            ? 'padding'
+            : undefined
+        }
+        style={styles.modalBackdrop}
+      >
+        <Pressable
+          style={StyleSheet.absoluteFill}
+          onPress={onClose}
+        />
+
+        <View
+          style={[
+            styles.formCard,
+
+            {
+              width: 560 * scale,
+              maxWidth: '92%',
+              borderRadius: 18 * scale,
+              padding: 26 * scale,
+            },
+          ]}
+        >
+          <View
+            style={[
+              styles.row,
+
+              {
+                alignItems: 'center',
+                gap: 12 * scale,
+                marginBottom: 20 * scale,
+              },
+            ]}
+          >
+            <View
+              style={[
+                styles.sectionIcon,
+
+                {
+                  width: 44 * scale,
+                  height: 44 * scale,
+                  borderRadius: 11 * scale,
+                },
+              ]}
+            >
+              <MaterialIcons
+                name={icon}
+                size={23 * scale}
+                color={COLORS.redBright}
+              />
+            </View>
+
+            <View style={styles.flexFill}>
+              <Text
+                style={[
+                  styles.sectionTitle,
+
+                  {
+                    fontSize: 19 * fontScale,
+                  },
+                ]}
+              >
+                {title}
+              </Text>
+
+              <Text
+                style={[
+                  styles.mutedText,
+
+                  {
+                    fontSize: 12.5 * fontScale,
+                    lineHeight: 18 * fontScale,
+                    marginTop: 2 * scale,
+                  },
+                ]}
+              >
+                {description}
+              </Text>
+            </View>
+
+            <Pressable
+              disabled={saving}
+              onPress={onClose}
+              hitSlop={8}
+            >
+              <MaterialIcons
+                name="close"
+                size={22 * scale}
+                color={COLORS.muted}
+              />
+            </Pressable>
+          </View>
+
+          {children}
+
+          {error ? (
+            <View
+              style={[
+                styles.errorBanner,
+
+                {
+                  padding: 12 * scale,
+                  borderRadius: 10 * scale,
+                  gap: 8 * scale,
+                  marginBottom: 4 * scale,
+                },
+              ]}
+            >
+              <MaterialIcons
+                name="error-outline"
+                size={18 * scale}
+                color={COLORS.redBright}
+              />
+
+              <Text
+                style={[
+                  styles.errorBannerText,
+
+                  {
+                    fontSize: 12.5 * fontScale,
+                  },
+                ]}
+              >
+                {error}
+              </Text>
+            </View>
+          ) : null}
+
+          <View
+            style={[
+              styles.row,
+
+              {
+                gap: 10 * scale,
+                marginTop: 14 * scale,
+              },
+            ]}
+          >
+            <Pressable
+              disabled={saving}
+              onPress={onClose}
+              style={({ pressed }) => [
+                styles.modalCancelButton,
+
+                {
+                  height: 48 * scale,
+                  borderRadius: 10 * scale,
+                },
+
+                pressed &&
+                  styles.buttonPressed,
+              ]}
+            >
+              <Text
+                style={[
+                  styles.modalCancelText,
+
+                  {
+                    fontSize: 13 * fontScale,
+                  },
+                ]}
+              >
+                Cancel
+              </Text>
+            </Pressable>
+
+            <Pressable
+              disabled={saving}
+              onPress={onSubmit}
+              style={({ pressed }) => [
+                styles.modalPrimaryButton,
+
+                {
+                  height: 48 * scale,
+                  borderRadius: 10 * scale,
+                  backgroundColor: COLORS.red,
+                },
+
+                saving &&
+                  styles.disabledButton,
+
+                pressed &&
+                  !saving &&
+                  styles.buttonPressed,
+              ]}
+            >
+              {saving ? (
+                <ActivityIndicator
+                  color={COLORS.white}
+                />
+              ) : (
+                <Text
+                  style={[
+                    styles.modalPrimaryText,
+
+                    {
+                      fontSize: 13 * fontScale,
+                    },
+                  ]}
+                >
+                  {submitLabel}
+                </Text>
+              )}
+            </Pressable>
+          </View>
+        </View>
+      </KeyboardAvoidingView>
+    </Modal>
+  );
+}
+
+// ============================================================
+// ACTION MODAL
+// (same design as the Donor Application review modal)
+// ============================================================
+
+function ActionModal({
+  state,
+  scale,
+  fontScale,
+  onClose,
+  onConfirm,
+}: {
+  state: ActionModalState;
+  scale: number;
+  fontScale: number;
+  onClose: () => void;
+  onConfirm: () => void;
+}) {
+  const accent =
+    getModalAccent(state.variant);
+
+  // A message with a follow-up action (e.g. "sign in again")
+  // must be confirmed, not dismissed by tapping outside.
+  const dismissible =
+    state.showCancel ||
+    !state.onConfirm;
+
+  return (
+    <Modal
+      transparent
+      visible={state.visible}
+      animationType="fade"
+      statusBarTranslucent
+      onRequestClose={
+        dismissible
+          ? onClose
+          : onConfirm
       }
-    />
+    >
+      <View style={styles.modalBackdrop}>
+        <Pressable
+          style={StyleSheet.absoluteFill}
+          onPress={
+            dismissible
+              ? onClose
+              : undefined
+          }
+        />
+
+        <View
+          style={[
+            styles.modalCard,
+
+            {
+              width: 500 * scale,
+              maxWidth: '88%',
+              borderRadius: 18 * scale,
+              padding: 26 * scale,
+              borderColor: accent,
+            },
+          ]}
+        >
+          <View
+            style={[
+              styles.modalIconWrap,
+
+              {
+                width: 56 * scale,
+                height: 56 * scale,
+                borderRadius: 28 * scale,
+                backgroundColor:
+                  getModalTint(state.variant),
+              },
+            ]}
+          >
+            <MaterialIcons
+              name={getModalIcon(state.variant)}
+              size={29 * scale}
+              color={accent}
+            />
+          </View>
+
+          <Text
+            style={[
+              styles.modalTitle,
+
+              {
+                fontSize: 20 * fontScale,
+                lineHeight: 27 * fontScale,
+                marginTop: 17 * scale,
+              },
+            ]}
+          >
+            {state.title}
+          </Text>
+
+          <Text
+            style={[
+              styles.modalMessage,
+
+              {
+                fontSize: 14 * fontScale,
+                lineHeight: 22 * fontScale,
+                marginTop: 8 * scale,
+              },
+            ]}
+          >
+            {state.message}
+          </Text>
+
+          <View
+            style={[
+              styles.modalActions,
+
+              {
+                gap: 10 * scale,
+                marginTop: 24 * scale,
+              },
+            ]}
+          >
+            {state.showCancel ? (
+              <Pressable
+                onPress={onClose}
+                style={({ pressed }) => [
+                  styles.modalCancelButton,
+
+                  {
+                    height: 48 * scale,
+                    borderRadius: 10 * scale,
+                  },
+
+                  pressed &&
+                    styles.buttonPressed,
+                ]}
+              >
+                <Text
+                  style={[
+                    styles.modalCancelText,
+
+                    {
+                      fontSize: 13 * fontScale,
+                    },
+                  ]}
+                >
+                  Cancel
+                </Text>
+              </Pressable>
+            ) : null}
+
+            <Pressable
+              onPress={onConfirm}
+              style={({ pressed }) => [
+                styles.modalPrimaryButton,
+
+                {
+                  height: 48 * scale,
+                  borderRadius: 10 * scale,
+                  backgroundColor:
+                    getModalPrimaryColor(
+                      state.variant
+                    ),
+                },
+
+                !state.showCancel &&
+                  styles.modalSingleButton,
+
+                pressed &&
+                  styles.buttonPressed,
+              ]}
+            >
+              <Text
+                style={[
+                  styles.modalPrimaryText,
+
+                  {
+                    fontSize: 13 * fontScale,
+                  },
+                ]}
+              >
+                {state.confirmLabel}
+              </Text>
+            </Pressable>
+          </View>
+        </View>
+      </View>
+    </Modal>
+  );
+}
+
+// ============================================================
+// HELPERS
+// ============================================================
+
+function getModalAccent(
+  variant: ActionModalVariant
+) {
+  switch (variant) {
+    case 'success':
+      return COLORS.green;
+
+    case 'warning':
+      return COLORS.orange;
+
+    case 'reject':
+    case 'error':
+      return COLORS.redBright;
+
+    default:
+      return COLORS.blue;
+  }
+}
+
+function getModalTint(
+  variant: ActionModalVariant
+) {
+  switch (variant) {
+    case 'success':
+      return 'rgba(53,201,130,0.12)';
+
+    case 'warning':
+      return 'rgba(243,163,74,0.12)';
+
+    case 'reject':
+    case 'error':
+      return 'rgba(239,51,64,0.12)';
+
+    default:
+      return 'rgba(74,140,255,0.12)';
+  }
+}
+
+function getModalPrimaryColor(
+  variant: ActionModalVariant
+) {
+  if (variant === 'reject') {
+    return COLORS.redDark;
+  }
+
+  if (variant === 'success') {
+    return COLORS.green;
+  }
+
+  if (variant === 'warning') {
+    return COLORS.orange;
+  }
+
+  return COLORS.red;
+}
+
+function getModalIcon(
+  variant: ActionModalVariant
+): IconName {
+  switch (variant) {
+    case 'success':
+      return 'check-circle';
+
+    case 'warning':
+      return 'warning-amber';
+
+    case 'reject':
+      return 'logout';
+
+    case 'error':
+      return 'error-outline';
+
+    default:
+      return 'info-outline';
+  }
+}
+
+function formatPlatform(
+  os: string
+) {
+  switch (os) {
+    case 'ios':
+      return 'iOS / iPadOS';
+
+    case 'android':
+      return 'Android';
+
+    case 'web':
+      return 'Web browser';
+
+    default:
+      return os;
+  }
+}
+
+function formatDateTime(
+  value?: string | null
+) {
+  if (!value) {
+    return '—';
+  }
+
+  const date = new Date(value);
+
+  if (Number.isNaN(date.getTime())) {
+    return value;
+  }
+
+  return date.toLocaleString(
+    undefined,
+    {
+      month: 'short',
+      day: 'numeric',
+      year: 'numeric',
+      hour: 'numeric',
+      minute: '2-digit',
+    }
   );
 }
 
@@ -3719,1190 +2586,427 @@ function Divider() {
 // STYLES
 // ============================================================
 
-const styles =
-  StyleSheet.create({
-    // ========================================================
-    // DEVICE
-    // ========================================================
-
-    outer: {
-      flex:
-        1,
-
-      alignItems:
-        'center',
-
-      justifyContent:
-        'center',
-
-      backgroundColor:
-        COLORS.outer,
-    },
-
-    ipadCanvas: {
-      overflow:
-        'hidden',
-
-      backgroundColor:
-        COLORS.navy,
-
-      borderRadius:
-        Platform.OS ===
-          'web'
-          ? 24
-          : 0,
-    },
-
-    nativeCanvas: {
-      width:
-        '100%',
-
-      height:
-        '100%',
-    },
-
-    gradient: {
-      flex:
-        1,
-    },
-
-    safeArea: {
-      flex:
-        1,
-    },
-
-    scroll: {
-      flex:
-        1,
-    },
-
-    content: {
-      flexGrow:
-        1,
-    },
-
-    loadingScreen: {
-      flex:
-        1,
-
-      alignItems:
-        'center',
-
-      justifyContent:
-        'center',
-
-      backgroundColor:
-        COLORS.outer,
-    },
-
-    loadingText: {
-      color:
-        COLORS.muted,
-
-      fontFamily:
-        'Inter_400Regular',
-    },
-
-    // ========================================================
-    // PAGE
-    // ========================================================
-
-    pageTitle: {
-      color:
-        COLORS.white,
-
-      fontFamily:
-        'Poppins_700Bold',
-    },
-
-    pageSubtitle: {
-      color:
-        COLORS.muted,
-
-      fontFamily:
-        'Inter_400Regular',
-    },
-
-    sectionLabel: {
-      color:
-        COLORS.muted,
-
-      fontFamily:
-        'Inter_700Bold',
-
-      letterSpacing:
-        0.8,
-    },
-
-    // ========================================================
-    // PROFILE
-    // ========================================================
-
-    profileCard: {
-      borderWidth:
-        1,
-
-      borderColor:
-        COLORS.border,
-
-      backgroundColor:
-        COLORS.card,
-    },
-
-    profileRow: {
-      flexDirection:
-        'row',
-
-      alignItems:
-        'center',
-
-      justifyContent:
-        'space-between',
-
-      gap:
-        16,
-    },
-
-    profileLeft: {
-      flex:
-        1,
-
-      flexDirection:
-        'row',
-
-      alignItems:
-        'center',
-
-      minWidth:
-        0,
-    },
-
-    profileAvatar: {
-      flexShrink:
-        0,
-
-      alignItems:
-        'center',
-
-      justifyContent:
-        'center',
-
-      backgroundColor:
-        '#ECECEC',
-    },
-
-    profileAvatarText: {
-      color:
-        '#111111',
-
-      fontFamily:
-        'Poppins_600SemiBold',
-    },
-
-    profileBody: {
-      flex:
-        1,
-
-      minWidth:
-        0,
-    },
-
-    profileName: {
-      color:
-        COLORS.white,
-
-      fontFamily:
-        'Poppins_600SemiBold',
-    },
-
-    profileEmail: {
-      color:
-        COLORS.muted,
-
-      fontFamily:
-        'Inter_400Regular',
-    },
-
-    profileBadges: {
-      flexDirection:
-        'row',
-
-      alignItems:
-        'center',
-
-      flexWrap:
-        'wrap',
-    },
-
-    adminBadge: {
-      flexDirection:
-        'row',
-
-      alignItems:
-        'center',
-
-      gap:
-        5,
-
-      borderWidth:
-        1,
-
-      borderColor:
-        'rgba(239,51,64,0.34)',
-
-      backgroundColor:
-        'rgba(239,51,64,0.10)',
-    },
-
-    adminBadgeText: {
-      color:
-        COLORS.redBright,
-
-      fontFamily:
-        'Inter_700Bold',
-
-      letterSpacing:
-        0.35,
-    },
-
-    activeBadge: {
-      flexDirection:
-        'row',
-
-      alignItems:
-        'center',
-
-      gap:
-        6,
-
-      borderWidth:
-        1,
-
-      borderColor:
-        'rgba(53,201,130,0.30)',
-
-      backgroundColor:
-        'rgba(53,201,130,0.08)',
-    },
-
-    activeDot: {
-      backgroundColor:
-        COLORS.green,
-    },
-
-    activeBadgeText: {
-      color:
-        COLORS.green,
-
-      fontFamily:
-        'Inter_700Bold',
-
-      letterSpacing:
-        0.3,
-    },
-
-    profileButton: {
-      flexDirection:
-        'row',
-
-      alignItems:
-        'center',
-
-      justifyContent:
-        'center',
-
-      borderWidth:
-        1,
-
-      borderColor:
-        COLORS.border,
-
-      backgroundColor:
-        COLORS.cardLight,
-    },
-
-    profileButtonText: {
-      color:
-        COLORS.white,
-
-      fontFamily:
-        'Inter_600SemiBold',
-    },
-
-    // ========================================================
-    // COLUMNS
-    // ========================================================
-
-    twoColumns: {
-      flexDirection:
-        'row',
-    },
-
-    column: {
-      flex:
-        1,
-    },
-
-    // ========================================================
-    // SETTINGS CARD
-    // ========================================================
-
-    settingsCard: {
-      overflow:
-        'hidden',
-
-      borderWidth:
-        1,
-
-      borderColor:
-        COLORS.border,
-
-      backgroundColor:
-        COLORS.card,
-    },
-
-    settingsRow: {
-      flexDirection:
-        'row',
-
-      alignItems:
-        'center',
-    },
-
-    settingsRowPressed: {
-      backgroundColor:
-        'rgba(255,255,255,0.025)',
-    },
-
-    settingsIcon: {
-      flexShrink:
-        0,
-
-      alignItems:
-        'center',
-
-      justifyContent:
-        'center',
-
-      borderWidth:
-        1,
-
-      borderColor:
-        'rgba(239,51,64,0.22)',
-
-      backgroundColor:
-        'rgba(239,51,64,0.08)',
-    },
-
-    settingsText: {
-      flex:
-        1,
-
-      minWidth:
-        0,
-
-      paddingRight:
-        10,
-    },
-
-    settingsTitle: {
-      color:
-        COLORS.text,
-
-      fontFamily:
-        'Inter_600SemiBold',
-    },
-
-    settingsDescription: {
-      color:
-        COLORS.muted,
-
-      fontFamily:
-        'Inter_400Regular',
-    },
-
-    settingsValue: {
-      maxWidth:
-        100,
-
-      marginLeft:
-        8,
-
-      fontFamily:
-        'Inter_600SemiBold',
-
-      textAlign:
-        'right',
-    },
-
-    statusBadge: {
-      flexShrink:
-        0,
-
-      borderWidth:
-        1,
-
-      borderColor:
-        COLORS.border,
-
-      backgroundColor:
-        COLORS.cardLight,
-    },
-
-    statusBadgeText: {
-      color:
-        COLORS.soft,
-
-      fontFamily:
-        'Inter_600SemiBold',
-    },
-
-    divider: {
-      height:
-        1,
-
-      backgroundColor:
-        COLORS.border,
-    },
-
-    // ========================================================
-    // NOTIFICATIONS
-    // ========================================================
-
-    notificationCard: {
-      borderWidth:
-        1,
-
-      borderColor:
-        COLORS.border,
-
-      backgroundColor:
-        COLORS.card,
-    },
-
-    sectionIntro: {
-      flexDirection:
-        'row',
-
-      alignItems:
-        'center',
-    },
-
-    sectionIntroIcon: {
-      flexShrink:
-        0,
-
-      alignItems:
-        'center',
-
-      justifyContent:
-        'center',
-
-      backgroundColor:
-        'rgba(239,51,64,0.08)',
-    },
-
-    sectionIntroText: {
-      flex:
-        1,
-    },
-
-    sectionIntroTitle: {
-      color:
-        COLORS.white,
-
-      fontFamily:
-        'Poppins_600SemiBold',
-    },
-
-    sectionIntroDescription: {
-      color:
-        COLORS.muted,
-
-      fontFamily:
-        'Inter_400Regular',
-    },
-
-    preferenceGrid: {
-      flexDirection:
-        'row',
-
-      flexWrap:
-        'wrap',
-    },
-
-    preferenceTile: {
-      width:
-        '49%',
-
-      borderWidth:
-        1,
-
-      borderColor:
-        COLORS.border,
-
-      backgroundColor:
-        COLORS.cardLight,
-    },
-
-    preferenceTileTop: {
-      flexDirection:
-        'row',
-
-      alignItems:
-        'center',
-
-      justifyContent:
-        'space-between',
-    },
-
-    preferenceIcon: {
-      alignItems:
-        'center',
-
-      justifyContent:
-        'center',
-
-      backgroundColor:
-        'rgba(239,51,64,0.08)',
-    },
-
-    preferenceTitle: {
-      color:
-        COLORS.white,
-
-      fontFamily:
-        'Inter_600SemiBold',
-    },
-
-    preferenceDescription: {
-      color:
-        COLORS.muted,
-
-      fontFamily:
-        'Inter_400Regular',
-    },
-
-    toggle: {
-      justifyContent:
-        'center',
-
-      backgroundColor:
-        '#28334C',
-    },
-
-    toggleActive: {
-      backgroundColor:
-        COLORS.red,
-    },
-
-    toggleThumb: {
-      backgroundColor:
-        COLORS.white,
-    },
-
-    preferenceNotice: {
-      flexDirection:
-        'row',
-
-      alignItems:
-        'flex-start',
-
-      gap:
-        8,
-
-      borderWidth:
-        1,
-
-      borderColor:
-        'rgba(110,168,254,0.25)',
-
-      backgroundColor:
-        'rgba(110,168,254,0.06)',
-    },
-
-    preferenceNoticeText: {
-      flex:
-        1,
-
-      color:
-        COLORS.soft,
-
-      fontFamily:
-        'Inter_400Regular',
-    },
-
-    // ========================================================
-    // ABOUT
-    // ========================================================
-
-    aboutCard: {
-      flexDirection:
-        'row',
-
-      alignItems:
-        'center',
-
-      justifyContent:
-        'space-between',
-
-      gap:
-        18,
-
-      borderWidth:
-        1,
-
-      borderColor:
-        COLORS.border,
-
-      backgroundColor:
-        COLORS.card,
-    },
-
-    aboutLeft: {
-      flex:
-        1,
-
-      flexDirection:
-        'row',
-
-      alignItems:
-        'center',
-    },
-
-    aboutIcon: {
-      flexShrink:
-        0,
-
-      alignItems:
-        'center',
-
-      justifyContent:
-        'center',
-
-      borderWidth:
-        1,
-
-      borderColor:
-        'rgba(239,51,64,0.22)',
-
-      backgroundColor:
-        'rgba(239,51,64,0.08)',
-    },
-
-    aboutText: {
-      flex:
-        1,
-    },
-
-    aboutTitle: {
-      color:
-        COLORS.white,
-
-      fontFamily:
-        'Poppins_600SemiBold',
-    },
-
-    aboutDescription: {
-      color:
-        COLORS.muted,
-
-      fontFamily:
-        'Inter_400Regular',
-    },
-
-    aboutButton: {
-      flexDirection:
-        'row',
-
-      alignItems:
-        'center',
-
-      justifyContent:
-        'center',
-
-      gap:
-        4,
-
-      borderWidth:
-        1,
-
-      borderColor:
-        COLORS.border,
-
-      backgroundColor:
-        COLORS.cardLight,
-    },
-
-    aboutButtonText: {
-      color:
-        COLORS.white,
-
-      fontFamily:
-        'Inter_600SemiBold',
-    },
-
-    // ========================================================
-    // SIGN OUT
-    // ========================================================
-
-    signOutCard: {
-      flexDirection:
-        'row',
-
-      alignItems:
-        'center',
-
-      justifyContent:
-        'space-between',
-
-      gap:
-        16,
-
-      borderWidth:
-        1,
-
-      borderColor:
-        'rgba(239,51,64,0.38)',
-
-      backgroundColor:
-        'rgba(65,17,31,0.48)',
-    },
-
-    signOutLeft: {
-      flex:
-        1,
-
-      flexDirection:
-        'row',
-
-      alignItems:
-        'center',
-    },
-
-    signOutIcon: {
-      flexShrink:
-        0,
-
-      alignItems:
-        'center',
-
-      justifyContent:
-        'center',
-
-      borderWidth:
-        1,
-
-      borderColor:
-        'rgba(239,51,64,0.28)',
-
-      backgroundColor:
-        'rgba(239,51,64,0.08)',
-    },
-
-    signOutText: {
-      flex:
-        1,
-    },
-
-    signOutTitle: {
-      color:
-        COLORS.white,
-
-      fontFamily:
-        'Poppins_600SemiBold',
-    },
-
-    signOutDescription: {
-      color:
-        COLORS.muted,
-
-      fontFamily:
-        'Inter_400Regular',
-    },
-
-    signOutButton: {
-      alignItems:
-        'center',
-
-      justifyContent:
-        'center',
-
-      borderWidth:
-        1,
-
-      borderColor:
-        'rgba(239,51,64,0.55)',
-
-      backgroundColor:
-        COLORS.red,
-    },
-
-    signOutButtonText: {
-      color:
-        COLORS.white,
-
-      fontFamily:
-        'Inter_600SemiBold',
-    },
-
-    // ========================================================
-    // MODALS
-    // ========================================================
-
-    modalOverlay: {
-      flex:
-        1,
-
-      alignItems:
-        'center',
-
-      justifyContent:
-        'center',
-
-      backgroundColor:
-        COLORS.overlay,
-    },
-
-    modalCard: {
-      alignItems:
-        'center',
-
-      borderWidth:
-        1,
-
-      borderColor:
-        COLORS.border,
-
-      backgroundColor:
-        COLORS.card,
-
-      shadowColor:
-        '#000000',
-
-      shadowOffset: {
-        width:
-          0,
-
-        height:
-          12,
-      },
-
-      shadowOpacity:
-        0.42,
-
-      shadowRadius:
-        30,
-
-      elevation:
-        22,
-    },
-
-    modalIcon: {
-      alignItems:
-        'center',
-
-      justifyContent:
-        'center',
-
-      borderWidth:
-        1,
-
-      borderColor:
-        COLORS.border,
-
-      backgroundColor:
-        COLORS.cardLight,
-    },
-
-    modalTitle: {
-      color:
-        COLORS.white,
-
-      fontFamily:
-        'Poppins_700Bold',
-
-      textAlign:
-        'center',
-    },
-
-    modalSubtitle: {
-      color:
-        COLORS.muted,
-
-      fontFamily:
-        'Inter_400Regular',
-
-      textAlign:
-        'center',
-    },
-
-    infoCard: {
-      width:
-        '100%',
-
-      borderWidth:
-        1,
-
-      borderColor:
-        COLORS.border,
-
-      backgroundColor:
-        COLORS.cardLight,
-    },
-
-    infoRow: {
-      flexDirection:
-        'row',
-
-      alignItems:
-        'center',
-
-      justifyContent:
-        'space-between',
-
-      borderBottomWidth:
-        1,
-
-      borderBottomColor:
-        COLORS.border,
-    },
-
-    infoRowLast: {
-      borderBottomWidth:
-        0,
-    },
-
-    infoLabel: {
-      color:
-        COLORS.muted,
-
-      fontFamily:
-        'Inter_500Medium',
-    },
-
-    infoValue: {
-      maxWidth:
-        '60%',
-
-      color:
-        COLORS.white,
-
-      fontFamily:
-        'Inter_600SemiBold',
-
-      textAlign:
-        'right',
-    },
-
-    warningBox: {
-      width:
-        '100%',
-
-      flexDirection:
-        'row',
-
-      alignItems:
-        'flex-start',
-
-      gap:
-        8,
-
-      borderWidth:
-        1,
-
-      borderColor:
-        'rgba(243,163,74,0.30)',
-
-      backgroundColor:
-        'rgba(243,163,74,0.06)',
-    },
-
-    warningText: {
-      flex:
-        1,
-
-      color:
-        '#E8C79F',
-
-      fontFamily:
-        'Inter_400Regular',
-    },
-
-    securityTip: {
-      width:
-        '100%',
-
-      flexDirection:
-        'row',
-
-      alignItems:
-        'flex-start',
-
-      gap:
-        8,
-
-      borderWidth:
-        1,
-
-      borderColor:
-        'rgba(53,201,130,0.26)',
-
-      backgroundColor:
-        'rgba(53,201,130,0.05)',
-    },
-
-    securityTipText: {
-      flex:
-        1,
-
-      color:
-        COLORS.soft,
-
-      fontFamily:
-        'Inter_400Regular',
-    },
-
-    modalButtonRow: {
-      width:
-        '100%',
-
-      flexDirection:
-        'row',
-    },
-
-    primaryModalButton: {
-      width:
-        '100%',
-
-      alignItems:
-        'center',
-
-      justifyContent:
-        'center',
-
-      backgroundColor:
-        COLORS.red,
-    },
-
-    flexModalButton: {
-      flex:
-        1,
-
-      width:
-        'auto',
-    },
-
-    primaryModalButtonText: {
-      color:
-        COLORS.white,
-
-      fontFamily:
-        'Inter_600SemiBold',
-    },
-
-    secondaryModalButton: {
-      flex:
-        1,
-
-      flexDirection:
-        'row',
-
-      alignItems:
-        'center',
-
-      justifyContent:
-        'center',
-
-      gap:
-        7,
-
-      borderWidth:
-        1,
-
-      borderColor:
-        COLORS.border,
-
-      backgroundColor:
-        COLORS.cardLight,
-    },
-
-    secondaryModalButtonText: {
-      color:
-        COLORS.white,
-
-      fontFamily:
-        'Inter_600SemiBold',
-    },
-
-    cancelButton: {
-      flex:
-        1,
-
-      alignItems:
-        'center',
-
-      justifyContent:
-        'center',
-
-      borderWidth:
-        1,
-
-      borderColor:
-        COLORS.border,
-
-      backgroundColor:
-        COLORS.cardLight,
-    },
-
-    cancelButtonText: {
-      color:
-        COLORS.white,
-
-      fontFamily:
-        'Inter_600SemiBold',
-    },
-
-    logoutConfirmButton: {
-      flex:
-        1,
-
-      alignItems:
-        'center',
-
-      justifyContent:
-        'center',
-
-      backgroundColor:
-        COLORS.red,
-    },
-
-    logoutConfirmText: {
-      color:
-        COLORS.white,
-
-      fontFamily:
-        'Inter_600SemiBold',
-    },
-
-    // ========================================================
-    // GENERIC
-    // ========================================================
-
-    pressed: {
-      opacity:
-        0.76,
-
-      transform: [
-        {
-          scale:
-            0.985,
-        },
-      ],
-    },
-
-    disabled: {
-      opacity:
-        0.48,
-    },
-  });
+const styles = StyleSheet.create({
+  outer: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: COLORS.outer,
+  },
+
+  ipadCanvas: {
+    overflow: 'hidden',
+    backgroundColor: COLORS.navy,
+  },
+
+  nativeCanvas: {
+    width: '100%',
+    height: '100%',
+  },
+
+  gradient: {
+    flex: 1,
+  },
+
+  safeArea: {
+    flex: 1,
+  },
+
+  scroll: {
+    flex: 1,
+  },
+
+  content: {
+    flexGrow: 1,
+  },
+
+  row: {
+    flexDirection: 'row',
+  },
+
+  flexFill: {
+    flex: 1,
+    minWidth: 0,
+  },
+
+  mutedText: {
+    color: COLORS.muted,
+    fontFamily: 'Inter_400Regular',
+  },
+
+  loadingArea: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  // TITLE
+
+  title: {
+    color: COLORS.white,
+    fontFamily: 'Poppins_700Bold',
+  },
+
+  subtitle: {
+    color: COLORS.muted,
+    fontFamily: 'Inter_400Regular',
+  },
+
+  // PROFILE CARD
+
+  profileCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    backgroundColor: COLORS.card,
+  },
+
+  profileMain: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+
+  avatar: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    backgroundColor: COLORS.cardLight,
+  },
+
+  avatarText: {
+    color: COLORS.white,
+    fontFamily: 'Poppins_600SemiBold',
+  },
+
+  profileName: {
+    color: COLORS.white,
+    fontFamily: 'Poppins_700Bold',
+  },
+
+  profileEmail: {
+    color: COLORS.soft,
+    fontFamily: 'Inter_400Regular',
+  },
+
+  roleBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(239,51,64,0.50)',
+    backgroundColor: 'rgba(239,51,64,0.12)',
+  },
+
+  roleBadgeText: {
+    color: COLORS.redBright,
+    fontFamily: 'Inter_600SemiBold',
+  },
+
+  activeBadge: {
+    borderColor: 'rgba(53,201,130,0.50)',
+    backgroundColor: 'rgba(53,201,130,0.12)',
+  },
+
+  inactiveBadge: {
+    borderColor: 'rgba(239,51,64,0.50)',
+    backgroundColor: 'rgba(239,51,64,0.12)',
+  },
+
+  // ERROR BANNER
+
+  errorBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(239,51,64,0.55)',
+    backgroundColor: 'rgba(80,16,30,0.55)',
+  },
+
+  errorBannerText: {
+    flex: 1,
+    color: '#FFB8BE',
+    fontFamily: 'Inter_500Medium',
+  },
+
+  // GRID
+
+  mainGrid: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+  },
+
+  leftColumn: {
+    flex: 1.55,
+  },
+
+  rightColumn: {
+    flex: 1,
+  },
+
+  // SECTION CARD
+
+  sectionCard: {
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    backgroundColor: COLORS.card,
+  },
+
+  sectionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+
+  sectionIcon: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(239,51,64,0.10)',
+  },
+
+  sectionTitle: {
+    color: COLORS.white,
+    fontFamily: 'Poppins_600SemiBold',
+  },
+
+  smallButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    backgroundColor: COLORS.cardLight,
+  },
+
+  smallButtonText: {
+    color: COLORS.soft,
+    fontFamily: 'Inter_600SemiBold',
+  },
+
+  // INFO
+
+  infoGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    rowGap: 18,
+    columnGap: 10,
+  },
+
+  infoItem: {
+    width: '48%',
+  },
+
+  infoLabel: {
+    color: COLORS.muted,
+    fontFamily: 'Inter_500Medium',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+
+  infoValue: {
+    color: COLORS.soft,
+    fontFamily: 'Inter_600SemiBold',
+  },
+
+  infoHighlight: {
+    color: COLORS.redBright,
+    fontFamily: 'Poppins_600SemiBold',
+  },
+
+  // ROWS
+
+  settingsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(36,53,84,0.58)',
+  },
+
+  rowPressed: {
+    opacity: 0.75,
+  },
+
+  rowIcon: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: COLORS.cardLight,
+  },
+
+  rowTitle: {
+    color: COLORS.white,
+    fontFamily: 'Inter_600SemiBold',
+  },
+
+  deviceRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(36,53,84,0.58)',
+  },
+
+  deviceValue: {
+    flexShrink: 1,
+    color: COLORS.soft,
+    fontFamily: 'Inter_600SemiBold',
+    textAlign: 'right',
+  },
+
+  noBorder: {
+    borderBottomWidth: 0,
+  },
+
+  signOutButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: COLORS.redBright,
+    backgroundColor: 'rgba(239,51,64,0.08)',
+  },
+
+  signOutText: {
+    color: COLORS.redBright,
+    fontFamily: 'Inter_600SemiBold',
+  },
+
+  // FORMS
+
+  inputWrap: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    backgroundColor: COLORS.cardLight,
+  },
+
+  inputWrapError: {
+    borderColor: 'rgba(239,51,64,0.70)',
+  },
+
+  input: {
+    flex: 1,
+    height: '100%',
+    paddingVertical: 0,
+    color: COLORS.white,
+    fontFamily: 'Inter_400Regular',
+    outlineStyle: 'none',
+  } as any,
+
+  fieldHint: {
+    color: COLORS.redBright,
+    fontFamily: 'Inter_500Medium',
+  },
+
+  rulesPanel: {
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    backgroundColor: 'rgba(16,26,53,0.6)',
+  },
+
+  // BUTTON STATES
+
+  disabledButton: {
+    opacity: 0.45,
+  },
+
+  buttonPressed: {
+    opacity: 0.8,
+    transform: [{ scale: 0.985 }],
+  },
+
+  // MODALS
+
+  modalBackdrop: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 24,
+    backgroundColor: 'rgba(2,4,10,0.78)',
+  },
+
+  formCard: {
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    backgroundColor: '#0B142A',
+    shadowColor: '#000000',
+    shadowOpacity: 0.35,
+    shadowRadius: 24,
+    shadowOffset: {
+      width: 0,
+      height: 14,
+    },
+    elevation: 18,
+  },
+
+  modalCard: {
+    alignItems: 'center',
+    borderWidth: 1,
+    backgroundColor: '#0B142A',
+    shadowColor: '#000000',
+    shadowOpacity: 0.35,
+    shadowRadius: 24,
+    shadowOffset: {
+      width: 0,
+      height: 14,
+    },
+    elevation: 18,
+  },
+
+  modalIconWrap: {
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  modalTitle: {
+    color: COLORS.white,
+    fontFamily: 'Poppins_600SemiBold',
+    textAlign: 'center',
+  },
+
+  modalMessage: {
+    maxWidth: 430,
+    color: COLORS.soft,
+    fontFamily: 'Inter_400Regular',
+    textAlign: 'center',
+  },
+
+  modalActions: {
+    width: '100%',
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+
+  modalCancelButton: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    backgroundColor: COLORS.cardLight,
+  },
+
+  modalPrimaryButton: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  modalSingleButton: {
+    maxWidth: 190,
+    marginLeft: 'auto',
+    marginRight: 'auto',
+  },
+
+  modalCancelText: {
+    color: COLORS.soft,
+    fontFamily: 'Inter_600SemiBold',
+  },
+
+  modalPrimaryText: {
+    color: COLORS.white,
+    fontFamily: 'Inter_600SemiBold',
+  },
+});

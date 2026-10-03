@@ -1,5 +1,8 @@
 require('dotenv').config();
 
+const os =
+  require('os');
+
 const express =
   require('express');
 
@@ -15,6 +18,9 @@ const authRoutes =
 
 const facilitiesRoutes =
   require('./routes/facilitiesRoutes');
+
+const geocodeRoutes =
+  require('./routes/geocodeRoutes');
 
 const nearbyBloodRequestRoutes =
   require('./routes/nearbyBloodRequestRoutes');
@@ -37,12 +43,27 @@ const adminActivityLogRoutes =
 const adminUserRoutes =
   require('./routes/adminUserRoutes');
 
+const adminReportRoutes =
+  require('./routes/adminReportRoutes');
+
 const notificationRoutes =
   require('./routes/notificationRoutes');
+
+const donationRoutes =
+  require('./routes/donationRoutes');
+
+const adminDonationRoutes =
+  require('./routes/adminDonationRoutes');
 
 // ============================================================
 // APP
 // ============================================================
+
+const {
+  startRequestExpiry
+} = require(
+  './services/requestExpiryService'
+);
 
 const app =
   express();
@@ -133,6 +154,15 @@ app.use(
   facilitiesRoutes
 );
 
+// ------------------------------------------------------------
+// ADDRESS FROM GPS (Complete Profile autofill)
+// ------------------------------------------------------------
+
+app.use(
+  '/api/geocode',
+  geocodeRoutes
+);
+
 // ============================================================
 // DONOR APPLICATIONS
 // ============================================================
@@ -196,6 +226,50 @@ app.use(
 );
 
 // ============================================================
+// ADMIN ISSUES (USER FEEDBACK / REPORTS)
+//
+// GET   /api/admin/reports
+// GET   /api/admin/reports/summary
+// GET   /api/admin/reports/:id
+// PATCH /api/admin/reports/:id
+//
+// ADMIN ONLY
+// ============================================================
+
+app.use(
+  '/api/admin/reports',
+  adminReportRoutes
+);
+
+// ============================================================
+// ADMIN DONATION RECORDS (review flagged records only)
+//
+// GET   /api/admin/donations
+// GET   /api/admin/donations/summary
+// GET   /api/admin/donations/:id
+// PATCH /api/admin/donations/:id/approve
+// PATCH /api/admin/donations/:id/reject
+//
+// ADMIN ONLY
+// ============================================================
+
+app.use(
+  '/api/admin/donations',
+  adminDonationRoutes
+);
+
+// ============================================================
+// DONATION HISTORY
+//
+// GET /api/donations/me
+// ============================================================
+
+app.use(
+  '/api/donations',
+  donationRoutes
+);
+
+// ============================================================
 // NOTIFICATIONS
 //
 // GET   /api/notifications
@@ -254,9 +328,31 @@ app.use(
 // START SERVER
 // ============================================================
 
+// IPv4 addresses of this computer on its local networks
+// (Wi-Fi, hotspot, Ethernet).
+function getLanAddresses() {
+  return Object.values(
+    os.networkInterfaces()
+  )
+    .flat()
+    .filter(
+      item =>
+        item &&
+        item.family === 'IPv4' &&
+        !item.internal
+    )
+    .map(
+      item =>
+        item.address
+    );
+}
+
 app.listen(
   PORT,
   () => {
+    // Closes requests that are past their time (see service).
+    startRequestExpiry();
+
     console.log(
       '========================================'
     );
@@ -268,6 +364,14 @@ app.listen(
     console.log(
       `Health: http://localhost:${PORT}/health`
     );
+
+    // Addresses a phone on the same Wi-Fi / hotspot can use
+    // (Expo Go builds the API address from the same IP).
+    for (const address of getLanAddresses()) {
+      console.log(
+        `Phone (same network): http://${address}:${PORT}/health`
+      );
+    }
 
     console.log(
       `Donors: http://localhost:${PORT}/api/donors`
@@ -295,6 +399,14 @@ app.listen(
 
     console.log(
       `Admin User Summary: http://localhost:${PORT}/api/admin/users/summary`
+    );
+
+    console.log(
+      `Admin Issues: http://localhost:${PORT}/api/admin/reports`
+    );
+
+    console.log(
+      `Admin Donations: http://localhost:${PORT}/api/admin/donations`
     );
 
     console.log(

@@ -3,13 +3,13 @@ import {
 } from 'react';
 
 import {
+  ActivityIndicator,
   Image,
   KeyboardAvoidingView,
   Platform,
   ScrollView,
   StyleSheet,
   Text,
-  TextInput,
   TouchableOpacity,
   View,
 } from 'react-native';
@@ -39,20 +39,22 @@ import {
   forgotPassword,
 } from '../lib/api';
 
+import AuthField from '../components/AuthField';
+
 // ============================================================
 // COLORS
 // ============================================================
 
 const COLORS = {
   red: '#DB0A0A',
-  redDark: '#7E0B0B',
+  redDark: '#8F1111',
   redButton: '#B42323',
 
   pinkTop: '#EBA4A7',
   pinkBottom: '#D93238',
 
   white: '#FFFFFF',
-  black: '#111111',
+  black: '#171717',
 
   inputBorder: '#D8D8D8',
   placeholder: '#A3A3A3',
@@ -427,22 +429,10 @@ export default function ForgotPasswordScreen() {
                         EMAIL
                     ======================================== */}
 
-                    <Text
-                      style={
-                        styles.label
-                      }
-                    >
-                      Email Address
-                    </Text>
-
-                    <TextInput
-                      style={
-                        styles.input
-                      }
+                    <AuthField
+                      label="Email Address"
+                      icon="mail-outline"
                       placeholder="Enter your email"
-                      placeholderTextColor={
-                        COLORS.placeholder
-                      }
                       value={
                         email
                       }
@@ -452,6 +442,7 @@ export default function ForgotPasswordScreen() {
                         false
                       }
                       autoComplete="email"
+                      textContentType="emailAddress"
                       editable={
                         !loading
                       }
@@ -469,6 +460,12 @@ export default function ForgotPasswordScreen() {
                           );
                         }
                       }}
+                      onBlur={() =>
+                        setEmail(
+                          current =>
+                            current.trim()
+                        )
+                      }
                       onSubmitEditing={
                         handleSendCode
                       }
@@ -495,6 +492,14 @@ export default function ForgotPasswordScreen() {
                         handleSendCode
                       }
                     >
+                      {loading ? (
+                        <ActivityIndicator
+                          color={
+                            COLORS.white
+                          }
+                        />
+                      ) : null}
+
                       <Text
                         style={
                           styles.primaryButtonText
@@ -728,7 +733,7 @@ const styles =
         'Inter_400Regular',
 
       fontSize:
-        12,
+        12.5,
     },
 
     // ========================================================
@@ -920,7 +925,7 @@ const styles =
         'Inter_400Regular',
 
       fontSize:
-        12,
+        12.5,
 
       lineHeight:
         19,
@@ -964,10 +969,10 @@ const styles =
         'Inter_500Medium',
 
       fontSize:
-        10,
+        12,
 
       lineHeight:
-        15,
+        17,
 
       textAlign:
         'center',
@@ -977,59 +982,15 @@ const styles =
     // FORM
     // ========================================================
 
-    label: {
-      marginBottom:
-        7,
-
-      color:
-        COLORS.black,
-
-      fontFamily:
-        'Inter_500Medium',
-
-      fontSize:
-        12,
-    },
-
-    input: {
-      height:
-        45,
-
-      paddingHorizontal:
-        15,
-
-      borderWidth:
-        1,
-
-      borderColor:
-        COLORS.inputBorder,
-
-      borderRadius:
-        23,
-
-      color:
-        COLORS.black,
-
-      backgroundColor:
-        COLORS.white,
-
-      fontFamily:
-        'Inter_400Regular',
-
-      fontSize:
-        12,
-
-      outlineStyle:
-        Platform.OS === 'web'
-          ? 'none'
-          : undefined,
-    } as any,
-
     // ========================================================
     // BUTTON
     // ========================================================
 
     primaryButton: {
+      flexDirection: 'row',
+
+      gap: 8,
+
       height:
         50,
 
@@ -1062,7 +1023,7 @@ const styles =
         'Poppins_600SemiBold',
 
       fontSize:
-        13,
+        14.5,
     },
 
     // ========================================================
@@ -1097,6 +1058,6 @@ const styles =
         'Inter_500Medium',
 
       fontSize:
-        11,
+        12.5,
     },
   });

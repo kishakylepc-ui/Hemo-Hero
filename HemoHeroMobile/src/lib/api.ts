@@ -2,19 +2,9 @@
 // HEMO-HERO API CLIENT
 // ============================================================
 
-import {
-  Platform,
-} from 'react-native';
-
-// ============================================================
-// API URL
-// ============================================================
-
-const API_URL =
-  Platform.OS === 'web'
-    ? 'http://localhost:5000'
-    : process.env.EXPO_PUBLIC_API_URL ||
-      'http://localhost:5000';
+import { authorizedFetch } from './authFetch';
+import { appendImage } from './imageUpload';
+import { API_URL } from './apiUrl';
 
 // ============================================================
 // API ERROR
@@ -220,6 +210,21 @@ export type BloodRequest = {
     | string
     | null;
 
+  // Hidden from nearby donors after several reports, until
+  // an admin reviews it.
+  flagged_at?:
+    | string
+    | null;
+
+  // Taken down by an admin after review (status cancelled).
+  removed_at?:
+    | string
+    | null;
+
+  removal_reason?:
+    | string
+    | null;
+
   created_at: string;
 
   updated_at: string;
@@ -239,10 +244,21 @@ export type NotificationType =
   | 'donor_response_rejected'
   | 'blood_request_fulfilled'
   | 'blood_request_cancelled'
+  | 'blood_request_removed'
+  | 'blood_request_expired'
   | 'donor_application_approved'
   | 'donor_application_rejected'
   | 'coordination_message'
   | 'coordination_schedule'
+  | 'coordination_no_show'
+  | 'coordination_trip_started'
+  | 'coordination_trip_near'
+  | 'coordination_trip_arrived'
+  | 'donation_recorded'
+  | 'donation_verified'
+  | 'donation_rejected'
+  | 'donation_disputed'
+  | 'donation_feedback_received'
   | string;
 
 export type NotificationData = {
@@ -268,6 +284,13 @@ export type NotificationData = {
 
   status?:
     | string
+    | null;
+
+  // Donation notifications go to both sides of the
+  // transaction; this says which one received it.
+  recipient_role?:
+    | 'donor'
+    | 'requester'
     | null;
 
   [key: string]:
@@ -314,7 +337,7 @@ async function request(
 
   try {
     response =
-      await fetch(
+      await authorizedFetch(
         `${API_URL}${endpoint}`,
         {
           ...options,
@@ -801,38 +824,22 @@ export async function uploadProfilePhoto(
   const formData =
     new FormData();
 
-  if (
-    Platform.OS === 'web' &&
-    photo.webFile
-  ) {
-    formData.append(
+  // Phone photos must be attached as File objects (SDK 57
+  // fetch); see lib/imageUpload.
+  try {
+    await appendImage(
+      formData,
       'photo',
-      photo.webFile,
-      photo.fileName ||
-        photo.webFile?.name ||
-        'profile-photo.jpg'
+      photo
     );
-  } else {
-    const fileName =
-      photo.fileName ||
-      `profile-${Date.now()}.jpg`;
+  } catch (error) {
+    console.log(
+      'PROFILE PHOTO READ ERROR:',
+      error
+    );
 
-    const mimeType =
-      photo.mimeType ||
-      'image/jpeg';
-
-    formData.append(
-      'photo',
-      {
-        uri:
-          photo.uri,
-
-        name:
-          fileName,
-
-        type:
-          mimeType,
-      } as any
+    throw new Error(
+      'Unable to read the selected photo. Please choose another one.'
     );
   }
 
@@ -840,7 +847,7 @@ export async function uploadProfilePhoto(
 
   try {
     response =
-      await fetch(
+      await authorizedFetch(
         `${API_URL}/api/auth/profile-photo`,
         {
           method:
@@ -899,6 +906,100 @@ export async function uploadProfilePhoto(
 }
 
 // ------------------------------------------------------------
+// BLOOD TYPE WITH PROOF
+//
+// PUT /api/auth/me/blood-type
+// A blood type is only saved together with a photo that proves
+// it (blood donor card, blood typing or lab result).
+// ------------------------------------------------------------
+
+export async function saveBloodTypeWithProof(
+  accessToken: string,
+  bloodType: string,
+  proof: ProfilePhotoFile
+) {
+  const formData =
+    new FormData();
+
+  formData.append(
+    'blood_type',
+    bloodType
+  );
+
+  try {
+    await appendImage(
+      formData,
+      'proof',
+      proof
+    );
+  } catch (error) {
+    console.log(
+      'BLOOD TYPE PROOF READ ERROR:',
+      error
+    );
+
+    throw new Error(
+      'Unable to read the selected photo. Please choose another one.'
+    );
+  }
+
+  let response: Response;
+
+  try {
+    response =
+      await authorizedFetch(
+        `${API_URL}/api/auth/me/blood-type`,
+        {
+          method:
+            'PUT',
+
+          headers: {
+            Authorization:
+              `Bearer ${accessToken}`,
+          },
+
+          body:
+            formData,
+        }
+      );
+  } catch (error) {
+    console.log(
+      'BLOOD TYPE PROOF NETWORK ERROR:',
+      error
+    );
+
+    throw new Error(
+      'Unable to connect to the Hemo-Hero server.'
+    );
+  }
+
+  let data: any =
+    null;
+
+  try {
+    data =
+      await response.json();
+  } catch {
+    data =
+      null;
+  }
+
+  if (!response.ok) {
+    throw new ApiError(
+      data?.error ||
+        data?.message ||
+        `Saving your blood type failed (${response.status})`,
+
+      response.status,
+
+      data
+    );
+  }
+
+  return data;
+}
+
+// ------------------------------------------------------------
 // DELETE PROFILE PHOTO
 // ------------------------------------------------------------
 
@@ -922,6 +1023,56 @@ export async function deleteProfilePhoto(
 // ============================================================
 // FACILITIES
 // ============================================================
+
+// ------------------------------------------------------------
+// ADDRESS FROM GPS
+//
+// GET /api/geocode/reverse (OpenStreetMap). barangay_exact is
+// true when the barangay comes from its mapped boundary; otherwise
+// it is the nearest named area or street, for the person to check.
+// ------------------------------------------------------------
+
+export type AddressFromLocation = {
+  barangay: string;
+  city: string;
+  province: string;
+  barangay_exact: boolean;
+};
+
+export async function getAddressFromLocation(
+  accessToken: string,
+  latitude: number,
+  longitude: number
+): Promise<{
+  address: AddressFromLocation;
+  attribution: string;
+}> {
+  const query =
+    new URLSearchParams({
+      latitude:
+        String(
+          latitude
+        ),
+
+      longitude:
+        String(
+          longitude
+        ),
+    });
+
+  return request(
+    `/api/geocode/reverse?${query.toString()}`,
+    {
+      method:
+        'GET',
+
+      headers: {
+        Authorization:
+          `Bearer ${accessToken}`,
+      },
+    }
+  );
+}
 
 export async function getNearbyFacilities(
   accessToken: string,

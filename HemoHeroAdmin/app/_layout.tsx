@@ -1,5 +1,7 @@
 import { useEffect } from 'react';
 
+import { Platform } from 'react-native';
+
 import { Stack } from 'expo-router';
 
 import * as SplashScreen from 'expo-splash-screen';
@@ -19,6 +21,35 @@ import {
 } from '@expo-google-fonts/inter';
 
 SplashScreen.preventAutoHideAsync().catch(() => {});
+
+// ------------------------------------------------------------
+// NO BROWSER DIALOGS ON WEB
+//
+// The Admin Portal uses its own modals. Silence the browser's
+// "localhost says..." alert/confirm/prompt in case a library
+// calls them. confirm() answers yes so that flow continues.
+// ------------------------------------------------------------
+
+if (
+  Platform.OS === 'web' &&
+  typeof window !== 'undefined'
+) {
+  window.alert = (message?: unknown) => {
+    console.log('[alert suppressed]', message);
+  };
+
+  window.confirm = (message?: string) => {
+    console.log('[confirm suppressed]', message);
+
+    return true;
+  };
+
+  window.prompt = (message?: string) => {
+    console.log('[prompt suppressed]', message);
+
+    return null;
+  };
+}
 
 export default function RootLayout() {
   const [fontsLoaded] = useFonts({

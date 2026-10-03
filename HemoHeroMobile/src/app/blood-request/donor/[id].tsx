@@ -1,4 +1,9 @@
-import { useCallback, useState } from 'react';
+import {
+  type ReactNode,
+  useCallback,
+  useRef,
+  useState,
+} from 'react';
 import { useFonts } from 'expo-font';
 
 import {
@@ -14,7 +19,8 @@ import {
 } from '@expo-google-fonts/inter';
 
 import {
-  Modal,
+  ActivityIndicator,
+  Linking,
   Platform,
   ScrollView,
   StyleSheet,
@@ -37,11 +43,14 @@ import { StatusBar } from 'expo-status-bar';
 
 import {
   SafeAreaView,
+  useSafeAreaInsets,
 } from 'react-native-safe-area-context';
 
 import {
   getDonorViewBloodRequest,
   getMyDonorResponse,
+  reportBloodRequest,
+  type RequestReportReason,
   respondToBloodRequest,
   withdrawDonorResponse,
 } from '../../../lib/donorRequests';
@@ -49,6 +58,7 @@ import {
 import type {
   DonorBloodRequest,
   DonorResponse,
+  DonorResponseStatus,
 } from '../../../lib/donorRequests';
 
 import {
@@ -65,92 +75,248 @@ import {
   getMyDonorInvitations,
 } from '../../../lib/donorInvitations';
 
+import type {
+  DonorInvitation,
+  DonorInvitationStatus,
+} from '../../../lib/donorInvitations';
+
+import {
+  getCompatibleDonorTypes,
+  isBloodType,
+} from '../../../lib/bloodCompatibility';
+
+import {
+  disputeDonation,
+  getFeedbackFrom,
+  getRequestDonations,
+  submitDonationFeedback,
+} from '../../../lib/donations';
+
+import {
+  FadeInView,
+  PressableScale,
+} from '../../../components/Motion';
+
+import AppModal from '../../../components/AppModal';
+
+import {
+  getCoordinationInbox,
+  type CoordinationInboxItem,
+} from '../../../lib/coordination';
+
+import DonationFeedbackModal from '../../../components/DonationFeedbackModal';
+
+import ReportRequestSheet from '../../../components/ReportRequestSheet';
+
+// One-tap phrases for rating the requester.
+const REQUESTER_FEEDBACK_NOTES = [
+  'Clear instructions',
+  'Easy to coordinate with',
+  'Very thankful',
+  'Smooth donation',
+];
+
+import type {
+  BloodDonation,
+} from '../../../lib/donations';
+
 import {
   getAccessToken,
 } from '../../../lib/session';
 
 // ============================================================
-// COLORS
+// COLORS (same palette as Dashboard / Request Blood)
 // ============================================================
 
 const COLORS = {
   red: '#DB0A0A',
   redDark: '#8F1111',
   redButton: '#B42323',
+  headerTop: '#D2151A',
 
   white: '#FFFFFF',
-  black: '#181818',
+  black: '#171717',
 
-  pageTop: '#F2B3B5',
-  pageBottom: '#D71318',
+  page: '#FFF8F8',
 
   muted: '#666666',
-  lightMuted: '#929292',
+  lightMuted: '#9A9A9A',
 
-  border: '#ECE2E2',
+  cardBorder: '#E8DADA',
+  tileBorder: '#F0D6D6',
+  divider: '#F3E9E9',
 
-  pink: '#FFF2F2',
-  pinkStrong: '#FFE7E7',
+  pinkLight: '#FFF1F1',
 
-  green: '#198754',
-  greenDark: '#12693F',
+  green: '#159447',
   greenLight: '#EAF7EF',
 
   orange: '#DF721D',
-  orangeLight: '#FFF5E8',
+  orangeLight: '#FDF1E6',
 
-  gray: '#A7A7A7',
-  grayLight: '#F2F2F2',
+  blue: '#2F6FDB',
+  blueLight: '#EAF1FD',
+
+  gray: '#9A9A9A',
+  grayLight: '#F5EFEF',
+
+  star: '#F2A516',
 };
 
 // ============================================================
 // INVITATION TYPE
+//
+// Same shape the API returns (lib/donorInvitations).
 // ============================================================
 
-type InvitationStatus =
-  | 'pending'
-  | 'accepted'
-  | 'declined'
-  | 'cancelled';
+type DonorInvitationRecord =
+  DonorInvitation;
 
-type DonorInvitationRecord = {
-  id: string;
-  request_id: string;
-  requester_id: string;
-  donor_id: string;
-  status: InvitationStatus;
+// ============================================================
+// STATUS DISPLAY
+// ============================================================
 
-  message?: string | null;
-  responded_at?: string | null;
-  created_at?: string | null;
-  updated_at?: string | null;
+type IconName =
+  keyof typeof MaterialIcons.glyphMap;
 
-  requester?: {
-    id?: string;
-    first_name?: string | null;
-    last_name?: string | null;
-    full_name?: string | null;
-    city?: string | null;
-    province?: string | null;
-  } | null;
+type Tone =
+  | 'green'
+  | 'orange'
+  | 'blue'
+  | 'gray'
+  | 'red';
 
-  request?: {
-    id: string;
-    status: string;
-    blood_type: string;
-    units_needed: number;
-    facility_name: string;
-    facility_type?: string | null;
-    facility_address?: string | null;
-    urgency: string;
-    needed_date?: string | null;
-    needed_time?: string | null;
-    message?: string | null;
-  } | null;
+const TONES: Record<
+  Tone,
+  {
+    bg: string;
+    fg: string;
+  }
+> = {
+  green: {
+    bg: COLORS.greenLight,
+    fg: COLORS.green,
+  },
+
+  orange: {
+    bg: COLORS.orangeLight,
+    fg: COLORS.orange,
+  },
+
+  blue: {
+    bg: COLORS.blueLight,
+    fg: COLORS.blue,
+  },
+
+  gray: {
+    bg: COLORS.grayLight,
+    fg: COLORS.muted,
+  },
+
+  red: {
+    bg: COLORS.pinkLight,
+    fg: COLORS.redButton,
+  },
 };
+
+// The donor's own offer on this request.
+const RESPONSE_STATUS: Record<
+  DonorResponseStatus,
+  {
+    label: string;
+    tone: Tone;
+    icon: IconName;
+    title: string;
+    text: string;
+  }
+> = {
+  pending: {
+    label: 'Pending',
+    tone: 'orange',
+    icon: 'schedule',
+    title: 'Offer sent',
+    text: 'Waiting for the requester to accept.',
+  },
+
+  accepted: {
+    label: 'Accepted',
+    tone: 'green',
+    icon: 'check-circle',
+    title: 'You’re accepted',
+    text: 'Chat with the requester to plan your donation.',
+  },
+
+  rejected: {
+    label: 'Not selected',
+    tone: 'gray',
+    icon: 'cancel',
+    title: 'Another donor was chosen',
+    text: 'Thank you for offering to help.',
+  },
+
+  withdrawn: {
+    label: 'Withdrawn',
+    tone: 'gray',
+    icon: 'undo',
+    title: 'Offer withdrawn',
+    text: 'You withdrew your offer.',
+  },
+
+  no_show: {
+    label: 'No-show',
+    tone: 'red',
+    icon: 'person-off',
+    title: 'Marked as a no-show',
+    text: 'The requester said you didn’t come. Reply in chat if this is a mistake.',
+  },
+};
+
+const INVITATION_STATUS: Record<
+  DonorInvitationStatus,
+  {
+    label: string;
+    tone: Tone;
+  }
+> = {
+  pending: {
+    label: 'New',
+    tone: 'blue',
+  },
+
+  accepted: {
+    label: 'Accepted',
+    tone: 'green',
+  },
+
+  declined: {
+    label: 'Declined',
+    tone: 'gray',
+  },
+
+  cancelled: {
+    label: 'Cancelled',
+    tone: 'gray',
+  },
+};
+
+function bagsLabel(
+  units?: number | null
+) {
+  const count =
+    Number(units) || 0;
+
+  return `${count} ${
+    count === 1
+      ? 'bag'
+      : 'bags'
+  }`;
+}
 
 // ============================================================
 // BLOOD TYPE
+//
+// Same rule as the server: the donor's verified blood type
+// must be red-cell compatible with the requested type.
 // ============================================================
 
 function normalizeBloodType(
@@ -161,7 +327,7 @@ function normalizeBloodType(
     .toUpperCase();
 }
 
-function bloodTypesMatchExactly(
+function isCompatibleDonor(
   requestBloodType?: string | null,
   donorBloodType?: string | null
 ) {
@@ -176,16 +342,39 @@ function bloodTypesMatchExactly(
     );
 
   if (
-    !requestType ||
-    !donorType
+    !isBloodType(
+      requestType
+    ) ||
+    !isBloodType(
+      donorType
+    )
   ) {
     return false;
   }
 
-  return (
-    requestType ===
+  return getCompatibleDonorTypes(
+    requestType
+  ).includes(
     donorType
   );
+}
+
+// e.g. "O-, O+, A-, A+" for an A+ request.
+function getCompatibleDonorLabel(
+  requestBloodType?: string | null
+) {
+  const requestType =
+    normalizeBloodType(
+      requestBloodType
+    );
+
+  return isBloodType(
+    requestType
+  )
+    ? getCompatibleDonorTypes(
+        requestType
+      ).join(', ')
+    : 'not available';
 }
 
 // ============================================================
@@ -292,6 +481,58 @@ export default function DonorBloodRequestScreen() {
       DonorInvitationRecord | null
     >(null);
 
+  // Donation the requester confirmed for this donor's
+  // accepted offer (the transaction record).
+  const [
+    myDonation,
+    setMyDonation,
+  ] =
+    useState<
+      BloodDonation | null
+    >(null);
+
+  // Open dialog: rate the transaction or report a problem.
+  const [
+    donationDialog,
+    setDonationDialog,
+  ] =
+    useState<
+      'feedback' | 'dispute' | null
+    >(null);
+
+  // "Report this request" sheet (false request, asking for money).
+  const [
+    reportVisible,
+    setReportVisible,
+  ] =
+    useState(false);
+
+  // This donor's chat for the request: meeting time, unread
+  // messages, and the requester's name.
+  const [
+    conversation,
+    setConversation,
+  ] =
+    useState<CoordinationInboxItem | null>(
+      null
+    );
+
+  // First day this donor may donate again after their last
+  // donation (null = they can donate now).
+  const [
+    nextEligibleAt,
+    setNextEligibleAt,
+  ] =
+    useState<string | null>(
+      null
+    );
+
+  const hasLoadedOnce =
+    useRef(false);
+
+  const insets =
+    useSafeAreaInsets();
+
   const [
     loading,
     setLoading,
@@ -367,7 +608,10 @@ export default function DonorBloodRequestScreen() {
         }
 
         try {
-          setLoading(true);
+          // Returning from the chat refreshes quietly.
+          if (!hasLoadedOnce.current) {
+            setLoading(true);
+          }
 
           setErrorMessage('');
 
@@ -444,6 +688,93 @@ export default function DonorBloodRequestScreen() {
           setDonorApplication(
             currentApplication
           );
+
+          setNextEligibleAt(
+            donorApplicationData
+              ?.next_eligible_at ||
+              null
+          );
+
+          hasLoadedOnce.current = true;
+
+          // Chat details once the donor is in a conversation.
+          // A failure only hides them.
+          if (
+            currentResponse?.status ===
+              'accepted' ||
+            currentResponse?.status ===
+              'no_show'
+          ) {
+            getCoordinationInbox(
+              token
+            )
+              .then(result =>
+                setConversation(
+                  (
+                    result.conversations ||
+                    []
+                  ).find(
+                    item =>
+                      item.response_id ===
+                      currentResponse.id
+                  ) || null
+                )
+              )
+              .catch(inboxError => {
+                console.log(
+                  'DONOR REQUEST CONVERSATION ERROR:',
+                  inboxError
+                );
+
+                setConversation(null);
+              });
+          } else {
+            setConversation(null);
+          }
+
+          // Donation record for an accepted offer. A failure only
+          // hides the donation status.
+          if (
+            currentResponse?.status ===
+            'accepted'
+          ) {
+            try {
+              const donationData =
+                await getRequestDonations(
+                  token,
+                  requestId
+                );
+
+              const ownDonations =
+                (
+                  donationData.donations ||
+                  []
+                ).filter(
+                  donation =>
+                    donation.response_id ===
+                    currentResponse.id
+                );
+
+              setMyDonation(
+                ownDonations.find(
+                  donation =>
+                    donation.status !==
+                    'rejected'
+                ) ||
+                  ownDonations[0] ||
+                  null
+              );
+            } catch (donationError) {
+              console.log(
+                'DONOR DONATION STATUS ERROR:',
+                donationError
+              );
+
+              setMyDonation(null);
+            }
+          } else {
+            setMyDonation(null);
+          }
 
           if (
             currentResponse?.message
@@ -723,7 +1054,7 @@ export default function DonorBloodRequestScreen() {
         'unable'
       ) ||
       value.includes(
-        'does not match'
+        'not compatible'
       ) ||
       value.includes(
         'required'
@@ -791,10 +1122,10 @@ export default function DonorBloodRequestScreen() {
   }
 
   // ==========================================================
-  // BLOOD MATCH
+  // BLOOD TYPE COMPATIBILITY
   // ==========================================================
 
-  function hasExactBloodTypeMatch() {
+  function hasCompatibleBloodType() {
     if (
       !request ||
       !donorApplication
@@ -802,7 +1133,7 @@ export default function DonorBloodRequestScreen() {
       return false;
     }
 
-    return bloodTypesMatchExactly(
+    return isCompatibleDonor(
       request.blood_type,
       donorApplication
         .blood_type
@@ -810,116 +1141,537 @@ export default function DonorBloodRequestScreen() {
   }
 
   // ==========================================================
-  // RESPONSE
+  // DATES / DIRECTIONS
   // ==========================================================
 
-  function getResponseStatusLabel() {
+  // "Sep 30" this year, "Sep 30, 2025" otherwise (or always
+  // with the year when asked).
+  function formatShortDate(
+    value?: string | null,
+    withYear = false
+  ) {
+    if (!value) {
+      return '';
+    }
+
+    const date =
+      new Date(value);
+
     if (
-      !donorResponse
+      Number.isNaN(
+        date.getTime()
+      )
     ) {
       return '';
     }
 
-    switch (
-      donorResponse.status
-    ) {
-      case 'pending':
-        return 'Pending Review';
-
-      case 'accepted':
-        return 'Accepted';
-
-      case 'rejected':
-        return 'Not Selected';
-
-      case 'withdrawn':
-        return 'Withdrawn';
-
-      default:
-        return donorResponse
-          .status;
-    }
+    return date.toLocaleDateString(
+      'en-US',
+      {
+        month: 'short',
+        day: 'numeric',
+        year:
+          withYear ||
+          date.getFullYear() !==
+            new Date().getFullYear()
+            ? 'numeric'
+            : undefined,
+      }
+    );
   }
 
-  function getResponseStatusColor() {
+  function formatMeeting(
+    value: string
+  ) {
+    const date =
+      new Date(value);
+
     if (
-      !donorResponse
-    ) {
-      return COLORS.gray;
-    }
-
-    switch (
-      donorResponse.status
-    ) {
-      case 'pending':
-        return COLORS.orange;
-
-      case 'accepted':
-        return COLORS.green;
-
-      case 'rejected':
-        return COLORS.redButton;
-
-      case 'withdrawn':
-        return COLORS.gray;
-
-      default:
-        return COLORS.gray;
-    }
-  }
-
-  function getResponseIconName() {
-    if (
-      !donorResponse
-    ) {
-      return 'volunteer-activism';
-    }
-
-    switch (
-      donorResponse.status
-    ) {
-      case 'accepted':
-        return 'check-circle';
-
-      case 'pending':
-        return 'schedule';
-
-      case 'rejected':
-        return 'cancel';
-
-      case 'withdrawn':
-        return 'undo';
-
-      default:
-        return 'volunteer-activism';
-    }
-  }
-
-  function getResponseSummary() {
-    if (
-      !donorResponse
+      Number.isNaN(
+        date.getTime()
+      )
     ) {
       return '';
     }
 
-    switch (
-      donorResponse.status
-    ) {
-      case 'accepted':
-        return 'Your response was accepted for this request. You can now message the requester and coordinate the donation.';
+    const today =
+      new Date();
 
-      case 'pending':
-        return 'Your offer has been sent. The requester can review it and decide whether to accept your response.';
+    const tomorrow =
+      new Date(
+        today.getFullYear(),
+        today.getMonth(),
+        today.getDate() + 1
+      );
 
-      case 'rejected':
-        return 'The requester selected another donor for this blood request.';
+    const day =
+      date.toDateString() ===
+      today.toDateString()
+        ? 'Today'
+        : date.toDateString() ===
+            tomorrow.toDateString()
+          ? 'Tomorrow'
+          : date.toLocaleDateString(
+              'en-US',
+              {
+                month: 'short',
+                day: 'numeric',
+              }
+            );
 
-      case 'withdrawn':
-        return 'You withdrew your response from this request.';
+    return `${day}, ${date.toLocaleTimeString(
+      'en-US',
+      {
+        hour: 'numeric',
+        minute: '2-digit',
+      }
+    )}`;
+  }
 
-      default:
-        return '';
+  // Opens the facility in the phone's maps app.
+  function openDirections() {
+    if (!request) {
+      return;
     }
+
+    const query =
+      request.facility_latitude != null &&
+      request.facility_longitude != null
+        ? `${request.facility_latitude},${request.facility_longitude}`
+        : [
+            request.facility_name,
+            request.facility_address,
+          ]
+            .filter(Boolean)
+            .join(', ');
+
+    Linking.openURL(
+      `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(
+        query
+      )}`
+    ).catch(() =>
+      showMessage(
+        'Unable to Open Maps',
+        'We could not open a maps app on this device.'
+      )
+    );
+  }
+
+  // ==========================================================
+  // DONATION STATUS
+  //
+  // Where this donor's donation stands in the transaction:
+  // waiting to donate -> confirmed by requester -> verified.
+  // ==========================================================
+
+  function renderDonationStatus() {
+    if (
+      donorResponse?.status !==
+      'accepted'
+    ) {
+      return null;
+    }
+
+    if (
+      !myDonation ||
+      myDonation.status ===
+        'rejected'
+    ) {
+      return (
+        <View
+          style={
+            styles.inlineNote
+          }
+        >
+          <MaterialIcons
+            name={
+              myDonation
+                ? 'error-outline'
+                : 'bloodtype'
+            }
+            size={15}
+            color={
+              myDonation
+                ? COLORS.redButton
+                : COLORS.muted
+            }
+          />
+
+          <Text
+            style={[
+              styles.inlineNoteText,
+              {
+                color:
+                  myDonation
+                    ? COLORS.redButton
+                    : COLORS.muted,
+              },
+            ]}
+          >
+            {myDonation
+              ? `Record not accepted${
+                  myDonation.admin_note
+                    ? `: ${myDonation.admin_note}`
+                    : '. The requester can confirm it again.'
+                }`
+              : 'After you donate, the requester confirms it here.'}
+          </Text>
+        </View>
+      );
+    }
+
+    const recorded =
+      myDonation.status ===
+      'completed';
+
+    const requesterFeedback =
+      getFeedbackFrom(
+        myDonation,
+        'requester'
+      );
+
+    const myFeedback =
+      getFeedbackFrom(
+        myDonation,
+        'donor'
+      );
+
+    return (
+      <FadeInView
+        key={
+          myDonation.status
+        }
+        offset={6}
+        style={
+          styles.recordBox
+        }
+      >
+        <View
+          style={
+            styles.recordRow
+          }
+        >
+          <MaterialIcons
+            name={
+              recorded
+                ? 'task-alt'
+                : 'hourglass-top'
+            }
+            size={16}
+            color={
+              recorded
+                ? COLORS.green
+                : COLORS.orange
+            }
+          />
+
+          <Text
+            style={
+              styles.recordText
+            }
+            numberOfLines={1}
+          >
+            {bagsLabel(
+              myDonation.units_donated
+            )}{' '}
+            donated ·{' '}
+            {formatShortDate(
+              myDonation.donated_at,
+              true
+            )}
+          </Text>
+
+          <View
+            style={[
+              styles.chip,
+              {
+                backgroundColor:
+                  recorded
+                    ? COLORS.greenLight
+                    : COLORS.orangeLight,
+              },
+            ]}
+          >
+            <Text
+              style={[
+                styles.chipText,
+                {
+                  color:
+                    recorded
+                      ? COLORS.green
+                      : COLORS.orange,
+                },
+              ]}
+            >
+              {recorded
+                ? 'Recorded'
+                : 'In review'}
+            </Text>
+          </View>
+        </View>
+
+        {recorded &&
+        myDonation.next_eligible_at ? (
+          <Text
+            style={
+              styles.recordSub
+            }
+          >
+            You can donate again from{' '}
+            {formatShortDate(
+              myDonation.next_eligible_at,
+              true
+            )}
+            .
+          </Text>
+        ) : !recorded &&
+          myDonation.dispute_note ? (
+          <Text
+            style={
+              styles.recordSub
+            }
+          >
+            You reported: “{myDonation.dispute_note}”
+          </Text>
+        ) : null}
+
+        {requesterFeedback ? (
+          <View
+            style={
+              styles.ratingRow
+            }
+          >
+            <Text
+              style={
+                styles.ratingLabel
+              }
+            >
+              They rated
+            </Text>
+
+            <StarRow
+              rating={
+                requesterFeedback.rating
+              }
+            />
+          </View>
+        ) : null}
+
+        {requesterFeedback?.comment ? (
+          <Text
+            style={
+              styles.ratingComment
+            }
+            numberOfLines={3}
+          >
+            “{requesterFeedback.comment}”
+          </Text>
+        ) : null}
+
+        {myFeedback ? (
+          <TouchableOpacity
+            style={
+              styles.ratingRow
+            }
+            activeOpacity={0.75}
+            accessibilityLabel="Edit your rating"
+            onPress={() =>
+              setDonationDialog(
+                'feedback'
+              )
+            }
+          >
+            <Text
+              style={
+                styles.ratingLabel
+              }
+            >
+              You rated
+            </Text>
+
+            <StarRow
+              rating={
+                myFeedback.rating
+              }
+            />
+
+            <MaterialIcons
+              name="edit"
+              size={14}
+              color={
+                COLORS.lightMuted
+              }
+            />
+          </TouchableOpacity>
+        ) : (
+          <TouchableOpacity
+            style={
+              styles.rateButton
+            }
+            activeOpacity={0.85}
+            onPress={() =>
+              setDonationDialog(
+                'feedback'
+              )
+            }
+          >
+            <MaterialIcons
+              name="star-outline"
+              size={17}
+              color={
+                COLORS.white
+              }
+            />
+
+            <Text
+              style={
+                styles.rateButtonText
+              }
+            >
+              Rate the Requester
+            </Text>
+          </TouchableOpacity>
+        )}
+
+        {/* Only a recorded donation can be disputed */}
+        {recorded ? (
+          <TouchableOpacity
+            style={
+              styles.disputeLink
+            }
+            activeOpacity={0.7}
+            onPress={() =>
+              setDonationDialog(
+                'dispute'
+              )
+            }
+          >
+            <MaterialIcons
+              name="flag"
+              size={14}
+              color={
+                COLORS.muted
+              }
+            />
+
+            <Text
+              style={
+                styles.disputeLinkText
+              }
+            >
+              Report a problem with this record
+            </Text>
+          </TouchableOpacity>
+        ) : null}
+      </FadeInView>
+    );
+  }
+
+  // ==========================================================
+  // DONATION FEEDBACK / REPORT
+  // ==========================================================
+
+  // Throws on failure so the sheet can show the message.
+  async function submitRequestReport(value: {
+    reason: RequestReportReason;
+    details: string;
+  }) {
+    if (!requestId) {
+      return;
+    }
+
+    const token =
+      await getAccessToken();
+
+    if (!token) {
+      router.replace('/');
+
+      return;
+    }
+
+    const result =
+      await reportBloodRequest(
+        token,
+        requestId,
+        value
+      );
+
+    setReportVisible(false);
+
+    showMessage(
+      'Report Sent',
+
+      result.flagged
+        ? 'Thank you. Several people reported this request, so it is now hidden from donors while Hemo-Hero reviews it.'
+        : 'Thank you. Hemo-Hero will review this request. You don’t need to go if something feels wrong.'
+    );
+
+    if (result.flagged) {
+      loadData();
+    }
+  }
+
+  async function submitDonationDialog(value: {
+    rating: number;
+    comment: string;
+  }) {
+    const mode =
+      donationDialog;
+
+    if (
+      !requestId ||
+      !myDonation ||
+      !mode
+    ) {
+      return;
+    }
+
+    const token =
+      await getAccessToken();
+
+    if (!token) {
+      router.replace('/');
+
+      return;
+    }
+
+    // Errors are shown inside the dialog.
+    if (mode === 'feedback') {
+      await submitDonationFeedback(
+        token,
+        requestId,
+        myDonation.id,
+        {
+          rating:
+            value.rating,
+
+          comment:
+            value.comment ||
+            null,
+        }
+      );
+    } else {
+      await disputeDonation(
+        token,
+        requestId,
+        myDonation.id,
+        value.comment
+      );
+    }
+
+    setDonationDialog(null);
+
+    await loadData();
+
+    showMessage(
+      mode === 'feedback'
+        ? 'Feedback Sent'
+        : 'Problem Reported',
+
+      mode === 'feedback'
+        ? 'Thank you! The requester will see your feedback.'
+        : 'Thanks for letting us know. Hemo-Hero will review this record and notify you.'
+    );
   }
 
   // ==========================================================
@@ -957,23 +1709,23 @@ export default function DonorBloodRequestScreen() {
     if (
       !donorApplication
     ) {
-      return 'Register and complete donor verification before offering to donate blood.';
+      return 'Get verified as a donor to offer blood.';
     }
 
     switch (
       donorApplication.status
     ) {
       case 'pending':
-        return 'Your donor application is being reviewed. You can respond to blood requests once approved.';
+        return 'You can offer once your application is approved.';
 
       case 'approved':
         return 'Your donor account is verified and eligible to submit donor offers.';
 
       case 'rejected':
-        return 'Your previous donor application was not approved. Review your information before applying again.';
+        return 'Review your details and apply again.';
 
       case 'withdrawn':
-        return 'You previously withdrew your application. You may apply again when ready.';
+        return 'Apply again when you’re ready.';
 
       default:
         return 'Complete donor registration before offering to donate.';
@@ -1071,88 +1823,6 @@ export default function DonorBloodRequestScreen() {
   // INVITATION HELPERS
   // ==========================================================
 
-  function getInvitationStatusLabel() {
-    if (
-      !invitation
-    ) {
-      return '';
-    }
-
-    switch (
-      invitation.status
-    ) {
-      case 'pending':
-        return 'Awaiting Your Decision';
-
-      case 'accepted':
-        return 'Invitation Accepted';
-
-      case 'declined':
-        return 'Invitation Declined';
-
-      case 'cancelled':
-        return 'Invitation Cancelled';
-
-      default:
-        return 'Invitation';
-    }
-  }
-
-  function getInvitationStatusColor() {
-    if (
-      !invitation
-    ) {
-      return COLORS.redButton;
-    }
-
-    switch (
-      invitation.status
-    ) {
-      case 'pending':
-        return COLORS.orange;
-
-      case 'accepted':
-        return COLORS.green;
-
-      case 'declined':
-        return COLORS.gray;
-
-      case 'cancelled':
-        return COLORS.gray;
-
-      default:
-        return COLORS.redButton;
-    }
-  }
-
-  function getInvitationStatusIcon():
-    keyof typeof MaterialIcons.glyphMap {
-    if (
-      !invitation
-    ) {
-      return 'mail-outline';
-    }
-
-    switch (
-      invitation.status
-    ) {
-      case 'pending':
-        return 'mail-outline';
-
-      case 'accepted':
-        return 'check-circle';
-
-      case 'declined':
-        return 'cancel';
-
-      case 'cancelled':
-        return 'block';
-
-      default:
-        return 'mail-outline';
-    }
-  }
-
   function getRequesterName() {
     return (
       invitation
@@ -1173,8 +1843,10 @@ export default function DonorBloodRequestScreen() {
     if (
       !request ||
       !donorResponse ||
-      donorResponse.status !==
-        'accepted'
+      (donorResponse.status !==
+        'accepted' &&
+        donorResponse.status !==
+          'no_show')
     ) {
       return;
     }
@@ -1245,15 +1917,15 @@ export default function DonorBloodRequestScreen() {
     }
 
     if (
-      !hasExactBloodTypeMatch()
+      !hasCompatibleBloodType()
     ) {
       showMessage(
-        'Blood Type Does Not Match',
-        `This request requires ${request.blood_type}, but your verified donor blood type is ${
+        'Blood Type Not Compatible',
+        `This request needs ${request.blood_type}, and your verified blood type (${
           donorApplication
             ?.blood_type ||
           'not available'
-        }.`
+        }) cannot donate to it. Compatible donors: ${getCompatibleDonorLabel(request.blood_type)}.`
       );
 
       return;
@@ -1294,11 +1966,11 @@ export default function DonorBloodRequestScreen() {
     }
 
     if (
-      !hasExactBloodTypeMatch()
+      !hasCompatibleBloodType()
     ) {
       showMessage(
-        'Blood Type Does Not Match',
-        `Only donors with verified blood type ${request.blood_type} can offer to donate for this request.`
+        'Blood Type Not Compatible',
+        `Only donors whose blood type is compatible with ${request.blood_type} can offer: ${getCompatibleDonorLabel(request.blood_type)}.`
       );
 
       return;
@@ -1465,15 +2137,15 @@ export default function DonorBloodRequestScreen() {
     }
 
     if (
-      !hasExactBloodTypeMatch()
+      !hasCompatibleBloodType()
     ) {
       showMessage(
-        'Blood Type Does Not Match',
-        `This request requires ${request.blood_type}, but your verified blood type is ${
+        'Blood Type Not Compatible',
+        `This request needs ${request.blood_type}, and your verified blood type (${
           donorApplication
             ?.blood_type ||
           'not available'
-        }.`
+        }) cannot donate to it. Compatible donors: ${getCompatibleDonorLabel(request.blood_type)}.`
       );
 
       return;
@@ -1518,11 +2190,11 @@ export default function DonorBloodRequestScreen() {
     }
 
     if (
-      !hasExactBloodTypeMatch()
+      !hasCompatibleBloodType()
     ) {
       showMessage(
-        'Blood Type Does Not Match',
-        'This invitation cannot be accepted because the request does not match your verified blood type.'
+        'Blood Type Not Compatible',
+        'This invitation cannot be accepted because your verified blood type is not compatible with this request.'
       );
 
       return;
@@ -1572,9 +2244,23 @@ export default function DonorBloodRequestScreen() {
       if (
         acceptedResponse
       ) {
-        setDonorResponse(
-          acceptedResponse
-        );
+        const now =
+          new Date()
+            .toISOString();
+
+        // The invitation API's response has optional
+        // timestamps; the donor screen expects them set.
+        setDonorResponse({
+          ...acceptedResponse,
+
+          created_at:
+            acceptedResponse.created_at ||
+            now,
+
+          updated_at:
+            acceptedResponse.updated_at ||
+            now,
+        });
       }
 
       if (
@@ -1722,8 +2408,171 @@ export default function DonorBloodRequestScreen() {
     return null;
   }
 
-  const exactBloodMatch =
-    hasExactBloodTypeMatch();
+  const bloodTypeCompatible =
+    hasCompatibleBloodType();
+
+  // Reported by several donors and waiting for review.
+  const requestFlagged =
+    Boolean(
+      request?.flagged_at
+    ) &&
+    request?.status ===
+      'active';
+
+  // Fulfilled / cancelled requests stay viewable for donors who
+  // took part, but can no longer be offered to or withdrawn from.
+  const requestClosed =
+    Boolean(request?.status) &&
+    request?.status !== 'active';
+
+  // A withdrawn offer lets the donor offer again.
+  const activeResponse =
+    donorResponse &&
+    donorResponse.status !==
+      'withdrawn'
+      ? donorResponse
+      : null;
+
+  const responseStatus =
+    activeResponse
+      ? RESPONSE_STATUS[
+          activeResponse.status
+        ] ||
+        RESPONSE_STATUS.pending
+      : null;
+
+  const pendingInvitation =
+    isInvitationMode &&
+    invitation?.status ===
+      'pending' &&
+    !requestClosed;
+
+  // Donated recently: can't offer or accept until this date.
+  const waitingUntil =
+    nextEligibleAt &&
+    Date.parse(nextEligibleAt) >
+      Date.now()
+      ? nextEligibleAt
+      : null;
+
+  const showWaiting =
+    Boolean(waitingUntil) &&
+    !activeResponse &&
+    !requestClosed &&
+    isApprovedDonor() &&
+    (!isInvitationMode ||
+      invitation?.status ===
+        'pending');
+
+  // Approved, compatible donor who can still send an offer.
+  const canOffer =
+    !isInvitationMode &&
+    !activeResponse &&
+    !requestClosed &&
+    !requestFlagged &&
+    isApprovedDonor() &&
+    bloodTypeCompatible &&
+    !waitingUntil;
+
+  // Not a verified donor yet: show where their application is.
+  const needsApplication =
+    !isInvitationMode &&
+    !activeResponse &&
+    !requestClosed &&
+    !requestFlagged &&
+    !isApprovedDonor();
+
+  const donationActive =
+    Boolean(
+      myDonation &&
+        myDonation.status !==
+          'rejected'
+    );
+
+  const meeting =
+    activeResponse?.status ===
+      'accepted' &&
+    !donationActive &&
+    conversation?.schedule
+      ? formatMeeting(
+          conversation.schedule
+            .scheduled_at
+        )
+      : '';
+
+  const requesterName =
+    invitation?.requester
+      ? getRequesterName()
+      : conversation
+            ?.other_participant
+            ?.full_name ||
+        '';
+
+  const unread =
+    conversation?.unread_count ||
+    0;
+
+  const canChat =
+    activeResponse?.status ===
+      'accepted' ||
+    activeResponse?.status ===
+      'no_show';
+
+  const steps =
+    activeResponse &&
+    (activeResponse.status ===
+      'pending' ||
+      activeResponse.status ===
+        'accepted')
+      ? [
+          {
+            label: 'Offered',
+            done: true,
+          },
+          {
+            label: 'Accepted',
+            done:
+              activeResponse.status ===
+              'accepted',
+          },
+          {
+            label: 'Scheduled',
+            done:
+              Boolean(
+                conversation?.schedule
+              ) ||
+              donationActive,
+          },
+          {
+            label: 'Donated',
+            done:
+              donationActive,
+          },
+        ]
+      : [];
+
+  const currentStep =
+    requestClosed
+      ? -1
+      : steps.findIndex(
+          step => !step.done
+        );
+
+  const statusPill =
+    request?.removed_at
+      ? 'Removed'
+      : requestFlagged
+        ? 'Under review'
+        : request?.status ===
+            'fulfilled'
+          ? 'Fulfilled'
+          : request?.status ===
+              'cancelled'
+            ? 'Cancelled'
+            : request?.status ===
+                'expired'
+              ? 'Expired'
+              : 'Active';
 
   return (
     <View
@@ -1754,8 +2603,7 @@ export default function DonorBloodRequestScreen() {
 
           <LinearGradient
             colors={[
-              '#D8171D',
-              '#A90F14',
+              COLORS.headerTop,
               COLORS.redDark,
             ]}
             style={
@@ -1774,1687 +2622,1002 @@ export default function DonorBloodRequestScreen() {
               }
             />
 
-            <TouchableOpacity
-              style={
-                styles.backButton
-              }
-              activeOpacity={
-                0.82
-              }
-              onPress={() => {
-                if (
-                  router.canGoBack()
-                ) {
-                  router.back();
-
-                  return;
-                }
-
-                router.replace(
-                  isInvitationMode
-                    ? '/requests'
-                    : '/search' as any
-                );
-              }}
-            >
-              <MaterialIcons
-                name="arrow-back"
-                size={24}
-                color={
-                  COLORS.white
-                }
-              />
-            </TouchableOpacity>
-
             <View
               style={
-                styles.headerCopy
+                styles.headerRow
               }
             >
-              <Text
+              <TouchableOpacity
                 style={
-                  styles.headerTitle
+                  styles.backButton
                 }
-              >
-                {isInvitationMode
-                  ? 'Help Request'
-                  : 'Request Details'}
-              </Text>
+                accessibilityLabel="Go back"
+                onPress={() => {
+                  if (
+                    router.canGoBack()
+                  ) {
+                    router.back();
 
-              <Text
+                    return;
+                  }
+
+                  router.replace(
+                    isInvitationMode
+                      ? '/requests'
+                      : '/search' as any
+                  );
+                }}
+              >
+                <MaterialIcons
+                  name="arrow-back"
+                  size={22}
+                  color={
+                    COLORS.white
+                  }
+                />
+              </TouchableOpacity>
+
+              <View
                 style={
-                  styles.headerSubtitle
+                  styles.headerText
                 }
               >
-                {request
-                  ? `Request #${getRequestNumber(
-                      request.id
-                    )}`
-                  : 'Blood donation request'}
-              </Text>
+                <Text
+                  style={
+                    styles.headerTitle
+                  }
+                >
+                  {isInvitationMode
+                    ? 'Help Request'
+                    : 'Blood Request'}
+                </Text>
+
+                <Text
+                  style={
+                    styles.headerSubtitle
+                  }
+                  numberOfLines={1}
+                >
+                  {request
+                    ? `#${getRequestNumber(
+                        request.id
+                      )} · Posted ${formatShortDate(
+                        request.created_at
+                      )}`
+                    : 'Blood donation request'}
+                </Text>
+              </View>
+
+              {request ? (
+                <View
+                  style={
+                    styles.headerStatus
+                  }
+                >
+                  <Text
+                    style={
+                      styles.headerStatusText
+                    }
+                  >
+                    {statusPill}
+                  </Text>
+                </View>
+              ) : null}
             </View>
           </LinearGradient>
 
           {/* ==================================================
-              BODY
+              BODY (rounded sheet over the header)
           ================================================== */}
 
-          <LinearGradient
-            colors={[
-              '#F5C1C3',
-              COLORS.pageBottom,
-            ]}
+          <View
             style={
               styles.body
             }
           >
-            <View
+            <ScrollView
               style={
-                styles.contentShell
+                styles.flex
               }
+              contentContainerStyle={
+                styles.scrollContent
+              }
+              showsVerticalScrollIndicator={
+                false
+              }
+              keyboardShouldPersistTaps="handled"
             >
-              <ScrollView
-                style={
-                  styles.scroll
-                }
-                contentContainerStyle={
-                  styles.scrollContent
-                }
-                showsVerticalScrollIndicator={
-                  false
-                }
-                bounces={
-                  false
-                }
-              >
-                {loading ? (
-                  <View
+              {loading ? (
+                <View
+                  style={
+                    styles.centerState
+                  }
+                >
+                  <ActivityIndicator
+                    color={
+                      COLORS.redButton
+                    }
+                  />
+
+                  <Text
                     style={
-                      styles.centerState
+                      styles.centerText
                     }
                   >
-                    <View
-                      style={
-                        styles.centerIconWrap
+                    Loading request...
+                  </Text>
+                </View>
+              ) : errorMessage ? (
+                <View
+                  style={
+                    styles.centerState
+                  }
+                >
+                  <View
+                    style={
+                      styles.centerIcon
+                    }
+                  >
+                    <MaterialIcons
+                      name="error-outline"
+                      size={28}
+                      color={
+                        COLORS.redButton
                       }
-                    >
-                      <MaterialIcons
-                        name="bloodtype"
-                        size={32}
-                        color={
-                          COLORS.redButton
-                        }
-                      />
-                    </View>
-
-                    <Text
-                      style={
-                        styles.centerTitle
-                      }
-                    >
-                      Loading Request
-                    </Text>
-
-                    <Text
-                      style={
-                        styles.centerDescription
-                      }
-                    >
-                      Retrieving the latest request details.
-                    </Text>
+                    />
                   </View>
-                ) : errorMessage ? (
-                  <View
+
+                  <Text
                     style={
-                      styles.centerState
+                      styles.centerTitle
                     }
                   >
+                    Unable to Load
+                  </Text>
+
+                  <Text
+                    style={
+                      styles.centerText
+                    }
+                  >
+                    {errorMessage}
+                  </Text>
+
+                  <TouchableOpacity
+                    style={
+                      styles.retryButton
+                    }
+                    activeOpacity={
+                      0.85
+                    }
+                    onPress={
+                      loadData
+                    }
+                  >
+                    <MaterialIcons
+                      name="refresh"
+                      size={18}
+                      color={
+                        COLORS.white
+                      }
+                    />
+
+                    <Text
+                      style={
+                        styles.retryButtonText
+                      }
+                    >
+                      Try Again
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+              ) : request ? (
+                <FadeInView>
+                  {/* ==============================================
+                      NOTICE (closed / removed / under review)
+                  ============================================== */}
+
+                  {request.removed_at ? (
                     <View
-                      style={
-                        styles.centerIconWrap
-                      }
+                      style={[
+                        styles.notice,
+                        styles.noticeDanger,
+                      ]}
                     >
                       <MaterialIcons
-                        name="error-outline"
-                        size={32}
-                        color={
-                          COLORS.redButton
-                        }
-                      />
-                    </View>
-
-                    <Text
-                      style={
-                        styles.centerTitle
-                      }
-                    >
-                      Unable to Load Request
-                    </Text>
-
-                    <Text
-                      style={
-                        styles.centerDescription
-                      }
-                    >
-                      {errorMessage}
-                    </Text>
-
-                    <TouchableOpacity
-                      style={
-                        styles.retryButton
-                      }
-                      activeOpacity={
-                        0.82
-                      }
-                      onPress={
-                        loadData
-                      }
-                    >
-                      <MaterialIcons
-                        name="refresh"
+                        name="block"
                         size={18}
                         color={
-                          COLORS.white
+                          COLORS.redButton
                         }
                       />
 
                       <Text
                         style={
-                          styles.retryButtonText
+                          styles.noticeText
                         }
                       >
-                        Try Again
+                        <Text
+                          style={[
+                            styles.noticeTitle,
+                            {
+                              color:
+                                COLORS.redButton,
+                            },
+                          ]}
+                        >
+                          Removed by Hemo-Hero.{' '}
+                        </Text>
+                        {request.removal_reason
+                          ? `${request.removal_reason} `
+                          : ''}
+                        You don’t need to go.
                       </Text>
-                    </TouchableOpacity>
-                  </View>
-                ) : request ? (
-                  <>
-                    {/* ========================================
-                        DIRECT INVITATION NOTICE
-                    ======================================== */}
+                    </View>
+                  ) : requestClosed ? (
+                    <View
+                      style={[
+                        styles.notice,
 
-                    {isInvitationMode &&
-                    invitation ? (
+                        request.status ===
+                        'fulfilled'
+                          ? styles.noticeSuccess
+                          : styles.noticeMuted,
+                      ]}
+                    >
+                      <MaterialIcons
+                        name={
+                          request.status ===
+                          'fulfilled'
+                            ? 'task-alt'
+                            : 'block'
+                        }
+                        size={18}
+                        color={
+                          request.status ===
+                          'fulfilled'
+                            ? COLORS.green
+                            : COLORS.muted
+                        }
+                      />
+
+                      <Text
+                        style={
+                          styles.noticeText
+                        }
+                      >
+                        {request.status ===
+                        'fulfilled'
+                          ? 'Fulfilled. The requester got the blood they needed. Thank you for helping!'
+                          : request.status ===
+                              'cancelled'
+                            ? 'The requester cancelled this request.'
+                            : 'This request is closed.'}
+                      </Text>
+                    </View>
+                  ) : requestFlagged ? (
+                    <View
+                      style={[
+                        styles.notice,
+                        styles.noticeWarning,
+                      ]}
+                    >
+                      <MaterialIcons
+                        name="report-problem"
+                        size={18}
+                        color={
+                          COLORS.orange
+                        }
+                      />
+
+                      <Text
+                        style={
+                          styles.noticeText
+                        }
+                      >
+                        <Text
+                          style={[
+                            styles.noticeTitle,
+                            {
+                              color:
+                                COLORS.orange,
+                            },
+                          ]}
+                        >
+                          Under review.{' '}
+                        </Text>
+                        Several donors reported this request. It isn’t taking new offers for now.
+                      </Text>
+                    </View>
+                  ) : null}
+
+                  {/* ==============================================
+                      DIRECT INVITATION
+                  ============================================== */}
+
+                  {isInvitationMode &&
+                  invitation ? (
+                    <View
+                      style={[
+                        styles.notice,
+                        styles.noticeInfo,
+                      ]}
+                    >
+                      <MaterialIcons
+                        name="mail-outline"
+                        size={18}
+                        color={
+                          COLORS.blue
+                        }
+                      />
+
                       <View
                         style={
-                          styles.directInvitationCard
+                          styles.flexFill
+                        }
+                      >
+                        <Text
+                          style={
+                            styles.noticeText
+                          }
+                        >
+                          <Text
+                            style={
+                              styles.noticeTitle
+                            }
+                          >
+                            {getRequesterName()}
+                          </Text>{' '}
+                          asked you to donate.
+                        </Text>
+
+                        {invitation.message?.trim() ? (
+                          <Text
+                            style={
+                              styles.noticeQuote
+                            }
+                          >
+                            “{invitation.message.trim()}”
+                          </Text>
+                        ) : null}
+                      </View>
+
+                      <View
+                        style={[
+                          styles.chip,
+                          {
+                            backgroundColor:
+                              COLORS.white,
+                          },
+                        ]}
+                      >
+                        <Text
+                          style={[
+                            styles.chipText,
+                            {
+                              color:
+                                TONES[
+                                  INVITATION_STATUS[
+                                    invitation.status
+                                  ].tone
+                                ].fg,
+                            },
+                          ]}
+                        >
+                          {
+                            INVITATION_STATUS[
+                              invitation.status
+                            ].label
+                          }
+                        </Text>
+                      </View>
+                    </View>
+                  ) : null}
+
+                  {/* ==============================================
+                      SUMMARY
+                  ============================================== */}
+
+                  <View
+                    style={
+                      styles.card
+                    }
+                  >
+                    <View
+                      style={
+                        styles.summaryTop
+                      }
+                    >
+                      <View
+                        style={
+                          styles.bloodCircle
+                        }
+                      >
+                        <Text
+                          style={
+                            styles.bloodText
+                          }
+                        >
+                          {
+                            request.blood_type
+                          }
+                        </Text>
+                      </View>
+
+                      <View
+                        style={
+                          styles.flexFill
+                        }
+                      >
+                        <Text
+                          style={
+                            styles.summaryTitle
+                          }
+                        >
+                          {bagsLabel(
+                            request.units_needed
+                          )}{' '}
+                          needed
+                        </Text>
+
+                        <Text
+                          style={
+                            styles.summaryMeta
+                          }
+                          numberOfLines={
+                            1
+                          }
+                        >
+                          {
+                            request.facility_name
+                          }
+                        </Text>
+                      </View>
+
+                      <View
+                        style={[
+                          styles.urgencyPill,
+
+                          request.urgency ===
+                            'urgent' &&
+                            styles.urgencyPillUrgent,
+                        ]}
+                      >
+                        <MaterialIcons
+                          name={
+                            request.urgency ===
+                            'urgent'
+                              ? 'bolt'
+                              : 'schedule'
+                          }
+                          size={14}
+                          color={
+                            request.urgency ===
+                            'urgent'
+                              ? COLORS.white
+                              : COLORS.redButton
+                          }
+                        />
+
+                        <Text
+                          style={[
+                            styles.urgencyText,
+
+                            request.urgency ===
+                              'urgent' &&
+                              styles.urgencyTextUrgent,
+                          ]}
+                        >
+                          {request.urgency ===
+                          'urgent'
+                            ? 'Urgent'
+                            : 'Scheduled'}
+                        </Text>
+                      </View>
+                    </View>
+
+                    {isApprovedDonor() ? (
+                      <View
+                        style={[
+                          styles.matchLine,
+                          {
+                            backgroundColor:
+                              bloodTypeCompatible
+                                ? COLORS.greenLight
+                                : COLORS.pinkLight,
+                          },
+                        ]}
+                      >
+                        <MaterialIcons
+                          name={
+                            bloodTypeCompatible
+                              ? 'check-circle'
+                              : 'block'
+                          }
+                          size={16}
+                          color={
+                            bloodTypeCompatible
+                              ? COLORS.green
+                              : COLORS.redButton
+                          }
+                        />
+
+                        <Text
+                          style={[
+                            styles.matchText,
+                            {
+                              color:
+                                bloodTypeCompatible
+                                  ? COLORS.green
+                                  : COLORS.redButton,
+                            },
+                          ]}
+                        >
+                          {bloodTypeCompatible
+                            ? `Your ${donorApplication?.blood_type} blood can donate to this request`
+                            : `Your ${
+                                donorApplication?.blood_type ||
+                                'blood'
+                              } type can’t donate to ${request.blood_type}`}
+                        </Text>
+                      </View>
+                    ) : null}
+                  </View>
+
+                  {/* ==============================================
+                      DETAILS
+                  ============================================== */}
+
+                  <Text
+                    style={[
+                      styles.sectionTitle,
+                      styles.sectionGap,
+                    ]}
+                  >
+                    Details
+                  </Text>
+
+                  <View
+                    style={
+                      styles.card
+                    }
+                  >
+                    <InfoRow
+                      icon={
+                        getFacilityIcon(
+                          request
+                        )
+                      }
+                      label="Donation place"
+                      value={
+                        request.facility_name
+                      }
+                      sub={
+                        request.facility_address
+                      }
+                    >
+                      <TouchableOpacity
+                        style={
+                          styles.directionsButton
+                        }
+                        activeOpacity={
+                          0.8
+                        }
+                        accessibilityLabel="Get directions"
+                        onPress={
+                          openDirections
+                        }
+                      >
+                        <MaterialIcons
+                          name="directions"
+                          size={16}
+                          color={
+                            COLORS.redButton
+                          }
+                        />
+
+                        <Text
+                          style={
+                            styles.directionsText
+                          }
+                        >
+                          Directions
+                        </Text>
+                      </TouchableOpacity>
+                    </InfoRow>
+
+                    <InfoRow
+                      icon="event"
+                      label="Needed by"
+                      value={formatNeededBy(
+                        request
+                      )}
+                    />
+
+                    {requesterName ? (
+                      <InfoRow
+                        icon="person-outline"
+                        label="Requester"
+                        value={
+                          requesterName
+                        }
+                      />
+                    ) : null}
+
+                    <InfoRow
+                      icon="groups"
+                      label="Who can donate"
+                      last={
+                        !request.message?.trim()
+                      }
+                    >
+                      <View
+                        style={
+                          styles.typeChips
+                        }
+                      >
+                        {getCompatibleDonorLabel(
+                          request.blood_type
+                        )
+                          .split(', ')
+                          .map(
+                            type => (
+                              <View
+                                key={type}
+                                style={[
+                                  styles.typeChip,
+
+                                  normalizeBloodType(
+                                    donorApplication?.blood_type
+                                  ) ===
+                                    type &&
+                                    styles.typeChipMine,
+                                ]}
+                              >
+                                <Text
+                                  style={[
+                                    styles.typeChipText,
+
+                                    normalizeBloodType(
+                                      donorApplication?.blood_type
+                                    ) ===
+                                      type &&
+                                      styles.typeChipTextMine,
+                                  ]}
+                                >
+                                  {type}
+                                </Text>
+                              </View>
+                            )
+                          )}
+                      </View>
+                    </InfoRow>
+
+                    {request.message?.trim() ? (
+                      <InfoRow
+                        icon="chat-bubble-outline"
+                        label="Note from requester"
+                        value={request.message.trim()}
+                        valueRegular
+                        last
+                      />
+                    ) : null}
+                  </View>
+
+                  {/* ==============================================
+                      YOUR OFFER
+                  ============================================== */}
+
+                  {activeResponse &&
+                  responseStatus ? (
+                    <>
+                      <Text
+                        style={[
+                          styles.sectionTitle,
+                          styles.sectionGap,
+                        ]}
+                      >
+                        Your offer
+                      </Text>
+
+                      <FadeInView
+                        key={
+                          activeResponse.status
+                        }
+                        offset={6}
+                        style={
+                          styles.card
                         }
                       >
                         <View
                           style={
-                            styles.directInvitationTop
-                          }
-                        >
-                          <View
-                            style={
-                              styles.directInvitationIcon
-                            }
-                          >
-                            <MaterialIcons
-                              name="mail-outline"
-                              size={22}
-                              color={
-                                COLORS.redButton
-                              }
-                            />
-                          </View>
-
-                          <View
-                            style={
-                              styles.directInvitationCopy
-                            }
-                          >
-                            <Text
-                              style={
-                                styles.directInvitationEyebrow
-                              }
-                            >
-                              DIRECT INVITATION
-                            </Text>
-
-                            <Text
-                              style={
-                                styles.directInvitationTitle
-                              }
-                            >
-                              Someone requested your help
-                            </Text>
-
-                            <Text
-                              style={
-                                styles.directInvitationDescription
-                              }
-                            >
-                              {getRequesterName()} selected you as a possible donor for this blood request. Review all request details before choosing whether to accept or decline.
-                            </Text>
-                          </View>
-                        </View>
-
-                        <View
-                          style={
-                            styles.invitationStatusRow
+                            styles.offerTop
                           }
                         >
                           <View
                             style={[
-                              styles.invitationStatusBadge,
-
+                              styles.offerIcon,
                               {
                                 backgroundColor:
-                                  `${getInvitationStatusColor()}12`,
+                                  TONES[
+                                    responseStatus.tone
+                                  ].bg,
                               },
                             ]}
                           >
                             <MaterialIcons
                               name={
-                                getInvitationStatusIcon()
+                                responseStatus.icon
                               }
+                              size={20}
+                              color={
+                                TONES[
+                                  responseStatus.tone
+                                ].fg
+                              }
+                            />
+                          </View>
+
+                          <View
+                            style={
+                              styles.flexFill
+                            }
+                          >
+                            <Text
+                              style={
+                                styles.offerTitle
+                              }
+                            >
+                              {
+                                responseStatus.title
+                              }
+                            </Text>
+
+                            <Text
+                              style={
+                                styles.offerText
+                              }
+                            >
+                              {
+                                responseStatus.text
+                              }
+                            </Text>
+                          </View>
+
+                          <View
+                            style={[
+                              styles.chip,
+                              {
+                                backgroundColor:
+                                  TONES[
+                                    responseStatus.tone
+                                  ].bg,
+                              },
+                            ]}
+                          >
+                            <Text
+                              style={[
+                                styles.chipText,
+                                {
+                                  color:
+                                    TONES[
+                                      responseStatus.tone
+                                    ].fg,
+                                },
+                              ]}
+                            >
+                              {
+                                responseStatus.label
+                              }
+                            </Text>
+                          </View>
+                        </View>
+
+                        {steps.length ? (
+                          <View
+                            style={
+                              styles.steps
+                            }
+                          >
+                            {steps.map(
+                              (
+                                step,
+                                index
+                              ) => {
+                                const current =
+                                  index ===
+                                  currentStep;
+
+                                return (
+                                  <View
+                                    key={
+                                      step.label
+                                    }
+                                    style={
+                                      styles.step
+                                    }
+                                  >
+                                    <View
+                                      style={
+                                        styles.stepTrack
+                                      }
+                                    >
+                                      <View
+                                        style={[
+                                          styles.stepLine,
+
+                                          index ===
+                                            0 &&
+                                            styles.stepLineHidden,
+
+                                          (step.done ||
+                                            current) &&
+                                            styles.stepLineDone,
+                                        ]}
+                                      />
+
+                                      <View
+                                        style={[
+                                          styles.stepDot,
+
+                                          step.done &&
+                                            styles.stepDotDone,
+
+                                          current &&
+                                            styles.stepDotCurrent,
+                                        ]}
+                                      >
+                                        {step.done ? (
+                                          <MaterialIcons
+                                            name="check"
+                                            size={11}
+                                            color={
+                                              COLORS.white
+                                            }
+                                          />
+                                        ) : null}
+                                      </View>
+
+                                      <View
+                                        style={[
+                                          styles.stepLine,
+
+                                          index ===
+                                            steps.length -
+                                              1 &&
+                                            styles.stepLineHidden,
+
+                                          steps[
+                                            index + 1
+                                          ]?.done &&
+                                            styles.stepLineDone,
+                                        ]}
+                                      />
+                                    </View>
+
+                                    <Text
+                                      style={[
+                                        styles.stepLabel,
+
+                                        (step.done ||
+                                          current) &&
+                                          styles.stepLabelDone,
+                                      ]}
+                                      numberOfLines={
+                                        1
+                                      }
+                                    >
+                                      {step.label}
+                                    </Text>
+                                  </View>
+                                );
+                              }
+                            )}
+                          </View>
+                        ) : null}
+
+                        {activeResponse.message?.trim() ? (
+                          <Text
+                            style={
+                              styles.offerMessage
+                            }
+                            numberOfLines={
+                              3
+                            }
+                          >
+                            You said: “{activeResponse.message.trim()}”
+                          </Text>
+                        ) : null}
+
+                        {meeting ? (
+                          <View
+                            style={
+                              styles.inlineNote
+                            }
+                          >
+                            <MaterialIcons
+                              name="event"
                               size={15}
                               color={
-                                getInvitationStatusColor()
+                                COLORS.blue
                               }
                             />
 
                             <Text
                               style={[
-                                styles.invitationStatusText,
-
+                                styles.inlineNoteText,
                                 {
                                   color:
-                                    getInvitationStatusColor(),
+                                    COLORS.blue,
                                 },
                               ]}
                             >
-                              {getInvitationStatusLabel()}
-                            </Text>
-                          </View>
-                        </View>
-
-                        {invitation
-                          .message
-                          ?.trim() ? (
-                          <View
-                            style={
-                              styles.invitationMessage
-                            }
-                          >
-                            <MaterialIcons
-                              name="chat-bubble-outline"
-                              size={15}
-                              color={
-                                COLORS.redButton
-                              }
-                            />
-
-                            <Text
-                              style={
-                                styles.invitationMessageText
-                              }
-                            >
-                              {invitation.message}
+                              Meeting {meeting}
                             </Text>
                           </View>
                         ) : null}
-                      </View>
-                    ) : null}
 
-                    {/* ========================================
-                        MAIN REQUEST
-                    ======================================== */}
+                        {renderDonationStatus()}
+                      </FadeInView>
+                    </>
+                  ) : null}
 
+                  {/* Invitation answered without an offer record */}
+                  {isInvitationMode &&
+                  invitation &&
+                  !activeResponse &&
+                  (invitation.status ===
+                    'declined' ||
+                    invitation.status ===
+                      'cancelled') ? (
                     <View
-                      style={
-                        styles.requestCard
-                      }
+                      style={[
+                        styles.card,
+                        styles.sectionGap,
+                        styles.inlineCard,
+                      ]}
                     >
-                      <View
-                        style={
-                          styles.badgeArea
+                      <MaterialIcons
+                        name={
+                          invitation.status ===
+                          'declined'
+                            ? 'cancel'
+                            : 'block'
                         }
-                      >
-                        <View
-                          style={
-                            styles.urgencyBadge
-                          }
-                        >
-                          <MaterialIcons
-                            name={
-                              request
-                                .urgency ===
-                              'urgent'
-                                ? 'bolt'
-                                : 'schedule'
-                            }
-                            size={16}
-                            color={
-                              COLORS.white
-                            }
-                          />
-
-                          <Text
-                            style={
-                              styles.urgencyBadgeText
-                            }
-                          >
-                            {request
-                              .urgency ===
-                            'urgent'
-                              ? 'Urgent'
-                              : 'Scheduled'}
-                          </Text>
-                        </View>
-
-                        <View
-                          style={
-                            styles.bloodTypeBadge
-                          }
-                        >
-                          <MaterialIcons
-                            name="bloodtype"
-                            size={16}
-                            color={
-                              COLORS.white
-                            }
-                          />
-
-                          <Text
-                            style={
-                              styles.bloodTypeBadgeText
-                            }
-                          >
-                            {request.blood_type}
-                          </Text>
-                        </View>
-                      </View>
-
-                      <Text
-                        style={
-                          styles.requestCardSubtitle
-                        }
-                      >
-                        DONATION REQUEST
-                      </Text>
-
-                      <Text
-                        style={
-                          styles.requestFacility
-                        }
-                        numberOfLines={
-                          2
-                        }
-                      >
-                        {request.facility_name}
-                      </Text>
-
-                      <Text
-                        style={
-                          styles.requestUnits
-                        }
-                      >
-                        {request.units_needed}{' '}
-                        {request
-                          .units_needed ===
-                        1
-                          ? 'unit needed'
-                          : 'units needed'}
-                      </Text>
-
-                      <View
-                        style={
-                          styles.cardDivider
+                        size={18}
+                        color={
+                          COLORS.muted
                         }
                       />
 
                       <Text
                         style={
-                          styles.infoSectionTitle
+                          styles.inlineCardText
                         }
                       >
-                        Request Information
+                        {invitation.status ===
+                        'declined'
+                          ? 'You declined this invitation.'
+                          : 'The requester cancelled this invitation.'}
                       </Text>
-
-                      <View
-                        style={
-                          styles.detailRows
-                        }
-                      >
-                        <View
-                          style={
-                            styles.detailRow
-                          }
-                        >
-                          <View
-                            style={
-                              styles.detailLabelGroup
-                            }
-                          >
-                            <MaterialIcons
-                              name="person-outline"
-                              size={19}
-                              color={
-                                COLORS.redButton
-                              }
-                            />
-
-                            <Text
-                              style={
-                                styles.detailLabel
-                              }
-                            >
-                              Requester
-                            </Text>
-                          </View>
-
-                          <Text
-                            style={
-                              styles.detailValue
-                            }
-                          >
-                            {isInvitationMode
-                              ? getRequesterName()
-                              : 'Blood Requester'}
-                          </Text>
-                        </View>
-
-                        <View
-                          style={
-                            styles.detailRow
-                          }
-                        >
-                          <View
-                            style={
-                              styles.detailLabelGroup
-                            }
-                          >
-                            <MaterialIcons
-                              name="bloodtype"
-                              size={19}
-                              color={
-                                COLORS.redButton
-                              }
-                            />
-
-                            <Text
-                              style={
-                                styles.detailLabel
-                              }
-                            >
-                              Blood Type
-                            </Text>
-                          </View>
-
-                          <Text
-                            style={
-                              styles.detailValueStrong
-                            }
-                          >
-                            {request.blood_type}
-                          </Text>
-                        </View>
-
-                        <View
-                          style={
-                            styles.detailRow
-                          }
-                        >
-                          <View
-                            style={
-                              styles.detailLabelGroup
-                            }
-                          >
-                            <MaterialIcons
-                              name="medical-services"
-                              size={19}
-                              color={
-                                COLORS.redButton
-                              }
-                            />
-
-                            <Text
-                              style={
-                                styles.detailLabel
-                              }
-                            >
-                              Units Needed
-                            </Text>
-                          </View>
-
-                          <Text
-                            style={
-                              styles.detailValueStrong
-                            }
-                          >
-                            {request.units_needed}{' '}
-                            {request
-                              .units_needed ===
-                            1
-                              ? 'unit'
-                              : 'units'}
-                          </Text>
-                        </View>
-
-                        <View
-                          style={
-                            styles.detailRow
-                          }
-                        >
-                          <View
-                            style={
-                              styles.detailLabelGroup
-                            }
-                          >
-                            <MaterialIcons
-                              name={
-                                getFacilityIcon(
-                                  request
-                                ) as any
-                              }
-                              size={19}
-                              color={
-                                COLORS.redButton
-                              }
-                            />
-
-                            <Text
-                              style={
-                                styles.detailLabel
-                              }
-                            >
-                              Location
-                            </Text>
-                          </View>
-
-                          <View
-                            style={
-                              styles.detailValueWrap
-                            }
-                          >
-                            <Text
-                              style={
-                                styles.detailValueStrongRight
-                              }
-                            >
-                              {request.facility_name}
-                            </Text>
-
-                            {request
-                              .facility_address ? (
-                              <Text
-                                style={
-                                  styles.detailValueSub
-                                }
-                              >
-                                {request.facility_address}
-                              </Text>
-                            ) : null}
-                          </View>
-                        </View>
-
-                        <View
-                          style={
-                            styles.detailRow
-                          }
-                        >
-                          <View
-                            style={
-                              styles.detailLabelGroup
-                            }
-                          >
-                            <MaterialIcons
-                              name="warning-amber"
-                              size={19}
-                              color={
-                                COLORS.redButton
-                              }
-                            />
-
-                            <Text
-                              style={
-                                styles.detailLabel
-                              }
-                            >
-                              Urgency
-                            </Text>
-                          </View>
-
-                          <Text
-                            style={[
-                              styles.detailValueStrong,
-
-                              request
-                                .urgency ===
-                                'urgent' &&
-                                styles.urgentValue,
-                            ]}
-                          >
-                            {request
-                              .urgency ===
-                            'urgent'
-                              ? 'Urgent'
-                              : 'Scheduled'}
-                          </Text>
-                        </View>
-
-                        <View
-                          style={
-                            styles.detailRowLast
-                          }
-                        >
-                          <View
-                            style={
-                              styles.detailLabelGroup
-                            }
-                          >
-                            <MaterialIcons
-                              name="schedule"
-                              size={19}
-                              color={
-                                COLORS.redButton
-                              }
-                            />
-
-                            <Text
-                              style={
-                                styles.detailLabel
-                              }
-                            >
-                              Needed By
-                            </Text>
-                          </View>
-
-                          <View
-                            style={
-                              styles.detailValueWrap
-                            }
-                          >
-                            <Text
-                              style={
-                                styles.detailValueStrongRight
-                              }
-                            >
-                              {formatNeededBy(
-                                request
-                              )}
-                            </Text>
-                          </View>
-                        </View>
-                      </View>
-
-                      {request
-                        .message
-                        ?.trim() ? (
-                        <View
-                          style={
-                            styles.requesterMessageBox
-                          }
-                        >
-                          <View
-                            style={
-                              styles.messageBoxHeader
-                            }
-                          >
-                            <MaterialIcons
-                              name="chat-bubble-outline"
-                              size={17}
-                              color={
-                                COLORS.redButton
-                              }
-                            />
-
-                            <Text
-                              style={
-                                styles.messageBoxLabel
-                              }
-                            >
-                              Message to Donors
-                            </Text>
-                          </View>
-
-                          <Text
-                            style={
-                              styles.messageBoxText
-                            }
-                          >
-                            {request.message}
-                          </Text>
-                        </View>
-                      ) : null}
                     </View>
+                  ) : null}
 
-                    {/* ========================================
-                        BLOOD MATCH STATUS
-                    ======================================== */}
+                  {/* ==============================================
+                      WAITING PERIOD AFTER DONATING
+                  ============================================== */}
 
-                    {isApprovedDonor() ? (
-                      exactBloodMatch ? (
-                        <View
-                          style={
-                            styles.matchCard
-                          }
-                        >
-                          <View
-                            style={
-                              styles.matchIconWrap
-                            }
-                          >
-                            <MaterialIcons
-                              name="check-circle"
-                              size={22}
-                              color={
-                                COLORS.green
-                              }
-                            />
-                          </View>
-
-                          <View
-                            style={
-                              styles.matchCopy
-                            }
-                          >
-                            <Text
-                              style={
-                                styles.matchTitle
-                              }
-                            >
-                              Blood Type Match
-                            </Text>
-
-                            <Text
-                              style={
-                                styles.matchDescription
-                              }
-                            >
-                              Your verified blood type is{' '}
-                              <Text
-                                style={
-                                  styles.matchStrong
-                                }
-                              >
-                                {donorApplication
-                                  ?.blood_type}
-                              </Text>
-                              , which exactly matches this request.
-                            </Text>
-                          </View>
-                        </View>
-                      ) : (
-                        <View
-                          style={
-                            styles.mismatchCard
-                          }
-                        >
-                          <View
-                            style={
-                              styles.mismatchIconWrap
-                            }
-                          >
-                            <MaterialIcons
-                              name="block"
-                              size={22}
-                              color={
-                                COLORS.redButton
-                              }
-                            />
-                          </View>
-
-                          <View
-                            style={
-                              styles.matchCopy
-                            }
-                          >
-                            <Text
-                              style={
-                                styles.mismatchTitle
-                              }
-                            >
-                              Blood Type Does Not Match
-                            </Text>
-
-                            <Text
-                              style={
-                                styles.mismatchDescription
-                              }
-                            >
-                              This request requires{' '}
-                              <Text
-                                style={
-                                  styles.matchStrong
-                                }
-                              >
-                                {request.blood_type}
-                              </Text>
-                              , but your verified donor blood type is{' '}
-                              <Text
-                                style={
-                                  styles.matchStrong
-                                }
-                              >
-                                {donorApplication
-                                  ?.blood_type ||
-                                  'unknown'}
-                              </Text>
-                              . You cannot donate for this request.
-                            </Text>
-                          </View>
-                        </View>
-                      )
-                    ) : null}
-
-                    {/* ========================================
-                        DIRECT INVITATION ACTIONS
-                    ======================================== */}
-
-                    {isInvitationMode &&
-                    invitation ? (
-                      <>
-                        {invitation.status ===
-                        'pending' ? (
-                          <>
-                            <View
-                              style={
-                                styles.invitationDecisionCard
-                              }
-                            >
-                              <MaterialIcons
-                                name="info-outline"
-                                size={20}
-                                color={
-                                  COLORS.redButton
-                                }
-                              />
-
-                              <Text
-                                style={
-                                  styles.invitationDecisionText
-                                }
-                              >
-                                Review the request details above carefully. Accept only if you are available and willing to coordinate with the requester.
-                              </Text>
-                            </View>
-
-                            <View
-                              style={
-                                styles.invitationButtons
-                              }
-                            >
-                              <TouchableOpacity
-                                style={[
-                                  styles.declineInvitationButton,
-
-                                  (
-                                    decliningInvitation ||
-                                    acceptingInvitation
-                                  ) &&
-                                    styles.disabledButton,
-                                ]}
-                                disabled={
-                                  decliningInvitation ||
-                                  acceptingInvitation
-                                }
-                                activeOpacity={
-                                  0.84
-                                }
-                                onPress={
-                                  handleDeclineInvitationPress
-                                }
-                              >
-                                <MaterialIcons
-                                  name="close"
-                                  size={20}
-                                  color={
-                                    COLORS.redButton
-                                  }
-                                />
-
-                                <Text
-                                  style={
-                                    styles.declineInvitationText
-                                  }
-                                >
-                                  {decliningInvitation
-                                    ? 'Declining...'
-                                    : 'Decline Request'}
-                                </Text>
-                              </TouchableOpacity>
-
-                              <TouchableOpacity
-                                style={[
-                                  styles.acceptInvitationButton,
-
-                                  (
-                                    acceptingInvitation ||
-                                    decliningInvitation ||
-                                    !isApprovedDonor() ||
-                                    !exactBloodMatch
-                                  ) &&
-                                    styles.disabledButton,
-                                ]}
-                                disabled={
-                                  acceptingInvitation ||
-                                  decliningInvitation ||
-                                  !isApprovedDonor() ||
-                                  !exactBloodMatch
-                                }
-                                activeOpacity={
-                                  0.84
-                                }
-                                onPress={
-                                  handleAcceptInvitationPress
-                                }
-                              >
-                                <MaterialIcons
-                                  name="check"
-                                  size={20}
-                                  color={
-                                    COLORS.white
-                                  }
-                                />
-
-                                <Text
-                                  style={
-                                    styles.acceptInvitationText
-                                  }
-                                >
-                                  {acceptingInvitation
-                                    ? 'Accepting...'
-                                    : 'Accept Request'}
-                                </Text>
-                              </TouchableOpacity>
-                            </View>
-                          </>
-                        ) : null}
-
-                        {invitation.status ===
-                        'accepted' ? (
-                          <View
-                            style={
-                              styles.acceptedInvitationCard
-                            }
-                          >
-                            <View
-                              style={
-                                styles.acceptedInvitationTop
-                              }
-                            >
-                              <View
-                                style={
-                                  styles.acceptedInvitationIcon
-                                }
-                              >
-                                <MaterialIcons
-                                  name="check-circle"
-                                  size={24}
-                                  color={
-                                    COLORS.green
-                                  }
-                                />
-                              </View>
-
-                              <View
-                                style={
-                                  styles.acceptedInvitationCopy
-                                }
-                              >
-                                <Text
-                                  style={
-                                    styles.acceptedInvitationTitle
-                                  }
-                                >
-                                  Request Accepted
-                                </Text>
-
-                                <Text
-                                  style={
-                                    styles.acceptedInvitationDescription
-                                  }
-                                >
-                                  You accepted this direct invitation. Continue to the coordination chat to arrange the donation.
-                                </Text>
-                              </View>
-                            </View>
-
-                            {donorResponse
-                              ?.status ===
-                              'accepted' ? (
-                              <TouchableOpacity
-                                style={
-                                  styles.openChatButton
-                                }
-                                activeOpacity={
-                                  0.85
-                                }
-                                onPress={
-                                  handleOpenCoordination
-                                }
-                              >
-                                <MaterialIcons
-                                  name="chat-bubble-outline"
-                                  size={20}
-                                  color={
-                                    COLORS.white
-                                  }
-                                />
-
-                                <Text
-                                  style={
-                                    styles.openChatButtonText
-                                  }
-                                >
-                                  Open Coordination
-                                </Text>
-
-                                <MaterialIcons
-                                  name="arrow-forward"
-                                  size={19}
-                                  color={
-                                    COLORS.white
-                                  }
-                                />
-                              </TouchableOpacity>
-                            ) : null}
-                          </View>
-                        ) : null}
-
-                        {invitation.status ===
-                        'declined' ? (
-                          <View
-                            style={
-                              styles.closedInvitationCard
-                            }
-                          >
-                            <MaterialIcons
-                              name="cancel"
-                              size={22}
-                              color={
-                                COLORS.gray
-                              }
-                            />
-
-                            <View
-                              style={
-                                styles.closedInvitationCopy
-                              }
-                            >
-                              <Text
-                                style={
-                                  styles.closedInvitationTitle
-                                }
-                              >
-                                Request Declined
-                              </Text>
-
-                              <Text
-                                style={
-                                  styles.closedInvitationDescription
-                                }
-                              >
-                                You declined this invitation. It is kept here as part of your invitation history.
-                              </Text>
-                            </View>
-                          </View>
-                        ) : null}
-
-                        {invitation.status ===
-                        'cancelled' ? (
-                          <View
-                            style={
-                              styles.closedInvitationCard
-                            }
-                          >
-                            <MaterialIcons
-                              name="block"
-                              size={22}
-                              color={
-                                COLORS.gray
-                              }
-                            />
-
-                            <View
-                              style={
-                                styles.closedInvitationCopy
-                              }
-                            >
-                              <Text
-                                style={
-                                  styles.closedInvitationTitle
-                                }
-                              >
-                                Invitation Cancelled
-                              </Text>
-
-                              <Text
-                                style={
-                                  styles.closedInvitationDescription
-                                }
-                              >
-                                This direct invitation is no longer active.
-                              </Text>
-                            </View>
-                          </View>
-                        ) : null}
-                      </>
-                    ) : (
-                      <>
-                        {/* ====================================
-                            NORMAL OFFER FLOW
-                        ==================================== */}
-
-                        {donorResponse &&
-                        donorResponse.status !==
-                          'withdrawn' ? (
-                          <View
-                            style={[
-                              styles.responsePanel,
-
-                              donorResponse
-                                .status ===
-                                'accepted' &&
-                                styles.responsePanelAccepted,
-
-                              donorResponse
-                                .status ===
-                                'pending' &&
-                                styles.responsePanelPending,
-
-                              donorResponse
-                                .status ===
-                                'rejected' &&
-                                styles.responsePanelRejected,
-                            ]}
-                          >
-                            <View
-                              style={
-                                styles.responsePanelTop
-                              }
-                            >
-                              <View
-                                style={[
-                                  styles.responseIconWrap,
-
-                                  {
-                                    backgroundColor:
-                                      `${getResponseStatusColor()}12`,
-                                  },
-                                ]}
-                              >
-                                <MaterialIcons
-                                  name={
-                                    getResponseIconName()
-                                  }
-                                  size={23}
-                                  color={
-                                    getResponseStatusColor()
-                                  }
-                                />
-                              </View>
-
-                              <View
-                                style={
-                                  styles.responsePanelCopy
-                                }
-                              >
-                                <View
-                                  style={[
-                                    styles.statusPill,
-
-                                    {
-                                      backgroundColor:
-                                        `${getResponseStatusColor()}12`,
-                                    },
-                                  ]}
-                                >
-                                  <View
-                                    style={[
-                                      styles.statusDot,
-
-                                      {
-                                        backgroundColor:
-                                          getResponseStatusColor(),
-                                      },
-                                    ]}
-                                  />
-
-                                  <Text
-                                    style={[
-                                      styles.statusPillText,
-
-                                      {
-                                        color:
-                                          getResponseStatusColor(),
-                                      },
-                                    ]}
-                                  >
-                                    {getResponseStatusLabel()}
-                                  </Text>
-                                </View>
-
-                                <Text
-                                  style={
-                                    styles.responsePanelTitle
-                                  }
-                                >
-                                  {donorResponse
-                                    .status ===
-                                  'accepted'
-                                    ? 'Your Offer Was Accepted'
-                                    : donorResponse
-                                          .status ===
-                                        'pending'
-                                      ? 'You Responded to This Request'
-                                      : 'Response Update'}
-                                </Text>
-
-                                <Text
-                                  style={
-                                    styles.responsePanelDescription
-                                  }
-                                >
-                                  {getResponseSummary()}
-                                </Text>
-                              </View>
-                            </View>
-
-                            {donorResponse
-                              .message
-                              ?.trim() ? (
-                              <View
-                                style={
-                                  styles.sentMessageCard
-                                }
-                              >
-                                <Text
-                                  style={
-                                    styles.sentMessageLabel
-                                  }
-                                >
-                                  YOUR MESSAGE
-                                </Text>
-
-                                <Text
-                                  style={
-                                    styles.sentMessageText
-                                  }
-                                >
-                                  {donorResponse.message}
-                                </Text>
-                              </View>
-                            ) : null}
-
-                            {donorResponse
-                              .status ===
-                            'accepted' ? (
-                              <TouchableOpacity
-                                style={
-                                  styles.openChatButton
-                                }
-                                activeOpacity={
-                                  0.85
-                                }
-                                onPress={
-                                  handleOpenCoordination
-                                }
-                              >
-                                <MaterialIcons
-                                  name="chat-bubble-outline"
-                                  size={20}
-                                  color={
-                                    COLORS.white
-                                  }
-                                />
-
-                                <Text
-                                  style={
-                                    styles.openChatButtonText
-                                  }
-                                >
-                                  Open Chat
-                                </Text>
-
-                                <MaterialIcons
-                                  name="arrow-forward"
-                                  size={19}
-                                  color={
-                                    COLORS.white
-                                  }
-                                />
-                              </TouchableOpacity>
-                            ) : null}
-
-                            {donorResponse
-                              .status ===
-                            'pending' ? (
-                              <TouchableOpacity
-                                style={
-                                  styles.withdrawButton
-                                }
-                                activeOpacity={
-                                  0.82
-                                }
-                                disabled={
-                                  withdrawing
-                                }
-                                onPress={
-                                  handleWithdrawPress
-                                }
-                              >
-                                <MaterialIcons
-                                  name="undo"
-                                  size={18}
-                                  color={
-                                    COLORS.redButton
-                                  }
-                                />
-
-                                <Text
-                                  style={
-                                    styles.withdrawButtonText
-                                  }
-                                >
-                                  {withdrawing
-                                    ? 'Withdrawing...'
-                                    : 'Withdraw Offer'}
-                                </Text>
-                              </TouchableOpacity>
-                            ) : null}
-                          </View>
-                        ) : isApprovedDonor() ? (
-                          exactBloodMatch ? (
-                            <>
-                              <View
-                                style={
-                                  styles.eligibilityCard
-                                }
-                              >
-                                <View
-                                  style={
-                                    styles.eligibilityIconWrap
-                                  }
-                                >
-                                  <MaterialIcons
-                                    name="verified"
-                                    size={22}
-                                    color={
-                                      COLORS.green
-                                    }
-                                  />
-                                </View>
-
-                                <View
-                                  style={
-                                    styles.eligibilityCopy
-                                  }
-                                >
-                                  <Text
-                                    style={
-                                      styles.eligibilityTitle
-                                    }
-                                  >
-                                    You&apos;re a Verified Donor
-                                  </Text>
-
-                                  <Text
-                                    style={
-                                      styles.eligibilityText
-                                    }
-                                  >
-                                    Your verified blood type matches this request. Medical personnel will confirm your final eligibility before donation.
-                                  </Text>
-                                </View>
-                              </View>
-
-                              <View
-                                style={
-                                  styles.offerSection
-                                }
-                              >
-                                <Text
-                                  style={
-                                    styles.offerTitle
-                                  }
-                                >
-                                  Message to Requester
-                                </Text>
-
-                                <Text
-                                  style={
-                                    styles.offerSubtitle
-                                  }
-                                >
-                                  Optional — add a short note about your availability.
-                                </Text>
-
-                                <TextInput
-                                  style={
-                                    styles.messageInput
-                                  }
-                                  value={
-                                    message
-                                  }
-                                  onChangeText={
-                                    setMessage
-                                  }
-                                  editable={
-                                    !submitting
-                                  }
-                                  multiline
-                                  maxLength={
-                                    250
-                                  }
-                                  placeholder="Example: I can donate this afternoon."
-                                  placeholderTextColor={
-                                    COLORS.lightMuted
-                                  }
-                                  textAlignVertical="top"
-                                />
-
-                                <Text
-                                  style={
-                                    styles.characterCount
-                                  }
-                                >
-                                  {message.length}/250
-                                </Text>
-
-                                <TouchableOpacity
-                                  style={[
-                                    styles.offerButton,
-
-                                    submitting &&
-                                      styles.disabledButton,
-                                  ]}
-                                  disabled={
-                                    submitting
-                                  }
-                                  activeOpacity={
-                                    0.85
-                                  }
-                                  onPress={
-                                    handleDonorActionPress
-                                  }
-                                >
-                                  <MaterialIcons
-                                    name="volunteer-activism"
-                                    size={21}
-                                    color={
-                                      COLORS.white
-                                    }
-                                  />
-
-                                  <Text
-                                    style={
-                                      styles.offerButtonText
-                                    }
-                                  >
-                                    {submitting
-                                      ? 'Sending Offer...'
-                                      : 'Offer to Donate'}
-                                  </Text>
-                                </TouchableOpacity>
-                              </View>
-                            </>
-                          ) : null
-                        ) : (
-                          <>
-                            <View
-                              style={
-                                styles.donorGateCard
-                              }
-                            >
-                              <View
-                                style={[
-                                  styles.donorGateIcon,
-
-                                  {
-                                    backgroundColor:
-                                      `${getDonorApplicationColor()}12`,
-                                  },
-                                ]}
-                              >
-                                <MaterialIcons
-                                  name={
-                                    getDonorApplicationIcon()
-                                  }
-                                  size={25}
-                                  color={
-                                    getDonorApplicationColor()
-                                  }
-                                />
-                              </View>
-
-                              <View
-                                style={
-                                  styles.donorGateCopy
-                                }
-                              >
-                                <Text
-                                  style={
-                                    styles.donorGateTitle
-                                  }
-                                >
-                                  {getDonorApplicationTitle()}
-                                </Text>
-
-                                <Text
-                                  style={
-                                    styles.donorGateDescription
-                                  }
-                                >
-                                  {getDonorApplicationDescription()}
-                                </Text>
-
-                                {donorApplication ? (
-                                  <View
-                                    style={[
-                                      styles.donorStatusPill,
-
-                                      {
-                                        backgroundColor:
-                                          `${getDonorApplicationColor()}10`,
-                                      },
-                                    ]}
-                                  >
-                                    <View
-                                      style={[
-                                        styles.donorStatusDot,
-
-                                        {
-                                          backgroundColor:
-                                            getDonorApplicationColor(),
-                                        },
-                                      ]}
-                                    />
-
-                                    <Text
-                                      style={[
-                                        styles.donorStatusText,
-
-                                        {
-                                          color:
-                                            getDonorApplicationColor(),
-                                        },
-                                      ]}
-                                    >
-                                      {donorApplication
-                                        .status
-                                        .charAt(0)
-                                        .toUpperCase() +
-                                        donorApplication
-                                          .status
-                                          .slice(1)}
-                                    </Text>
-                                  </View>
-                                ) : null}
-                              </View>
-                            </View>
-
-                            <TouchableOpacity
-                              style={[
-                                styles.donorActionButton,
-
-                                donorApplication
-                                  ?.status ===
-                                  'pending' &&
-                                  styles.donorActionButtonDisabled,
-                              ]}
-                              disabled={
-                                donorApplication
-                                  ?.status ===
-                                'pending'
-                              }
-                              activeOpacity={
-                                0.85
-                              }
-                              onPress={
-                                handleDonorActionPress
-                              }
-                            >
-                              <MaterialIcons
-                                name={
-                                  donorApplication
-                                    ?.status ===
-                                  'pending'
-                                    ? 'schedule'
-                                    : 'how-to-reg'
-                                }
-                                size={21}
-                                color={
-                                  donorApplication
-                                    ?.status ===
-                                  'pending'
-                                    ? COLORS.muted
-                                    : COLORS.white
-                                }
-                              />
-
-                              <Text
-                                style={[
-                                  styles.donorActionButtonText,
-
-                                  donorApplication
-                                    ?.status ===
-                                    'pending' &&
-                                    styles.donorActionButtonTextDisabled,
-                                ]}
-                              >
-                                {getDonorActionLabel()}
-                              </Text>
-                            </TouchableOpacity>
-                          </>
-                        )}
-                      </>
-                    )}
-
-                    {/* ========================================
-                        PRIVACY
-                    ======================================== */}
-
+                  {showWaiting &&
+                  waitingUntil ? (
                     <View
-                      style={
-                        styles.privacyNote
-                      }
+                      style={[
+                        styles.notice,
+                        styles.noticeSuccess,
+                        styles.sectionGap,
+                      ]}
                     >
                       <MaterialIcons
-                        name="shield"
+                        name="event-available"
                         size={18}
                         color={
                           COLORS.green
@@ -3463,176 +3626,763 @@ export default function DonorBloodRequestScreen() {
 
                       <Text
                         style={
-                          styles.privacyText
+                          styles.noticeText
                         }
                       >
-                        Personal contact details stay private. Accepted donors and requesters coordinate securely through Hemo-Hero.
+                        <Text
+                          style={[
+                            styles.noticeTitle,
+                            {
+                              color:
+                                COLORS.green,
+                            },
+                          ]}
+                        >
+                          Thank you for donating!{' '}
+                        </Text>
+                        You can donate again from{' '}
+                        {formatShortDate(
+                          waitingUntil,
+                          true
+                        )}
+                        .
                       </Text>
                     </View>
-                  </>
-                ) : null}
-              </ScrollView>
-            </View>
-          </LinearGradient>
+                  ) : null}
+
+                  {/* ==============================================
+                      SEND AN OFFER
+                  ============================================== */}
+
+                  {canOffer ? (
+                    <>
+                      <Text
+                        style={[
+                          styles.sectionTitle,
+                          styles.sectionGap,
+                        ]}
+                      >
+                        Your offer
+                      </Text>
+
+                      <View
+                        style={
+                          styles.card
+                        }
+                      >
+                        <Text
+                          style={
+                            styles.inputLabel
+                          }
+                        >
+                          Note to requester{' '}
+                          <Text
+                            style={
+                              styles.inputOptional
+                            }
+                          >
+                            (optional)
+                          </Text>
+                        </Text>
+
+                        <TextInput
+                          style={
+                            styles.input
+                          }
+                          value={
+                            message
+                          }
+                          onChangeText={
+                            setMessage
+                          }
+                          editable={
+                            !submitting
+                          }
+                          multiline
+                          maxLength={
+                            250
+                          }
+                          placeholder="e.g. I can donate this afternoon."
+                          placeholderTextColor={
+                            COLORS.lightMuted
+                          }
+                          textAlignVertical="top"
+                        />
+
+                        <Text
+                          style={
+                            styles.inputCounter
+                          }
+                        >
+                          {message.length}/250
+                        </Text>
+                      </View>
+                    </>
+                  ) : null}
+
+                  {/* ==============================================
+                      DONOR APPLICATION (not verified yet)
+                  ============================================== */}
+
+                  {needsApplication ? (
+                    <View
+                      style={[
+                        styles.card,
+                        styles.sectionGap,
+                        styles.offerTop,
+                      ]}
+                    >
+                      <View
+                        style={[
+                          styles.offerIcon,
+                          {
+                            backgroundColor:
+                              `${getDonorApplicationColor()}14`,
+                          },
+                        ]}
+                      >
+                        <MaterialIcons
+                          name={
+                            getDonorApplicationIcon() as any
+                          }
+                          size={20}
+                          color={
+                            getDonorApplicationColor()
+                          }
+                        />
+                      </View>
+
+                      <View
+                        style={
+                          styles.flexFill
+                        }
+                      >
+                        <Text
+                          style={
+                            styles.offerTitle
+                          }
+                        >
+                          {getDonorApplicationTitle()}
+                        </Text>
+
+                        <Text
+                          style={
+                            styles.offerText
+                          }
+                        >
+                          {getDonorApplicationDescription()}
+                        </Text>
+                      </View>
+                    </View>
+                  ) : null}
+
+                  {/* ==============================================
+                      PRIVACY + REPORT
+                  ============================================== */}
+
+                  <View
+                    style={
+                      styles.privacyRow
+                    }
+                  >
+                    <MaterialIcons
+                      name="shield"
+                      size={15}
+                      color={
+                        COLORS.lightMuted
+                      }
+                    />
+
+                    <Text
+                      style={
+                        styles.privacyText
+                      }
+                    >
+                      Contact details stay private. Coordinate through Hemo-Hero chat.
+                    </Text>
+                  </View>
+
+                  {!request.removed_at ? (
+                    <TouchableOpacity
+                      style={
+                        styles.reportLink
+                      }
+                      activeOpacity={
+                        0.7
+                      }
+                      accessibilityRole="button"
+                      onPress={() =>
+                        setReportVisible(
+                          true
+                        )
+                      }
+                    >
+                      <MaterialIcons
+                        name="outlined-flag"
+                        size={15}
+                        color={
+                          COLORS.muted
+                        }
+                      />
+
+                      <Text
+                        style={
+                          styles.reportLinkText
+                        }
+                      >
+                        Something wrong?{' '}
+                        <Text
+                          style={
+                            styles.reportLinkStrong
+                          }
+                        >
+                          Report this request
+                        </Text>
+                      </Text>
+                    </TouchableOpacity>
+                  ) : null}
+                </FadeInView>
+              ) : null}
+            </ScrollView>
+
+            {/* ==================================================
+                FOOTER ACTION
+            ================================================== */}
+
+            {request &&
+            !loading &&
+            !errorMessage &&
+            (pendingInvitation ||
+              canOffer ||
+              needsApplication ||
+              canChat ||
+              (activeResponse?.status ===
+                'pending' &&
+                !requestClosed)) ? (
+              <View
+                style={[
+                  styles.footer,
+                  {
+                    paddingBottom:
+                      Math.max(
+                        insets.bottom,
+                        12
+                      ),
+                  },
+                ]}
+              >
+                {pendingInvitation ? (
+                  <View
+                    style={
+                      styles.footerRow
+                    }
+                  >
+                    <TouchableOpacity
+                      style={[
+                        styles.outlineButton,
+                        styles.flexFill,
+                      ]}
+                      activeOpacity={
+                        0.85
+                      }
+                      disabled={
+                        decliningInvitation ||
+                        acceptingInvitation
+                      }
+                      onPress={
+                        handleDeclineInvitationPress
+                      }
+                    >
+                      <Text
+                        style={
+                          styles.outlineButtonText
+                        }
+                      >
+                        {decliningInvitation
+                          ? 'Declining...'
+                          : 'Decline'}
+                      </Text>
+                    </TouchableOpacity>
+
+                    <PressableScale
+                      style={
+                        styles.primaryButton
+                      }
+                      containerStyle={
+                        styles.flexFill
+                      }
+                      disabled={
+                        acceptingInvitation ||
+                        decliningInvitation ||
+                        !isApprovedDonor() ||
+                        !bloodTypeCompatible ||
+                        Boolean(waitingUntil)
+                      }
+                      accessibilityRole="button"
+                      onPress={
+                        handleAcceptInvitationPress
+                      }
+                    >
+                      <LinearGradient
+                        colors={[
+                          COLORS.headerTop,
+                          COLORS.redDark,
+                        ]}
+                        start={{
+                          x: 0,
+                          y: 0,
+                        }}
+                        end={{
+                          x: 1,
+                          y: 1,
+                        }}
+                        style={
+                          styles.primaryGradient
+                        }
+                      >
+                        {acceptingInvitation ? (
+                          <ActivityIndicator
+                            color={
+                              COLORS.white
+                            }
+                          />
+                        ) : (
+                          <MaterialIcons
+                            name="check"
+                            size={20}
+                            color={
+                              COLORS.white
+                            }
+                          />
+                        )}
+
+                        <Text
+                          style={
+                            styles.primaryText
+                          }
+                        >
+                          Accept
+                        </Text>
+                      </LinearGradient>
+                    </PressableScale>
+                  </View>
+                ) : canChat ? (
+                  <PressableScale
+                    style={
+                      styles.primaryButton
+                    }
+                    accessibilityRole="button"
+                    onPress={
+                      handleOpenCoordination
+                    }
+                  >
+                    <LinearGradient
+                      colors={[
+                        COLORS.headerTop,
+                        COLORS.redDark,
+                      ]}
+                      start={{
+                        x: 0,
+                        y: 0,
+                      }}
+                      end={{
+                        x: 1,
+                        y: 1,
+                      }}
+                      style={
+                        styles.primaryGradient
+                      }
+                    >
+                      <MaterialIcons
+                        name="forum"
+                        size={20}
+                        color={
+                          COLORS.white
+                        }
+                      />
+
+                      <Text
+                        style={
+                          styles.primaryText
+                        }
+                      >
+                        Open Chat
+                      </Text>
+
+                      {unread >
+                      0 ? (
+                        <View
+                          style={
+                            styles.badge
+                          }
+                        >
+                          <Text
+                            style={
+                              styles.badgeText
+                            }
+                          >
+                            {unread > 9
+                              ? '9+'
+                              : unread}
+                          </Text>
+                        </View>
+                      ) : null}
+                    </LinearGradient>
+                  </PressableScale>
+                ) : activeResponse?.status ===
+                  'pending' ? (
+                  <TouchableOpacity
+                    style={
+                      styles.outlineButton
+                    }
+                    activeOpacity={
+                      0.85
+                    }
+                    disabled={
+                      withdrawing
+                    }
+                    onPress={
+                      handleWithdrawPress
+                    }
+                  >
+                    {withdrawing ? (
+                      <ActivityIndicator
+                        color={
+                          COLORS.redButton
+                        }
+                      />
+                    ) : (
+                      <MaterialIcons
+                        name="undo"
+                        size={19}
+                        color={
+                          COLORS.redButton
+                        }
+                      />
+                    )}
+
+                    <Text
+                      style={
+                        styles.outlineButtonText
+                      }
+                    >
+                      {withdrawing
+                        ? 'Withdrawing...'
+                        : 'Withdraw Offer'}
+                    </Text>
+                  </TouchableOpacity>
+                ) : (
+                  <PressableScale
+                    style={
+                      styles.primaryButton
+                    }
+                    disabled={
+                      submitting ||
+                      donorApplication?.status ===
+                        'pending'
+                    }
+                    accessibilityRole="button"
+                    onPress={
+                      handleDonorActionPress
+                    }
+                  >
+                    <LinearGradient
+                      colors={[
+                        COLORS.headerTop,
+                        COLORS.redDark,
+                      ]}
+                      start={{
+                        x: 0,
+                        y: 0,
+                      }}
+                      end={{
+                        x: 1,
+                        y: 1,
+                      }}
+                      style={
+                        styles.primaryGradient
+                      }
+                    >
+                      {submitting ? (
+                        <ActivityIndicator
+                          color={
+                            COLORS.white
+                          }
+                        />
+                      ) : (
+                        <MaterialIcons
+                          name={
+                            canOffer
+                              ? 'volunteer-activism'
+                              : donorApplication?.status ===
+                                  'pending'
+                                ? 'schedule'
+                                : 'how-to-reg'
+                          }
+                          size={20}
+                          color={
+                            COLORS.white
+                          }
+                        />
+                      )}
+
+                      <Text
+                        style={
+                          styles.primaryText
+                        }
+                      >
+                        {submitting
+                          ? 'Sending Offer...'
+                          : getDonorActionLabel()}
+                      </Text>
+                    </LinearGradient>
+                  </PressableScale>
+                )}
+              </View>
+            ) : null}
+          </View>
         </SafeAreaView>
+
+        {/* ====================================================
+            REPORT THIS REQUEST
+        ==================================================== */}
+
+        <ReportRequestSheet
+          visible={reportVisible}
+          onClose={() =>
+            setReportVisible(
+              false
+            )
+          }
+          onSubmit={
+            submitRequestReport
+          }
+        />
+
+        {/* ====================================================
+            RATE THE DONATION / REPORT A PROBLEM
+        ==================================================== */}
+
+        <DonationFeedbackModal
+          visible={Boolean(
+            donationDialog
+          )}
+          mode={
+            donationDialog ||
+            'feedback'
+          }
+          title={
+            donationDialog ===
+            'dispute'
+              ? 'Report a Problem'
+              : getFeedbackFrom(
+                    myDonation,
+                    'donor'
+                  )
+                ? 'Update Your Feedback'
+                : 'Rate Your Experience'
+          }
+          subtitle={
+            donationDialog ===
+            'dispute'
+              ? 'Tell us what is wrong with this donation record. Hemo-Hero will review it.'
+              : `How was your experience with ${
+                  myDonation?.requester_name ||
+                  'the requester'
+                }? They will see your feedback.`
+          }
+          initialRating={
+            getFeedbackFrom(
+              myDonation,
+              'donor'
+            )?.rating || 0
+          }
+          initialComment={
+            donationDialog ===
+            'dispute'
+              ? ''
+              : getFeedbackFrom(
+                  myDonation,
+                  'donor'
+                )?.comment || ''
+          }
+          quickNotes={
+            REQUESTER_FEEDBACK_NOTES
+          }
+          onClose={() =>
+            setDonationDialog(
+              null
+            )
+          }
+          onSubmit={
+            submitDonationDialog
+          }
+        />
 
         {/* ====================================================
             IN-APP ACTION POPUP
         ==================================================== */}
 
-        <Modal
-          transparent
+        <AppModal
           visible={
             actionPopup.visible
           }
-          animationType="fade"
-          onRequestClose={
+          variant={
+            actionPopup.variant
+          }
+          title={
+            actionPopup.title
+          }
+          message={
+            actionPopup.message
+          }
+          confirmLabel={
+            actionPopup.confirmText
+          }
+          cancelLabel={
+            actionPopup.showCancel
+              ? actionPopup.cancelText
+              : undefined
+          }
+          onConfirm={() => {
+            const action =
+              actionPopup.onConfirm;
+
+            closeActionPopup();
+
+            if (action) {
+              action();
+            }
+          }}
+          onClose={
             closeActionPopup
           }
+        />
+      </View>
+    </View>
+  );
+}
+
+// ============================================================
+// STAR ROW (read-only rating)
+// ============================================================
+
+function StarRow({
+  rating,
+}: {
+  rating: number;
+}) {
+  return (
+    <View
+      style={
+        styles.starRow
+      }
+      accessible
+      accessibilityLabel={`${rating} out of 5 stars`}
+    >
+      {[1, 2, 3, 4, 5].map(
+        value => (
+          <MaterialIcons
+            key={value}
+            name={
+              value <= rating
+                ? 'star'
+                : 'star-border'
+            }
+            size={15}
+            color={
+              value <= rating
+                ? COLORS.star
+                : '#D9C3C3'
+            }
+          />
+        )
+      )}
+    </View>
+  );
+}
+
+// ============================================================
+// INFO ROW (icon, small label, value)
+// ============================================================
+
+function InfoRow({
+  icon,
+  label,
+  value,
+  sub,
+  valueRegular,
+  last,
+  children,
+}: {
+  icon: IconName;
+  label: string;
+  value?: string | null;
+  sub?: string | null;
+  valueRegular?: boolean;
+  last?: boolean;
+  children?: ReactNode;
+}) {
+  return (
+    <View
+      style={[
+        styles.infoRow,
+
+        !last &&
+          styles.infoRowDivider,
+      ]}
+    >
+      <View
+        style={
+          styles.infoIcon
+        }
+      >
+        <MaterialIcons
+          name={icon}
+          size={18}
+          color={
+            COLORS.redButton
+          }
+        />
+      </View>
+
+      <View
+        style={
+          styles.flexFill
+        }
+      >
+        <Text
+          style={
+            styles.infoLabel
+          }
         >
-          <View
+          {label}
+        </Text>
+
+        {value ? (
+          <Text
+            style={[
+              styles.infoValue,
+
+              valueRegular &&
+                styles.infoValueRegular,
+            ]}
+          >
+            {value}
+          </Text>
+        ) : null}
+
+        {sub ? (
+          <Text
             style={
-              styles.actionPopupOverlay
+              styles.infoSub
             }
           >
-            <View
-              style={
-                styles.actionPopupCard
-              }
-            >
-              <View
-                style={[
-                  styles.actionPopupIcon,
+            {sub}
+          </Text>
+        ) : null}
 
-                  actionPopup.variant ===
-                    'success' &&
-                    styles.actionPopupIconSuccess,
-
-                  actionPopup.variant ===
-                    'warning' &&
-                    styles.actionPopupIconWarning,
-
-                  (
-                    actionPopup.variant ===
-                      'danger' ||
-                    actionPopup.variant ===
-                      'error'
-                  ) &&
-                    styles.actionPopupIconDanger,
-                ]}
-              >
-                <MaterialIcons
-                  name={
-                    actionPopup.variant ===
-                    'success'
-                      ? 'check-circle-outline'
-                      : actionPopup.variant ===
-                          'warning'
-                        ? 'warning-amber'
-                        : actionPopup.variant ===
-                              'danger' ||
-                            actionPopup.variant ===
-                              'error'
-                          ? 'error-outline'
-                          : 'info-outline'
-                  }
-                  size={31}
-                  color={
-                    actionPopup.variant ===
-                    'success'
-                      ? COLORS.green
-                      : actionPopup.variant ===
-                          'warning'
-                        ? COLORS.orange
-                        : COLORS.redButton
-                  }
-                />
-              </View>
-
-              <Text
-                style={
-                  styles.actionPopupTitle
-                }
-              >
-                {actionPopup.title}
-              </Text>
-
-              <Text
-                style={
-                  styles.actionPopupMessage
-                }
-              >
-                {actionPopup.message}
-              </Text>
-
-              <View
-                style={[
-                  styles.actionPopupActions,
-
-                  !actionPopup.showCancel &&
-                    styles.actionPopupActionsSingle,
-                ]}
-              >
-                {actionPopup.showCancel ? (
-                  <TouchableOpacity
-                    style={
-                      styles.actionPopupSecondaryButton
-                    }
-                    activeOpacity={
-                      0.82
-                    }
-                    onPress={
-                      closeActionPopup
-                    }
-                  >
-                    <Text
-                      style={
-                        styles.actionPopupSecondaryText
-                      }
-                    >
-                      {actionPopup.cancelText}
-                    </Text>
-                  </TouchableOpacity>
-                ) : null}
-
-                <TouchableOpacity
-                  style={[
-                    styles.actionPopupPrimaryButton,
-
-                    actionPopup.variant ===
-                      'success' &&
-                      styles.actionPopupPrimarySuccess,
-
-                    actionPopup.variant ===
-                      'danger' &&
-                      styles.actionPopupPrimaryDanger,
-                  ]}
-                  activeOpacity={
-                    0.85
-                  }
-                  onPress={() => {
-                    const action =
-                      actionPopup.onConfirm;
-
-                    closeActionPopup();
-
-                    if (action) {
-                      action();
-                    }
-                  }}
-                >
-                  <Text
-                    style={
-                      styles.actionPopupPrimaryText
-                    }
-                  >
-                    {actionPopup.confirmText}
-                  </Text>
-                </TouchableOpacity>
-              </View>
-            </View>
-          </View>
-        </Modal>
+        {children}
       </View>
     </View>
   );
@@ -3644,2365 +4394,836 @@ export default function DonorBloodRequestScreen() {
 
 const styles =
   StyleSheet.create({
+    flex: {
+      flex: 1,
+    },
+
+    flexFill: {
+      flex: 1,
+      minWidth: 0,
+    },
+
     desktopBackground: {
       flex: 1,
-
-      alignItems:
-        'center',
-
-      justifyContent:
-        'center',
-
+      alignItems: 'center',
+      justifyContent: 'center',
       backgroundColor:
-        Platform.OS ===
-        'web'
+        Platform.OS === 'web'
           ? '#242424'
-          : COLORS.pageBottom,
+          : COLORS.page,
     },
 
     phone: {
       width:
-        Platform.OS ===
-        'web'
+        Platform.OS === 'web'
           ? 440
           : '100%',
-
-      height:
-        '100%',
-
-      maxWidth:
-        '100%',
-
-      overflow:
-        'hidden',
-
-      backgroundColor:
-        COLORS.pageBottom,
+      height: '100%',
+      maxWidth: '100%',
+      overflow: 'hidden',
+      backgroundColor: COLORS.page,
     },
 
     safeArea: {
       flex: 1,
-
-      backgroundColor:
-        COLORS.redDark,
+      backgroundColor: COLORS.headerTop,
     },
 
-    // ========================================================
+    // ==========================================================
     // HEADER
-    // ========================================================
+    // ==========================================================
 
+    // Bottom padding leaves room for the rounded body sheet,
+    // which overlaps the header by 22.
     header: {
-      height: 118,
-
-      paddingHorizontal:
-        21,
-
+      paddingHorizontal: 20,
       paddingTop:
-        Platform.OS ===
-        'web'
+        Platform.OS === 'web'
           ? 18
-          : 11,
-
-      flexDirection:
-        'row',
-
-      alignItems:
-        'flex-start',
-
-      overflow:
-        'hidden',
+          : 10,
+      paddingBottom: 38,
+      overflow: 'hidden',
     },
 
     headerCircleLeft: {
-      position:
-        'absolute',
-
-      width:
-        175,
-
-      height:
-        175,
-
-      borderRadius:
-        88,
-
-      left:
-        -112,
-
-      top:
-        -80,
-
-      backgroundColor:
-        'rgba(255,255,255,0.065)',
+      position: 'absolute',
+      width: 165,
+      height: 165,
+      borderRadius: 83,
+      left: -100,
+      top: -70,
+      backgroundColor: 'rgba(255,255,255,0.06)',
     },
 
     headerCircleRight: {
-      position:
-        'absolute',
+      position: 'absolute',
+      width: 175,
+      height: 175,
+      borderRadius: 88,
+      right: -70,
+      top: -80,
+      backgroundColor: 'rgba(255,255,255,0.08)',
+    },
 
-      width:
-        190,
-
-      height:
-        190,
-
-      borderRadius:
-        95,
-
-      right:
-        -105,
-
-      top:
-        -98,
-
-      backgroundColor:
-        'rgba(255,255,255,0.07)',
+    headerRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
     },
 
     backButton: {
-      width:
-        43,
-
-      height:
-        43,
-
-      marginRight:
-        13,
-
-      borderRadius:
-        22,
-
-      alignItems:
-        'center',
-
-      justifyContent:
-        'center',
-
-      borderWidth:
-        1.3,
-
-      borderColor:
-        'rgba(255,255,255,0.86)',
-
-      backgroundColor:
-        'rgba(255,255,255,0.08)',
+      width: 40,
+      height: 40,
+      marginRight: 12,
+      borderRadius: 20,
+      alignItems: 'center',
+      justifyContent: 'center',
+      backgroundColor: 'rgba(255,255,255,0.16)',
     },
 
-    headerCopy: {
+    headerText: {
       flex: 1,
-
-      paddingTop:
-        2,
+      minWidth: 0,
     },
 
     headerTitle: {
-      color:
-        COLORS.white,
-
-      fontFamily:
-        'Poppins_700Bold',
-
-      fontSize:
-        21,
-
-      lineHeight:
-        27,
+      color: COLORS.white,
+      fontFamily: 'Poppins_700Bold',
+      fontSize: 21,
+      lineHeight: 29,
     },
 
     headerSubtitle: {
-      marginTop:
-        2,
-
-      color:
-        'rgba(255,255,255,0.78)',
-
-      fontFamily:
-        'Inter_400Regular',
-
-      fontSize:
-        11.5,
+      color: 'rgba(255,255,255,0.82)',
+      fontFamily: 'Inter_400Regular',
+      fontSize: 12.5,
     },
 
-    // ========================================================
+    headerStatus: {
+      marginLeft: 10,
+      paddingHorizontal: 10,
+      height: 28,
+      justifyContent: 'center',
+      borderRadius: 14,
+      backgroundColor: 'rgba(255,255,255,0.16)',
+    },
+
+    headerStatusText: {
+      color: COLORS.white,
+      fontFamily: 'Inter_600SemiBold',
+      fontSize: 12,
+    },
+
+    // ==========================================================
     // BODY
-    // ========================================================
+    // ==========================================================
 
     body: {
       flex: 1,
-
-      paddingHorizontal:
-        14,
-
-      paddingBottom:
-        14,
-    },
-
-    contentShell: {
-      flex: 1,
-
-      marginTop:
-        -12,
-
-      borderRadius:
-        29,
-
-      overflow:
-        'hidden',
-
-      backgroundColor:
-        '#F8F8F8',
-    },
-
-    scroll: {
-      flex: 1,
+      marginTop: -22,
+      borderTopLeftRadius: 22,
+      borderTopRightRadius: 22,
+      overflow: 'hidden',
+      backgroundColor: COLORS.page,
     },
 
     scrollContent: {
-      paddingHorizontal:
-        17,
-
-      paddingTop:
-        20,
-
-      paddingBottom:
-        34,
+      paddingHorizontal: 16,
+      paddingTop: 18,
+      paddingBottom: 24,
     },
-
-    // ========================================================
-    // LOADING / ERROR
-    // ========================================================
 
     centerState: {
-      minHeight:
-        530,
-
-      paddingHorizontal:
-        28,
-
-      alignItems:
-        'center',
-
-      justifyContent:
-        'center',
+      minHeight: 320,
+      paddingHorizontal: 24,
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: 8,
     },
 
-    centerIconWrap: {
-      width:
-        58,
-
-      height:
-        58,
-
-      borderRadius:
-        18,
-
-      alignItems:
-        'center',
-
-      justifyContent:
-        'center',
-
-      backgroundColor:
-        COLORS.pink,
+    centerIcon: {
+      width: 54,
+      height: 54,
+      borderRadius: 27,
+      alignItems: 'center',
+      justifyContent: 'center',
+      backgroundColor: COLORS.pinkLight,
     },
 
     centerTitle: {
-      marginTop:
-        14,
-
-      color:
-        COLORS.black,
-
-      fontFamily:
-        'Poppins_600SemiBold',
-
-      fontSize:
-        17,
+      color: COLORS.black,
+      fontFamily: 'Poppins_600SemiBold',
+      fontSize: 15,
     },
 
-    centerDescription: {
-      marginTop:
-        6,
-
-      color:
-        COLORS.muted,
-
-      fontFamily:
-        'Inter_400Regular',
-
-      fontSize:
-        12,
-
-      lineHeight:
-        18,
-
-      textAlign:
-        'center',
+    centerText: {
+      color: COLORS.muted,
+      fontFamily: 'Inter_400Regular',
+      fontSize: 13,
+      lineHeight: 19,
+      textAlign: 'center',
     },
 
     retryButton: {
-      height:
-        44,
-
-      marginTop:
-        18,
-
-      paddingHorizontal:
-        18,
-
-      borderRadius:
-        11,
-
-      flexDirection:
-        'row',
-
-      alignItems:
-        'center',
-
-      gap:
-        7,
-
-      backgroundColor:
-        COLORS.redButton,
+      marginTop: 6,
+      height: 42,
+      paddingHorizontal: 18,
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 7,
+      borderRadius: 12,
+      backgroundColor: COLORS.redButton,
     },
 
     retryButtonText: {
-      color:
-        COLORS.white,
-
-      fontFamily:
-        'Poppins_600SemiBold',
-
-      fontSize:
-        12,
+      color: COLORS.white,
+      fontFamily: 'Poppins_600SemiBold',
+      fontSize: 13.5,
     },
 
-    // ========================================================
-    // DIRECT INVITATION
-    // ========================================================
+    // ==========================================================
+    // NOTICES
+    // ==========================================================
 
-    directInvitationCard: {
-      marginBottom:
-        14,
-
-      padding:
-        15,
-
-      borderWidth:
-        1,
-
-      borderColor:
-        '#E8C4C4',
-
-      borderRadius:
-        17,
-
-      backgroundColor:
-        '#FFF7F7',
+    notice: {
+      marginBottom: 12,
+      paddingHorizontal: 12,
+      paddingVertical: 10,
+      flexDirection: 'row',
+      alignItems: 'flex-start',
+      gap: 9,
+      borderRadius: 12,
+      borderWidth: 1,
     },
 
-    directInvitationTop: {
-      flexDirection:
-        'row',
-
-      alignItems:
-        'flex-start',
+    noticeWarning: {
+      borderColor: '#F5D2B3',
+      backgroundColor: COLORS.orangeLight,
     },
 
-    directInvitationIcon: {
-      width:
-        43,
-
-      height:
-        43,
-
-      marginRight:
-        10,
-
-      borderRadius:
-        13,
-
-      alignItems:
-        'center',
-
-      justifyContent:
-        'center',
-
-      backgroundColor:
-        COLORS.pinkStrong,
+    noticeDanger: {
+      borderColor: '#F2C4C4',
+      backgroundColor: COLORS.pinkLight,
     },
 
-    directInvitationCopy: {
+    noticeSuccess: {
+      borderColor: '#BFE3CC',
+      backgroundColor: COLORS.greenLight,
+    },
+
+    noticeMuted: {
+      borderColor: COLORS.cardBorder,
+      backgroundColor: COLORS.grayLight,
+    },
+
+    noticeInfo: {
+      borderColor: '#C9DAF6',
+      backgroundColor: COLORS.blueLight,
+    },
+
+    noticeTitle: {
+      fontFamily: 'Inter_700Bold',
+    },
+
+    noticeText: {
       flex: 1,
+      color: COLORS.black,
+      fontFamily: 'Inter_400Regular',
+      fontSize: 12.5,
+      lineHeight: 18,
     },
 
-    directInvitationEyebrow: {
-      color:
-        COLORS.redButton,
-
-      fontFamily:
-        'Inter_700Bold',
-
-      fontSize:
-        8.5,
-
-      letterSpacing:
-        0.8,
+    noticeQuote: {
+      marginTop: 4,
+      color: COLORS.muted,
+      fontFamily: 'Inter_400Regular',
+      fontStyle: 'italic',
+      fontSize: 12.5,
+      lineHeight: 18,
     },
 
-    directInvitationTitle: {
-      marginTop:
-        4,
+    // ==========================================================
+    // CARDS / SECTIONS
+    // ==========================================================
 
-      color:
-        COLORS.black,
-
-      fontFamily:
-        'Poppins_600SemiBold',
-
-      fontSize:
-        13.5,
-
-      lineHeight:
-        18,
+    card: {
+      padding: 14,
+      borderRadius: 14,
+      borderWidth: 1,
+      borderColor: COLORS.cardBorder,
+      backgroundColor: COLORS.white,
     },
 
-    directInvitationDescription: {
-      marginTop:
-        4,
-
-      color:
-        COLORS.muted,
-
-      fontFamily:
-        'Inter_400Regular',
-
-      fontSize:
-        10.5,
-
-      lineHeight:
-        16,
+    sectionGap: {
+      marginTop: 20,
     },
 
-    invitationStatusRow: {
-      marginTop:
-        12,
-
-      flexDirection:
-        'row',
+    sectionTitle: {
+      marginBottom: 9,
+      color: COLORS.black,
+      fontFamily: 'Poppins_600SemiBold',
+      fontSize: 14.5,
     },
 
-    invitationStatusBadge: {
-      minHeight:
-        28,
-
-      paddingHorizontal:
-        9,
-
-      borderRadius:
-        8,
-
-      flexDirection:
-        'row',
-
-      alignItems:
-        'center',
-
-      gap:
-        5,
+    chip: {
+      paddingHorizontal: 9,
+      height: 24,
+      alignItems: 'center',
+      justifyContent: 'center',
+      borderRadius: 12,
     },
 
-    invitationStatusText: {
-      fontFamily:
-        'Inter_700Bold',
-
-      fontSize:
-        9.5,
+    chipText: {
+      fontFamily: 'Inter_600SemiBold',
+      fontSize: 11.5,
     },
 
-    invitationMessage: {
-      marginTop:
-        10,
-
-      padding:
-        10,
-
-      flexDirection:
-        'row',
-
-      alignItems:
-        'flex-start',
-
-      gap:
-        7,
-
-      borderRadius:
-        10,
-
-      backgroundColor:
-        COLORS.white,
+    inlineCard: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 9,
     },
 
-    invitationMessageText: {
+    inlineCardText: {
       flex: 1,
-
-      color:
-        COLORS.muted,
-
-      fontFamily:
-        'Inter_400Regular',
-
-      fontSize:
-        10,
-
-      lineHeight:
-        15,
+      color: COLORS.muted,
+      fontFamily: 'Inter_500Medium',
+      fontSize: 13,
     },
 
-    // ========================================================
-    // REQUEST CARD
-    // ========================================================
+    // ==========================================================
+    // SUMMARY
+    // ==========================================================
 
-    requestCard: {
-      paddingHorizontal:
-        17,
-
-      paddingTop:
-        18,
-
-      paddingBottom:
-        18,
-
-      marginBottom:
-        14,
-
-      borderRadius:
-        22,
-
-      borderWidth:
-        1,
-
-      borderColor:
-        '#E5DEDE',
-
-      backgroundColor:
-        COLORS.white,
-
-      shadowColor:
-        '#000000',
-
-      shadowOpacity:
-        0.08,
-
-      shadowRadius:
-        10,
-
-      shadowOffset: {
-        width:
-          0,
-
-        height:
-          4,
-      },
-
-      elevation:
-        3,
+    summaryTop: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 12,
     },
 
-    badgeArea: {
-      flexDirection:
-        'row',
-
-      justifyContent:
-        'center',
-
-      gap:
-        8,
-
-      marginBottom:
-        11,
+    bloodCircle: {
+      width: 54,
+      height: 54,
+      borderRadius: 27,
+      alignItems: 'center',
+      justifyContent: 'center',
+      backgroundColor: COLORS.redButton,
     },
 
-    urgencyBadge: {
-      minHeight:
-        36,
-
-      paddingHorizontal:
-        12,
-
-      borderRadius:
-        9,
-
-      flexDirection:
-        'row',
-
-      alignItems:
-        'center',
-
-      gap:
-        4,
-
-      backgroundColor:
-        COLORS.redButton,
+    bloodText: {
+      color: COLORS.white,
+      fontFamily: 'Poppins_700Bold',
+      fontSize: 18,
     },
 
-    urgencyBadgeText: {
-      color:
-        COLORS.white,
-
-      fontFamily:
-        'Inter_700Bold',
-
-      fontSize:
-        11,
+    summaryTitle: {
+      color: COLORS.black,
+      fontFamily: 'Poppins_600SemiBold',
+      fontSize: 16,
+      lineHeight: 22,
     },
 
-    bloodTypeBadge: {
-      minHeight:
-        36,
-
-      paddingHorizontal:
-        12,
-
-      borderRadius:
-        9,
-
-      flexDirection:
-        'row',
-
-      alignItems:
-        'center',
-
-      gap:
-        4,
-
-      backgroundColor:
-        COLORS.redDark,
+    summaryMeta: {
+      color: COLORS.muted,
+      fontFamily: 'Inter_500Medium',
+      fontSize: 12.5,
     },
 
-    bloodTypeBadgeText: {
-      color:
-        COLORS.white,
-
-      fontFamily:
-        'Poppins_700Bold',
-
-      fontSize:
-        12,
+    urgencyPill: {
+      alignSelf: 'flex-start',
+      paddingHorizontal: 9,
+      height: 26,
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 4,
+      borderRadius: 13,
+      backgroundColor: COLORS.pinkLight,
     },
 
-    requestCardSubtitle: {
-      color:
-        COLORS.redButton,
-
-      fontFamily:
-        'Inter_700Bold',
-
-      fontSize:
-        9,
-
-      letterSpacing:
-        0.9,
-
-      textAlign:
-        'center',
+    urgencyPillUrgent: {
+      backgroundColor: COLORS.redButton,
     },
 
-    requestFacility: {
-      marginTop:
-        5,
-
-      color:
-        COLORS.black,
-
-      fontFamily:
-        'Poppins_700Bold',
-
-      fontSize:
-        17,
-
-      lineHeight:
-        22,
-
-      textAlign:
-        'center',
+    urgencyText: {
+      color: COLORS.redButton,
+      fontFamily: 'Inter_600SemiBold',
+      fontSize: 11.5,
     },
 
-    requestUnits: {
-      marginTop:
-        3,
-
-      color:
-        COLORS.muted,
-
-      fontFamily:
-        'Inter_500Medium',
-
-      fontSize:
-        11.5,
-
-      textAlign:
-        'center',
+    urgencyTextUrgent: {
+      color: COLORS.white,
     },
 
-    cardDivider: {
-      height:
-        StyleSheet.hairlineWidth,
-
-      marginTop:
-        17,
-
-      marginBottom:
-        15,
-
-      backgroundColor:
-        COLORS.border,
+    matchLine: {
+      marginTop: 14,
+      paddingHorizontal: 11,
+      paddingVertical: 9,
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 8,
+      borderRadius: 10,
     },
 
-    infoSectionTitle: {
-      marginBottom:
-        5,
-
-      color:
-        '#474747',
-
-      fontFamily:
-        'Inter_700Bold',
-
-      fontSize:
-        11.5,
-    },
-
-    detailRows: {
-      marginTop:
-        2,
-    },
-
-    detailRow: {
-      minHeight:
-        52,
-
-      paddingVertical:
-        9,
-
-      flexDirection:
-        'row',
-
-      alignItems:
-        'center',
-
-      justifyContent:
-        'space-between',
-
-      borderBottomWidth:
-        StyleSheet.hairlineWidth,
-
-      borderBottomColor:
-        '#EFEAEA',
-    },
-
-    detailRowLast: {
-      minHeight:
-        52,
-
-      paddingVertical:
-        9,
-
-      flexDirection:
-        'row',
-
-      alignItems:
-        'center',
-
-      justifyContent:
-        'space-between',
-    },
-
-    detailLabelGroup: {
-      width:
-        '43%',
-
-      flexDirection:
-        'row',
-
-      alignItems:
-        'center',
-
-      gap:
-        8,
-    },
-
-    detailLabel: {
-      color:
-        COLORS.muted,
-
-      fontFamily:
-        'Inter_500Medium',
-
-      fontSize:
-        11.5,
-    },
-
-    detailValue: {
-      maxWidth:
-        '54%',
-
-      color:
-        '#404040',
-
-      fontFamily:
-        'Inter_500Medium',
-
-      fontSize:
-        11.5,
-
-      textAlign:
-        'right',
-    },
-
-    detailValueStrong: {
-      maxWidth:
-        '54%',
-
-      color:
-        COLORS.black,
-
-      fontFamily:
-        'Inter_700Bold',
-
-      fontSize:
-        11.5,
-
-      textAlign:
-        'right',
-    },
-
-    detailValueWrap: {
-      width:
-        '54%',
-
-      alignItems:
-        'flex-end',
-    },
-
-    detailValueStrongRight: {
-      color:
-        COLORS.black,
-
-      fontFamily:
-        'Inter_700Bold',
-
-      fontSize:
-        11.5,
-
-      lineHeight:
-        16,
-
-      textAlign:
-        'right',
-    },
-
-    detailValueSub: {
-      marginTop:
-        2,
-
-      color:
-        COLORS.lightMuted,
-
-      fontFamily:
-        'Inter_400Regular',
-
-      fontSize:
-        9.5,
-
-      lineHeight:
-        14,
-
-      textAlign:
-        'right',
-    },
-
-    urgentValue: {
-      color:
-        COLORS.redButton,
-    },
-
-    requesterMessageBox: {
-      marginTop:
-        14,
-
-      padding:
-        13,
-
-      borderRadius:
-        13,
-
-      backgroundColor:
-        COLORS.pink,
-    },
-
-    messageBoxHeader: {
-      flexDirection:
-        'row',
-
-      alignItems:
-        'center',
-
-      gap:
-        6,
-    },
-
-    messageBoxLabel: {
-      color:
-        '#4A4A4A',
-
-      fontFamily:
-        'Inter_700Bold',
-
-      fontSize:
-        10.5,
-    },
-
-    messageBoxText: {
-      marginTop:
-        7,
-
-      color:
-        '#444444',
-
-      fontFamily:
-        'Inter_400Regular',
-
-      fontSize:
-        11.5,
-
-      lineHeight:
-        17,
-    },
-
-    // ========================================================
-    // BLOOD MATCH
-    // ========================================================
-
-    matchCard: {
-      marginTop:
-        2,
-
-      marginBottom:
-        14,
-
-      padding:
-        13,
-
-      borderWidth:
-        1,
-
-      borderColor:
-        '#BFE2CC',
-
-      borderRadius:
-        15,
-
-      flexDirection:
-        'row',
-
-      alignItems:
-        'flex-start',
-
-      backgroundColor:
-        COLORS.greenLight,
-    },
-
-    matchIconWrap: {
-      width:
-        39,
-
-      height:
-        39,
-
-      marginRight:
-        10,
-
-      borderRadius:
-        12,
-
-      alignItems:
-        'center',
-
-      justifyContent:
-        'center',
-
-      backgroundColor:
-        COLORS.white,
-    },
-
-    mismatchCard: {
-      marginTop:
-        2,
-
-      marginBottom:
-        14,
-
-      padding:
-        13,
-
-      borderWidth:
-        1,
-
-      borderColor:
-        '#E9C4C4',
-
-      borderRadius:
-        15,
-
-      flexDirection:
-        'row',
-
-      alignItems:
-        'flex-start',
-
-      backgroundColor:
-        '#FFF5F5',
-    },
-
-    mismatchIconWrap: {
-      width:
-        39,
-
-      height:
-        39,
-
-      marginRight:
-        10,
-
-      borderRadius:
-        12,
-
-      alignItems:
-        'center',
-
-      justifyContent:
-        'center',
-
-      backgroundColor:
-        COLORS.white,
-    },
-
-    matchCopy: {
+    matchText: {
       flex: 1,
+      fontFamily: 'Inter_600SemiBold',
+      fontSize: 12.5,
+      lineHeight: 17,
     },
 
-    matchTitle: {
-      color:
-        COLORS.greenDark,
+    // ==========================================================
+    // DETAILS
+    // ==========================================================
 
-      fontFamily:
-        'Poppins_600SemiBold',
-
-      fontSize:
-        12,
+    infoRow: {
+      paddingVertical: 10,
+      flexDirection: 'row',
+      alignItems: 'flex-start',
+      gap: 11,
     },
 
-    mismatchTitle: {
-      color:
-        COLORS.redButton,
-
-      fontFamily:
-        'Poppins_600SemiBold',
-
-      fontSize:
-        12,
+    infoRowDivider: {
+      borderBottomWidth: 1,
+      borderBottomColor: COLORS.divider,
     },
 
-    matchDescription: {
-      marginTop:
-        3,
-
-      color:
-        '#557565',
-
-      fontFamily:
-        'Inter_400Regular',
-
-      fontSize:
-        10,
-
-      lineHeight:
-        15,
+    infoIcon: {
+      width: 34,
+      height: 34,
+      borderRadius: 10,
+      alignItems: 'center',
+      justifyContent: 'center',
+      backgroundColor: COLORS.pinkLight,
     },
 
-    mismatchDescription: {
-      marginTop:
-        3,
-
-      color:
-        COLORS.muted,
-
-      fontFamily:
-        'Inter_400Regular',
-
-      fontSize:
-        10,
-
-      lineHeight:
-        15,
+    infoLabel: {
+      color: COLORS.lightMuted,
+      fontFamily: 'Inter_500Medium',
+      fontSize: 11.5,
     },
 
-    matchStrong: {
-      fontFamily:
-        'Inter_700Bold',
+    infoValue: {
+      marginTop: 1,
+      color: COLORS.black,
+      fontFamily: 'Inter_600SemiBold',
+      fontSize: 13.5,
+      lineHeight: 19,
     },
 
-    // ========================================================
-    // INVITATION DECISION
-    // ========================================================
-
-    invitationDecisionCard: {
-      marginBottom:
-        11,
-
-      padding:
-        12,
-
-      borderRadius:
-        13,
-
-      flexDirection:
-        'row',
-
-      alignItems:
-        'flex-start',
-
-      gap:
-        8,
-
-      borderWidth:
-        1,
-
-      borderColor:
-        '#E8D4D4',
-
-      backgroundColor:
-        '#FFF9F9',
+    infoValueRegular: {
+      fontFamily: 'Inter_400Regular',
+      fontSize: 13,
     },
 
-    invitationDecisionText: {
-      flex:
-        1,
-
-      color:
-        COLORS.muted,
-
-      fontFamily:
-        'Inter_400Regular',
-
-      fontSize:
-        10,
-
-      lineHeight:
-        15,
+    infoSub: {
+      marginTop: 1,
+      color: COLORS.muted,
+      fontFamily: 'Inter_400Regular',
+      fontSize: 12,
+      lineHeight: 17,
     },
 
-    invitationButtons: {
-      flexDirection:
-        'row',
-
-      gap:
-        9,
-
-      marginBottom:
-        14,
+    directionsButton: {
+      marginTop: 8,
+      alignSelf: 'flex-start',
+      height: 30,
+      paddingHorizontal: 10,
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 5,
+      borderRadius: 15,
+      borderWidth: 1,
+      borderColor: COLORS.tileBorder,
+      backgroundColor: COLORS.white,
     },
 
-    declineInvitationButton: {
-      flex:
-        1,
-
-      height:
-        49,
-
-      borderWidth:
-        1.2,
-
-      borderColor:
-        COLORS.redButton,
-
-      borderRadius:
-        11,
-
-      flexDirection:
-        'row',
-
-      alignItems:
-        'center',
-
-      justifyContent:
-        'center',
-
-      gap:
-        5,
-
-      backgroundColor:
-        COLORS.white,
+    directionsText: {
+      color: COLORS.redButton,
+      fontFamily: 'Inter_600SemiBold',
+      fontSize: 12,
     },
 
-    declineInvitationText: {
-      color:
-        COLORS.redButton,
-
-      fontFamily:
-        'Poppins_600SemiBold',
-
-      fontSize:
-        10.5,
+    typeChips: {
+      marginTop: 5,
+      flexDirection: 'row',
+      flexWrap: 'wrap',
+      gap: 6,
     },
 
-    acceptInvitationButton: {
-      flex:
-        1.15,
-
-      height:
-        49,
-
-      borderRadius:
-        11,
-
-      flexDirection:
-        'row',
-
-      alignItems:
-        'center',
-
-      justifyContent:
-        'center',
-
-      gap:
-        5,
-
-      backgroundColor:
-        COLORS.green,
+    typeChip: {
+      minWidth: 36,
+      paddingHorizontal: 8,
+      height: 24,
+      alignItems: 'center',
+      justifyContent: 'center',
+      borderRadius: 12,
+      borderWidth: 1,
+      borderColor: COLORS.tileBorder,
+      backgroundColor: COLORS.pinkLight,
     },
 
-    acceptInvitationText: {
-      color:
-        COLORS.white,
-
-      fontFamily:
-        'Poppins_600SemiBold',
-
-      fontSize:
-        10.5,
+    typeChipMine: {
+      borderColor: COLORS.green,
+      backgroundColor: COLORS.greenLight,
     },
 
-    acceptedInvitationCard: {
-      marginBottom:
-        14,
-
-      padding:
-        14,
-
-      borderWidth:
-        1,
-
-      borderColor:
-        '#BFE2CC',
-
-      borderRadius:
-        16,
-
-      backgroundColor:
-        COLORS.greenLight,
+    typeChipText: {
+      color: COLORS.redButton,
+      fontFamily: 'Inter_700Bold',
+      fontSize: 11.5,
     },
 
-    acceptedInvitationTop: {
-      flexDirection:
-        'row',
-
-      alignItems:
-        'flex-start',
+    typeChipTextMine: {
+      color: COLORS.green,
     },
 
-    acceptedInvitationIcon: {
-      width:
-        43,
+    // ==========================================================
+    // YOUR OFFER
+    // ==========================================================
 
-      height:
-        43,
-
-      marginRight:
-        10,
-
-      borderRadius:
-        13,
-
-      alignItems:
-        'center',
-
-      justifyContent:
-        'center',
-
-      backgroundColor:
-        COLORS.white,
+    offerTop: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 11,
     },
 
-    acceptedInvitationCopy: {
-      flex: 1,
-    },
-
-    acceptedInvitationTitle: {
-      color:
-        COLORS.greenDark,
-
-      fontFamily:
-        'Poppins_600SemiBold',
-
-      fontSize:
-        13,
-    },
-
-    acceptedInvitationDescription: {
-      marginTop:
-        3,
-
-      color:
-        '#557565',
-
-      fontFamily:
-        'Inter_400Regular',
-
-      fontSize:
-        10,
-
-      lineHeight:
-        15,
-    },
-
-    closedInvitationCard: {
-      marginBottom:
-        14,
-
-      padding:
-        14,
-
-      borderWidth:
-        1,
-
-      borderColor:
-        '#DEDEDE',
-
-      borderRadius:
-        15,
-
-      flexDirection:
-        'row',
-
-      alignItems:
-        'flex-start',
-
-      gap:
-        10,
-
-      backgroundColor:
-        COLORS.grayLight,
-    },
-
-    closedInvitationCopy: {
-      flex: 1,
-    },
-
-    closedInvitationTitle: {
-      color:
-        '#555555',
-
-      fontFamily:
-        'Poppins_600SemiBold',
-
-      fontSize:
-        12.5,
-    },
-
-    closedInvitationDescription: {
-      marginTop:
-        3,
-
-      color:
-        COLORS.muted,
-
-      fontFamily:
-        'Inter_400Regular',
-
-      fontSize:
-        10,
-
-      lineHeight:
-        15,
-    },
-
-    // ========================================================
-    // RESPONSE PANEL
-    // ========================================================
-
-    responsePanel: {
-      marginTop:
-        2,
-
-      marginBottom:
-        14,
-
-      padding:
-        15,
-
-      borderWidth:
-        1,
-
-      borderColor:
-        COLORS.border,
-
-      borderRadius:
-        16,
-
-      backgroundColor:
-        COLORS.white,
-    },
-
-    responsePanelAccepted: {
-      borderColor:
-        '#BFE2CC',
-
-      backgroundColor:
-        COLORS.greenLight,
-    },
-
-    responsePanelPending: {
-      borderColor:
-        '#EED5B4',
-
-      backgroundColor:
-        '#FFF9F0',
-    },
-
-    responsePanelRejected: {
-      borderColor:
-        '#E9CACA',
-
-      backgroundColor:
-        '#FFF6F6',
-    },
-
-    responsePanelTop: {
-      flexDirection:
-        'row',
-
-      alignItems:
-        'flex-start',
-    },
-
-    responseIconWrap: {
-      width:
-        43,
-
-      height:
-        43,
-
-      marginRight:
-        10,
-
-      borderRadius:
-        13,
-
-      alignItems:
-        'center',
-
-      justifyContent:
-        'center',
-    },
-
-    responsePanelCopy: {
-      flex: 1,
-    },
-
-    statusPill: {
-      alignSelf:
-        'flex-start',
-
-      minHeight:
-        25,
-
-      paddingHorizontal:
-        9,
-
-      borderRadius:
-        8,
-
-      flexDirection:
-        'row',
-
-      alignItems:
-        'center',
-
-      gap:
-        5,
-    },
-
-    statusDot: {
-      width:
-        6,
-
-      height:
-        6,
-
-      borderRadius:
-        3,
-    },
-
-    statusPillText: {
-      fontFamily:
-        'Inter_700Bold',
-
-      fontSize:
-        9.5,
-    },
-
-    responsePanelTitle: {
-      marginTop:
-        8,
-
-      color:
-        COLORS.black,
-
-      fontFamily:
-        'Poppins_600SemiBold',
-
-      fontSize:
-        13.5,
-
-      lineHeight:
-        18,
-    },
-
-    responsePanelDescription: {
-      marginTop:
-        4,
-
-      color:
-        COLORS.muted,
-
-      fontFamily:
-        'Inter_400Regular',
-
-      fontSize:
-        10.8,
-
-      lineHeight:
-        16,
-    },
-
-    sentMessageCard: {
-      marginTop:
-        12,
-
-      padding:
-        11,
-
-      borderRadius:
-        10,
-
-      backgroundColor:
-        'rgba(255,255,255,0.72)',
-    },
-
-    sentMessageLabel: {
-      color:
-        COLORS.lightMuted,
-
-      fontFamily:
-        'Inter_700Bold',
-
-      fontSize:
-        8.5,
-
-      letterSpacing:
-        0.6,
-    },
-
-    sentMessageText: {
-      marginTop:
-        4,
-
-      color:
-        COLORS.black,
-
-      fontFamily:
-        'Inter_400Regular',
-
-      fontSize:
-        11,
-
-      lineHeight:
-        16,
-    },
-
-    openChatButton: {
-      height:
-        48,
-
-      marginTop:
-        14,
-
-      borderRadius:
-        11,
-
-      flexDirection:
-        'row',
-
-      alignItems:
-        'center',
-
-      justifyContent:
-        'center',
-
-      gap:
-        7,
-
-      backgroundColor:
-        COLORS.green,
-    },
-
-    openChatButtonText: {
-      color:
-        COLORS.white,
-
-      fontFamily:
-        'Poppins_600SemiBold',
-
-      fontSize:
-        12,
-    },
-
-    withdrawButton: {
-      height:
-        44,
-
-      marginTop:
-        14,
-
-      borderWidth:
-        1,
-
-      borderColor:
-        COLORS.redButton,
-
-      borderRadius:
-        10,
-
-      flexDirection:
-        'row',
-
-      alignItems:
-        'center',
-
-      justifyContent:
-        'center',
-
-      gap:
-        6,
-
-      backgroundColor:
-        COLORS.white,
-    },
-
-    withdrawButtonText: {
-      color:
-        COLORS.redButton,
-
-      fontFamily:
-        'Poppins_600SemiBold',
-
-      fontSize:
-        11.5,
-    },
-
-    // ========================================================
-    // ELIGIBILITY / OFFER
-    // ========================================================
-
-    eligibilityCard: {
-      marginTop:
-        2,
-
-      marginBottom:
-        14,
-
-      padding:
-        14,
-
-      borderWidth:
-        1,
-
-      borderColor:
-        '#C5E4D0',
-
-      borderRadius:
-        15,
-
-      flexDirection:
-        'row',
-
-      alignItems:
-        'flex-start',
-
-      backgroundColor:
-        COLORS.greenLight,
-    },
-
-    eligibilityIconWrap: {
-      width:
-        40,
-
-      height:
-        40,
-
-      marginRight:
-        10,
-
-      borderRadius:
-        12,
-
-      alignItems:
-        'center',
-
-      justifyContent:
-        'center',
-
-      backgroundColor:
-        COLORS.white,
-    },
-
-    eligibilityCopy: {
-      flex: 1,
-    },
-
-    eligibilityTitle: {
-      color:
-        COLORS.greenDark,
-
-      fontFamily:
-        'Poppins_600SemiBold',
-
-      fontSize:
-        12.5,
-    },
-
-    eligibilityText: {
-      marginTop:
-        3,
-
-      color:
-        '#557565',
-
-      fontFamily:
-        'Inter_400Regular',
-
-      fontSize:
-        10.5,
-
-      lineHeight:
-        15.5,
-    },
-
-    offerSection: {
-      marginBottom:
-        14,
+    offerIcon: {
+      width: 40,
+      height: 40,
+      borderRadius: 20,
+      alignItems: 'center',
+      justifyContent: 'center',
     },
 
     offerTitle: {
-      color:
-        COLORS.black,
-
-      fontFamily:
-        'Poppins_600SemiBold',
-
-      fontSize:
-        14,
+      color: COLORS.black,
+      fontFamily: 'Poppins_600SemiBold',
+      fontSize: 14,
     },
 
-    offerSubtitle: {
-      marginTop:
-        2,
-
-      marginBottom:
-        9,
-
-      color:
-        COLORS.lightMuted,
-
-      fontFamily:
-        'Inter_400Regular',
-
-      fontSize:
-        10.5,
-
-      lineHeight:
-        15,
+    offerText: {
+      color: COLORS.muted,
+      fontFamily: 'Inter_400Regular',
+      fontSize: 12.5,
+      lineHeight: 18,
     },
 
-    messageInput: {
-      minHeight:
-        98,
-
-      paddingHorizontal:
-        13,
-
-      paddingVertical:
-        12,
-
-      borderWidth:
-        1,
-
-      borderColor:
-        '#D9D3D3',
-
-      borderRadius:
-        12,
-
-      color:
-        COLORS.black,
-
-      fontFamily:
-        'Inter_400Regular',
-
-      fontSize:
-        12,
-
-      lineHeight:
-        18,
-
-      backgroundColor:
-        COLORS.white,
+    offerMessage: {
+      marginTop: 12,
+      color: COLORS.muted,
+      fontFamily: 'Inter_400Regular',
+      fontStyle: 'italic',
+      fontSize: 12.5,
+      lineHeight: 18,
     },
 
-    characterCount: {
-      marginTop:
-        5,
-
-      color:
-        COLORS.lightMuted,
-
-      fontFamily:
-        'Inter_400Regular',
-
-      fontSize:
-        9.5,
-
-      textAlign:
-        'right',
+    steps: {
+      marginTop: 14,
+      flexDirection: 'row',
     },
 
-    offerButton: {
-      height:
-        50,
-
-      marginTop:
-        12,
-
-      borderRadius:
-        11,
-
-      flexDirection:
-        'row',
-
-      alignItems:
-        'center',
-
-      justifyContent:
-        'center',
-
-      gap:
-        7,
-
-      backgroundColor:
-        COLORS.green,
-    },
-
-    offerButtonText: {
-      color:
-        COLORS.white,
-
-      fontFamily:
-        'Poppins_600SemiBold',
-
-      fontSize:
-        12.5,
-    },
-
-    disabledButton: {
-      opacity:
-        0.5,
-    },
-
-    // ========================================================
-    // DONOR GATE
-    // ========================================================
-
-    donorGateCard: {
-      marginTop:
-        2,
-
-      marginBottom:
-        12,
-
-      padding:
-        15,
-
-      borderWidth:
-        1,
-
-      borderColor:
-        COLORS.border,
-
-      borderRadius:
-        16,
-
-      flexDirection:
-        'row',
-
-      alignItems:
-        'flex-start',
-
-      backgroundColor:
-        COLORS.white,
-    },
-
-    donorGateIcon: {
-      width:
-        46,
-
-      height:
-        46,
-
-      marginRight:
-        11,
-
-      borderRadius:
-        14,
-
-      alignItems:
-        'center',
-
-      justifyContent:
-        'center',
-    },
-
-    donorGateCopy: {
+    step: {
       flex: 1,
+      alignItems: 'center',
     },
 
-    donorGateTitle: {
-      color:
-        COLORS.black,
-
-      fontFamily:
-        'Poppins_600SemiBold',
-
-      fontSize:
-        13,
+    stepTrack: {
+      alignSelf: 'stretch',
+      flexDirection: 'row',
+      alignItems: 'center',
     },
 
-    donorGateDescription: {
-      marginTop:
-        4,
-
-      color:
-        COLORS.muted,
-
-      fontFamily:
-        'Inter_400Regular',
-
-      fontSize:
-        10.5,
-
-      lineHeight:
-        16,
+    stepLine: {
+      flex: 1,
+      height: 2,
+      backgroundColor: COLORS.divider,
     },
 
-    donorStatusPill: {
-      alignSelf:
-        'flex-start',
-
-      minHeight:
-        25,
-
-      marginTop:
-        8,
-
-      paddingHorizontal:
-        8,
-
-      borderRadius:
-        8,
-
-      flexDirection:
-        'row',
-
-      alignItems:
-        'center',
-
-      gap:
-        5,
+    stepLineHidden: {
+      opacity: 0,
     },
 
-    donorStatusDot: {
-      width:
-        6,
-
-      height:
-        6,
-
-      borderRadius:
-        3,
+    stepLineDone: {
+      backgroundColor: COLORS.green,
     },
 
-    donorStatusText: {
-      fontFamily:
-        'Inter_700Bold',
-
-      fontSize:
-        9,
+    stepDot: {
+      width: 18,
+      height: 18,
+      borderRadius: 9,
+      alignItems: 'center',
+      justifyContent: 'center',
+      borderWidth: 1.5,
+      borderColor: '#D9C9C9',
+      backgroundColor: COLORS.white,
     },
 
-    donorActionButton: {
-      height:
-        49,
-
-      borderRadius:
-        11,
-
-      flexDirection:
-        'row',
-
-      alignItems:
-        'center',
-
-      justifyContent:
-        'center',
-
-      gap:
-        7,
-
-      backgroundColor:
-        COLORS.redButton,
+    stepDotDone: {
+      borderColor: COLORS.green,
+      backgroundColor: COLORS.green,
     },
 
-    donorActionButtonDisabled: {
-      backgroundColor:
-        '#E6E6E6',
+    stepDotCurrent: {
+      borderWidth: 2,
+      borderColor: COLORS.redButton,
+      backgroundColor: COLORS.pinkLight,
     },
 
-    donorActionButtonText: {
-      color:
-        COLORS.white,
-
-      fontFamily:
-        'Poppins_600SemiBold',
-
-      fontSize:
-        12,
+    stepLabel: {
+      marginTop: 5,
+      color: COLORS.lightMuted,
+      fontFamily: 'Inter_500Medium',
+      fontSize: 11,
     },
 
-    donorActionButtonTextDisabled: {
-      color:
-        COLORS.muted,
+    stepLabelDone: {
+      color: COLORS.black,
+      fontFamily: 'Inter_600SemiBold',
     },
 
-    // ========================================================
-    // PRIVACY
-    // ========================================================
+    inlineNote: {
+      marginTop: 12,
+      flexDirection: 'row',
+      alignItems: 'flex-start',
+      gap: 6,
+    },
 
-    privacyNote: {
-      minHeight:
-        59,
+    inlineNoteText: {
+      flex: 1,
+      fontFamily: 'Inter_600SemiBold',
+      fontSize: 12.5,
+      lineHeight: 17,
+    },
 
-      marginTop:
-        15,
+    recordBox: {
+      marginTop: 12,
+      padding: 10,
+      gap: 7,
+      borderRadius: 11,
+      backgroundColor: '#FBF6F6',
+    },
 
-      padding:
-        11,
+    recordRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 7,
+    },
 
-      borderWidth:
-        1,
+    recordText: {
+      flex: 1,
+      color: COLORS.black,
+      fontFamily: 'Inter_600SemiBold',
+      fontSize: 12.5,
+    },
 
-      borderColor:
-        '#D0E6D8',
+    recordSub: {
+      color: COLORS.muted,
+      fontFamily: 'Inter_400Regular',
+      fontSize: 12,
+      lineHeight: 17,
+    },
 
-      borderRadius:
-        13,
+    ratingRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 8,
+    },
 
-      flexDirection:
-        'row',
+    ratingLabel: {
+      width: 72,
+      color: COLORS.muted,
+      fontFamily: 'Inter_500Medium',
+      fontSize: 12,
+    },
 
-      alignItems:
-        'flex-start',
+    ratingComment: {
+      color: COLORS.muted,
+      fontFamily: 'Inter_400Regular',
+      fontStyle: 'italic',
+      fontSize: 12.5,
+      lineHeight: 18,
+    },
 
-      gap:
-        8,
+    starRow: {
+      flexDirection: 'row',
+      gap: 1,
+    },
 
-      backgroundColor:
-        '#F5FBF7',
+    rateButton: {
+      marginTop: 3,
+      height: 40,
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: 6,
+      borderRadius: 11,
+      backgroundColor: COLORS.redButton,
+    },
+
+    rateButtonText: {
+      color: COLORS.white,
+      fontFamily: 'Poppins_600SemiBold',
+      fontSize: 13.5,
+    },
+
+    disputeLink: {
+      marginTop: 2,
+      alignSelf: 'flex-start',
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 5,
+    },
+
+    disputeLinkText: {
+      color: COLORS.muted,
+      fontFamily: 'Inter_500Medium',
+      fontSize: 12,
+      textDecorationLine: 'underline',
+    },
+
+    // Offer note
+    inputLabel: {
+      marginBottom: 7,
+      color: COLORS.black,
+      fontFamily: 'Inter_600SemiBold',
+      fontSize: 13,
+    },
+
+    inputOptional: {
+      color: COLORS.lightMuted,
+      fontFamily: 'Inter_500Medium',
+      fontSize: 12,
+    },
+
+    input: {
+      minHeight: 84,
+      paddingHorizontal: 12,
+      paddingTop: 10,
+      paddingBottom: 10,
+      borderRadius: 11,
+      borderWidth: 1,
+      borderColor: COLORS.cardBorder,
+      backgroundColor: '#FFFCFC',
+      color: COLORS.black,
+      fontFamily: 'Inter_400Regular',
+      fontSize: 13.5,
+      lineHeight: 19,
+    },
+
+    inputCounter: {
+      marginTop: 5,
+      alignSelf: 'flex-end',
+      color: COLORS.lightMuted,
+      fontFamily: 'Inter_500Medium',
+      fontSize: 11.5,
+    },
+
+    // ==========================================================
+    // PRIVACY + REPORT
+    // ==========================================================
+
+    privacyRow: {
+      marginTop: 20,
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: 6,
     },
 
     privacyText: {
-      flex:
-        1,
-
-      color:
-        '#587160',
-
-      fontFamily:
-        'Inter_400Regular',
-
-      fontSize:
-        9.8,
-
-      lineHeight:
-        15,
+      flexShrink: 1,
+      color: COLORS.lightMuted,
+      fontFamily: 'Inter_400Regular',
+      fontSize: 12,
     },
 
-    // ========================================================
-    // IN-APP ACTION POPUP
-    // ========================================================
-
-    actionPopupOverlay: {
-      flex:
-        1,
-
-      alignItems:
-        'center',
-
-      justifyContent:
-        'center',
-
-      paddingHorizontal:
-        24,
-
-      backgroundColor:
-        'rgba(0,0,0,0.48)',
+    reportLink: {
+      marginTop: 10,
+      alignSelf: 'center',
+      minHeight: 32,
+      paddingHorizontal: 10,
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 5,
     },
 
-    actionPopupCard: {
-      width:
-        '100%',
-
-      maxWidth:
-        360,
-
-      paddingHorizontal:
-        20,
-
-      paddingTop:
-        22,
-
-      paddingBottom:
-        18,
-
-      borderRadius:
-        22,
-
-      backgroundColor:
-        COLORS.white,
-
-      shadowColor:
-        '#000000',
-
-      shadowOffset: {
-        width:
-          0,
-
-        height:
-          8,
-      },
-
-      shadowOpacity:
-        0.2,
-
-      shadowRadius:
-        18,
-
-      elevation:
-        10,
+    reportLinkText: {
+      color: COLORS.muted,
+      fontFamily: 'Inter_400Regular',
+      fontSize: 12.5,
     },
 
-    actionPopupIcon: {
-      width:
-        56,
-
-      height:
-        56,
-
-      alignSelf:
-        'center',
-
-      marginBottom:
-        13,
-
-      borderRadius:
-        28,
-
-      alignItems:
-        'center',
-
-      justifyContent:
-        'center',
-
-      backgroundColor:
-        COLORS.pink,
+    reportLinkStrong: {
+      color: COLORS.redButton,
+      fontFamily: 'Inter_600SemiBold',
     },
 
-    actionPopupIconSuccess: {
-      backgroundColor:
-        COLORS.greenLight,
+    // ==========================================================
+    // FOOTER
+    // ==========================================================
+
+    footer: {
+      paddingHorizontal: 16,
+      paddingTop: 10,
+      borderTopWidth: 1,
+      borderTopColor: '#EFE3E3',
+      backgroundColor: COLORS.white,
     },
 
-    actionPopupIconWarning: {
-      backgroundColor:
-        COLORS.orangeLight,
+    footerRow: {
+      flexDirection: 'row',
+      gap: 10,
     },
 
-    actionPopupIconDanger: {
-      backgroundColor:
-        COLORS.pinkStrong,
+    primaryButton: {
+      borderRadius: 13,
+      overflow: 'hidden',
     },
 
-    actionPopupTitle: {
-      color:
-        COLORS.black,
-
-      fontFamily:
-        'Poppins_600SemiBold',
-
-      fontSize:
-        16,
-
-      lineHeight:
-        21,
-
-      textAlign:
-        'center',
+    primaryGradient: {
+      height: 52,
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: 8,
     },
 
-    actionPopupMessage: {
-      marginTop:
-        8,
-
-      color:
-        COLORS.muted,
-
-      fontFamily:
-        'Inter_400Regular',
-
-      fontSize:
-        10.8,
-
-      lineHeight:
-        17,
-
-      textAlign:
-        'center',
+    primaryText: {
+      color: COLORS.white,
+      fontFamily: 'Poppins_600SemiBold',
+      fontSize: 15,
     },
 
-    actionPopupActions: {
-      flexDirection:
-        'row',
-
-      gap:
-        9,
-
-      marginTop:
-        19,
+    outlineButton: {
+      height: 52,
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: 7,
+      borderRadius: 13,
+      borderWidth: 1.5,
+      borderColor: COLORS.redButton,
+      backgroundColor: COLORS.white,
     },
 
-    actionPopupActionsSingle: {
-      justifyContent:
-        'center',
+    outlineButtonText: {
+      color: COLORS.redButton,
+      fontFamily: 'Poppins_600SemiBold',
+      fontSize: 15,
     },
 
-    actionPopupSecondaryButton: {
-      flex:
-        1,
-
-      height:
-        45,
-
-      borderWidth:
-        1,
-
-      borderColor:
-        '#E2CACA',
-
-      borderRadius:
-        10,
-
-      alignItems:
-        'center',
-
-      justifyContent:
-        'center',
-
-      backgroundColor:
-        COLORS.white,
+    badge: {
+      minWidth: 20,
+      height: 20,
+      paddingHorizontal: 5,
+      alignItems: 'center',
+      justifyContent: 'center',
+      borderRadius: 10,
+      backgroundColor: COLORS.white,
     },
 
-    actionPopupSecondaryText: {
-      color:
-        COLORS.redButton,
-
-      fontFamily:
-        'Poppins_600SemiBold',
-
-      fontSize:
-        10,
-    },
-
-    actionPopupPrimaryButton: {
-      flex:
-        1,
-
-      minWidth:
-        128,
-
-      height:
-        45,
-
-      borderRadius:
-        10,
-
-      alignItems:
-        'center',
-
-      justifyContent:
-        'center',
-
-      backgroundColor:
-        COLORS.redButton,
-    },
-
-    actionPopupPrimarySuccess: {
-      backgroundColor:
-        COLORS.green,
-    },
-
-    actionPopupPrimaryDanger: {
-      backgroundColor:
-        COLORS.redButton,
-    },
-
-    actionPopupPrimaryText: {
-      color:
-        COLORS.white,
-
-      fontFamily:
-        'Poppins_600SemiBold',
-
-      fontSize:
-        10,
+    badgeText: {
+      color: COLORS.redButton,
+      fontFamily: 'Inter_700Bold',
+      fontSize: 11,
     },
   });

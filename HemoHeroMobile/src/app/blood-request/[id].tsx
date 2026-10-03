@@ -1,8 +1,16 @@
-import { useCallback, useState } from 'react';
+import {
+  type ReactNode,
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+} from 'react';
 
 import {
-  Modal,
+  ActivityIndicator,
+  Linking,
   Platform,
+  RefreshControl,
   ScrollView,
   StyleSheet,
   Text,
@@ -20,7 +28,10 @@ import {
 } from 'expo-router';
 
 import { StatusBar } from 'expo-status-bar';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import {
+  SafeAreaView,
+  useSafeAreaInsets,
+} from 'react-native-safe-area-context';
 
 import {
   cancelBloodRequest,
@@ -47,40 +58,216 @@ import {
   getAccessToken,
 } from '../../lib/session';
 
+import {
+  FadeInView,
+  PressableScale,
+} from '../../components/Motion';
+
+import AppModal from '../../components/AppModal';
+import DonorTrust from '../../components/DonorTrust';
+import ConfirmDonationSheet from '../../components/ConfirmDonationSheet';
+
+import {
+  getCoordinationInbox,
+  type CoordinationInboxItem,
+} from '../../lib/coordination';
+
+import {
+  getCompatibleDonorTypes,
+  isBloodType,
+} from '../../lib/bloodCompatibility';
+
+import {
+  getFeedbackFrom,
+  getRequestDonations,
+  recordDonation,
+  submitDonationFeedback,
+} from '../../lib/donations';
+
+import type {
+  BloodDonation,
+} from '../../lib/donations';
+
+import DonationFeedbackModal from '../../components/DonationFeedbackModal';
+
+// One-tap phrases for rating a donor.
+const DONOR_FEEDBACK_NOTES = [
+  'Arrived on time',
+  'Very kind and helpful',
+  'Easy to coordinate with',
+  'Would recommend',
+];
+
+function bagsLabel(
+  units?: number | null
+) {
+  const count =
+    Number(units) || 0;
+
+  return `${count} ${
+    count === 1
+      ? 'bag'
+      : 'bags'
+  }`;
+}
+
+function formatDonationDate(
+  value?: string | null
+) {
+  if (!value) {
+    return '';
+  }
+
+  const date =
+    new Date(value);
+
+  if (
+    Number.isNaN(
+      date.getTime()
+    )
+  ) {
+    return '';
+  }
+
+  return date.toLocaleDateString(
+    'en-US',
+    {
+      month: 'short',
+      day: 'numeric',
+      year: 'numeric',
+    }
+  );
+}
+
 // ============================================================
-// COLORS
+// COLORS (same palette as Dashboard / Request Blood)
 // ============================================================
 
 const COLORS = {
   red: '#DB0A0A',
   redDark: '#8F1111',
   redButton: '#B42323',
+  headerTop: '#D2151A',
 
   white: '#FFFFFF',
-  black: '#181818',
+  black: '#171717',
 
-  pageTop: '#F1B2B4',
-  pageBottom: '#D71318',
+  page: '#FFF8F8',
 
-  card: '#FFFFFF',
-  softCard: '#FFF8F8',
+  muted: '#666666',
+  lightMuted: '#9A9A9A',
 
-  muted: '#686868',
-  lightMuted: '#939393',
-
-  border: '#ECE3E3',
-  softBorder: '#E8CECE',
+  cardBorder: '#E8DADA',
+  tileBorder: '#F0D6D6',
+  divider: '#F3E9E9',
 
   pinkLight: '#FFF1F1',
 
-  green: '#198754',
+  green: '#159447',
   greenLight: '#EAF7EF',
 
-  orange: '#E27D24',
-  orangeLight: '#FFF4E8',
+  orange: '#DF721D',
+  orangeLight: '#FDF1E6',
 
-  gray: '#AAAAAA',
-  grayLight: '#F4F4F4',
+  blue: '#2F6FDB',
+  blueLight: '#EAF1FD',
+
+  gray: '#9A9A9A',
+  grayLight: '#F5EFEF',
+
+  star: '#F2A516',
+};
+
+type IconName =
+  keyof typeof MaterialIcons.glyphMap;
+
+type Tone =
+  | 'green'
+  | 'orange'
+  | 'blue'
+  | 'gray'
+  | 'red';
+
+const TONES: Record<
+  Tone,
+  {
+    bg: string;
+    fg: string;
+  }
+> = {
+  green: {
+    bg: COLORS.greenLight,
+    fg: COLORS.green,
+  },
+
+  orange: {
+    bg: COLORS.orangeLight,
+    fg: COLORS.orange,
+  },
+
+  blue: {
+    bg: COLORS.blueLight,
+    fg: COLORS.blue,
+  },
+
+  gray: {
+    bg: COLORS.grayLight,
+    fg: COLORS.muted,
+  },
+
+  red: {
+    bg: COLORS.pinkLight,
+    fg: COLORS.redButton,
+  },
+};
+
+// ============================================================
+// DONOR OFFER STATUS
+// ============================================================
+
+const RESPONSE_STATUS: Record<
+  RequestDonorResponse['status'],
+  {
+    label: string;
+    tone: Tone;
+  }
+> = {
+  accepted: {
+    label: 'Accepted',
+    tone: 'green',
+  },
+
+  pending: {
+    label: 'Pending',
+    tone: 'orange',
+  },
+
+  no_show: {
+    label: 'No-show',
+    tone: 'red',
+  },
+
+  rejected: {
+    label: 'Rejected',
+    tone: 'gray',
+  },
+
+  withdrawn: {
+    label: 'Withdrawn',
+    tone: 'gray',
+  },
+};
+
+// Accepted donors first, finished offers last.
+const STATUS_ORDER: Record<
+  string,
+  number
+> = {
+  accepted: 0,
+  pending: 1,
+  no_show: 2,
+  rejected: 3,
+  withdrawn: 4,
 };
 
 // ============================================================
@@ -93,6 +280,7 @@ const EMPTY_RESPONSE_COUNTS: RequestResponseCounts = {
   accepted: 0,
   rejected: 0,
   withdrawn: 0,
+  no_show: 0,
 };
 
 // ============================================================
@@ -125,12 +313,20 @@ export default function BloodRequestDetailsScreen() {
   const params =
     useLocalSearchParams<{
       id?: string | string[];
+      confirmDonation?: string | string[];
     }>();
 
   const requestId =
     Array.isArray(params.id)
       ? params.id[0]
       : params.id;
+
+  // Response ID passed from the donor chat's "Confirm Donation"
+  // button; opens the confirm dialog for that donor once.
+  const confirmDonationFor =
+    Array.isArray(params.confirmDonation)
+      ? params.confirmDonation[0]
+      : params.confirmDonation;
 
   // ==========================================================
   // STATE
@@ -205,6 +401,15 @@ export default function BloodRequestDetailsScreen() {
     );
 
   const [
+    refreshing,
+    setRefreshing,
+  ] =
+    useState(false);
+
+  const hasLoadedOnce =
+    useRef(false);
+
+  const [
     actionPopup,
     setActionPopup,
   ] =
@@ -218,6 +423,56 @@ export default function BloodRequestDetailsScreen() {
       showCancel: false,
       onConfirm: undefined,
     });
+
+  // Confirmed donations (the transaction record) for this
+  // request, newest first.
+  const [
+    donations,
+    setDonations,
+  ] =
+    useState<
+      BloodDonation[]
+    >([]);
+
+  // Accepted donor whose donation is being confirmed.
+  const [
+    confirmResponse,
+    setConfirmResponse,
+  ] =
+    useState<RequestDonorResponse | null>(
+      null
+    );
+
+  // Donation the requester is rating (feedback dialog).
+  const [
+    feedbackDonation,
+    setFeedbackDonation,
+  ] =
+    useState<BloodDonation | null>(
+      null
+    );
+
+  const [
+    donationsLoaded,
+    setDonationsLoaded,
+  ] =
+    useState(false);
+
+  // Chats with this request's donors: meeting time and unread
+  // messages for each donor card.
+  const [
+    conversations,
+    setConversations,
+  ] =
+    useState<
+      CoordinationInboxItem[]
+    >([]);
+
+  const autoConfirmHandled =
+    useRef(false);
+
+  const insets =
+    useSafeAreaInsets();
 
   // ==========================================================
   // LOAD REQUEST
@@ -237,7 +492,12 @@ export default function BloodRequestDetailsScreen() {
         }
 
         try {
-          setLoading(true);
+          // Only the first load shows the full loader; returning
+          // from a donor chat refreshes quietly.
+          if (!hasLoadedOnce.current) {
+            setLoading(true);
+          }
+
           setErrorMessage('');
 
           const token =
@@ -266,6 +526,8 @@ export default function BloodRequestDetailsScreen() {
           setRequest(
             data.request
           );
+
+          hasLoadedOnce.current = true;
         } catch (error) {
           console.log(
             'LOAD BLOOD REQUEST ERROR:',
@@ -298,9 +560,11 @@ export default function BloodRequestDetailsScreen() {
         }
 
         try {
-          setLoadingResponses(
-            true
-          );
+          if (!hasLoadedOnce.current) {
+            setLoadingResponses(
+              true
+            );
+          }
 
           setResponseError('');
 
@@ -350,18 +614,209 @@ export default function BloodRequestDetailsScreen() {
       ]
     );
 
+  // ==========================================================
+  // LOAD DONATIONS
+  //
+  // Failure only hides donation status; the rest of the
+  // screen still works.
+  // ==========================================================
+
+  const loadDonations =
+    useCallback(
+      async () => {
+        if (!requestId) {
+          return;
+        }
+
+        try {
+          const token =
+            await getAccessToken();
+
+          if (!token) {
+            return;
+          }
+
+          const result =
+            await getRequestDonations(
+              token,
+              requestId
+            );
+
+          setDonations(
+            result.donations ||
+              []
+          );
+        } catch (error) {
+          console.log(
+            'LOAD DONATIONS ERROR:',
+            error
+          );
+        } finally {
+          setDonationsLoaded(true);
+        }
+      },
+      [
+        requestId,
+      ]
+    );
+
+  // ==========================================================
+  // LOAD CONVERSATIONS
+  //
+  // Only adds detail to the donor cards; failure is ignored.
+  // ==========================================================
+
+  const loadConversations =
+    useCallback(
+      async () => {
+        if (!requestId) {
+          return;
+        }
+
+        try {
+          const token =
+            await getAccessToken();
+
+          if (!token) {
+            return;
+          }
+
+          const result =
+            await getCoordinationInbox(
+              token
+            );
+
+          setConversations(
+            (
+              result.conversations ||
+              []
+            ).filter(
+              item =>
+                item.request_id ===
+                requestId
+            )
+          );
+        } catch (error) {
+          console.log(
+            'LOAD REQUEST CONVERSATIONS ERROR:',
+            error
+          );
+        }
+      },
+      [
+        requestId,
+      ]
+    );
+
   useFocusEffect(
     useCallback(
       () => {
         loadRequest();
         loadDonorResponses();
+        loadDonations();
+        loadConversations();
       },
       [
         loadRequest,
         loadDonorResponses,
+        loadDonations,
+        loadConversations,
       ]
     )
   );
+
+  // Opened from the donor chat: show the confirm dialog for that
+  // donor once everything has loaded, unless a donation for them
+  // is already recorded.
+  useEffect(() => {
+    if (
+      autoConfirmHandled.current ||
+      !confirmDonationFor ||
+      !request ||
+      !donationsLoaded
+    ) {
+      return;
+    }
+
+    const response =
+      donorResponses.find(
+        item =>
+          item.id ===
+            confirmDonationFor &&
+          item.status ===
+            'accepted'
+      );
+
+    if (!response) {
+      return;
+    }
+
+    autoConfirmHandled.current = true;
+
+    const existing =
+      getDonationForResponse(
+        response.id
+      );
+
+    if (
+      !existing ||
+      existing.status ===
+        'rejected'
+    ) {
+      openDonationModal(
+        response
+      );
+    }
+  }, [
+    confirmDonationFor,
+    request,
+    donorResponses,
+    donationsLoaded,
+  ]);
+
+  async function handleRefresh() {
+    setRefreshing(true);
+
+    try {
+      await Promise.all([
+        loadRequest(),
+        loadDonorResponses(),
+        loadDonations(),
+        loadConversations(),
+      ]);
+    } finally {
+      setRefreshing(false);
+    }
+  }
+
+  // Opens the facility in the phone's maps app.
+  function openDirections() {
+    if (!request) {
+      return;
+    }
+
+    const query =
+      request.facility_latitude != null &&
+      request.facility_longitude != null
+        ? `${request.facility_latitude},${request.facility_longitude}`
+        : [
+            request.facility_name,
+            request.facility_address,
+          ]
+            .filter(Boolean)
+            .join(', ');
+
+    Linking.openURL(
+      `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(
+        query
+      )}`
+    ).catch(() =>
+      showMessage(
+        'Unable to Open Maps',
+        'We could not open a maps app on this device.'
+      )
+    );
+  }
 
   // ==========================================================
   // HELPERS
@@ -408,7 +863,10 @@ export default function BloodRequestDetailsScreen() {
           'numeric',
 
         year:
-          'numeric',
+          date.getFullYear() ===
+          new Date().getFullYear()
+            ? undefined
+            : 'numeric',
 
         hour:
           'numeric',
@@ -613,6 +1071,9 @@ export default function BloodRequestDetailsScreen() {
       ) ||
       value.includes(
         'cancelled'
+      ) ||
+      value.includes(
+        'confirmed'
       )
     ) {
       return 'success';
@@ -865,14 +1326,249 @@ export default function BloodRequestDetailsScreen() {
   ) {
     if (
       !request ||
-      response.status !==
-        'accepted'
+      (response.status !==
+        'accepted' &&
+        response.status !==
+          'no_show')
     ) {
       return;
     }
 
     router.push(
       `/blood-request/${request.id}/coordination/${response.id}` as any
+    );
+  }
+
+  // ==========================================================
+  // DONATIONS
+  //
+  // Requester confirms each accepted donor's donation; an
+  // admin then verifies it. Rejected records can be confirmed
+  // again with corrected details.
+  // ==========================================================
+
+  const activeDonations =
+    donations.filter(
+      donation =>
+        donation.status !==
+        'rejected'
+    );
+
+  const recordedUnits =
+    activeDonations.reduce(
+      (
+        total,
+        donation
+      ) =>
+        total +
+        (Number(
+          donation.units_donated
+        ) || 0),
+      0
+    );
+
+  const reviewDonationCount =
+    donations.filter(
+      donation =>
+        donation.status ===
+        'needs_review'
+    ).length;
+
+  // Recorded donations the requester has already rated.
+  const ratedDonationCount =
+    activeDonations.filter(
+      donation =>
+        Boolean(
+          getFeedbackFrom(
+            donation,
+            'requester'
+          )
+        )
+    ).length;
+
+  // The record that counts for an offer: an active (completed or
+  // under review) one first, otherwise the newest rejected one.
+  function getDonationForResponse(
+    responseId: string
+  ) {
+    const forResponse =
+      donations.filter(
+        donation =>
+          donation.response_id ===
+          responseId
+      );
+
+    return (
+      forResponse.find(
+        donation =>
+          donation.status !==
+          'rejected'
+      ) ||
+      forResponse[0] ||
+      null
+    );
+  }
+
+  function openDonationModal(
+    response:
+      RequestDonorResponse
+  ) {
+    if (
+      !request ||
+      request.status !==
+        'active'
+    ) {
+      return;
+    }
+
+    setConfirmResponse(
+      response
+    );
+  }
+
+  // Throws on failure so the sheet can show the message and
+  // keep what was entered.
+  async function submitConfirmedDonation(
+    value: {
+      donatedAt: string;
+      note: string | null;
+    }
+  ) {
+    const response =
+      confirmResponse;
+
+    if (
+      !request ||
+      !response
+    ) {
+      return;
+    }
+
+    const token =
+      await getAccessToken();
+
+    if (!token) {
+      router.replace('/');
+
+      return;
+    }
+
+    const result =
+      await recordDonation(
+        token,
+        request.id,
+        response.id,
+        {
+          donated_at:
+            value.donatedAt,
+
+          note:
+            value.note,
+        }
+      );
+
+    setConfirmResponse(
+      null
+    );
+
+    await loadDonations();
+
+    const donorName =
+      getDonorName(
+        response
+      );
+
+    if (
+      result.donation?.status ===
+      'needs_review'
+    ) {
+      showMessage(
+        'Donation Confirmed',
+
+        `${donorName} was notified. Hemo-Hero will take a quick look before it is added to their history.`
+      );
+
+      return;
+    }
+
+    // Recorded right away: invite the requester to rate it.
+    confirmAction(
+      'Donation Recorded',
+
+      `Thank you! It's on record and ${donorName} was notified. Rate how it went?`,
+
+      'Rate Donor',
+
+      false,
+
+      () => {
+        if (result.donation) {
+          // Let the popup finish closing first.
+          setTimeout(
+            () =>
+              setFeedbackDonation(
+                result.donation
+              ),
+            350
+          );
+        }
+      }
+    );
+  }
+
+  // ==========================================================
+  // TRANSACTION FEEDBACK
+  // ==========================================================
+
+  async function sendDonorFeedback(value: {
+    rating: number;
+    comment: string;
+  }) {
+    const donation =
+      feedbackDonation;
+
+    if (
+      !request ||
+      !donation
+    ) {
+      return;
+    }
+
+    const token =
+      await getAccessToken();
+
+    if (!token) {
+      router.replace('/');
+
+      return;
+    }
+
+    // Errors are shown inside the feedback dialog.
+    await submitDonationFeedback(
+      token,
+      request.id,
+      donation.id,
+      {
+        rating:
+          value.rating,
+
+        comment:
+          value.comment ||
+          null,
+      }
+    );
+
+    setFeedbackDonation(null);
+
+    await loadDonations();
+
+    showMessage(
+      'Feedback Sent',
+
+      `Thank you! ${
+        donation.donor_name ||
+        'Your donor'
+      } will see your feedback.`
     );
   }
 
@@ -893,10 +1589,27 @@ export default function BloodRequestDetailsScreen() {
       return;
     }
 
+    if (
+      activeDonations.length ===
+      0
+    ) {
+      showMessage(
+        'Confirm a Donation First',
+
+        'After your donor donates, tap “Confirm Donation” on their card. Then you can mark this request as fulfilled.'
+      );
+
+      return;
+    }
+
     confirmAction(
       'Mark Request as Fulfilled',
 
-      'Only continue if the needed blood has already been secured or the donation process has been completed. This will close the active request.',
+      `You confirmed ${bagsLabel(
+        recordedUnits
+      )} of the ${bagsLabel(
+        request.units_needed
+      )} needed. This closes your request; the confirmed donations are already recorded.`,
 
       'Mark Fulfilled',
 
@@ -934,6 +1647,7 @@ export default function BloodRequestDetailsScreen() {
       await Promise.all([
         loadRequest(),
         loadDonorResponses(),
+        loadDonations(),
       ]);
 
       showMessage(
@@ -1031,6 +1745,352 @@ export default function BloodRequestDetailsScreen() {
   }
 
   // ==========================================================
+  // UI HELPERS
+  // ==========================================================
+
+  const isActive =
+    request?.status ===
+    'active';
+
+  // Reported requests stay usable for accepted donors, but
+  // inviting new ones waits for the review.
+  const canFindDonors =
+    isActive &&
+    !request?.flagged_at &&
+    !request?.removed_at;
+
+  function goBack() {
+    if (router.canGoBack()) {
+      router.back();
+
+      return;
+    }
+
+    router.replace(
+      '/dashboard'
+    );
+  }
+
+  function findDonors() {
+    if (!request) {
+      return;
+    }
+
+    router.push({
+      pathname:
+        '/search',
+
+      params: {
+        mode:
+          'donors',
+
+        bloodType:
+          request.blood_type,
+      },
+    } as any);
+  }
+
+  function openDonorProfile(
+    response:
+      RequestDonorResponse
+  ) {
+    if (
+      !response.donor?.id
+    ) {
+      return;
+    }
+
+    router.push(
+      `/donor/${response.donor.id}` as any
+    );
+  }
+
+  function getConversation(
+    responseId: string
+  ) {
+    return (
+      conversations.find(
+        item =>
+          item.response_id ===
+          responseId
+      ) || null
+    );
+  }
+
+  function formatMeeting(
+    value: string
+  ) {
+    const date =
+      new Date(value);
+
+    if (
+      Number.isNaN(
+        date.getTime()
+      )
+    ) {
+      return '';
+    }
+
+    const today =
+      new Date();
+
+    const tomorrow =
+      new Date(
+        today.getFullYear(),
+        today.getMonth(),
+        today.getDate() + 1
+      );
+
+    const day =
+      date.toDateString() ===
+      today.toDateString()
+        ? 'Today'
+        : date.toDateString() ===
+            tomorrow.toDateString()
+          ? 'Tomorrow'
+          : date.toLocaleDateString(
+              'en-US',
+              {
+                month: 'short',
+                day: 'numeric',
+              }
+            );
+
+    return `${day}, ${date.toLocaleTimeString(
+      'en-US',
+      {
+        hour: 'numeric',
+        minute: '2-digit',
+      }
+    )}`;
+  }
+
+  // Earliest meeting set with an accepted donor who has not
+  // donated yet.
+  const nextMeeting =
+    conversations
+      .filter(
+        item =>
+          item.response_status ===
+            'accepted' &&
+          item.schedule &&
+          (!item.donation ||
+            item.donation.status ===
+              'rejected')
+      )
+      .map(
+        item =>
+          item.schedule!
+            .scheduled_at
+      )
+      .sort()[0] || null;
+
+  const hasDonor =
+    donorResponseCounts.accepted >
+      0 ||
+    activeDonations.length >
+      0;
+
+  const steps =
+    request
+      ? [
+          {
+            label: 'Posted',
+            done: true,
+          },
+          {
+            label: 'Donor',
+            done: hasDonor,
+          },
+          {
+            label: 'Scheduled',
+            done:
+              Boolean(
+                nextMeeting
+              ) ||
+              activeDonations.length >
+                0,
+          },
+          {
+            label: 'Donated',
+            done:
+              activeDonations.length >
+              0,
+          },
+          {
+            label: 'Fulfilled',
+            done:
+              request.status ===
+              'fulfilled',
+          },
+        ]
+      : [];
+
+  const currentStep =
+    isActive
+      ? steps.findIndex(
+          step => !step.done
+        )
+      : -1;
+
+  const sortedResponses =
+    [...donorResponses].sort(
+      (a, b) =>
+        (STATUS_ORDER[
+          a.status
+        ] ?? 9) -
+        (STATUS_ORDER[
+          b.status
+        ] ?? 9)
+    );
+
+  const donorSummary =
+    [
+      donorResponseCounts.accepted
+        ? `${donorResponseCounts.accepted} accepted`
+        : '',
+
+      donorResponseCounts.pending
+        ? `${donorResponseCounts.pending} pending`
+        : '',
+
+      donorResponseCounts.no_show
+        ? `${donorResponseCounts.no_show} no-show`
+        : '',
+    ]
+      .filter(Boolean)
+      .join(' · ');
+
+  // One line under the progress steps: where the request is
+  // and what to do next.
+  function getNextStep(): {
+    icon: IconName;
+    tone: Tone;
+    text: string;
+  } | null {
+    if (
+      !request ||
+      request.removed_at
+    ) {
+      return null;
+    }
+
+    if (
+      request.status ===
+      'cancelled'
+    ) {
+      return {
+        icon: 'cancel',
+        tone: 'gray',
+        text: 'You cancelled this request.',
+      };
+    }
+
+    if (
+      request.status ===
+      'expired'
+    ) {
+      return {
+        icon: 'history',
+        tone: 'gray',
+        text: 'This request expired.',
+      };
+    }
+
+    if (
+      request.status ===
+      'fulfilled'
+    ) {
+      return ratedDonationCount <
+        activeDonations.length
+        ? {
+            icon: 'star-outline',
+            tone: 'orange',
+            text: 'Fulfilled · rate your donor below',
+          }
+        : {
+            icon: 'task-alt',
+            tone: 'green',
+            text: 'Fulfilled · thank you!',
+          };
+    }
+
+    if (
+      activeDonations.length >
+      0
+    ) {
+      return recordedUnits >=
+        request.units_needed
+        ? {
+            icon: 'task-alt',
+            tone: 'green',
+            text: 'All bags received · mark it fulfilled',
+          }
+        : {
+            icon: 'water-drop',
+            tone: 'green',
+            text: reviewDonationCount
+              ? 'Donation in a quick review · mark fulfilled when done'
+              : 'Mark fulfilled once you have enough blood',
+          };
+    }
+
+    if (
+      donorResponseCounts.accepted >
+      0
+    ) {
+      return nextMeeting
+        ? {
+            icon: 'event',
+            tone: 'blue',
+            text: `Meet ${formatMeeting(
+              nextMeeting
+            )} · confirm after they donate`,
+          }
+        : {
+            icon: 'forum',
+            tone: 'blue',
+            text: 'Chat with your donor to set a time',
+          };
+    }
+
+    if (
+      donorResponseCounts.pending >
+      0
+    ) {
+      return {
+        icon: 'person-add-alt',
+        tone: 'orange',
+        text: `${donorResponseCounts.pending} ${
+          donorResponseCounts.pending ===
+          1
+            ? 'offer'
+            : 'offers'
+        } waiting for you`,
+      };
+    }
+
+    if (
+      donorResponseCounts.no_show
+    ) {
+      return {
+        icon: 'person-off',
+        tone: 'orange',
+        text: 'Donor didn’t show up · still open to others',
+      };
+    }
+
+    return {
+      icon: 'person-search',
+      tone: 'gray',
+      text: 'Waiting for compatible donors',
+    };
+  }
+
+  const nextStep =
+    getNextStep();
+
+  // ==========================================================
   // UI
   // ==========================================================
 
@@ -1057,9 +2117,13 @@ export default function BloodRequestDetailsScreen() {
             style="light"
           />
 
+          {/* ==================================================
+              HEADER
+          ================================================== */}
+
           <LinearGradient
             colors={[
-              '#D3191E',
+              COLORS.headerTop,
               COLORS.redDark,
             ]}
             style={
@@ -1068,13 +2132,13 @@ export default function BloodRequestDetailsScreen() {
           >
             <View
               style={
-                styles.headerCircleOne
+                styles.headerCircleLeft
               }
             />
 
             <View
               style={
-                styles.headerCircleTwo
+                styles.headerCircleRight
               }
             />
 
@@ -1087,13 +2151,12 @@ export default function BloodRequestDetailsScreen() {
                 style={
                   styles.backButton
                 }
-                onPress={() =>
-                  router.back()
-                }
+                accessibilityLabel="Go back"
+                onPress={goBack}
               >
                 <MaterialIcons
                   name="arrow-back"
-                  size={24}
+                  size={22}
                   color={
                     COLORS.white
                   }
@@ -1110,463 +2173,560 @@ export default function BloodRequestDetailsScreen() {
                     styles.headerTitle
                   }
                 >
-                  Request Details
+                  My Request
                 </Text>
 
                 <Text
                   style={
                     styles.headerSubtitle
                   }
+                  numberOfLines={1}
                 >
                   {request
-                    ? `Request #${getRequestNumber(
+                    ? `#${getRequestNumber(
                         request.id
+                      )} · Posted ${formatCreatedAt(
+                        request.created_at
                       )}`
-                    : 'Blood Request'}
+                    : 'Blood request'}
                 </Text>
               </View>
+
+              {request ? (
+                <View
+                  style={
+                    styles.headerStatus
+                  }
+                >
+                  <View
+                    style={[
+                      styles.headerStatusDot,
+                      {
+                        backgroundColor:
+                          getStatusColor(),
+                      },
+                    ]}
+                  />
+
+                  <Text
+                    style={
+                      styles.headerStatusText
+                    }
+                  >
+                    {request.removed_at
+                      ? 'Removed'
+                      : getStatusLabel()}
+                  </Text>
+                </View>
+              ) : null}
             </View>
           </LinearGradient>
 
-          <LinearGradient
-            colors={[
-              COLORS.pageTop,
-              COLORS.pageBottom,
-            ]}
+          {/* ==================================================
+              BODY (rounded sheet over the header)
+          ================================================== */}
+
+          <View
             style={
               styles.body
             }
           >
-            <View
+            <ScrollView
               style={
-                styles.mainCard
+                styles.flex
+              }
+              contentContainerStyle={
+                styles.scrollContent
+              }
+              showsVerticalScrollIndicator={
+                false
+              }
+              refreshControl={
+                <RefreshControl
+                  refreshing={
+                    refreshing
+                  }
+                  onRefresh={
+                    handleRefresh
+                  }
+                  tintColor={
+                    COLORS.redButton
+                  }
+                  colors={[
+                    COLORS.redButton,
+                  ]}
+                />
               }
             >
-              <ScrollView
-                style={
-                  styles.scroll
-                }
-                contentContainerStyle={
-                  styles.scrollContent
-                }
-                showsVerticalScrollIndicator={
-                  false
-                }
-                bounces={
-                  false
-                }
-              >
-                {loading ? (
-                  <View
+              {loading ? (
+                <View
+                  style={
+                    styles.centerState
+                  }
+                >
+                  <ActivityIndicator
+                    color={
+                      COLORS.redButton
+                    }
+                  />
+
+                  <Text
                     style={
-                      styles.centerState
+                      styles.centerText
                     }
                   >
-                    <MaterialIcons
-                      name="bloodtype"
-                      size={38}
-                      color={
-                        COLORS.redButton
-                      }
-                    />
-
-                    <Text
-                      style={
-                        styles.centerTitle
-                      }
-                    >
-                      Loading Request
-                    </Text>
-                  </View>
-                ) : errorMessage ? (
+                    Loading request...
+                  </Text>
+                </View>
+              ) : errorMessage ? (
+                <View
+                  style={
+                    styles.centerState
+                  }
+                >
                   <View
                     style={
-                      styles.centerState
+                      styles.centerIcon
                     }
                   >
                     <MaterialIcons
                       name="error-outline"
-                      size={38}
+                      size={28}
                       color={
                         COLORS.redButton
+                      }
+                    />
+                  </View>
+
+                  <Text
+                    style={
+                      styles.centerTitle
+                    }
+                  >
+                    Unable to Load
+                  </Text>
+
+                  <Text
+                    style={
+                      styles.centerText
+                    }
+                  >
+                    {errorMessage}
+                  </Text>
+
+                  <TouchableOpacity
+                    style={
+                      styles.retryButton
+                    }
+                    activeOpacity={
+                      0.85
+                    }
+                    onPress={
+                      handleRefresh
+                    }
+                  >
+                    <MaterialIcons
+                      name="refresh"
+                      size={18}
+                      color={
+                        COLORS.white
                       }
                     />
 
                     <Text
                       style={
-                        styles.centerTitle
+                        styles.retryButtonText
                       }
                     >
-                      Unable to Load
+                      Try Again
                     </Text>
+                  </TouchableOpacity>
+                </View>
+              ) : request ? (
+                <FadeInView>
+                  {/* ==============================================
+                      REVIEW NOTICE (reported / removed)
+                  ============================================== */}
 
-                    <Text
-                      style={
-                        styles.centerDescription
-                      }
-                    >
-                      {errorMessage}
-                    </Text>
-                  </View>
-                ) : request ? (
-                  <>
-                    <Text
-                      style={
-                        styles.postedText
-                      }
-                    >
-                      Posted{' '}
-                      {formatCreatedAt(
-                        request.created_at
-                      )}
-                    </Text>
-
-                    {/* ==================================================
-                        SUMMARY
-                    ================================================== */}
-
+                  {request.removed_at ? (
                     <View
-                      style={
-                        styles.summaryCard
-                      }
+                      style={[
+                        styles.notice,
+                        styles.noticeDanger,
+                      ]}
                     >
-                      <View
+                      <MaterialIcons
+                        name="block"
+                        size={18}
+                        color={
+                          COLORS.redButton
+                        }
+                      />
+
+                      <Text
                         style={
-                          styles.summaryTop
+                          styles.noticeText
                         }
                       >
-                        <View
-                          style={
-                            styles.bloodCircle
-                          }
-                        >
-                          <Text
-                            style={
-                              styles.bloodType
-                            }
-                          >
-                            {
-                              request.blood_type
-                            }
-                          </Text>
-                        </View>
-
-                        <View
-                          style={
-                            styles.summaryTitleArea
-                          }
-                        >
-                          <Text
-                            style={
-                              styles.summaryTitle
-                            }
-                          >
-                            Blood Request
-                          </Text>
-
-                          <Text
-                            style={
-                              styles.summarySubtitle
-                            }
-                          >
-                            {
-                              request.facility_name
-                            }
-                          </Text>
-                        </View>
-
-                        <View
+                        <Text
                           style={[
-                            styles.statusPill,
-
+                            styles.noticeTitle,
                             {
-                              backgroundColor:
-                                getStatusColor(),
+                              color:
+                                COLORS.redButton,
                             },
                           ]}
                         >
-                          <Text
-                            style={
-                              styles.statusText
-                            }
-                          >
-                            {getStatusLabel()}
-                          </Text>
-                        </View>
+                          Removed by Hemo-Hero.{' '}
+                        </Text>
+
+                        {request.removal_reason ||
+                          'It was removed after review.'}
+                      </Text>
+                    </View>
+                  ) : request.flagged_at &&
+                    isActive ? (
+                    <View
+                      style={[
+                        styles.notice,
+                        styles.noticeWarning,
+                      ]}
+                    >
+                      <MaterialIcons
+                        name="report-problem"
+                        size={18}
+                        color={
+                          COLORS.orange
+                        }
+                      />
+
+                      <Text
+                        style={
+                          styles.noticeText
+                        }
+                      >
+                        <Text
+                          style={[
+                            styles.noticeTitle,
+                            {
+                              color:
+                                COLORS.orange,
+                            },
+                          ]}
+                        >
+                          Under review.{' '}
+                        </Text>
+                        Hidden from nearby donors while Hemo-Hero checks reports. Accepted donors can still chat with you.
+                      </Text>
+                    </View>
+                  ) : null}
+
+                  {/* ==============================================
+                      SUMMARY + PROGRESS
+                  ============================================== */}
+
+                  <View
+                    style={
+                      styles.card
+                    }
+                  >
+                    <View
+                      style={
+                        styles.summaryTop
+                      }
+                    >
+                      <View
+                        style={
+                          styles.bloodCircle
+                        }
+                      >
+                        <Text
+                          style={
+                            styles.bloodText
+                          }
+                        >
+                          {
+                            request.blood_type
+                          }
+                        </Text>
                       </View>
 
                       <View
                         style={
-                          styles.summaryDivider
-                        }
-                      />
-
-                      <View
-                        style={
-                          styles.summaryStats
+                          styles.flexFill
                         }
                       >
-                        <View
+                        <Text
                           style={
-                            styles.statItem
+                            styles.summaryTitle
                           }
                         >
-                          <Text
-                            style={
-                              styles.statValue
-                            }
-                          >
-                            {
-                              request.units_needed
-                            }
-                          </Text>
+                          {bagsLabel(
+                            request.units_needed
+                          )}{' '}
+                          needed
+                        </Text>
 
-                          <Text
-                            style={
-                              styles.statLabel
-                            }
-                          >
-                            Units Needed
-                          </Text>
-                        </View>
+                        <Text
+                          style={
+                            styles.summaryMeta
+                          }
+                        >
+                          {recordedUnits} of{' '}
+                          {
+                            request.units_needed
+                          }{' '}
+                          received
+                        </Text>
 
                         <View
                           style={
-                            styles.statDivider
+                            styles.unitsTrack
+                          }
+                        >
+                          <View
+                            style={[
+                              styles.unitsFill,
+                              {
+                                width: `${Math.min(
+                                  100,
+                                  request.units_needed
+                                    ? (recordedUnits /
+                                        request.units_needed) *
+                                        100
+                                    : 0
+                                )}%`,
+                              },
+                            ]}
+                          />
+                        </View>
+                      </View>
+
+                      <View
+                        style={[
+                          styles.urgencyPill,
+
+                          request.urgency ===
+                            'urgent' &&
+                            styles.urgencyPillUrgent,
+                        ]}
+                      >
+                        <MaterialIcons
+                          name={
+                            request.urgency ===
+                            'urgent'
+                              ? 'bolt'
+                              : 'schedule'
+                          }
+                          size={14}
+                          color={
+                            request.urgency ===
+                            'urgent'
+                              ? COLORS.white
+                              : COLORS.redButton
                           }
                         />
 
-                        <View
-                          style={
-                            styles.statItem
-                          }
-                        >
-                          <MaterialIcons
-                            name={
-                              request.urgency ===
-                              'urgent'
-                                ? 'bolt'
-                                : 'schedule'
-                            }
-                            size={23}
-                            color={
-                              COLORS.redButton
-                            }
-                          />
+                        <Text
+                          style={[
+                            styles.urgencyText,
 
-                          <Text
-                            style={
-                              styles.statLabel
-                            }
-                          >
-                            {request.urgency ===
-                            'urgent'
-                              ? 'Urgent'
-                              : 'Scheduled'}
-                          </Text>
-                        </View>
+                            request.urgency ===
+                              'urgent' &&
+                              styles.urgencyTextUrgent,
+                          ]}
+                        >
+                          {request.urgency ===
+                          'urgent'
+                            ? 'Urgent'
+                            : 'Scheduled'}
+                        </Text>
                       </View>
                     </View>
 
-                    {/* ==================================================
-                        REQUEST INFORMATION
-                    ================================================== */}
-
-                    <Text
-                      style={
-                        styles.sectionTitle
-                      }
-                    >
-                      Request Information
-                    </Text>
-
                     <View
                       style={
-                        styles.infoGroup
+                        styles.steps
                       }
                     >
-                      <View
-                        style={
-                          styles.infoRow
-                        }
-                      >
-                        <View
-                          style={
-                            styles.infoIcon
-                          }
-                        >
-                          <MaterialIcons
-                            name="local-hospital"
-                            size={21}
-                            color={
-                              COLORS.redButton
-                            }
-                          />
-                        </View>
+                      {steps.map(
+                        (
+                          step,
+                          index
+                        ) => {
+                          const current =
+                            index ===
+                            currentStep;
 
-                        <View
-                          style={
-                            styles.infoText
-                          }
-                        >
-                          <Text
-                            style={
-                              styles.infoLabel
-                            }
-                          >
-                            Donation Location
-                          </Text>
-
-                          <Text
-                            style={
-                              styles.infoTitle
-                            }
-                          >
-                            {
-                              request.facility_name
-                            }
-                          </Text>
-
-                          {request
-                            .facility_address ? (
-                            <Text
+                          return (
+                            <View
+                              key={
+                                step.label
+                              }
                               style={
-                                styles.infoDescription
+                                styles.step
                               }
                             >
-                              {
-                                request.facility_address
-                              }
-                            </Text>
-                          ) : null}
-                        </View>
-                      </View>
+                              <View
+                                style={
+                                  styles.stepTrack
+                                }
+                              >
+                                <View
+                                  style={[
+                                    styles.stepLine,
 
-                      <View
-                        style={
-                          styles.infoDivider
+                                    index ===
+                                      0 &&
+                                      styles.stepLineHidden,
+
+                                    (step.done ||
+                                      current) &&
+                                      styles.stepLineDone,
+                                  ]}
+                                />
+
+                                <View
+                                  style={[
+                                    styles.stepDot,
+
+                                    step.done &&
+                                      styles.stepDotDone,
+
+                                    current &&
+                                      styles.stepDotCurrent,
+                                  ]}
+                                >
+                                  {step.done ? (
+                                    <MaterialIcons
+                                      name="check"
+                                      size={11}
+                                      color={
+                                        COLORS.white
+                                      }
+                                    />
+                                  ) : null}
+                                </View>
+
+                                <View
+                                  style={[
+                                    styles.stepLine,
+
+                                    index ===
+                                      steps.length -
+                                        1 &&
+                                      styles.stepLineHidden,
+
+                                    steps[
+                                      index + 1
+                                    ]?.done &&
+                                      styles.stepLineDone,
+                                  ]}
+                                />
+                              </View>
+
+                              <Text
+                                style={[
+                                  styles.stepLabel,
+
+                                  (step.done ||
+                                    current) &&
+                                    styles.stepLabelDone,
+                                ]}
+                                numberOfLines={1}
+                              >
+                                {step.label}
+                              </Text>
+                            </View>
+                          );
                         }
-                      />
-
-                      <View
-                        style={
-                          styles.infoRow
-                        }
-                      >
-                        <View
-                          style={
-                            styles.infoIcon
-                          }
-                        >
-                          <MaterialIcons
-                            name="event"
-                            size={21}
-                            color={
-                              COLORS.redButton
-                            }
-                          />
-                        </View>
-
-                        <View
-                          style={
-                            styles.infoText
-                          }
-                        >
-                          <Text
-                            style={
-                              styles.infoLabel
-                            }
-                          >
-                            When Needed
-                          </Text>
-
-                          <Text
-                            style={
-                              styles.infoTitle
-                            }
-                          >
-                            {formatNeededBy(
-                              request
-                            )}
-                          </Text>
-                        </View>
-                      </View>
+                      )}
                     </View>
 
-                    {/* ==================================================
-                        DONOR OFFERS
-                    ================================================== */}
+                    {nextStep ? (
+                      <View
+                        style={[
+                          styles.nextStep,
+                          {
+                            backgroundColor:
+                              TONES[
+                                nextStep.tone
+                              ].bg,
+                          },
+                        ]}
+                      >
+                        <MaterialIcons
+                          name={
+                            nextStep.icon
+                          }
+                          size={16}
+                          color={
+                            TONES[
+                              nextStep.tone
+                            ].fg
+                          }
+                        />
 
-                    <View
-                      style={
-                        styles.sectionHeaderRow
+                        <Text
+                          style={[
+                            styles.nextStepText,
+                            {
+                              color:
+                                TONES[
+                                  nextStep.tone
+                                ].fg,
+                            },
+                          ]}
+                        >
+                          {nextStep.text}
+                        </Text>
+                      </View>
+                    ) : null}
+                  </View>
+
+                  {/* ==============================================
+                      DETAILS
+                  ============================================== */}
+
+                  <Text
+                    style={[
+                      styles.sectionTitle,
+                      styles.sectionGap,
+                    ]}
+                  >
+                    Details
+                  </Text>
+
+                  <View
+                    style={
+                      styles.card
+                    }
+                  >
+                    <InfoRow
+                      icon="local-hospital"
+                      label="Donation place"
+                      value={
+                        request.facility_name
+                      }
+                      sub={
+                        request.facility_address
                       }
                     >
-                      <Text
+                      <TouchableOpacity
                         style={
-                          styles.sectionTitleNoMargin
+                          styles.directionsButton
                         }
-                      >
-                        Donor Offers
-                      </Text>
-
-                      <View
-                        style={
-                          styles.counter
+                        activeOpacity={
+                          0.8
                         }
-                      >
-                        <Text
-                          style={
-                            styles.counterText
-                          }
-                        >
-                          {
-                            donorResponseCounts.total
-                          }
-                        </Text>
-                      </View>
-                    </View>
-
-                    {loadingResponses ? (
-                      <View
-                        style={
-                          styles.emptyCard
-                        }
-                      >
-                        <Text
-                          style={
-                            styles.emptyText
-                          }
-                        >
-                          Loading donor offers...
-                        </Text>
-                      </View>
-                    ) : responseError ? (
-                      <View
-                        style={
-                          styles.emptyCard
-                        }
-                      >
-                        <Text
-                          style={
-                            styles.emptyText
-                          }
-                        >
-                          {
-                            responseError
-                          }
-                        </Text>
-                      </View>
-                    ) : donorResponses.length ===
-                      0 ? (
-                      <View
-                        style={
-                          styles.emptyCard
+                        accessibilityLabel="Get directions"
+                        onPress={
+                          openDirections
                         }
                       >
                         <MaterialIcons
-                          name="volunteer-activism"
-                          size={28}
+                          name="directions"
+                          size={16}
                           color={
                             COLORS.redButton
                           }
@@ -1574,53 +2734,444 @@ export default function BloodRequestDetailsScreen() {
 
                         <Text
                           style={
-                            styles.emptyTitle
+                            styles.directionsText
                           }
                         >
-                          No donor offers yet
+                          Directions
                         </Text>
+                      </TouchableOpacity>
+                    </InfoRow>
+
+                    <InfoRow
+                      icon="event"
+                      label="Needed by"
+                      value={formatNeededBy(
+                        request
+                      )}
+                      last={
+                        !isBloodType(
+                          request.blood_type
+                        ) &&
+                        !request.message
+                      }
+                    />
+
+                    {isBloodType(
+                      request.blood_type
+                    ) ? (
+                      <InfoRow
+                        icon="groups"
+                        label="Who can donate"
+                        last={
+                          !request.message
+                        }
+                      >
+                        <View
+                          style={
+                            styles.typeChips
+                          }
+                        >
+                          {getCompatibleDonorTypes(
+                            request.blood_type
+                          ).map(
+                            type => (
+                              <View
+                                key={type}
+                                style={
+                                  styles.typeChip
+                                }
+                              >
+                                <Text
+                                  style={
+                                    styles.typeChipText
+                                  }
+                                >
+                                  {type}
+                                </Text>
+                              </View>
+                            )
+                          )}
+                        </View>
+                      </InfoRow>
+                    ) : null}
+
+                    {request.message ? (
+                      <InfoRow
+                        icon="notes"
+                        label="Your note"
+                        value={
+                          request.message
+                        }
+                        valueRegular
+                        last
+                      />
+                    ) : null}
+                  </View>
+
+                  {/* ==============================================
+                      DONORS
+                  ============================================== */}
+
+                  <View
+                    style={[
+                      styles.sectionHeader,
+                      styles.sectionGap,
+                    ]}
+                  >
+                    <View
+                      style={
+                        styles.flexFill
+                      }
+                    >
+                      <Text
+                        style={
+                          styles.sectionTitle
+                        }
+                      >
+                        Donors
+                        {donorResponseCounts.total
+                          ? ` (${donorResponseCounts.total})`
+                          : ''}
+                      </Text>
+
+                      {donorSummary ? (
+                        <Text
+                          style={
+                            styles.sectionMeta
+                          }
+                        >
+                          {donorSummary}
+                        </Text>
+                      ) : null}
+                    </View>
+
+                    {canFindDonors ? (
+                      <TouchableOpacity
+                        style={
+                          styles.linkButton
+                        }
+                        activeOpacity={
+                          0.8
+                        }
+                        onPress={
+                          findDonors
+                        }
+                      >
+                        <MaterialIcons
+                          name="person-search"
+                          size={16}
+                          color={
+                            COLORS.redButton
+                          }
+                        />
 
                         <Text
                           style={
-                            styles.emptyText
+                            styles.linkButtonText
                           }
                         >
-                          Nearby verified donors can respond to your request.
+                          Find donors
                         </Text>
+                      </TouchableOpacity>
+                    ) : null}
+                  </View>
+
+                  {loadingResponses ? (
+                    <View
+                      style={[
+                        styles.card,
+                        styles.emptyCard,
+                      ]}
+                    >
+                      <ActivityIndicator
+                        color={
+                          COLORS.redButton
+                        }
+                      />
+                    </View>
+                  ) : responseError ? (
+                    <View
+                      style={[
+                        styles.card,
+                        styles.emptyCard,
+                      ]}
+                    >
+                      <Text
+                        style={
+                          styles.emptyText
+                        }
+                      >
+                        {responseError}
+                      </Text>
+
+                      <TouchableOpacity
+                        style={
+                          styles.linkButton
+                        }
+                        onPress={
+                          handleRefresh
+                        }
+                      >
+                        <MaterialIcons
+                          name="refresh"
+                          size={16}
+                          color={
+                            COLORS.redButton
+                          }
+                        />
+
+                        <Text
+                          style={
+                            styles.linkButtonText
+                          }
+                        >
+                          Try again
+                        </Text>
+                      </TouchableOpacity>
+                    </View>
+                  ) : sortedResponses.length ===
+                    0 ? (
+                    <View
+                      style={[
+                        styles.card,
+                        styles.emptyCard,
+                      ]}
+                    >
+                      <View
+                        style={
+                          styles.emptyIcon
+                        }
+                      >
+                        <MaterialIcons
+                          name="volunteer-activism"
+                          size={24}
+                          color={
+                            COLORS.redButton
+                          }
+                        />
                       </View>
-                    ) : (
-                      donorResponses.map(
-                        response => {
-                          const working =
-                            responseActionId ===
-                            response.id;
 
-                          return (
-                            <View
-                              key={
+                      <Text
+                        style={
+                          styles.emptyTitle
+                        }
+                      >
+                        No offers yet
+                      </Text>
+
+                      <Text
+                        style={
+                          styles.emptyText
+                        }
+                      >
+                        {isActive
+                          ? 'Compatible donors nearby can offer to help.'
+                          : 'No donor offered on this request.'}
+                      </Text>
+                    </View>
+                  ) : (
+                    sortedResponses.map(
+                      (
+                        response,
+                        index
+                      ) => {
+                        const status =
+                          RESPONSE_STATUS[
+                            response.status
+                          ] ||
+                          RESPONSE_STATUS.withdrawn;
+
+                        const working =
+                          responseActionId ===
+                          response.id;
+
+                        const conversation =
+                          getConversation(
+                            response.id
+                          );
+
+                        const unread =
+                          conversation
+                            ?.unread_count ||
+                          0;
+
+                        const donation =
+                          response.status ===
+                          'accepted'
+                            ? getDonationForResponse(
                                 response.id
-                              }
-                              style={[
-                                styles.donorCard,
+                              )
+                            : null;
 
-                                response.status ===
-                                  'accepted' &&
-                                  styles.donorCardAccepted,
+                        const donationActive =
+                          Boolean(
+                            donation &&
+                              donation.status !==
+                                'rejected'
+                          );
+
+                        const myFeedback =
+                          donationActive
+                            ? getFeedbackFrom(
+                                donation,
+                                'requester'
+                              )
+                            : null;
+
+                        const donorFeedback =
+                          donationActive
+                            ? getFeedbackFrom(
+                                donation,
+                                'donor'
+                              )
+                            : null;
+
+                        const canConfirm =
+                          response.status ===
+                            'accepted' &&
+                          isActive &&
+                          !donationActive;
+
+                        const meeting =
+                          response.status ===
+                            'accepted' &&
+                          !donationActive &&
+                          conversation
+                            ?.schedule
+                            ? formatMeeting(
+                                conversation
+                                  .schedule
+                                  .scheduled_at
+                              )
+                            : '';
+
+                        const place =
+                          [
+                            response.donor
+                              ?.city,
+
+                            response.donor
+                              ?.province,
+                          ]
+                            .filter(Boolean)
+                            .join(', ');
+
+                        const faded =
+                          response.status ===
+                            'rejected' ||
+                          response.status ===
+                            'withdrawn';
+
+                        const chatButton =
+                          response.status ===
+                            'accepted' ||
+                          response.status ===
+                            'no_show' ? (
+                            <TouchableOpacity
+                              style={[
+                                styles.actionButton,
+                                styles.actionOutline,
                               ]}
+                              activeOpacity={
+                                0.85
+                              }
+                              onPress={() =>
+                                handleCoordinate(
+                                  response
+                                )
+                              }
                             >
-                              <View
+                              <MaterialIcons
+                                name="forum"
+                                size={17}
+                                color={
+                                  COLORS.redButton
+                                }
+                              />
+
+                              <Text
                                 style={
-                                  styles.donorHeader
+                                  styles.actionOutlineText
                                 }
                               >
+                                Chat
+                              </Text>
+
+                              {unread >
+                              0 ? (
                                 <View
                                   style={
-                                    styles.donorAvatar
+                                    styles.badge
                                   }
                                 >
                                   <Text
                                     style={
-                                      styles.donorAvatarText
+                                      styles.badgeText
+                                    }
+                                  >
+                                    {unread > 9
+                                      ? '9+'
+                                      : unread}
+                                  </Text>
+                                </View>
+                              ) : null}
+                            </TouchableOpacity>
+                          ) : null;
+
+                        return (
+                          <FadeInView
+                            key={`${response.id}-${response.status}`}
+                            delay={Math.min(
+                              index *
+                                50,
+                              200
+                            )}
+                            offset={8}
+                            style={[
+                              styles.donorCard,
+
+                              response.status ===
+                                'accepted' &&
+                                styles.donorCardAccepted,
+
+                              faded &&
+                                styles.donorCardFaded,
+                            ]}
+                          >
+                            <View
+                              style={
+                                styles.donorTop
+                              }
+                            >
+                              <TouchableOpacity
+                                style={
+                                  styles.donorIdentity
+                                }
+                                activeOpacity={
+                                  0.75
+                                }
+                                disabled={
+                                  !response
+                                    .donor
+                                    ?.id
+                                }
+                                accessibilityLabel={`View ${getDonorName(
+                                  response
+                                )}'s profile`}
+                                onPress={() =>
+                                  openDonorProfile(
+                                    response
+                                  )
+                                }
+                              >
+                                <View
+                                  style={
+                                    styles.avatar
+                                  }
+                                >
+                                  <Text
+                                    style={
+                                      styles.avatarText
                                     }
                                   >
                                     {getDonorInitials(
@@ -1631,231 +3182,434 @@ export default function BloodRequestDetailsScreen() {
 
                                 <View
                                   style={
-                                    styles.donorInfo
+                                    styles.flexFill
                                   }
                                 >
-                                  <Text
-                                    style={
-                                      styles.donorName
-                                    }
-                                  >
-                                    {getDonorName(
-                                      response
-                                    )}
-                                  </Text>
-
                                   <View
                                     style={
-                                      styles.badgeRow
+                                      styles.donorNameRow
                                     }
                                   >
-                                    {response
-                                      .donor
-                                      ?.blood_type ? (
-                                      <View
-                                        style={
-                                          styles.bloodBadge
-                                        }
-                                      >
-                                        <Text
-                                          style={
-                                            styles.bloodBadgeText
-                                          }
-                                        >
-                                          {
-                                            response
-                                              .donor
-                                              .blood_type
-                                          }
-                                        </Text>
-                                      </View>
-                                    ) : null}
+                                    <Text
+                                      style={
+                                        styles.donorName
+                                      }
+                                      numberOfLines={
+                                        1
+                                      }
+                                    >
+                                      {getDonorName(
+                                        response
+                                      )}
+                                    </Text>
 
                                     {response
                                       .donor
                                       ?.is_verified ? (
-                                      <View
-                                        style={
-                                          styles.verifiedBadge
+                                      <MaterialIcons
+                                        name="verified"
+                                        size={15}
+                                        color={
+                                          COLORS.blue
                                         }
-                                      >
-                                        <MaterialIcons
-                                          name="verified"
-                                          size={12}
-                                          color={
-                                            COLORS.green
-                                          }
-                                        />
-
-                                        <Text
-                                          style={
-                                            styles.verifiedText
-                                          }
-                                        >
-                                          Verified Donor
-                                        </Text>
-                                      </View>
+                                      />
                                     ) : null}
+                                  </View>
+
+                                  <Text
+                                    style={
+                                      styles.donorMeta
+                                    }
+                                    numberOfLines={
+                                      1
+                                    }
+                                  >
+                                    {[
+                                      response
+                                        .donor
+                                        ?.blood_type,
+
+                                      place,
+                                    ]
+                                      .filter(
+                                        Boolean
+                                      )
+                                      .join(
+                                        ' · '
+                                      ) ||
+                                      'Donor'}
+                                  </Text>
+
+                                  <DonorTrust
+                                    stats={
+                                      response.donor
+                                    }
+                                    style={
+                                      styles.donorTrust
+                                    }
+                                  />
+                                </View>
+                              </TouchableOpacity>
+
+                              <View
+                                style={[
+                                  styles.chip,
+                                  {
+                                    backgroundColor:
+                                      TONES[
+                                        status.tone
+                                      ].bg,
+                                  },
+                                ]}
+                              >
+                                <Text
+                                  style={[
+                                    styles.chipText,
+                                    {
+                                      color:
+                                        TONES[
+                                          status.tone
+                                        ].fg,
+                                    },
+                                  ]}
+                                >
+                                  {status.label}
+                                </Text>
+                              </View>
+                            </View>
+
+                            {response.message ? (
+                              <Text
+                                style={
+                                  styles.donorMessage
+                                }
+                                numberOfLines={
+                                  3
+                                }
+                              >
+                                “{response.message}”
+                              </Text>
+                            ) : null}
+
+                            {meeting ? (
+                              <View
+                                style={
+                                  styles.inlineNote
+                                }
+                              >
+                                <MaterialIcons
+                                  name="event"
+                                  size={15}
+                                  color={
+                                    COLORS.blue
+                                  }
+                                />
+
+                                <Text
+                                  style={[
+                                    styles.inlineNoteText,
+                                    {
+                                      color:
+                                        COLORS.blue,
+                                    },
+                                  ]}
+                                >
+                                  Meeting {meeting}
+                                </Text>
+                              </View>
+                            ) : null}
+
+                            {donation &&
+                            donation.status ===
+                              'rejected' &&
+                            isActive ? (
+                              <View
+                                style={
+                                  styles.inlineNote
+                                }
+                              >
+                                <MaterialIcons
+                                  name="error-outline"
+                                  size={15}
+                                  color={
+                                    COLORS.redButton
+                                  }
+                                />
+
+                                <Text
+                                  style={[
+                                    styles.inlineNoteText,
+                                    {
+                                      color:
+                                        COLORS.redButton,
+                                    },
+                                  ]}
+                                >
+                                  Record not accepted:{' '}
+                                  {donation.admin_note ||
+                                    'please confirm it again.'}
+                                </Text>
+                              </View>
+                            ) : null}
+
+                            {/* Donation record + ratings */}
+                            {donation &&
+                            donationActive ? (
+                              <View
+                                style={
+                                  styles.recordBox
+                                }
+                              >
+                                <View
+                                  style={
+                                    styles.recordRow
+                                  }
+                                >
+                                  <MaterialIcons
+                                    name={
+                                      donation.status ===
+                                      'completed'
+                                        ? 'task-alt'
+                                        : 'hourglass-top'
+                                    }
+                                    size={16}
+                                    color={
+                                      donation.status ===
+                                      'completed'
+                                        ? COLORS.green
+                                        : COLORS.orange
+                                    }
+                                  />
+
+                                  <Text
+                                    style={
+                                      styles.recordText
+                                    }
+                                    numberOfLines={
+                                      1
+                                    }
+                                  >
+                                    {bagsLabel(
+                                      donation.units_donated
+                                    )}{' '}
+                                    ·{' '}
+                                    {formatDonationDate(
+                                      donation.donated_at
+                                    )}
+                                  </Text>
+
+                                  <View
+                                    style={[
+                                      styles.chip,
+                                      {
+                                        backgroundColor:
+                                          donation.status ===
+                                          'completed'
+                                            ? COLORS.greenLight
+                                            : COLORS.orangeLight,
+                                      },
+                                    ]}
+                                  >
+                                    <Text
+                                      style={[
+                                        styles.chipText,
+                                        {
+                                          color:
+                                            donation.status ===
+                                            'completed'
+                                              ? COLORS.green
+                                              : COLORS.orange,
+                                        },
+                                      ]}
+                                    >
+                                      {donation.status ===
+                                      'completed'
+                                        ? 'Recorded'
+                                        : 'In review'}
+                                    </Text>
                                   </View>
                                 </View>
 
-                                <View
-                                  style={[
-                                    styles.responseStatus,
-
-                                    response.status ===
-                                      'accepted'
-                                      ? styles.statusAccepted
-                                      : response.status ===
-                                          'pending'
-                                        ? styles.statusPending
-                                        : styles.statusOther,
-                                  ]}
-                                >
-                                  <Text
-                                    style={[
-                                      styles.responseStatusText,
-
-                                      response.status ===
-                                        'accepted'
-                                        ? styles.statusAcceptedText
-                                        : response.status ===
-                                            'pending'
-                                          ? styles.statusPendingText
-                                          : styles.statusOtherText,
-                                    ]}
-                                  >
-                                    {response.status
-                                      .charAt(
-                                        0
-                                      )
-                                      .toUpperCase() +
-                                      response.status.slice(
-                                        1
-                                      )}
-                                  </Text>
-                                </View>
-                              </View>
-
-                              {response.message ? (
-                                <View
-                                  style={
-                                    styles.donorMessage
-                                  }
-                                >
-                                  <Text
-                                    style={
-                                      styles.donorMessageText
-                                    }
-                                  >
-                                    “
-                                    {
-                                      response.message
-                                    }
-                                    ”
-                                  </Text>
-                                </View>
-                              ) : null}
-
-                              {response.status ===
-                                'pending' &&
-                              request.status ===
-                                'active' ? (
-                                <View
-                                  style={
-                                    styles.actionRow
-                                  }
-                                >
+                                {myFeedback ? (
                                   <TouchableOpacity
                                     style={
-                                      styles.rejectButton
+                                      styles.ratingRow
                                     }
-                                    disabled={
-                                      Boolean(
-                                        responseActionId
-                                      )
+                                    activeOpacity={
+                                      0.75
                                     }
+                                    accessibilityLabel="Edit your rating"
                                     onPress={() =>
-                                      handleRejectDonor(
-                                        response
+                                      setFeedbackDonation(
+                                        donation
                                       )
                                     }
                                   >
                                     <Text
                                       style={
-                                        styles.rejectButtonText
+                                        styles.ratingLabel
                                       }
                                     >
-                                      Reject
+                                      You rated
                                     </Text>
-                                  </TouchableOpacity>
 
-                                  <TouchableOpacity
-                                    style={
-                                      styles.acceptButton
-                                    }
-                                    disabled={
-                                      Boolean(
-                                        responseActionId
-                                      )
-                                    }
-                                    onPress={() =>
-                                      handleAcceptDonor(
-                                        response
-                                      )
-                                    }
-                                  >
-                                    <Text
-                                      style={
-                                        styles.acceptButtonText
-                                      }
-                                    >
-                                      {working
-                                        ? 'Please wait...'
-                                        : 'Accept'}
-                                    </Text>
-                                  </TouchableOpacity>
-                                </View>
-                              ) : null}
-
-                              {response.status ===
-                              'accepted' ? (
-                                <>
-                                  <View
-                                    style={
-                                      styles.acceptedNotice
-                                    }
-                                  >
-                                    <MaterialIcons
-                                      name="check-circle"
-                                      size={17}
-                                      color={
-                                        COLORS.green
+                                    <StarRow
+                                      rating={
+                                        myFeedback.rating
                                       }
                                     />
 
+                                    <MaterialIcons
+                                      name="edit"
+                                      size={14}
+                                      color={
+                                        COLORS.lightMuted
+                                      }
+                                    />
+                                  </TouchableOpacity>
+                                ) : null}
+
+                                {donorFeedback ? (
+                                  <View
+                                    style={
+                                      styles.ratingRow
+                                    }
+                                  >
                                     <Text
                                       style={
-                                        styles.acceptedNoticeText
+                                        styles.ratingLabel
                                       }
                                     >
-                                      Donor accepted for this request.
+                                      They rated
                                     </Text>
-                                  </View>
 
-                                  <TouchableOpacity
+                                    <StarRow
+                                      rating={
+                                        donorFeedback.rating
+                                      }
+                                    />
+                                  </View>
+                                ) : null}
+
+                                {donorFeedback?.comment ? (
+                                  <Text
                                     style={
-                                      styles.coordinateButton
+                                      styles.ratingComment
+                                    }
+                                    numberOfLines={
+                                      3
+                                    }
+                                  >
+                                    “{donorFeedback.comment}”
+                                  </Text>
+                                ) : null}
+                              </View>
+                            ) : null}
+
+                            {/* Actions */}
+                            {response.status ===
+                              'pending' &&
+                            isActive ? (
+                              <View
+                                style={
+                                  styles.cardActions
+                                }
+                              >
+                                <TouchableOpacity
+                                  style={[
+                                    styles.actionButton,
+                                    styles.actionOutline,
+                                  ]}
+                                  activeOpacity={
+                                    0.85
+                                  }
+                                  disabled={Boolean(
+                                    responseActionId
+                                  )}
+                                  onPress={() =>
+                                    handleRejectDonor(
+                                      response
+                                    )
+                                  }
+                                >
+                                  <Text
+                                    style={
+                                      styles.actionOutlineText
+                                    }
+                                  >
+                                    Reject
+                                  </Text>
+                                </TouchableOpacity>
+
+                                <TouchableOpacity
+                                  style={[
+                                    styles.actionButton,
+                                    styles.actionFilled,
+                                  ]}
+                                  activeOpacity={
+                                    0.85
+                                  }
+                                  disabled={Boolean(
+                                    responseActionId
+                                  )}
+                                  onPress={() =>
+                                    handleAcceptDonor(
+                                      response
+                                    )
+                                  }
+                                >
+                                  {working ? (
+                                    <ActivityIndicator
+                                      size="small"
+                                      color={
+                                        COLORS.white
+                                      }
+                                    />
+                                  ) : (
+                                    <MaterialIcons
+                                      name="check"
+                                      size={17}
+                                      color={
+                                        COLORS.white
+                                      }
+                                    />
+                                  )}
+
+                                  <Text
+                                    style={
+                                      styles.actionFilledText
+                                    }
+                                  >
+                                    Accept
+                                  </Text>
+                                </TouchableOpacity>
+                              </View>
+                            ) : chatButton ? (
+                              <View
+                                style={
+                                  styles.cardActions
+                                }
+                              >
+                                {chatButton}
+
+                                {canConfirm ? (
+                                  <TouchableOpacity
+                                    style={[
+                                      styles.actionButton,
+                                      styles.actionFilled,
+                                    ]}
+                                    activeOpacity={
+                                      0.85
                                     }
                                     onPress={() =>
-                                      handleCoordinate(
+                                      openDonationModal(
                                         response
                                       )
                                     }
                                   >
                                     <MaterialIcons
-                                      name="forum"
-                                      size={18}
+                                      name="task-alt"
+                                      size={17}
                                       color={
                                         COLORS.white
                                       }
@@ -1863,516 +3617,473 @@ export default function BloodRequestDetailsScreen() {
 
                                     <Text
                                       style={
-                                        styles.coordinateButtonText
+                                        styles.actionFilledText
                                       }
                                     >
-                                      Coordinate with Donor
+                                      {donation?.status ===
+                                      'rejected'
+                                        ? 'Confirm Again'
+                                        : 'Confirm Donation'}
                                     </Text>
                                   </TouchableOpacity>
-                                </>
-                              ) : null}
-                            </View>
-                          );
-                        }
-                      )
-                    )}
+                                ) : donation &&
+                                  donationActive &&
+                                  !myFeedback ? (
+                                  <TouchableOpacity
+                                    style={[
+                                      styles.actionButton,
+                                      styles.actionFilled,
+                                    ]}
+                                    activeOpacity={
+                                      0.85
+                                    }
+                                    onPress={() =>
+                                      setFeedbackDonation(
+                                        donation
+                                      )
+                                    }
+                                  >
+                                    <MaterialIcons
+                                      name="star-outline"
+                                      size={17}
+                                      color={
+                                        COLORS.white
+                                      }
+                                    />
 
-                    {/* ==================================================
-                        ACCEPTED SUMMARY
-                    ================================================== */}
+                                    <Text
+                                      style={
+                                        styles.actionFilledText
+                                      }
+                                    >
+                                      Rate Donor
+                                    </Text>
+                                  </TouchableOpacity>
+                                ) : null}
+                              </View>
+                            ) : null}
+                          </FadeInView>
+                        );
+                      }
+                    )
+                  )}
+                </FadeInView>
+              ) : null}
+            </ScrollView>
 
-                    {donorResponseCounts.accepted >
-                      0 &&
-                    request.status ===
-                      'active' ? (
-                      <View
-                        style={
-                          styles.completionCard
-                        }
-                      >
-                        <View
-                          style={
-                            styles.completionIcon
-                          }
-                        >
-                          <MaterialIcons
-                            name="favorite"
-                            size={23}
-                            color={
-                              COLORS.green
-                            }
-                          />
-                        </View>
+            {/* ==================================================
+                FOOTER ACTION
+            ================================================== */}
 
-                        <View
-                          style={
-                            styles.completionTextArea
-                          }
-                        >
-                          <Text
-                            style={
-                              styles.completionTitle
-                            }
-                          >
-                            {donorResponseCounts.accepted}{' '}
-                            {donorResponseCounts.accepted ===
-                            1
-                              ? 'Donor Accepted'
-                              : 'Donors Accepted'}
-                          </Text>
-
-                          <Text
-                            style={
-                              styles.completionDescription
-                            }
-                          >
-                            Coordinate with your accepted donor before completing the request.
-                          </Text>
-                        </View>
-
-                        <TouchableOpacity
-                          style={[
-                            styles.fulfillButton,
-
-                            fulfilling &&
-                              styles.disabledButton,
-                          ]}
-                          disabled={
-                            fulfilling
-                          }
-                          onPress={
-                            handleFulfillPress
-                          }
-                        >
-                          <MaterialIcons
-                            name="task-alt"
-                            size={18}
-                            color={
-                              COLORS.white
-                            }
-                          />
-
-                          <Text
-                            style={
-                              styles.fulfillButtonText
-                            }
-                          >
-                            {fulfilling
-                              ? 'Completing...'
-                              : 'Mark Fulfilled'}
-                          </Text>
-                        </TouchableOpacity>
-                      </View>
-                    ) : null}
-
-                    {/* ==================================================
-                        PROGRESS
-                    ================================================== */}
-
-                    <Text
+            {request &&
+            !loading &&
+            !errorMessage ? (
+              <View
+                style={[
+                  styles.footer,
+                  {
+                    paddingBottom:
+                      Math.max(
+                        insets.bottom,
+                        12
+                      ),
+                  },
+                ]}
+              >
+                {isActive &&
+                activeDonations.length >
+                  0 ? (
+                  <PressableScale
+                    style={
+                      styles.primaryButton
+                    }
+                    disabled={
+                      fulfilling
+                    }
+                    accessibilityRole="button"
+                    onPress={
+                      handleFulfillPress
+                    }
+                  >
+                    <LinearGradient
+                      colors={[
+                        COLORS.headerTop,
+                        COLORS.redDark,
+                      ]}
+                      start={{
+                        x: 0,
+                        y: 0,
+                      }}
+                      end={{
+                        x: 1,
+                        y: 1,
+                      }}
                       style={
-                        styles.sectionTitle
+                        styles.primaryGradient
                       }
                     >
-                      Request Progress
-                    </Text>
-
-                    <View
-                      style={
-                        styles.progressCard
-                      }
-                    >
-                      <ProgressStep
-                        complete
-                        current={
-                          false
-                        }
-                        title="Request Posted"
-                        description="Your blood request has been posted."
-                        last={
-                          false
-                        }
-                      />
-
-                      <ProgressStep
-                        complete={
-                          donorResponseCounts.accepted >
-                          0
-                        }
-                        current={
-                          request.status ===
-                            'active' &&
-                          donorResponseCounts.accepted ===
-                            0
-                        }
-                        title="Donor Matching"
-                        description={
-                          donorResponseCounts.accepted >
-                          0
-                            ? `${donorResponseCounts.accepted} donor ${
-                                donorResponseCounts.accepted ===
-                                1
-                                  ? 'has'
-                                  : 'have'
-                              } been accepted.`
-                            : 'Waiting for a compatible donor.'
-                        }
-                        last={
-                          false
-                        }
-                      />
-
-                      <ProgressStep
-                        complete={
-                          request.status ===
-                          'fulfilled'
-                        }
-                        current={
-                          false
-                        }
-                        title="Fulfilled"
-                        description={
-                          request.status ===
-                          'fulfilled'
-                            ? 'The blood request has been completed.'
-                            : 'Complete the donation process before marking fulfilled.'
-                        }
-                        last
-                      />
-                    </View>
-
-                    {request.status ===
-                    'active' ? (
-                      <>
-                        <TouchableOpacity
-                          style={
-                            styles.cancelButton
-                          }
-                          disabled={
-                            cancelling
-                          }
-                          onPress={
-                            handleCancelPress
-                          }
-                        >
-                          <MaterialIcons
-                            name="close"
-                            size={18}
-                            color={
-                              COLORS.redButton
-                            }
-                          />
-
-                          <Text
-                            style={
-                              styles.cancelButtonText
-                            }
-                          >
-                            {cancelling
-                              ? 'Cancelling...'
-                              : 'Cancel Blood Request'}
-                          </Text>
-                        </TouchableOpacity>
-
-                        <Text
-                          style={
-                            styles.cancelHint
-                          }
-                        >
-                          Only cancel if blood is no longer needed.
-                        </Text>
-                      </>
-                    ) : (
-                      <TouchableOpacity
-                        style={
-                          styles.dashboardButton
-                        }
-                        onPress={() =>
-                          router.replace(
-                            '/dashboard'
-                          )
-                        }
-                      >
-                        <MaterialIcons
-                          name="home"
-                          size={19}
+                      {fulfilling ? (
+                        <ActivityIndicator
                           color={
                             COLORS.white
                           }
                         />
-
-                        <Text
-                          style={
-                            styles.dashboardButtonText
+                      ) : (
+                        <MaterialIcons
+                          name="task-alt"
+                          size={20}
+                          color={
+                            COLORS.white
                           }
-                        >
-                          Back to Dashboard
-                        </Text>
-                      </TouchableOpacity>
+                        />
+                      )}
+
+                      <Text
+                        style={
+                          styles.primaryText
+                        }
+                      >
+                        {fulfilling
+                          ? 'Completing...'
+                          : 'Mark as Fulfilled'}
+                      </Text>
+                    </LinearGradient>
+                  </PressableScale>
+                ) : isActive ? (
+                  <TouchableOpacity
+                    style={
+                      styles.cancelButton
+                    }
+                    activeOpacity={
+                      0.85
+                    }
+                    disabled={
+                      cancelling
+                    }
+                    onPress={
+                      handleCancelPress
+                    }
+                  >
+                    {cancelling ? (
+                      <ActivityIndicator
+                        color={
+                          COLORS.redButton
+                        }
+                      />
+                    ) : (
+                      <MaterialIcons
+                        name="close"
+                        size={19}
+                        color={
+                          COLORS.redButton
+                        }
+                      />
                     )}
-                  </>
-                ) : null}
-              </ScrollView>
-            </View>
-          </LinearGradient>
+
+                    <Text
+                      style={
+                        styles.cancelText
+                      }
+                    >
+                      {cancelling
+                        ? 'Cancelling...'
+                        : 'Cancel Request'}
+                    </Text>
+                  </TouchableOpacity>
+                ) : (
+                  <PressableScale
+                    style={
+                      styles.primaryButton
+                    }
+                    accessibilityRole="button"
+                    onPress={() =>
+                      router.replace(
+                        '/dashboard'
+                      )
+                    }
+                  >
+                    <LinearGradient
+                      colors={[
+                        COLORS.headerTop,
+                        COLORS.redDark,
+                      ]}
+                      start={{
+                        x: 0,
+                        y: 0,
+                      }}
+                      end={{
+                        x: 1,
+                        y: 1,
+                      }}
+                      style={
+                        styles.primaryGradient
+                      }
+                    >
+                      <MaterialIcons
+                        name="home"
+                        size={20}
+                        color={
+                          COLORS.white
+                        }
+                      />
+
+                      <Text
+                        style={
+                          styles.primaryText
+                        }
+                      >
+                        Back to Home
+                      </Text>
+                    </LinearGradient>
+                  </PressableScale>
+                )}
+              </View>
+            ) : null}
+          </View>
         </SafeAreaView>
+
+        {/* ====================================================
+            CONFIRM DONATION
+        ==================================================== */}
+
+        <ConfirmDonationSheet
+          visible={Boolean(
+            confirmResponse
+          )}
+          donorName={
+            confirmResponse
+              ? getDonorName(
+                  confirmResponse
+                )
+              : ''
+          }
+          bloodType={
+            request?.blood_type ||
+            ''
+          }
+          requestCreatedAt={
+            request?.created_at
+          }
+          onClose={() =>
+            setConfirmResponse(
+              null
+            )
+          }
+          onSubmit={
+            submitConfirmedDonation
+          }
+        />
+
+        {/* ====================================================
+            RATE THE DONATION
+        ==================================================== */}
+
+        <DonationFeedbackModal
+          visible={Boolean(
+            feedbackDonation
+          )}
+          mode="feedback"
+          title={
+            getFeedbackFrom(
+              feedbackDonation,
+              'requester'
+            )
+              ? 'Update Your Feedback'
+              : 'Rate This Donation'
+          }
+          subtitle={`How was your experience with ${
+            feedbackDonation?.donor_name ||
+            'your donor'
+          }? They will see your feedback.`}
+          initialRating={
+            getFeedbackFrom(
+              feedbackDonation,
+              'requester'
+            )?.rating || 0
+          }
+          initialComment={
+            getFeedbackFrom(
+              feedbackDonation,
+              'requester'
+            )?.comment || ''
+          }
+          quickNotes={
+            DONOR_FEEDBACK_NOTES
+          }
+          onClose={() =>
+            setFeedbackDonation(
+              null
+            )
+          }
+          onSubmit={
+            sendDonorFeedback
+          }
+        />
 
         {/* ====================================================
             IN-APP ACTION POPUP
         ==================================================== */}
 
-        <Modal
-          transparent
+        <AppModal
           visible={
             actionPopup.visible
           }
-          animationType="fade"
-          onRequestClose={
+          variant={
+            actionPopup.variant
+          }
+          title={
+            actionPopup.title
+          }
+          message={
+            actionPopup.message
+          }
+          confirmLabel={
+            actionPopup.confirmText
+          }
+          cancelLabel={
+            actionPopup.showCancel
+              ? actionPopup.cancelText
+              : undefined
+          }
+          onConfirm={() => {
+            const action =
+              actionPopup.onConfirm;
+
+            closeActionPopup();
+
+            if (action) {
+              action();
+            }
+          }}
+          onClose={
             closeActionPopup
           }
-        >
-          <View
-            style={
-              styles.actionPopupOverlay
-            }
-          >
-            <View
-              style={
-                styles.actionPopupCard
-              }
-            >
-              <View
-                style={[
-                  styles.actionPopupIcon,
-
-                  actionPopup.variant ===
-                    'success' &&
-                    styles.actionPopupIconSuccess,
-
-                  actionPopup.variant ===
-                    'warning' &&
-                    styles.actionPopupIconWarning,
-
-                  (
-                    actionPopup.variant ===
-                      'danger' ||
-                    actionPopup.variant ===
-                      'error'
-                  ) &&
-                    styles.actionPopupIconDanger,
-                ]}
-              >
-                <MaterialIcons
-                  name={
-                    actionPopup.variant ===
-                    'success'
-                      ? 'check-circle-outline'
-                      : actionPopup.variant ===
-                          'warning'
-                        ? 'warning-amber'
-                        : actionPopup.variant ===
-                              'danger' ||
-                            actionPopup.variant ===
-                              'error'
-                          ? 'error-outline'
-                          : 'info-outline'
-                  }
-                  size={31}
-                  color={
-                    actionPopup.variant ===
-                    'success'
-                      ? COLORS.green
-                      : actionPopup.variant ===
-                          'warning'
-                        ? COLORS.orange
-                        : COLORS.redButton
-                  }
-                />
-              </View>
-
-              <Text
-                style={
-                  styles.actionPopupTitle
-                }
-              >
-                {
-                  actionPopup.title
-                }
-              </Text>
-
-              <Text
-                style={
-                  styles.actionPopupMessage
-                }
-              >
-                {
-                  actionPopup.message
-                }
-              </Text>
-
-              <View
-                style={[
-                  styles.actionPopupActions,
-
-                  !actionPopup.showCancel &&
-                    styles.actionPopupActionsSingle,
-                ]}
-              >
-                {actionPopup.showCancel ? (
-                  <TouchableOpacity
-                    style={
-                      styles.actionPopupSecondaryButton
-                    }
-                    activeOpacity={
-                      0.82
-                    }
-                    onPress={
-                      closeActionPopup
-                    }
-                  >
-                    <Text
-                      style={
-                        styles.actionPopupSecondaryText
-                      }
-                    >
-                      {
-                        actionPopup.cancelText
-                      }
-                    </Text>
-                  </TouchableOpacity>
-                ) : null}
-
-                <TouchableOpacity
-                  style={[
-                    styles.actionPopupPrimaryButton,
-
-                    actionPopup.variant ===
-                      'success' &&
-                      styles.actionPopupPrimarySuccess,
-
-                    actionPopup.variant ===
-                      'danger' &&
-                      styles.actionPopupPrimaryDanger,
-                  ]}
-                  activeOpacity={
-                    0.85
-                  }
-                  onPress={() => {
-                    const action =
-                      actionPopup.onConfirm;
-
-                    closeActionPopup();
-
-                    if (action) {
-                      action();
-                    }
-                  }}
-                >
-                  <Text
-                    style={
-                      styles.actionPopupPrimaryText
-                    }
-                  >
-                    {
-                      actionPopup.confirmText
-                    }
-                  </Text>
-                </TouchableOpacity>
-              </View>
-            </View>
-          </View>
-        </Modal>
+        />
       </View>
     </View>
   );
 }
 
 // ============================================================
-// PROGRESS STEP
+// STAR ROW (read-only rating)
 // ============================================================
 
-function ProgressStep({
-  complete,
-  current,
-  title,
-  description,
-  last,
+function StarRow({
+  rating,
 }: {
-  complete: boolean;
-  current: boolean;
-  title: string;
-  description: string;
-  last: boolean;
+  rating: number;
 }) {
   return (
     <View
       style={
-        last
-          ? styles.progressStepLast
-          : styles.progressStep
+        styles.starRow
       }
+      accessible
+      accessibilityLabel={`${rating} out of 5 stars`}
     >
-      <View
-        style={
-          styles.timeline
-        }
-      >
-        <View
-          style={
-            complete
-              ? styles.completedCircle
-              : current
-                ? styles.currentCircle
-                : styles.inactiveCircle
-          }
-        >
+      {[1, 2, 3, 4, 5].map(
+        value => (
           <MaterialIcons
+            key={value}
             name={
-              complete
-                ? 'check'
-                : current
-                  ? 'person-search'
-                  : 'favorite-border'
+              value <= rating
+                ? 'star'
+                : 'star-border'
             }
             size={15}
             color={
-              complete ||
-              current
-                ? COLORS.white
-                : COLORS.lightMuted
+              value <= rating
+                ? COLORS.star
+                : '#D9C3C3'
             }
           />
-        </View>
+        )
+      )}
+    </View>
+  );
+}
 
-        {!last ? (
-          <View
-            style={
-              styles.timelineLine
-            }
-          />
-        ) : null}
+// ============================================================
+// INFO ROW (icon, small label, value)
+// ============================================================
+
+function InfoRow({
+  icon,
+  label,
+  value,
+  sub,
+  valueRegular,
+  last,
+  children,
+}: {
+  icon: IconName;
+  label: string;
+  value?: string | null;
+  sub?: string | null;
+  valueRegular?: boolean;
+  last?: boolean;
+  children?: ReactNode;
+}) {
+  return (
+    <View
+      style={[
+        styles.infoRow,
+
+        !last &&
+          styles.infoRowDivider,
+      ]}
+    >
+      <View
+        style={
+          styles.infoIcon
+        }
+      >
+        <MaterialIcons
+          name={icon}
+          size={18}
+          color={
+            COLORS.redButton
+          }
+        />
       </View>
 
       <View
         style={
-          styles.progressTextArea
+          styles.flexFill
         }
       >
         <Text
           style={
-            styles.progressTitle
+            styles.infoLabel
           }
         >
-          {title}
+          {label}
         </Text>
 
-        <Text
-          style={
-            styles.progressDescription
-          }
-        >
-          {description}
-        </Text>
+        {value ? (
+          <Text
+            style={[
+              styles.infoValue,
+
+              valueRegular &&
+                styles.infoValueRegular,
+            ]}
+          >
+            {value}
+          </Text>
+        ) : null}
+
+        {sub ? (
+          <Text
+            style={
+              styles.infoSub
+            }
+          >
+            {sub}
+          </Text>
+        ) : null}
+
+        {children}
       </View>
     </View>
   );
@@ -2384,1733 +4095,833 @@ function ProgressStep({
 
 const styles =
   StyleSheet.create({
+    flex: {
+      flex: 1,
+    },
+
+    flexFill: {
+      flex: 1,
+      minWidth: 0,
+    },
+
     desktopBackground: {
-      flex:
-        1,
-
-      alignItems:
-        'center',
-
-      justifyContent:
-        'center',
-
+      flex: 1,
+      alignItems: 'center',
+      justifyContent: 'center',
       backgroundColor:
-        Platform.OS ===
-        'web'
+        Platform.OS === 'web'
           ? '#242424'
-          : COLORS.pageBottom,
+          : COLORS.page,
     },
 
     phone: {
       width:
-        Platform.OS ===
-        'web'
+        Platform.OS === 'web'
           ? 440
           : '100%',
-
-      height:
-        '100%',
-
-      maxWidth:
-        '100%',
-
-      overflow:
-        'hidden',
-
-      backgroundColor:
-        COLORS.pageBottom,
+      height: '100%',
+      maxWidth: '100%',
+      overflow: 'hidden',
+      backgroundColor: COLORS.page,
     },
 
     safeArea: {
-      flex:
-        1,
-
-      backgroundColor:
-        COLORS.red,
+      flex: 1,
+      backgroundColor: COLORS.headerTop,
     },
 
+    // ==========================================================
+    // HEADER
+    // ==========================================================
+
+    // Bottom padding leaves room for the rounded body sheet,
+    // which overlaps the header by 22.
     header: {
-      height:
-        112,
-
-      paddingHorizontal:
-        22,
-
+      paddingHorizontal: 20,
       paddingTop:
-        Platform.OS ===
-        'web'
+        Platform.OS === 'web'
           ? 18
-          : 8,
-
-      overflow:
-        'hidden',
+          : 10,
+      paddingBottom: 38,
+      overflow: 'hidden',
     },
 
-    headerCircleOne: {
-      position:
-        'absolute',
-
-      width:
-        165,
-
-      height:
-        165,
-
-      borderRadius:
-        83,
-
-      left:
-        -100,
-
-      top:
-        -80,
-
-      backgroundColor:
-        'rgba(255,255,255,0.06)',
+    headerCircleLeft: {
+      position: 'absolute',
+      width: 165,
+      height: 165,
+      borderRadius: 83,
+      left: -100,
+      top: -70,
+      backgroundColor: 'rgba(255,255,255,0.06)',
     },
 
-    headerCircleTwo: {
-      position:
-        'absolute',
-
-      width:
-        180,
-
-      height:
-        180,
-
-      borderRadius:
-        90,
-
-      right:
-        -90,
-
-      top:
-        -95,
-
-      backgroundColor:
-        'rgba(255,255,255,0.07)',
+    headerCircleRight: {
+      position: 'absolute',
+      width: 175,
+      height: 175,
+      borderRadius: 88,
+      right: -70,
+      top: -80,
+      backgroundColor: 'rgba(255,255,255,0.08)',
     },
 
     headerRow: {
-      flexDirection:
-        'row',
-
-      alignItems:
-        'center',
+      flexDirection: 'row',
+      alignItems: 'center',
     },
 
     backButton: {
-      width:
-        42,
-
-      height:
-        42,
-
-      marginRight:
-        13,
-
-      borderRadius:
-        21,
-
-      alignItems:
-        'center',
-
-      justifyContent:
-        'center',
-
-      backgroundColor:
-        'rgba(255,255,255,0.16)',
+      width: 40,
+      height: 40,
+      marginRight: 12,
+      borderRadius: 20,
+      alignItems: 'center',
+      justifyContent: 'center',
+      backgroundColor: 'rgba(255,255,255,0.16)',
     },
 
     headerText: {
-      flex:
-        1,
+      flex: 1,
+      minWidth: 0,
     },
 
     headerTitle: {
-      color:
-        COLORS.white,
-
-      fontFamily:
-        'Poppins_700Bold',
-
-      fontSize:
-        20,
+      color: COLORS.white,
+      fontFamily: 'Poppins_700Bold',
+      fontSize: 21,
+      lineHeight: 29,
     },
 
     headerSubtitle: {
-      marginTop:
-        2,
-
-      color:
-        'rgba(255,255,255,0.78)',
-
-      fontFamily:
-        'Inter_400Regular',
-
-      fontSize:
-        10,
+      color: 'rgba(255,255,255,0.82)',
+      fontFamily: 'Inter_400Regular',
+      fontSize: 12.5,
     },
+
+    headerStatus: {
+      marginLeft: 10,
+      paddingHorizontal: 10,
+      height: 28,
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 6,
+      borderRadius: 14,
+      backgroundColor: 'rgba(255,255,255,0.16)',
+    },
+
+    headerStatusDot: {
+      width: 8,
+      height: 8,
+      borderRadius: 4,
+      borderWidth: 1,
+      borderColor: 'rgba(255,255,255,0.7)',
+    },
+
+    headerStatusText: {
+      color: COLORS.white,
+      fontFamily: 'Inter_600SemiBold',
+      fontSize: 12,
+    },
+
+    // ==========================================================
+    // BODY
+    // ==========================================================
 
     body: {
-      flex:
-        1,
-
-      paddingHorizontal:
-        16,
-
-      paddingBottom:
-        14,
-    },
-
-    mainCard: {
-      flex:
-        1,
-
-      marginTop:
-        -10,
-
-      overflow:
-        'hidden',
-
-      borderRadius:
-        28,
-
-      backgroundColor:
-        COLORS.white,
-    },
-
-    scroll: {
-      flex:
-        1,
+      flex: 1,
+      marginTop: -22,
+      borderTopLeftRadius: 22,
+      borderTopRightRadius: 22,
+      overflow: 'hidden',
+      backgroundColor: COLORS.page,
     },
 
     scrollContent: {
-      paddingHorizontal:
-        18,
-
-      paddingTop:
-        20,
-
-      paddingBottom:
-        30,
+      paddingHorizontal: 16,
+      paddingTop: 18,
+      paddingBottom: 24,
     },
 
     centerState: {
-      minHeight:
-        520,
+      minHeight: 320,
+      paddingHorizontal: 24,
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: 8,
+    },
 
-      alignItems:
-        'center',
-
-      justifyContent:
-        'center',
-
-      paddingHorizontal:
-        30,
+    centerIcon: {
+      width: 54,
+      height: 54,
+      borderRadius: 27,
+      alignItems: 'center',
+      justifyContent: 'center',
+      backgroundColor: COLORS.pinkLight,
     },
 
     centerTitle: {
-      marginTop:
-        12,
-
-      color:
-        COLORS.black,
-
-      fontFamily:
-        'Poppins_600SemiBold',
-
-      fontSize:
-        16,
+      color: COLORS.black,
+      fontFamily: 'Poppins_600SemiBold',
+      fontSize: 15,
     },
 
-    centerDescription: {
-      marginTop:
-        5,
-
-      color:
-        COLORS.muted,
-
-      fontFamily:
-        'Inter_400Regular',
-
-      fontSize:
-        10,
-
-      textAlign:
-        'center',
+    centerText: {
+      color: COLORS.muted,
+      fontFamily: 'Inter_400Regular',
+      fontSize: 13,
+      lineHeight: 19,
+      textAlign: 'center',
     },
 
-    postedText: {
-      marginBottom:
-        10,
-
-      color:
-        COLORS.lightMuted,
-
-      fontFamily:
-        'Inter_400Regular',
-
-      fontSize:
-        9,
-
-      textAlign:
-        'right',
+    retryButton: {
+      marginTop: 6,
+      height: 42,
+      paddingHorizontal: 18,
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 7,
+      borderRadius: 12,
+      backgroundColor: COLORS.redButton,
     },
 
-    summaryCard: {
-      marginBottom:
-        23,
-
-      overflow:
-        'hidden',
-
-      borderWidth:
-        1,
-
-      borderColor:
-        COLORS.softBorder,
-
-      borderRadius:
-        18,
-
-      backgroundColor:
-        COLORS.white,
+    retryButtonText: {
+      color: COLORS.white,
+      fontFamily: 'Poppins_600SemiBold',
+      fontSize: 13.5,
     },
 
-    summaryTop: {
-      minHeight:
-        90,
+    // ==========================================================
+    // NOTICE
+    // ==========================================================
 
-      flexDirection:
-        'row',
-
-      alignItems:
-        'center',
-
-      paddingHorizontal:
-        15,
+    notice: {
+      marginBottom: 12,
+      paddingHorizontal: 12,
+      paddingVertical: 10,
+      flexDirection: 'row',
+      alignItems: 'flex-start',
+      gap: 9,
+      borderRadius: 12,
+      borderWidth: 1,
     },
 
-    bloodCircle: {
-      width:
-        58,
-
-      height:
-        58,
-
-      marginRight:
-        13,
-
-      borderRadius:
-        29,
-
-      alignItems:
-        'center',
-
-      justifyContent:
-        'center',
-
-      backgroundColor:
-        COLORS.redButton,
+    noticeWarning: {
+      borderColor: '#F5D2B3',
+      backgroundColor: COLORS.orangeLight,
     },
 
-    bloodType: {
-      color:
-        COLORS.white,
-
-      fontFamily:
-        'Poppins_700Bold',
-
-      fontSize:
-        19,
+    noticeDanger: {
+      borderColor: '#F2C4C4',
+      backgroundColor: COLORS.pinkLight,
     },
 
-    summaryTitleArea: {
-      flex:
-        1,
+    noticeTitle: {
+      fontFamily: 'Inter_700Bold',
     },
 
-    summaryTitle: {
-      color:
-        COLORS.black,
-
-      fontFamily:
-        'Poppins_600SemiBold',
-
-      fontSize:
-        14,
+    noticeText: {
+      flex: 1,
+      color: COLORS.black,
+      fontFamily: 'Inter_400Regular',
+      fontSize: 12.5,
+      lineHeight: 18,
     },
 
-    summarySubtitle: {
-      marginTop:
-        3,
+    // ==========================================================
+    // CARDS / SECTIONS
+    // ==========================================================
 
-      color:
-        COLORS.muted,
-
-      fontFamily:
-        'Inter_400Regular',
-
-      fontSize:
-        9,
+    card: {
+      padding: 14,
+      borderRadius: 14,
+      borderWidth: 1,
+      borderColor: COLORS.cardBorder,
+      backgroundColor: COLORS.white,
     },
 
-    statusPill: {
-      paddingHorizontal:
-        9,
-
-      paddingVertical:
-        6,
-
-      borderRadius:
-        12,
+    sectionGap: {
+      marginTop: 20,
     },
 
-    statusText: {
-      color:
-        COLORS.white,
-
-      fontFamily:
-        'Inter_600SemiBold',
-
-      fontSize:
-        8,
-    },
-
-    summaryDivider: {
-      height:
-        StyleSheet.hairlineWidth,
-
-      backgroundColor:
-        COLORS.border,
-
-      marginHorizontal:
-        15,
-    },
-
-    summaryStats: {
-      minHeight:
-        68,
-
-      flexDirection:
-        'row',
-
-      alignItems:
-        'center',
-    },
-
-    statItem: {
-      flex:
-        1,
-
-      alignItems:
-        'center',
-    },
-
-    statDivider: {
-      width:
-        1,
-
-      height:
-        34,
-
-      backgroundColor:
-        COLORS.border,
-    },
-
-    statValue: {
-      color:
-        COLORS.black,
-
-      fontFamily:
-        'Poppins_700Bold',
-
-      fontSize:
-        19,
-    },
-
-    statLabel: {
-      marginTop:
-        2,
-
-      color:
-        COLORS.muted,
-
-      fontFamily:
-        'Inter_500Medium',
-
-      fontSize:
-        8.5,
+    sectionHeader: {
+      marginBottom: 9,
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 10,
     },
 
     sectionTitle: {
-      marginBottom:
-        9,
-
-      color:
-        COLORS.black,
-
-      fontFamily:
-        'Poppins_600SemiBold',
-
-      fontSize:
-        14,
+      marginBottom: 9,
+      color: COLORS.black,
+      fontFamily: 'Poppins_600SemiBold',
+      fontSize: 14.5,
     },
 
-    sectionTitleNoMargin: {
-      color:
-        COLORS.black,
-
-      fontFamily:
-        'Poppins_600SemiBold',
-
-      fontSize:
-        14,
+    sectionMeta: {
+      marginTop: -8,
+      color: COLORS.muted,
+      fontFamily: 'Inter_500Medium',
+      fontSize: 12,
     },
 
-    sectionHeaderRow: {
-      marginBottom:
-        10,
-
-      flexDirection:
-        'row',
-
-      alignItems:
-        'center',
-
-      justifyContent:
-        'space-between',
+    linkButton: {
+      minHeight: 32,
+      paddingHorizontal: 10,
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 5,
+      borderRadius: 16,
+      backgroundColor: COLORS.pinkLight,
     },
 
-    counter: {
-      minWidth:
-        25,
-
-      height:
-        25,
-
-      paddingHorizontal:
-        7,
-
-      borderRadius:
-        13,
-
-      alignItems:
-        'center',
-
-      justifyContent:
-        'center',
-
-      backgroundColor:
-        COLORS.pinkLight,
-
-      borderWidth:
-        1,
-
-      borderColor:
-        COLORS.softBorder,
+    linkButtonText: {
+      color: COLORS.redButton,
+      fontFamily: 'Inter_600SemiBold',
+      fontSize: 12.5,
     },
 
-    counterText: {
-      color:
-        COLORS.redButton,
+    // ==========================================================
+    // SUMMARY
+    // ==========================================================
 
-      fontFamily:
-        'Poppins_600SemiBold',
-
-      fontSize:
-        10,
+    summaryTop: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 12,
     },
 
-    infoGroup: {
-      marginBottom:
-        23,
-
-      paddingHorizontal:
-        14,
-
-      borderWidth:
-        1,
-
-      borderColor:
-        COLORS.border,
-
-      borderRadius:
-        16,
+    bloodCircle: {
+      width: 54,
+      height: 54,
+      borderRadius: 27,
+      alignItems: 'center',
+      justifyContent: 'center',
+      backgroundColor: COLORS.redButton,
     },
+
+    bloodText: {
+      color: COLORS.white,
+      fontFamily: 'Poppins_700Bold',
+      fontSize: 18,
+    },
+
+    summaryTitle: {
+      color: COLORS.black,
+      fontFamily: 'Poppins_600SemiBold',
+      fontSize: 16,
+      lineHeight: 22,
+    },
+
+    summaryMeta: {
+      color: COLORS.muted,
+      fontFamily: 'Inter_500Medium',
+      fontSize: 12,
+    },
+
+    unitsTrack: {
+      marginTop: 6,
+      height: 6,
+      borderRadius: 3,
+      overflow: 'hidden',
+      backgroundColor: COLORS.grayLight,
+    },
+
+    unitsFill: {
+      height: '100%',
+      borderRadius: 3,
+      backgroundColor: COLORS.green,
+    },
+
+    urgencyPill: {
+      alignSelf: 'flex-start',
+      paddingHorizontal: 9,
+      height: 26,
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 4,
+      borderRadius: 13,
+      backgroundColor: COLORS.pinkLight,
+    },
+
+    urgencyPillUrgent: {
+      backgroundColor: COLORS.redButton,
+    },
+
+    urgencyText: {
+      color: COLORS.redButton,
+      fontFamily: 'Inter_600SemiBold',
+      fontSize: 11.5,
+    },
+
+    urgencyTextUrgent: {
+      color: COLORS.white,
+    },
+
+    // Progress steps
+    steps: {
+      marginTop: 16,
+      flexDirection: 'row',
+    },
+
+    step: {
+      flex: 1,
+      alignItems: 'center',
+    },
+
+    stepTrack: {
+      alignSelf: 'stretch',
+      flexDirection: 'row',
+      alignItems: 'center',
+    },
+
+    stepLine: {
+      flex: 1,
+      height: 2,
+      backgroundColor: COLORS.divider,
+    },
+
+    stepLineHidden: {
+      opacity: 0,
+    },
+
+    stepLineDone: {
+      backgroundColor: COLORS.green,
+    },
+
+    stepDot: {
+      width: 18,
+      height: 18,
+      borderRadius: 9,
+      alignItems: 'center',
+      justifyContent: 'center',
+      borderWidth: 1.5,
+      borderColor: '#D9C9C9',
+      backgroundColor: COLORS.white,
+    },
+
+    stepDotDone: {
+      borderColor: COLORS.green,
+      backgroundColor: COLORS.green,
+    },
+
+    stepDotCurrent: {
+      borderWidth: 2,
+      borderColor: COLORS.redButton,
+      backgroundColor: COLORS.pinkLight,
+    },
+
+    stepLabel: {
+      marginTop: 5,
+      color: COLORS.lightMuted,
+      fontFamily: 'Inter_500Medium',
+      fontSize: 11,
+    },
+
+    stepLabelDone: {
+      color: COLORS.black,
+      fontFamily: 'Inter_600SemiBold',
+    },
+
+    nextStep: {
+      marginTop: 14,
+      paddingHorizontal: 11,
+      paddingVertical: 9,
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 8,
+      borderRadius: 10,
+    },
+
+    nextStepText: {
+      flex: 1,
+      fontFamily: 'Inter_600SemiBold',
+      fontSize: 12.5,
+      lineHeight: 17,
+    },
+
+    // ==========================================================
+    // DETAILS
+    // ==========================================================
 
     infoRow: {
-      minHeight:
-        84,
+      paddingVertical: 10,
+      flexDirection: 'row',
+      alignItems: 'flex-start',
+      gap: 11,
+    },
 
-      paddingVertical:
-        13,
-
-      flexDirection:
-        'row',
-
-      alignItems:
-        'center',
+    infoRowDivider: {
+      borderBottomWidth: 1,
+      borderBottomColor: COLORS.divider,
     },
 
     infoIcon: {
-      width:
-        43,
-
-      height:
-        43,
-
-      marginRight:
-        11,
-
-      borderRadius:
-        14,
-
-      alignItems:
-        'center',
-
-      justifyContent:
-        'center',
-
-      backgroundColor:
-        COLORS.pinkLight,
-    },
-
-    infoText: {
-      flex:
-        1,
+      width: 34,
+      height: 34,
+      borderRadius: 10,
+      alignItems: 'center',
+      justifyContent: 'center',
+      backgroundColor: COLORS.pinkLight,
     },
 
     infoLabel: {
-      color:
-        COLORS.lightMuted,
-
-      fontFamily:
-        'Inter_500Medium',
-
-      fontSize:
-        9,
+      color: COLORS.lightMuted,
+      fontFamily: 'Inter_500Medium',
+      fontSize: 11.5,
     },
 
-    infoTitle: {
-      marginTop:
-        3,
-
-      color:
-        COLORS.black,
-
-      fontFamily:
-        'Inter_600SemiBold',
-
-      fontSize:
-        11.5,
+    infoValue: {
+      marginTop: 1,
+      color: COLORS.black,
+      fontFamily: 'Inter_600SemiBold',
+      fontSize: 13.5,
+      lineHeight: 19,
     },
 
-    infoDescription: {
-      marginTop:
-        3,
-
-      color:
-        COLORS.muted,
-
-      fontFamily:
-        'Inter_400Regular',
-
-      fontSize:
-        9,
+    infoValueRegular: {
+      fontFamily: 'Inter_400Regular',
+      fontSize: 13,
     },
 
-    infoDivider: {
-      height:
-        StyleSheet.hairlineWidth,
-
-      marginLeft:
-        54,
-
-      backgroundColor:
-        COLORS.border,
+    infoSub: {
+      marginTop: 1,
+      color: COLORS.muted,
+      fontFamily: 'Inter_400Regular',
+      fontSize: 12,
+      lineHeight: 17,
     },
+
+    directionsButton: {
+      marginTop: 8,
+      alignSelf: 'flex-start',
+      height: 30,
+      paddingHorizontal: 10,
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 5,
+      borderRadius: 15,
+      borderWidth: 1,
+      borderColor: COLORS.tileBorder,
+      backgroundColor: COLORS.white,
+    },
+
+    directionsText: {
+      color: COLORS.redButton,
+      fontFamily: 'Inter_600SemiBold',
+      fontSize: 12,
+    },
+
+    typeChips: {
+      marginTop: 5,
+      flexDirection: 'row',
+      flexWrap: 'wrap',
+      gap: 6,
+    },
+
+    typeChip: {
+      minWidth: 36,
+      paddingHorizontal: 8,
+      height: 24,
+      alignItems: 'center',
+      justifyContent: 'center',
+      borderRadius: 12,
+      borderWidth: 1,
+      borderColor: COLORS.tileBorder,
+      backgroundColor: COLORS.pinkLight,
+    },
+
+    typeChipText: {
+      color: COLORS.redButton,
+      fontFamily: 'Inter_700Bold',
+      fontSize: 11.5,
+    },
+
+    // ==========================================================
+    // DONORS
+    // ==========================================================
 
     emptyCard: {
-      minHeight:
-        120,
+      alignItems: 'center',
+      gap: 6,
+      paddingVertical: 20,
+    },
 
-      marginBottom:
-        22,
-
-      padding:
-        20,
-
-      alignItems:
-        'center',
-
-      justifyContent:
-        'center',
-
-      borderWidth:
-        1,
-
-      borderColor:
-        COLORS.border,
-
-      borderRadius:
-        16,
-
-      backgroundColor:
-        COLORS.softCard,
+    emptyIcon: {
+      width: 46,
+      height: 46,
+      borderRadius: 23,
+      alignItems: 'center',
+      justifyContent: 'center',
+      backgroundColor: COLORS.pinkLight,
     },
 
     emptyTitle: {
-      marginTop:
-        8,
-
-      color:
-        COLORS.black,
-
-      fontFamily:
-        'Poppins_600SemiBold',
-
-      fontSize:
-        12,
+      color: COLORS.black,
+      fontFamily: 'Poppins_600SemiBold',
+      fontSize: 14,
     },
 
     emptyText: {
-      marginTop:
-        5,
-
-      color:
-        COLORS.muted,
-
-      fontFamily:
-        'Inter_400Regular',
-
-      fontSize:
-        9,
-
-      textAlign:
-        'center',
-
-      lineHeight:
-        14,
+      color: COLORS.muted,
+      fontFamily: 'Inter_400Regular',
+      fontSize: 12.5,
+      lineHeight: 18,
+      textAlign: 'center',
     },
 
     donorCard: {
-      marginBottom:
-        12,
-
-      padding:
-        14,
-
-      borderWidth:
-        1,
-
-      borderColor:
-        COLORS.border,
-
-      borderRadius:
-        16,
-
-      backgroundColor:
-        COLORS.white,
+      marginBottom: 10,
+      padding: 13,
+      borderRadius: 14,
+      borderWidth: 1,
+      borderColor: COLORS.cardBorder,
+      backgroundColor: COLORS.white,
     },
 
     donorCardAccepted: {
-      borderColor:
-        '#B8DFC7',
-
-      backgroundColor:
-        '#FCFFFD',
+      borderColor: '#BFE3CC',
     },
 
-    donorHeader: {
-      flexDirection:
-        'row',
-
-      alignItems:
-        'flex-start',
+    donorCardFaded: {
+      opacity: 0.6,
     },
 
-    donorAvatar: {
-      width:
-        44,
-
-      height:
-        44,
-
-      marginRight:
-        10,
-
-      borderRadius:
-        22,
-
-      alignItems:
-        'center',
-
-      justifyContent:
-        'center',
-
-      backgroundColor:
-        COLORS.redButton,
+    donorTop: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 8,
     },
 
-    donorAvatarText: {
-      color:
-        COLORS.white,
-
-      fontFamily:
-        'Poppins_700Bold',
-
-      fontSize:
-        12,
+    donorIdentity: {
+      flex: 1,
+      minWidth: 0,
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 10,
     },
 
-    donorInfo: {
-      flex:
-        1,
+    avatar: {
+      width: 42,
+      height: 42,
+      borderRadius: 21,
+      alignItems: 'center',
+      justifyContent: 'center',
+      backgroundColor: COLORS.pinkLight,
+    },
+
+    avatarText: {
+      color: COLORS.redButton,
+      fontFamily: 'Poppins_600SemiBold',
+      fontSize: 14,
+    },
+
+    donorNameRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 4,
     },
 
     donorName: {
-      color:
-        COLORS.black,
-
-      fontFamily:
-        'Poppins_600SemiBold',
-
-      fontSize:
-        11.5,
+      flexShrink: 1,
+      color: COLORS.black,
+      fontFamily: 'Poppins_600SemiBold',
+      fontSize: 14,
     },
 
-    badgeRow: {
-      marginTop:
-        5,
-
-      flexDirection:
-        'row',
-
-      alignItems:
-        'center',
-
-      flexWrap:
-        'wrap',
-
-      gap:
-        5,
+    donorMeta: {
+      color: COLORS.muted,
+      fontFamily: 'Inter_400Regular',
+      fontSize: 12,
     },
 
-    bloodBadge: {
-      paddingHorizontal:
-        7,
-
-      paddingVertical:
-        4,
-
-      borderRadius:
-        7,
-
-      backgroundColor:
-        COLORS.pinkLight,
-
-      borderWidth:
-        1,
-
-      borderColor:
-        COLORS.softBorder,
+    donorTrust: {
+      marginTop: 5,
     },
 
-    bloodBadgeText: {
-      color:
-        COLORS.redButton,
-
-      fontFamily:
-        'Inter_700Bold',
-
-      fontSize:
-        8,
+    chip: {
+      paddingHorizontal: 9,
+      height: 24,
+      alignItems: 'center',
+      justifyContent: 'center',
+      borderRadius: 12,
     },
 
-    verifiedBadge: {
-      flexDirection:
-        'row',
-
-      alignItems:
-        'center',
-
-      gap:
-        3,
-
-      paddingHorizontal:
-        6,
-
-      paddingVertical:
-        4,
-
-      borderRadius:
-        7,
-
-      backgroundColor:
-        COLORS.greenLight,
-    },
-
-    verifiedText: {
-      color:
-        COLORS.green,
-
-      fontFamily:
-        'Inter_600SemiBold',
-
-      fontSize:
-        7.5,
-    },
-
-    responseStatus: {
-      marginLeft:
-        6,
-
-      paddingHorizontal:
-        7,
-
-      paddingVertical:
-        5,
-
-      borderRadius:
-        8,
-
-      borderWidth:
-        1,
-    },
-
-    responseStatusText: {
-      fontFamily:
-        'Inter_600SemiBold',
-
-      fontSize:
-        7.5,
-    },
-
-    statusAccepted: {
-      borderColor:
-        '#B8DFC7',
-
-      backgroundColor:
-        COLORS.greenLight,
-    },
-
-    statusAcceptedText: {
-      color:
-        COLORS.green,
-    },
-
-    statusPending: {
-      borderColor:
-        '#EFD2B0',
-
-      backgroundColor:
-        COLORS.orangeLight,
-    },
-
-    statusPendingText: {
-      color:
-        COLORS.orange,
-    },
-
-    statusOther: {
-      borderColor:
-        COLORS.border,
-
-      backgroundColor:
-        COLORS.grayLight,
-    },
-
-    statusOtherText: {
-      color:
-        COLORS.muted,
+    chipText: {
+      fontFamily: 'Inter_600SemiBold',
+      fontSize: 11.5,
     },
 
     donorMessage: {
-      marginTop:
-        11,
-
-      padding:
-        10,
-
-      borderRadius:
-        10,
-
-      backgroundColor:
-        COLORS.softCard,
-
-      borderWidth:
-        1,
-
-      borderColor:
-        COLORS.border,
+      marginTop: 10,
+      color: COLORS.black,
+      fontFamily: 'Inter_400Regular',
+      fontStyle: 'italic',
+      fontSize: 13,
+      lineHeight: 19,
     },
 
-    donorMessageText: {
-      color:
-        COLORS.black,
-
-      fontFamily:
-        'Inter_400Regular',
-
-      fontSize:
-        9.5,
-
-      lineHeight:
-        14,
+    inlineNote: {
+      marginTop: 10,
+      flexDirection: 'row',
+      alignItems: 'flex-start',
+      gap: 6,
     },
 
-    actionRow: {
-      marginTop:
-        12,
-
-      flexDirection:
-        'row',
-
-      gap:
-        8,
+    inlineNoteText: {
+      flex: 1,
+      fontFamily: 'Inter_600SemiBold',
+      fontSize: 12.5,
+      lineHeight: 17,
     },
 
-    rejectButton: {
-      flex:
-        1,
-
-      height:
-        40,
-
-      alignItems:
-        'center',
-
-      justifyContent:
-        'center',
-
-      borderRadius:
-        10,
-
-      borderWidth:
-        1.3,
-
-      borderColor:
-        COLORS.redButton,
+    recordBox: {
+      marginTop: 10,
+      padding: 10,
+      gap: 7,
+      borderRadius: 11,
+      backgroundColor: '#FBF6F6',
     },
 
-    rejectButtonText: {
-      color:
-        COLORS.redButton,
-
-      fontFamily:
-        'Poppins_600SemiBold',
-
-      fontSize:
-        9.5,
+    recordRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 7,
     },
 
-    acceptButton: {
-      flex:
-        1,
-
-      height:
-        40,
-
-      alignItems:
-        'center',
-
-      justifyContent:
-        'center',
-
-      borderRadius:
-        10,
-
-      backgroundColor:
-        COLORS.redButton,
+    recordText: {
+      flex: 1,
+      color: COLORS.black,
+      fontFamily: 'Inter_600SemiBold',
+      fontSize: 12.5,
     },
 
-    acceptButtonText: {
-      color:
-        COLORS.white,
-
-      fontFamily:
-        'Poppins_600SemiBold',
-
-      fontSize:
-        9.5,
+    ratingRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 8,
     },
 
-    acceptedNotice: {
-      marginTop:
-        11,
-
-      minHeight:
-        38,
-
-      paddingHorizontal:
-        10,
-
-      flexDirection:
-        'row',
-
-      alignItems:
-        'center',
-
-      gap:
-        6,
-
-      borderRadius:
-        10,
-
-      backgroundColor:
-        COLORS.greenLight,
+    ratingLabel: {
+      width: 72,
+      color: COLORS.muted,
+      fontFamily: 'Inter_500Medium',
+      fontSize: 12,
     },
 
-    acceptedNoticeText: {
-      color:
-        COLORS.green,
-
-      fontFamily:
-        'Inter_600SemiBold',
-
-      fontSize:
-        8.5,
+    ratingComment: {
+      color: COLORS.muted,
+      fontFamily: 'Inter_400Regular',
+      fontStyle: 'italic',
+      fontSize: 12.5,
+      lineHeight: 18,
     },
 
-    coordinateButton: {
-      height:
-        42,
-
-      marginTop:
-        9,
-
-      flexDirection:
-        'row',
-
-      alignItems:
-        'center',
-
-      justifyContent:
-        'center',
-
-      gap:
-        6,
-
-      borderRadius:
-        10,
-
-      backgroundColor:
-        COLORS.redButton,
+    starRow: {
+      flexDirection: 'row',
+      gap: 1,
     },
 
-    coordinateButtonText: {
-      color:
-        COLORS.white,
-
-      fontFamily:
-        'Poppins_600SemiBold',
-
-      fontSize:
-        9.5,
+    cardActions: {
+      marginTop: 12,
+      flexDirection: 'row',
+      gap: 8,
     },
 
-    completionCard: {
-      marginTop:
-        8,
-
-      marginBottom:
-        23,
-
-      padding:
-        14,
-
-      borderRadius:
-        16,
-
-      borderWidth:
-        1,
-
-      borderColor:
-        '#B8DFC7',
-
-      backgroundColor:
-        COLORS.greenLight,
+    actionButton: {
+      flex: 1,
+      height: 40,
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: 6,
+      borderRadius: 11,
     },
 
-    completionIcon: {
-      width:
-        42,
-
-      height:
-        42,
-
-      borderRadius:
-        21,
-
-      alignItems:
-        'center',
-
-      justifyContent:
-        'center',
-
-      backgroundColor:
-        COLORS.white,
+    actionOutline: {
+      borderWidth: 1,
+      borderColor: COLORS.tileBorder,
+      backgroundColor: COLORS.white,
     },
 
-    completionTextArea: {
-      marginTop:
-        8,
+    actionOutlineText: {
+      color: COLORS.redButton,
+      fontFamily: 'Poppins_600SemiBold',
+      fontSize: 13.5,
     },
 
-    completionTitle: {
-      color:
-        COLORS.green,
-
-      fontFamily:
-        'Poppins_600SemiBold',
-
-      fontSize:
-        12,
+    actionFilled: {
+      backgroundColor: COLORS.redButton,
     },
 
-    completionDescription: {
-      marginTop:
-        3,
-
-      color:
-        COLORS.muted,
-
-      fontFamily:
-        'Inter_400Regular',
-
-      fontSize:
-        9,
-
-      lineHeight:
-        14,
+    actionFilledText: {
+      color: COLORS.white,
+      fontFamily: 'Poppins_600SemiBold',
+      fontSize: 13.5,
     },
 
-    fulfillButton: {
-      height:
-        42,
-
-      marginTop:
-        12,
-
-      flexDirection:
-        'row',
-
-      alignItems:
-        'center',
-
-      justifyContent:
-        'center',
-
-      gap:
-        6,
-
-      borderRadius:
-        10,
-
-      backgroundColor:
-        COLORS.green,
+    badge: {
+      minWidth: 18,
+      height: 18,
+      paddingHorizontal: 5,
+      alignItems: 'center',
+      justifyContent: 'center',
+      borderRadius: 9,
+      backgroundColor: COLORS.red,
     },
 
-    fulfillButtonText: {
-      color:
-        COLORS.white,
-
-      fontFamily:
-        'Poppins_600SemiBold',
-
-      fontSize:
-        9.5,
+    badgeText: {
+      color: COLORS.white,
+      fontFamily: 'Inter_700Bold',
+      fontSize: 11,
     },
 
-    disabledButton: {
-      opacity:
-        0.5,
+    // ==========================================================
+    // FOOTER
+    // ==========================================================
+
+    footer: {
+      paddingHorizontal: 16,
+      paddingTop: 10,
+      borderTopWidth: 1,
+      borderTopColor: '#EFE3E3',
+      backgroundColor: COLORS.white,
     },
 
-    progressCard: {
-      marginBottom:
-        23,
-
-      padding:
-        15,
-
-      borderWidth:
-        1,
-
-      borderColor:
-        COLORS.border,
-
-      borderRadius:
-        16,
+    primaryButton: {
+      borderRadius: 13,
+      overflow: 'hidden',
     },
 
-    progressStep: {
-      minHeight:
-        65,
-
-      flexDirection:
-        'row',
+    primaryGradient: {
+      height: 52,
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: 8,
     },
 
-    progressStepLast: {
-      minHeight:
-        45,
-
-      flexDirection:
-        'row',
-    },
-
-    timeline: {
-      width:
-        31,
-
-      alignItems:
-        'center',
-    },
-
-    completedCircle: {
-      width:
-        29,
-
-      height:
-        29,
-
-      borderRadius:
-        15,
-
-      alignItems:
-        'center',
-
-      justifyContent:
-        'center',
-
-      backgroundColor:
-        COLORS.green,
-    },
-
-    currentCircle: {
-      width:
-        29,
-
-      height:
-        29,
-
-      borderRadius:
-        15,
-
-      alignItems:
-        'center',
-
-      justifyContent:
-        'center',
-
-      backgroundColor:
-        COLORS.redButton,
-    },
-
-    inactiveCircle: {
-      width:
-        29,
-
-      height:
-        29,
-
-      borderRadius:
-        15,
-
-      alignItems:
-        'center',
-
-      justifyContent:
-        'center',
-
-      borderWidth:
-        1,
-
-      borderColor:
-        '#D5D5D5',
-    },
-
-    timelineLine: {
-      width:
-        2,
-
-      flex:
-        1,
-
-      marginVertical:
-        3,
-
-      backgroundColor:
-        '#E3E3E3',
-    },
-
-    progressTextArea: {
-      flex:
-        1,
-
-      paddingLeft:
-        9,
-
-      paddingTop:
-        2,
-    },
-
-    progressTitle: {
-      color:
-        COLORS.black,
-
-      fontFamily:
-        'Inter_600SemiBold',
-
-      fontSize:
-        11,
-    },
-
-    progressDescription: {
-      marginTop:
-        3,
-
-      color:
-        COLORS.muted,
-
-      fontFamily:
-        'Inter_400Regular',
-
-      fontSize:
-        9,
-
-      lineHeight:
-        14,
+    primaryText: {
+      color: COLORS.white,
+      fontFamily: 'Poppins_600SemiBold',
+      fontSize: 15,
     },
 
     cancelButton: {
-      height:
-        48,
-
-      flexDirection:
-        'row',
-
-      alignItems:
-        'center',
-
-      justifyContent:
-        'center',
-
-      gap:
-        6,
-
-      borderWidth:
-        1.5,
-
-      borderColor:
-        COLORS.redButton,
-
-      borderRadius:
-        12,
+      height: 50,
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: 7,
+      borderRadius: 13,
+      borderWidth: 1.5,
+      borderColor: COLORS.redButton,
+      backgroundColor: COLORS.white,
     },
 
-    cancelButtonText: {
-      color:
-        COLORS.redButton,
-
-      fontFamily:
-        'Poppins_600SemiBold',
-
-      fontSize:
-        10.5,
-    },
-
-    cancelHint: {
-      marginTop:
-        7,
-
-      color:
-        COLORS.lightMuted,
-
-      fontFamily:
-        'Inter_400Regular',
-
-      fontSize:
-        8.5,
-
-      textAlign:
-        'center',
-    },
-
-    dashboardButton: {
-      height:
-        48,
-
-      flexDirection:
-        'row',
-
-      alignItems:
-        'center',
-
-      justifyContent:
-        'center',
-
-      gap:
-        6,
-
-      borderRadius:
-        12,
-
-      backgroundColor:
-        COLORS.redButton,
-    },
-
-    dashboardButtonText: {
-      color:
-        COLORS.white,
-
-      fontFamily:
-        'Poppins_600SemiBold',
-
-      fontSize:
-        10.5,
-    },
-
-    // ========================================================
-    // IN-APP ACTION POPUP
-    // ========================================================
-
-    actionPopupOverlay: {
-      flex:
-        1,
-
-      alignItems:
-        'center',
-
-      justifyContent:
-        'center',
-
-      paddingHorizontal:
-        24,
-
-      backgroundColor:
-        'rgba(0,0,0,0.48)',
-    },
-
-    actionPopupCard: {
-      width:
-        '100%',
-
-      maxWidth:
-        360,
-
-      paddingHorizontal:
-        20,
-
-      paddingTop:
-        22,
-
-      paddingBottom:
-        18,
-
-      borderRadius:
-        22,
-
-      backgroundColor:
-        COLORS.white,
-
-      shadowColor:
-        '#000000',
-
-      shadowOffset: {
-        width:
-          0,
-
-        height:
-          8,
-      },
-
-      shadowOpacity:
-        0.2,
-
-      shadowRadius:
-        18,
-
-      elevation:
-        10,
-    },
-
-    actionPopupIcon: {
-      width:
-        56,
-
-      height:
-        56,
-
-      alignSelf:
-        'center',
-
-      marginBottom:
-        13,
-
-      borderRadius:
-        28,
-
-      alignItems:
-        'center',
-
-      justifyContent:
-        'center',
-
-      backgroundColor:
-        COLORS.pinkLight,
-    },
-
-    actionPopupIconSuccess: {
-      backgroundColor:
-        COLORS.greenLight,
-    },
-
-    actionPopupIconWarning: {
-      backgroundColor:
-        COLORS.orangeLight,
-    },
-
-    actionPopupIconDanger: {
-      backgroundColor:
-        COLORS.pinkLight,
-    },
-
-    actionPopupTitle: {
-      color:
-        COLORS.black,
-
-      fontFamily:
-        'Poppins_600SemiBold',
-
-      fontSize:
-        16,
-
-      lineHeight:
-        21,
-
-      textAlign:
-        'center',
-    },
-
-    actionPopupMessage: {
-      marginTop:
-        8,
-
-      color:
-        COLORS.muted,
-
-      fontFamily:
-        'Inter_400Regular',
-
-      fontSize:
-        10.8,
-
-      lineHeight:
-        17,
-
-      textAlign:
-        'center',
-    },
-
-    actionPopupActions: {
-      flexDirection:
-        'row',
-
-      gap:
-        9,
-
-      marginTop:
-        19,
-    },
-
-    actionPopupActionsSingle: {
-      justifyContent:
-        'center',
-    },
-
-    actionPopupSecondaryButton: {
-      flex:
-        1,
-
-      height:
-        45,
-
-      borderWidth:
-        1,
-
-      borderColor:
-        COLORS.softBorder,
-
-      borderRadius:
-        10,
-
-      alignItems:
-        'center',
-
-      justifyContent:
-        'center',
-
-      backgroundColor:
-        COLORS.white,
-    },
-
-    actionPopupSecondaryText: {
-      color:
-        COLORS.redButton,
-
-      fontFamily:
-        'Poppins_600SemiBold',
-
-      fontSize:
-        10,
-    },
-
-    actionPopupPrimaryButton: {
-      flex:
-        1,
-
-      minWidth:
-        128,
-
-      height:
-        45,
-
-      borderRadius:
-        10,
-
-      alignItems:
-        'center',
-
-      justifyContent:
-        'center',
-
-      backgroundColor:
-        COLORS.redButton,
-    },
-
-    actionPopupPrimarySuccess: {
-      backgroundColor:
-        COLORS.green,
-    },
-
-    actionPopupPrimaryDanger: {
-      backgroundColor:
-        COLORS.redButton,
-    },
-
-    actionPopupPrimaryText: {
-      color:
-        COLORS.white,
-
-      fontFamily:
-        'Poppins_600SemiBold',
-
-      fontSize:
-        10,
+    cancelText: {
+      color: COLORS.redButton,
+      fontFamily: 'Poppins_600SemiBold',
+      fontSize: 15,
     },
   });

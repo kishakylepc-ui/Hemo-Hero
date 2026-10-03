@@ -3,6 +3,10 @@
 // API CLIENT
 // ============================================================
 
+import { router } from 'expo-router';
+
+import { clearAdminSession } from './session';
+
 const RAW_API_URL =
   process.env.EXPO_PUBLIC_API_URL ||
   'http://localhost:5000';
@@ -152,6 +156,17 @@ export type DonorApplication = {
 
     expires_in_seconds?: number;
   } | null;
+
+  // Photo proving the applicant's blood type (private link).
+  blood_type_proof?: {
+    available?: boolean;
+
+    url?: string | null;
+
+    uploaded_at?: string | null;
+
+    expires_in_seconds?: number;
+  } | null;
 };
 
 // ============================================================
@@ -290,7 +305,8 @@ export type AdminBloodTypeDemandResponse = {
 export type AdminBloodRequestStatus =
   | 'active'
   | 'fulfilled'
-  | 'cancelled';
+  | 'cancelled'
+  | 'expired';
 
 export type AdminBloodRequestUrgency =
   | 'urgent'
@@ -383,6 +399,8 @@ export type AdminBloodRequestSummary = {
   fulfilled: number;
 
   cancelled: number;
+
+  expired: number;
 
   urgent_active: number;
 
@@ -677,6 +695,300 @@ export type AdminDeleteUserResponse = {
 };
 
 // ============================================================
+// ADMIN NOTIFICATION TYPES
+//
+// Admins use the shared /api/notifications routes. The server
+// only returns the signed-in admin's own notifications.
+// ============================================================
+
+export type AdminNotification = {
+  id: string;
+
+  user_id: string;
+
+  // e.g. admin_donor_application, admin_user_report,
+  // admin_urgent_blood_request
+  type: string;
+
+  title: string;
+
+  message: string;
+
+  data?: {
+    // Admin Portal screen to open, e.g. '/issues/<id>'
+    route?: string;
+
+    [key: string]: unknown;
+  } | null;
+
+  is_read: boolean;
+
+  read_at?: string | null;
+
+  created_at: string;
+};
+
+export type AdminNotificationsResponse = {
+  count: number;
+
+  unread_count: number;
+
+  notifications:
+    AdminNotification[];
+};
+
+// ============================================================
+// ADMIN ISSUE (USER REPORT) TYPES
+// ============================================================
+
+export type AdminReportKind =
+  | 'feedback'
+  | 'report';
+
+export type AdminReportStatus =
+  | 'open'
+  | 'in_review'
+  | 'resolved'
+  | 'dismissed';
+
+export type AdminReportUser = {
+  id: string;
+
+  email?: string | null;
+
+  first_name?: string | null;
+
+  middle_name?: string | null;
+
+  last_name?: string | null;
+
+  suffix?: string | null;
+
+  full_name?: string | null;
+
+  phone?: string | null;
+
+  city?: string | null;
+
+  province?: string | null;
+
+  blood_type?: string | null;
+
+  profile_photo_url?: string | null;
+
+  role?: string | null;
+
+  is_active?: boolean;
+};
+
+export type AdminReportRequest = {
+  id: string;
+
+  requester_id?: string | null;
+
+  blood_type: string;
+
+  units_needed: number;
+
+  facility_name: string;
+
+  urgency?: string | null;
+
+  status: string;
+
+  created_at?: string | null;
+
+  // Hidden from nearby donors after several reports.
+  flagged_at?: string | null;
+
+  // Removed by an admin after review.
+  removed_at?: string | null;
+
+  removal_reason?: string | null;
+};
+
+export type AdminReport = {
+  id: string;
+
+  kind:
+    AdminReportKind;
+
+  reporter_id?: string | null;
+
+  reported_user_id?: string | null;
+
+  reporter_email?: string | null;
+
+  reported_user_email?: string | null;
+
+  request_id?: string | null;
+
+  response_id?: string | null;
+
+  reason?: string | null;
+
+  details?: string | null;
+
+  status:
+    AdminReportStatus;
+
+  admin_note?: string | null;
+
+  reviewed_by?: string | null;
+
+  reviewed_at?: string | null;
+
+  created_at: string;
+
+  updated_at?: string | null;
+
+  reporter?:
+    AdminReportUser | null;
+
+  reported_user?:
+    AdminReportUser | null;
+
+  reviewer?:
+    AdminReportUser | null;
+
+  // Only returned by the details endpoint.
+  request?:
+    AdminReportRequest | null;
+
+  reported_user_report_count?:
+    number;
+
+  // 'No-show' reports against the reported person.
+  reported_user_no_show_count?:
+    number;
+
+  // Open reports about the request itself (false request,
+  // asking for payment). Only for request-level reports.
+  request_report_count?:
+    number;
+};
+
+export type AdminReportSummary = {
+  total: number;
+
+  open: number;
+
+  in_review: number;
+
+  resolved: number;
+
+  dismissed: number;
+
+  reports: number;
+
+  feedback: number;
+
+  unresolved_reports: number;
+};
+
+export type AdminReportPagination = {
+  page: number;
+
+  limit: number;
+
+  total: number;
+
+  total_pages: number;
+};
+
+export type AdminReportFilters = {
+  page?: number;
+
+  limit?: number;
+
+  status?:
+    | 'all'
+    | AdminReportStatus;
+
+  kind?:
+    | 'all'
+    | AdminReportKind;
+
+  search?: string;
+
+  // Issues filed by OR about this user.
+  user_id?: string;
+};
+
+export type AdminReportsResponse = {
+  summary:
+    AdminReportSummary;
+
+  reports:
+    AdminReport[];
+
+  pagination:
+    AdminReportPagination;
+
+  filters?: {
+    status?: string | null;
+
+    kind?: string | null;
+
+    search?: string | null;
+  };
+};
+
+export type AdminUpdateReportInput = {
+  status?:
+    AdminReportStatus;
+
+  admin_note?: string | null;
+};
+
+// ============================================================
+// SESSION EXPIRY
+//
+// Error codes the server (authMiddleware.js) returns when the
+// stored admin session can no longer be used. When one of these
+// arrives from an authenticated request, the local session is
+// cleared and the admin is sent back to the login screen.
+// ============================================================
+
+const SESSION_ENDED_CODES = [
+  'AUTH_HEADER_MISSING',
+  'AUTH_HEADER_INVALID',
+  'AUTH_TOKEN_MISSING',
+  'AUTH_TOKEN_INVALID',
+  'AUTH_REQUIRED',
+  'USER_PROFILE_NOT_FOUND',
+  'ACCOUNT_DEACTIVATED',
+  'ADMIN_REQUIRED',
+];
+
+// Prevents several failing requests from redirecting at once.
+let handlingSessionEnd = false;
+
+async function handleSessionEnded() {
+  if (handlingSessionEnd) {
+    return;
+  }
+
+  handlingSessionEnd = true;
+
+  try {
+    await clearAdminSession();
+
+    router.replace('/');
+  } catch (error) {
+    console.log(
+      'SESSION END REDIRECT ERROR:',
+      error
+    );
+  } finally {
+    // Allow future sessions to be handled again.
+    setTimeout(() => {
+      handlingSessionEnd = false;
+    }, 1500);
+  }
+}
+
+// ============================================================
 // RESPONSE HELPER
 // ============================================================
 
@@ -692,6 +1004,27 @@ async function parseResponse(
   } catch {
     data =
       null;
+  }
+
+  // The login request is excluded: a failed sign-in must show
+  // its own message, not redirect.
+  if (
+    (response.status === 401 ||
+      response.status === 403) &&
+    SESSION_ENDED_CODES.includes(
+      data?.code
+    ) &&
+    !String(
+      response.url || ''
+    ).includes(
+      '/api/auth/login'
+    )
+  ) {
+    void handleSessionEnded();
+
+    throw new Error(
+      'Your session has ended. Please sign in again.'
+    );
   }
 
   if (
@@ -788,6 +1121,214 @@ export async function requestAdminPasswordReset(
             email:
               email.trim(),
           }),
+      }
+    );
+
+  return parseResponse(
+    response
+  );
+}
+
+// ============================================================
+// ADMIN OWN ACCOUNT (SETTINGS)
+//
+// Uses the shared /api/auth/me account routes.
+// The server identifies the account from the token.
+// ============================================================
+
+export type AdminAccountUpdateInput = {
+  first_name?: string;
+
+  middle_name?: string | null;
+
+  last_name?: string;
+
+  suffix?: string | null;
+
+  phone?: string | null;
+};
+
+export type AdminReloginResponse = {
+  message: string;
+
+  // Password/email changes end the current session.
+  requires_relogin: boolean;
+
+  email?: string;
+};
+
+// GET /api/auth/me
+
+export async function getAdminAccount(
+  token: string
+): Promise<{
+  user:
+    AdminManagedUser;
+}> {
+  const response =
+    await fetch(
+      `${API_URL}/api/auth/me`,
+      {
+        headers: {
+          Authorization:
+            `Bearer ${token}`,
+        },
+      }
+    );
+
+  return parseResponse(
+    response
+  );
+}
+
+// PATCH /api/auth/me
+
+export async function updateAdminAccount(
+  token: string,
+  input:
+    AdminAccountUpdateInput
+): Promise<{
+  message: string;
+
+  user:
+    AdminManagedUser;
+}> {
+  const response =
+    await fetch(
+      `${API_URL}/api/auth/me`,
+      {
+        method:
+          'PATCH',
+
+        headers: {
+          Authorization:
+            `Bearer ${token}`,
+
+          'Content-Type':
+            'application/json',
+        },
+
+        body:
+          JSON.stringify(
+            input
+          ),
+      }
+    );
+
+  return parseResponse(
+    response
+  );
+}
+
+// PATCH /api/auth/me/password
+
+export async function changeAdminPassword(
+  token: string,
+  input: {
+    current_password: string;
+
+    new_password: string;
+
+    confirm_password: string;
+  }
+): Promise<AdminReloginResponse> {
+  const response =
+    await fetch(
+      `${API_URL}/api/auth/me/password`,
+      {
+        method:
+          'PATCH',
+
+        headers: {
+          Authorization:
+            `Bearer ${token}`,
+
+          'Content-Type':
+            'application/json',
+        },
+
+        body:
+          JSON.stringify(
+            input
+          ),
+      }
+    );
+
+  return parseResponse(
+    response
+  );
+}
+
+// PATCH /api/auth/me/email
+
+export async function changeAdminEmail(
+  token: string,
+  input: {
+    current_password: string;
+
+    new_email: string;
+
+    confirm_email: string;
+  }
+): Promise<AdminReloginResponse> {
+  const response =
+    await fetch(
+      `${API_URL}/api/auth/me/email`,
+      {
+        method:
+          'PATCH',
+
+        headers: {
+          Authorization:
+            `Bearer ${token}`,
+
+          'Content-Type':
+            'application/json',
+        },
+
+        body:
+          JSON.stringify({
+            current_password:
+              input.current_password,
+
+            new_email:
+              input.new_email
+                .trim()
+                .toLowerCase(),
+
+            confirm_email:
+              input.confirm_email
+                .trim()
+                .toLowerCase(),
+          }),
+      }
+    );
+
+  return parseResponse(
+    response
+  );
+}
+
+// POST /api/auth/logout
+//
+// Revokes the Supabase session on the server.
+
+export async function logoutAdmin(
+  token: string
+): Promise<{
+  message: string;
+}> {
+  const response =
+    await fetch(
+      `${API_URL}/api/auth/logout`,
+      {
+        method:
+          'POST',
+
+        headers: {
+          Authorization:
+            `Bearer ${token}`,
+        },
       }
     );
 
@@ -1630,5 +2171,867 @@ export async function deleteAdminUser(
 
   return parseResponse(
     response
+  );
+}
+
+// ============================================================
+// ADMIN NOTIFICATIONS
+//
+// GET   /api/notifications?limit=
+// GET   /api/notifications/unread-count
+// PATCH /api/notifications/:id/read
+// PATCH /api/notifications/read-all
+// ============================================================
+
+export async function getAdminNotifications(
+  token: string,
+  limit = 30
+): Promise<AdminNotificationsResponse> {
+  const response =
+    await fetch(
+      `${API_URL}/api/notifications?limit=${encodeURIComponent(
+        String(limit)
+      )}`,
+      {
+        headers: {
+          Authorization:
+            `Bearer ${token}`,
+        },
+      }
+    );
+
+  return parseResponse(
+    response
+  );
+}
+
+export async function getAdminUnreadNotificationCount(
+  token: string
+): Promise<{
+  unread_count: number;
+}> {
+  const response =
+    await fetch(
+      `${API_URL}/api/notifications/unread-count`,
+      {
+        headers: {
+          Authorization:
+            `Bearer ${token}`,
+        },
+      }
+    );
+
+  return parseResponse(
+    response
+  );
+}
+
+export async function markAdminNotificationRead(
+  token: string,
+  notificationId: string
+): Promise<{
+  message: string;
+
+  notification:
+    AdminNotification;
+}> {
+  const response =
+    await fetch(
+      `${API_URL}/api/notifications/${encodeURIComponent(
+        notificationId
+      )}/read`,
+      {
+        method:
+          'PATCH',
+
+        headers: {
+          Authorization:
+            `Bearer ${token}`,
+        },
+      }
+    );
+
+  return parseResponse(
+    response
+  );
+}
+
+export async function markAllAdminNotificationsRead(
+  token: string
+): Promise<{
+  message: string;
+
+  updated_count: number;
+}> {
+  const response =
+    await fetch(
+      `${API_URL}/api/notifications/read-all`,
+      {
+        method:
+          'PATCH',
+
+        headers: {
+          Authorization:
+            `Bearer ${token}`,
+        },
+      }
+    );
+
+  return parseResponse(
+    response
+  );
+}
+
+// ============================================================
+// ADMIN ISSUE SUMMARY
+//
+// GET /api/admin/reports/summary
+// ============================================================
+
+export async function getAdminReportSummary(
+  token: string
+): Promise<{
+  summary:
+    AdminReportSummary;
+}> {
+  const response =
+    await fetch(
+      `${API_URL}/api/admin/reports/summary`,
+      {
+        headers: {
+          Authorization:
+            `Bearer ${token}`,
+        },
+      }
+    );
+
+  return parseResponse(
+    response
+  );
+}
+
+// ============================================================
+// GET ADMIN ISSUES
+//
+// GET /api/admin/reports
+// ============================================================
+
+export async function getAdminReports(
+  token: string,
+  filters:
+    AdminReportFilters = {}
+): Promise<AdminReportsResponse> {
+  const params =
+    new URLSearchParams();
+
+  if (
+    filters.page !==
+    undefined
+  ) {
+    params.set(
+      'page',
+      String(
+        filters.page
+      )
+    );
+  }
+
+  if (
+    filters.limit !==
+    undefined
+  ) {
+    params.set(
+      'limit',
+      String(
+        filters.limit
+      )
+    );
+  }
+
+  if (
+    filters.status &&
+    filters.status !==
+      'all'
+  ) {
+    params.set(
+      'status',
+      filters.status
+    );
+  }
+
+  if (
+    filters.kind &&
+    filters.kind !==
+      'all'
+  ) {
+    params.set(
+      'kind',
+      filters.kind
+    );
+  }
+
+  if (
+    filters.search
+      ?.trim()
+  ) {
+    params.set(
+      'search',
+      filters.search.trim()
+    );
+  }
+
+  if (
+    filters.user_id
+  ) {
+    params.set(
+      'user_id',
+      filters.user_id
+    );
+  }
+
+  const queryString =
+    params.toString();
+
+  const url =
+    queryString
+      ? `${API_URL}/api/admin/reports?${queryString}`
+      : `${API_URL}/api/admin/reports`;
+
+  const response =
+    await fetch(
+      url,
+      {
+        headers: {
+          Authorization:
+            `Bearer ${token}`,
+        },
+      }
+    );
+
+  return parseResponse(
+    response
+  );
+}
+
+// ============================================================
+// GET ADMIN ISSUE DETAILS
+//
+// GET /api/admin/reports/:id
+// ============================================================
+
+export async function getAdminReportById(
+  token: string,
+  reportId: string
+): Promise<{
+  report:
+    AdminReport;
+}> {
+  const response =
+    await fetch(
+      `${API_URL}/api/admin/reports/${encodeURIComponent(
+        reportId
+      )}`,
+      {
+        headers: {
+          Authorization:
+            `Bearer ${token}`,
+        },
+      }
+    );
+
+  return parseResponse(
+    response
+  );
+}
+
+// ============================================================
+// UPDATE ADMIN ISSUE
+//
+// PATCH /api/admin/reports/:id
+// ============================================================
+
+export async function updateAdminReport(
+  token: string,
+  reportId: string,
+  input:
+    AdminUpdateReportInput
+): Promise<{
+  message: string;
+
+  report:
+    AdminReport;
+}> {
+  const response =
+    await fetch(
+      `${API_URL}/api/admin/reports/${encodeURIComponent(
+        reportId
+      )}`,
+      {
+        method:
+          'PATCH',
+
+        headers: {
+          Authorization:
+            `Bearer ${token}`,
+
+          'Content-Type':
+            'application/json',
+        },
+
+        body:
+          JSON.stringify(
+            input
+          ),
+      }
+    );
+
+  return parseResponse(
+    response
+  );
+}
+
+// ============================================================
+// REVIEW A REPORTED BLOOD REQUEST
+//
+// PATCH /api/requests/admin/:id/remove  { note }  take it down
+// PATCH /api/requests/admin/:id/keep    { note? } keep it up
+// ============================================================
+
+export async function removeAdminBloodRequest(
+  token: string,
+  requestId: string,
+  note: string
+): Promise<{ message: string }> {
+  const response =
+    await fetch(
+      `${API_URL}/api/requests/admin/${encodeURIComponent(
+        requestId
+      )}/remove`,
+      {
+        method:
+          'PATCH',
+
+        headers: {
+          Authorization:
+            `Bearer ${token}`,
+
+          'Content-Type':
+            'application/json',
+        },
+
+        body:
+          JSON.stringify({
+            note,
+          }),
+      }
+    );
+
+  return parseResponse(
+    response
+  );
+}
+
+export async function keepAdminBloodRequest(
+  token: string,
+  requestId: string,
+  note?: string
+): Promise<{ message: string }> {
+  const response =
+    await fetch(
+      `${API_URL}/api/requests/admin/${encodeURIComponent(
+        requestId
+      )}/keep`,
+      {
+        method:
+          'PATCH',
+
+        headers: {
+          Authorization:
+            `Bearer ${token}`,
+
+          'Content-Type':
+            'application/json',
+        },
+
+        body:
+          JSON.stringify({
+            note:
+              note ||
+              null,
+          }),
+      }
+    );
+
+  return parseResponse(
+    response
+  );
+}
+
+// ============================================================
+// ADMIN DONATIONS (TRANSACTION RECORDS)
+//
+// Every donation the requester confirms is recorded here.
+// It completes automatically unless a check flags it; admins
+// only review flagged records ('needs_review').
+// ============================================================
+
+export type AdminDonationStatus =
+  | 'completed'
+  | 'needs_review'
+  | 'rejected';
+
+export type AdminDonationFeedback = {
+  from_role:
+    | 'donor'
+    | 'requester';
+
+  from_name?: string | null;
+
+  rating: number;
+
+  comment?: string | null;
+
+  created_at: string;
+
+  updated_at?: string | null;
+};
+
+export type AdminDonation = {
+  id: string;
+
+  request_id?: string | null;
+
+  response_id?: string | null;
+
+  donor_id?: string | null;
+
+  requester_id?: string | null;
+
+  // Snapshots saved when the donation was confirmed.
+  donor_name?: string | null;
+
+  requester_name?: string | null;
+
+  blood_type: string;
+
+  facility_name?: string | null;
+
+  units_donated: number;
+
+  donated_at: string;
+
+  requester_note?: string | null;
+
+  status:
+    AdminDonationStatus;
+
+  // Why the record was flagged, e.g. 'donor_disputed'.
+  review_reasons?: string[];
+
+  // Plain-language reasons (details endpoint only).
+  review_reason_labels?: string[];
+
+  // Donor's own report that the record is wrong.
+  dispute_note?: string | null;
+
+  disputed_at?: string | null;
+
+  // Admin's review note, or the reason when rejected.
+  admin_note?: string | null;
+
+  // Admin who reviewed a flagged record, and when.
+  verified_by?: string | null;
+
+  verified_at?: string | null;
+
+  created_at: string;
+
+  updated_at?: string | null;
+
+  // Current accounts + feedback (list endpoint only).
+  donor?:
+    | AdminReportUser
+    | null;
+
+  requester?:
+    | AdminReportUser
+    | null;
+
+  feedback_count?: number;
+
+  average_rating?: number | null;
+};
+
+export type AdminDonationSummary = {
+  total: number;
+
+  completed: number;
+
+  needs_review: number;
+
+  rejected: number;
+
+  completed_units: number;
+
+  feedback_count: number;
+
+  average_rating: number | null;
+};
+
+export type AdminDonationFilters = {
+  page?: number;
+
+  limit?: number;
+
+  status?:
+    | 'all'
+    | AdminDonationStatus;
+
+  search?: string;
+};
+
+export type AdminDonationsResponse = {
+  summary:
+    AdminDonationSummary;
+
+  donations:
+    AdminDonation[];
+
+  pagination:
+    AdminReportPagination;
+};
+
+export type AdminDonationTimelineStep = {
+  key: string;
+
+  label: string;
+
+  actor: string;
+
+  at?: string | null;
+
+  done: boolean;
+};
+
+export type AdminDonationDetail = {
+  donation:
+    AdminDonation;
+
+  request: {
+    id: string;
+
+    requester_id?: string | null;
+
+    blood_type: string;
+
+    units_needed: number;
+
+    facility_name: string;
+
+    facility_address?: string | null;
+
+    urgency?: string | null;
+
+    needed_date?: string | null;
+
+    needed_time?: string | null;
+
+    message?: string | null;
+
+    status: string;
+
+    created_at?: string | null;
+
+    fulfilled_at?: string | null;
+  } | null;
+
+  response: {
+    id: string;
+
+    status: string;
+
+    message?: string | null;
+
+    created_at?: string | null;
+
+    updated_at?: string | null;
+  } | null;
+
+  schedule: {
+    id: string;
+
+    scheduled_at: string;
+
+    note?: string | null;
+  } | null;
+
+  donor:
+    | AdminReportUser
+    | null;
+
+  donor_application: {
+    status?: string | null;
+
+    blood_type?: string | null;
+
+    has_donated_before?: boolean | null;
+
+    last_donation_date?: string | null;
+
+    last_donation_month?: number | null;
+
+    last_donation_year?: number | null;
+
+    availability_status?: string | null;
+  } | null;
+
+  requester:
+    | AdminReportUser
+    | null;
+
+  // Admin who reviewed a flagged record.
+  reviewer: {
+    id: string;
+
+    name?: string | null;
+  } | null;
+
+  // Both sides' feedback on this transaction.
+  feedback:
+    AdminDonationFeedback[];
+
+  // Every donation on the same request (partial fulfilment).
+  request_donations: {
+    id: string;
+
+    donor_name?: string | null;
+
+    units_donated: number;
+
+    donated_at: string;
+
+    status:
+      AdminDonationStatus;
+  }[];
+
+  timeline:
+    AdminDonationTimelineStep[];
+};
+
+// ============================================================
+// GET ADMIN DONATIONS
+//
+// GET /api/admin/donations
+// ============================================================
+
+export async function getAdminDonations(
+  token: string,
+  filters:
+    AdminDonationFilters = {}
+): Promise<AdminDonationsResponse> {
+  const params =
+    new URLSearchParams();
+
+  if (
+    filters.page !==
+    undefined
+  ) {
+    params.set(
+      'page',
+      String(
+        filters.page
+      )
+    );
+  }
+
+  if (
+    filters.limit !==
+    undefined
+  ) {
+    params.set(
+      'limit',
+      String(
+        filters.limit
+      )
+    );
+  }
+
+  if (
+    filters.status &&
+    filters.status !==
+      'all'
+  ) {
+    params.set(
+      'status',
+      filters.status
+    );
+  }
+
+  if (
+    filters.search
+      ?.trim()
+  ) {
+    params.set(
+      'search',
+      filters.search.trim()
+    );
+  }
+
+  const queryString =
+    params.toString();
+
+  const response =
+    await fetch(
+      queryString
+        ? `${API_URL}/api/admin/donations?${queryString}`
+        : `${API_URL}/api/admin/donations`,
+      {
+        headers: {
+          Authorization:
+            `Bearer ${token}`,
+        },
+      }
+    );
+
+  return parseResponse(
+    response
+  );
+}
+
+// ============================================================
+// GET ADMIN DONATION SUMMARY
+//
+// GET /api/admin/donations/summary
+// ============================================================
+
+export async function getAdminDonationSummary(
+  token: string
+): Promise<{
+  summary:
+    AdminDonationSummary;
+}> {
+  const response =
+    await fetch(
+      `${API_URL}/api/admin/donations/summary`,
+      {
+        headers: {
+          Authorization:
+            `Bearer ${token}`,
+        },
+      }
+    );
+
+  return parseResponse(
+    response
+  );
+}
+
+// ============================================================
+// GET ADMIN DONATION DETAILS
+//
+// GET /api/admin/donations/:id
+// ============================================================
+
+export async function getAdminDonationById(
+  token: string,
+  donationId: string
+): Promise<AdminDonationDetail> {
+  const response =
+    await fetch(
+      `${API_URL}/api/admin/donations/${encodeURIComponent(
+        donationId
+      )}`,
+      {
+        headers: {
+          Authorization:
+            `Bearer ${token}`,
+        },
+      }
+    );
+
+  return parseResponse(
+    response
+  );
+}
+
+// ============================================================
+// REVIEW DONATION RECORD
+//
+// PATCH /api/admin/donations/:id/approve  { admin_note? }
+//   flagged record -> completed
+// PATCH /api/admin/donations/:id/reject   { admin_note }
+//   completed or flagged record -> rejected
+// ============================================================
+
+async function decideAdminDonation(
+  token: string,
+  donationId: string,
+  decision:
+    | 'approve'
+    | 'reject',
+  adminNote:
+    | string
+    | null
+): Promise<{
+  message: string;
+
+  donation:
+    AdminDonation;
+}> {
+  const response =
+    await fetch(
+      `${API_URL}/api/admin/donations/${encodeURIComponent(
+        donationId
+      )}/${decision}`,
+      {
+        method:
+          'PATCH',
+
+        headers: {
+          Authorization:
+            `Bearer ${token}`,
+
+          'Content-Type':
+            'application/json',
+        },
+
+        body:
+          JSON.stringify({
+            admin_note:
+              adminNote,
+          }),
+      }
+    );
+
+  return parseResponse(
+    response
+  );
+}
+
+export function approveAdminDonation(
+  token: string,
+  donationId: string,
+  adminNote:
+    | string
+    | null = null
+) {
+  return decideAdminDonation(
+    token,
+    donationId,
+    'approve',
+    adminNote
+  );
+}
+
+export function rejectAdminDonation(
+  token: string,
+  donationId: string,
+  adminNote: string
+) {
+  return decideAdminDonation(
+    token,
+    donationId,
+    'reject',
+    adminNote
   );
 }

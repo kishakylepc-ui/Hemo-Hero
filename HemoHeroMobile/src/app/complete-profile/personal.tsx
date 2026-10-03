@@ -19,7 +19,7 @@ import { router } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import * as ImagePicker from 'expo-image-picker';
+import PhotoSourceSheet from '../../components/PhotoSourceSheet';
 
 const COLORS = {
   red: '#DB0A0A',
@@ -30,14 +30,14 @@ const COLORS = {
   backgroundBottom: '#D90B12',
 
   white: '#FFFFFF',
-  black: '#111111',
+  black: '#171717',
 
   inputBorder: '#D6D6D6',
   placeholder: '#A0A0A0',
   muted: '#646464',
 
   progressInactive: '#D6D6D6',
-  photoBackground: '#E5E5E5',
+  photoBackground: '#EFE3E3',
 
   selectedDate: '#B42323',
 };
@@ -147,6 +147,15 @@ export default function PersonalInformationScreen() {
   ] =
     useState<string | null>(
       null
+    );
+
+  // Take Photo / Choose from Library sheet.
+  const [
+    photoSheetVisible,
+    setPhotoSheetVisible,
+  ] =
+    useState(
+      false
     );
 
   // ==========================================================
@@ -266,65 +275,11 @@ export default function PersonalInformationScreen() {
   // PROFILE PHOTO PICKER
   // ==========================================================
 
-  async function handlePhotoPress() {
-    try {
-      const permission =
-        await ImagePicker
-          .requestMediaLibraryPermissionsAsync();
-
-      if (
-        !permission.granted
-      ) {
-        showMessage(
-          'Permission Required',
-          'Hemo-Hero needs permission to access your photos so you can choose a profile picture.'
-        );
-
-        return;
-      }
-
-      const result =
-        await ImagePicker
-          .launchImageLibraryAsync({
-            mediaTypes: [
-              'images',
-            ],
-
-            allowsEditing:
-              true,
-
-            aspect: [
-              1,
-              1,
-            ],
-
-            quality:
-              0.8,
-          });
-
-      if (
-        !result.canceled &&
-        result.assets &&
-        result.assets.length >
-          0
-      ) {
-        setProfilePhoto(
-          result.assets[0].uri
-        );
-      }
-    } catch (
-      error
-    ) {
-      console.log(
-        'IMAGE PICKER ERROR:',
-        error
-      );
-
-      showMessage(
-        'Unable to Select Photo',
-        'Something went wrong while selecting your profile photo.'
-      );
-    }
+  // The photo is uploaded when the last step saves the profile.
+  function handlePhotoPress() {
+    setPhotoSheetVisible(
+      true
+    );
   }
 
   function handleRemovePhoto() {
@@ -1746,6 +1701,28 @@ export default function PersonalInformationScreen() {
           </View>
         </View>
       </Modal>
+
+      <PhotoSourceSheet
+        visible={
+          photoSheetVisible
+        }
+        onClose={() =>
+          setPhotoSheetVisible(
+            false
+          )
+        }
+        onPicked={image =>
+          setProfilePhoto(
+            image.uri
+          )
+        }
+        onError={message =>
+          showMessage(
+            'Permission Required',
+            message
+          )
+        }
+      />
     </View>
   );
 }
@@ -1905,7 +1882,7 @@ const styles =
         'Poppins_700Bold',
 
       fontSize:
-        17,
+        20,
     },
 
     // ==========================================================
@@ -1920,7 +1897,7 @@ const styles =
         669,
 
       paddingHorizontal:
-        28,
+        20,
 
       paddingBottom:
         30,
@@ -1938,13 +1915,13 @@ const styles =
         640,
 
       paddingHorizontal:
-        24,
+        20,
 
       paddingTop:
-        13,
+        16,
 
       paddingBottom:
-        22,
+        24,
 
       backgroundColor:
         '#FAFAFA',
@@ -2021,7 +1998,7 @@ const styles =
         'Inter_600SemiBold',
 
       fontSize:
-        12,
+        14.5,
 
       marginBottom:
         12,
@@ -2148,7 +2125,7 @@ const styles =
         'Inter_500Medium',
 
       fontSize:
-        10,
+        13.5,
     },
 
     photoSubtitle: {
@@ -2159,7 +2136,7 @@ const styles =
         'Inter_400Regular',
 
       fontSize:
-        8,
+        12,
 
       marginTop:
         2,
@@ -2196,7 +2173,7 @@ const styles =
         'Inter_500Medium',
 
       fontSize:
-        8,
+        12,
     },
 
     // ==========================================================
@@ -2234,7 +2211,7 @@ const styles =
         'Inter_500Medium',
 
       fontSize:
-        9,
+        12,
 
       textAlign:
         'center',
@@ -2252,7 +2229,7 @@ const styles =
         'Inter_500Medium',
 
       fontSize:
-        10,
+        12.5,
 
       marginBottom:
         6,
@@ -2260,7 +2237,7 @@ const styles =
 
     input: {
       height:
-        38,
+        44,
 
       marginBottom:
         12,
@@ -2287,7 +2264,7 @@ const styles =
         'Inter_400Regular',
 
       fontSize:
-        10,
+        13.5,
 
       outlineStyle:
         Platform.OS ===
@@ -2302,7 +2279,7 @@ const styles =
 
     dateSelector: {
       height:
-        38,
+        44,
 
       marginBottom:
         12,
@@ -2354,7 +2331,7 @@ const styles =
         'Inter_400Regular',
 
       fontSize:
-        10,
+        13.5,
     },
 
     placeholderText: {
@@ -2368,7 +2345,7 @@ const styles =
 
     genderSelector: {
       height:
-        38,
+        44,
 
       paddingHorizontal:
         14,
@@ -2403,7 +2380,7 @@ const styles =
         'Inter_400Regular',
 
       fontSize:
-        10,
+        13.5,
     },
 
     genderDropdown: {
@@ -2428,7 +2405,7 @@ const styles =
 
     genderOption: {
       height:
-        36,
+        40,
 
       paddingHorizontal:
         14,
@@ -2453,7 +2430,7 @@ const styles =
         'Inter_400Regular',
 
       fontSize:
-        10,
+        13.5,
     },
 
     // ==========================================================
@@ -2488,7 +2465,7 @@ const styles =
         'Poppins_600SemiBold',
 
       fontSize:
-        12,
+        14.5,
     },
 
     // ==========================================================
@@ -2577,7 +2554,7 @@ const styles =
         'Inter_500Medium',
 
       fontSize:
-        10,
+        12,
     },
 
     calendarSelectedText: {
@@ -2703,7 +2680,7 @@ const styles =
         'Poppins_600SemiBold',
 
       fontSize:
-        14,
+        14.5,
     },
 
     // ==========================================================
@@ -2740,7 +2717,7 @@ const styles =
         'Inter_500Medium',
 
       fontSize:
-        8,
+        11.5,
     },
 
     // ==========================================================
@@ -2791,7 +2768,7 @@ const styles =
         'Inter_400Regular',
 
       fontSize:
-        10,
+        13.5,
     },
 
     dayTextSelected: {
@@ -2839,7 +2816,7 @@ const styles =
         'Inter_600SemiBold',
 
       fontSize:
-        10,
+        13.5,
     },
 
     // ==========================================================
@@ -2950,7 +2927,7 @@ const styles =
         'Poppins_600SemiBold',
 
       fontSize:
-        16,
+        17,
 
       lineHeight:
         22,
@@ -2970,10 +2947,10 @@ const styles =
         'Inter_400Regular',
 
       fontSize:
-        11,
+        13.5,
 
       lineHeight:
-        17,
+        20,
 
       textAlign:
         'center',
@@ -3007,6 +2984,6 @@ const styles =
         'Poppins_600SemiBold',
 
       fontSize:
-        10,
+        14,
     },
   });

@@ -1,14 +1,5 @@
-import { Platform } from 'react-native';
-
-// ============================================================
-// API URL
-// ============================================================
-
-const API_URL = (
-  Platform.OS === 'web'
-    ? 'http://localhost:5000'
-    : process.env.EXPO_PUBLIC_API_URL || 'http://localhost:5000'
-).replace(/\/+$/, '');
+import { authorizedFetch } from './authFetch';
+import { API_URL } from './apiUrl';
 
 // ============================================================
 // TYPES
@@ -61,7 +52,7 @@ export async function getNearbyBloodRequests(
     `&radius=${encodeURIComponent(radiusKm)}` +
     `&limit=${encodeURIComponent(limit)}`;
 
-  const response = await fetch(url, {
+  const response = await authorizedFetch(url, {
     method: 'GET',
     headers: {
       Accept: 'application/json',

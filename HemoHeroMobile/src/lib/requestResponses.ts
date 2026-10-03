@@ -1,23 +1,12 @@
-import {
-  Platform,
-} from 'react-native';
-
-// ============================================================
-// API URL
-// ============================================================
-
-const API_URL = (
-  Platform.OS === 'web'
-    ? 'http://localhost:5000'
-    : process.env.EXPO_PUBLIC_API_URL ||
-      'http://localhost:5000'
-).replace(/\/+$/, '');
+import { authorizedFetch } from './authFetch';
+import { API_URL } from './apiUrl';
+import type { DonorStats } from './donorProfile';
 
 // ============================================================
 // TYPES
 // ============================================================
 
-export type RequestDonorProfile = {
+export type RequestDonorProfile = Partial<DonorStats> & {
   id: string | null;
 
   first_name: string | null;
@@ -65,7 +54,9 @@ export type RequestDonorResponse = {
     | 'pending'
     | 'accepted'
     | 'rejected'
-    | 'withdrawn';
+    | 'withdrawn'
+    // Released after the requester reported a no-show.
+    | 'no_show';
 
   message:
     | string
@@ -94,6 +85,8 @@ export type RequestResponseCounts = {
   rejected: number;
 
   withdrawn: number;
+
+  no_show?: number;
 };
 
 export type RequestResponsesResult = {
@@ -155,7 +148,7 @@ export async function getRequestDonorResponses(
   requestId: string
 ): Promise<RequestResponsesResult> {
   const response =
-    await fetch(
+    await authorizedFetch(
       `${API_URL}/api/requests/${requestId}/responses`,
       {
         method:
@@ -191,7 +184,7 @@ export async function acceptRequestDonorResponse(
     RequestDonorResponse;
 }> {
   const response =
-    await fetch(
+    await authorizedFetch(
       `${API_URL}/api/requests/${requestId}/responses/${responseId}/accept`,
       {
         method:
@@ -230,7 +223,7 @@ export async function rejectRequestDonorResponse(
     RequestDonorResponse;
 }> {
   const response =
-    await fetch(
+    await authorizedFetch(
       `${API_URL}/api/requests/${requestId}/responses/${responseId}/reject`,
       {
         method:
@@ -263,7 +256,7 @@ export async function fulfillBloodRequest(
   requestId: string
 ): Promise<FulfillBloodRequestResult> {
   const response =
-    await fetch(
+    await authorizedFetch(
       `${API_URL}/api/requests/${requestId}/fulfill`,
       {
         method:

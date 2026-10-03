@@ -1,56 +1,50 @@
-# Welcome to your Expo app 👋
+# Hemo-Hero Admin Portal
 
-This is an [Expo](https://expo.dev) project created with [`create-expo-app`](https://www.npmjs.com/package/create-expo-app).
+The admin side of Hemo-Hero: approve donors, manage users, monitor blood requests and donations, handle reports, and see analytics and the log trail.
 
-## Get started
+Built with Expo SDK 57 and Expo Router. It runs in a web browser and on iPad (Expo Go), and fills the screen in both orientations. It was designed for the iPad Pro 13".
 
-1. Install dependencies
+## Run it
 
+1. Start the server first (`npm run dev` in `server/`).
+2. Copy `.env.example` to `.env`. The default, `EXPO_PUBLIC_API_URL=http://localhost:5000`, works in a browser on the same computer.
+3. Install and start:
    ```bash
    npm install
+   npx expo start --web --port 8082
    ```
+   Then open http://localhost:8082. Port 8082 keeps it apart from the mobile app's Expo server, which uses 8081.
 
-2. Start the app
+**On an iPad:** set `EXPO_PUBLIC_API_URL` to the computer's network address, for example `http://192.168.1.5:5000` (the server prints it at start-up). Then run `npx expo start` and open the project in Expo Go.
 
-   ```bash
-   npx expo start
-   ```
+Only accounts with the admin role can sign in. The [server README](../server/README.md#admin-account) explains how to create one.
 
-In the output, you'll find options to open the app in a
+## Modules
 
-- [development build](https://docs.expo.dev/develop/development-builds/introduction/)
-- [Android emulator](https://docs.expo.dev/workflow/android-studio-emulator/)
-- [iOS simulator](https://docs.expo.dev/workflow/ios-simulator/)
-- [Expo Go](https://expo.dev/go), a limited sandbox for trying out app development with Expo
+| Tab | What it does |
+|---|---|
+| Dashboard | What needs attention now, totals, blood type demand, recent activity |
+| Applications | Review donor applications and government IDs; approve or reject |
+| Users | Search, create, edit, deactivate or delete user accounts |
+| Requests | Every blood request, with filters and full details |
+| Donations | Every donation record; mark flagged records valid or reject them |
+| Analytics | Applications, accounts, request outcomes, donations, issues and activity |
+| Issues | User reports and feedback: review, resolve or dismiss, and remove false requests |
+| Log Trails | Record of user and admin actions |
+| Settings | Your admin profile, password and email, and signing out |
 
-You can start developing by editing the files inside the **app** directory. This project uses [file-based routing](https://docs.expo.dev/router/introduction).
+## Project layout
 
-## Get a fresh project
+| Path | Contents |
+|---|---|
+| `app/` | Screens (file-based routes) |
+| `components/` | Header, bottom navigation, screen sizing (`AdminCanvas.ts`), animations |
+| `lib/` | API calls and session |
+| `assets/images/` | App icon, splash screen and logo |
 
-When you're ready, run:
+## Checks
 
 ```bash
-npm run reset-project
+npx tsc --noEmit
+npx expo-doctor
 ```
-
-This command will move the starter code to the **app-example** directory and create a blank **app** directory where you can start developing.
-
-### Other setup steps
-
-- To set up ESLint for linting, run `npx expo lint`, or follow our guide on ["Using ESLint and Prettier"](https://docs.expo.dev/guides/using-eslint/)
-- If you'd like to set up unit testing, follow our guide on ["Unit Testing with Jest"](https://docs.expo.dev/develop/unit-testing/)
-- Learn more about the TypeScript setup in this template in our guide on ["Using TypeScript"](https://docs.expo.dev/guides/typescript/)
-
-## Learn more
-
-To learn more about developing your project with Expo, look at the following resources:
-
-- [Expo documentation](https://docs.expo.dev/): Learn fundamentals, or go into advanced topics with our [guides](https://docs.expo.dev/guides).
-- [Learn Expo tutorial](https://docs.expo.dev/tutorial/introduction/): Follow a step-by-step tutorial where you'll create a project that runs on Android, iOS, and the web.
-
-## Join the community
-
-Join our community of developers creating universal apps.
-
-- [Expo on GitHub](https://github.com/expo/expo): View our open source platform and contribute.
-- [Discord community](https://chat.expo.dev): Chat with Expo users and ask questions.

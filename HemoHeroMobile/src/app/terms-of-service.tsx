@@ -29,15 +29,15 @@ import {
 
 const COLORS = {
   red: '#DB0A0A',
-  redDark: '#7E0B0B',
+  redDark: '#8F1111',
   redButton: '#B42323',
 
   white: '#FFFFFF',
-  black: '#111111',
+  black: '#171717',
 
-  background: '#F8F8F8',
+  background: '#FFF8F8',
   muted: '#666666',
-  border: '#E5E5E5',
+  border: '#EFE3E3',
 };
 
 // ============================================================
@@ -454,7 +454,7 @@ const styles = StyleSheet.create({
     fontFamily:
       'Poppins_600SemiBold',
 
-    fontSize: 18,
+    fontSize: 20,
   },
 
   headerSubtitle: {
@@ -466,7 +466,7 @@ const styles = StyleSheet.create({
     fontFamily:
       'Inter_400Regular',
 
-    fontSize: 10,
+    fontSize: 12,
   },
 
   headerSpacer: {
@@ -496,7 +496,7 @@ const styles = StyleSheet.create({
     fontFamily:
       'Inter_400Regular',
 
-    fontSize: 11,
+    fontSize: 11.5,
   },
 
   intro: {
@@ -510,7 +510,7 @@ const styles = StyleSheet.create({
 
     fontSize: 13,
 
-    lineHeight: 21,
+    lineHeight: 20,
   },
 
   sectionTitle: {
@@ -535,9 +535,9 @@ const styles = StyleSheet.create({
     fontFamily:
       'Inter_400Regular',
 
-    fontSize: 12,
+    fontSize: 12.5,
 
-    lineHeight: 20,
+    lineHeight: 19,
   },
 
   bullet: {
@@ -551,7 +551,7 @@ const styles = StyleSheet.create({
     fontFamily:
       'Inter_400Regular',
 
-    fontSize: 12,
+    fontSize: 12.5,
 
     lineHeight: 19,
   },
@@ -588,6 +588,6 @@ const styles = StyleSheet.create({
     fontFamily:
       'Inter_400Regular',
 
-    fontSize: 10,
+    fontSize: 11.5,
   },
 });

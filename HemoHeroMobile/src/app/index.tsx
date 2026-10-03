@@ -5,6 +5,7 @@ import {
 } from 'react';
 
 import {
+  ActivityIndicator,
   Animated,
   Easing,
   Image,
@@ -25,6 +26,7 @@ import {
 
 import {
   router,
+  useLocalSearchParams,
 } from 'expo-router';
 
 import {
@@ -36,13 +38,27 @@ import {
 } from 'react-native-safe-area-context';
 
 import {
+  MaterialIcons,
+} from '@expo/vector-icons';
+
+import {
   ApiError,
+  getCurrentUser,
   loginUser,
 } from '../lib/api';
 
 import {
+  getAccessToken,
   saveSession,
 } from '../lib/session';
+
+import {
+  holdIntro,
+  whenIntroDone,
+} from '../lib/appIntro';
+
+import AuthField from '../components/AuthField';
+import AuthTabs from '../components/AuthTabs';
 
 // ============================================================
 // COLORS
@@ -50,14 +66,14 @@ import {
 
 const COLORS = {
   red: '#DB0A0A',
-  redDark: '#7E0B0B',
+  redDark: '#8F1111',
   redButton: '#B42323',
 
   pinkTop: '#EBA4A7',
   pinkBottom: '#D93238',
 
   white: '#FFFFFF',
-  black: '#111111',
+  black: '#171717',
 
   inputBorder: '#D8D8D8',
   placeholder: '#A3A3A3',
@@ -87,6 +103,12 @@ export default function SignInScreen() {
     height <=
       844;
 
+  // Email carried over from Sign Up ("Sign in instead").
+  const params =
+    useLocalSearchParams<{
+      email?: string | string[];
+    }>();
+
   // ==========================================================
   // FORM STATE
   // ==========================================================
@@ -95,19 +117,18 @@ export default function SignInScreen() {
     email,
     setEmail,
   ] =
-    useState('');
+    useState(
+      typeof params.email ===
+        'string'
+        ? params.email
+        : ''
+    );
 
   const [
     password,
     setPassword,
   ] =
     useState('');
-
-  const [
-    showPassword,
-    setShowPassword,
-  ] =
-    useState(false);
 
   const [
     loading,
@@ -120,6 +141,55 @@ export default function SignInScreen() {
     setErrorMessage,
   ] =
     useState('');
+
+  // Typing mistakes, shown under each field.
+  const [
+    fieldErrors,
+    setFieldErrors,
+  ] =
+    useState<{
+      email?: string;
+      password?: string;
+    }>({});
+
+  // Field the banner's problem belongs to (red outline).
+  const [
+    invalidField,
+    setInvalidField,
+  ] =
+    useState<
+      'email' | 'password' | null
+    >(null);
+
+  // Next step offered with the error (verify email, sign up).
+  const [
+    errorAction,
+    setErrorAction,
+  ] =
+    useState<{
+      label: string;
+      onPress: () => void;
+    } | null>(null);
+
+  // Too many attempts: signing in is locked until then.
+  const [
+    cooldownUntil,
+    setCooldownUntil,
+  ] =
+    useState<number | null>(
+      null
+    );
+
+  const [
+    now,
+    setNow,
+  ] =
+    useState(
+      Date.now()
+    );
+
+  const passwordRef =
+    useRef<TextInput>(null);
 
   // ==========================================================
   // ANIMATION VALUES
@@ -169,67 +239,25 @@ export default function SignInScreen() {
   // SCREEN ENTRANCE ANIMATION
   // ==========================================================
 
+  // Waits for the opening animation (first launch) so this
+  // entrance isn't hidden underneath it.
   useEffect(
-    () => {
-      Animated.sequence([
-        // ----------------------------------------------------
-        // HEADER
-        // ----------------------------------------------------
+    () =>
+      whenIntroDone(() => {
+        Animated.sequence([
+          // ----------------------------------------------------
+          // HEADER
+          // ----------------------------------------------------
 
-        Animated.parallel([
-          Animated.timing(
-            headerOpacity,
-            {
-              toValue:
-                1,
-
-              duration:
-                320,
-
-              easing:
-                Easing.out(
-                  Easing.ease
-                ),
-
-              useNativeDriver:
-                true,
-            }
-          ),
-
-          Animated.timing(
-            headerTranslateY,
-            {
-              toValue:
-                0,
-
-              duration:
-                320,
-
-              easing:
-                Easing.out(
-                  Easing.ease
-                ),
-
-              useNativeDriver:
-                true,
-            }
-          ),
-        ]),
-
-        // ----------------------------------------------------
-        // LOGO + CARD
-        // ----------------------------------------------------
-
-        Animated.parallel([
           Animated.parallel([
             Animated.timing(
-              logoOpacity,
+              headerOpacity,
               {
                 toValue:
                   1,
 
                 duration:
-                  330,
+                  320,
 
                 easing:
                   Easing.out(
@@ -241,56 +269,18 @@ export default function SignInScreen() {
               }
             ),
 
-            Animated.spring(
-              logoScale,
-              {
-                toValue:
-                  1,
-
-                friction:
-                  6,
-
-                tension:
-                  70,
-
-                useNativeDriver:
-                  true,
-              }
-            ),
-          ]),
-
-          Animated.parallel([
             Animated.timing(
-              cardOpacity,
-              {
-                toValue:
-                  1,
-
-                duration:
-                  430,
-
-                easing:
-                  Easing.out(
-                    Easing.cubic
-                  ),
-
-                useNativeDriver:
-                  true,
-              }
-            ),
-
-            Animated.timing(
-              cardTranslateY,
+              headerTranslateY,
               {
                 toValue:
                   0,
 
                 duration:
-                  430,
+                  320,
 
                 easing:
                   Easing.out(
-                    Easing.cubic
+                    Easing.ease
                   ),
 
                 useNativeDriver:
@@ -298,9 +288,92 @@ export default function SignInScreen() {
               }
             ),
           ]),
-        ]),
-      ]).start();
-    },
+
+          // ----------------------------------------------------
+          // LOGO + CARD
+          // ----------------------------------------------------
+
+          Animated.parallel([
+            Animated.parallel([
+              Animated.timing(
+                logoOpacity,
+                {
+                  toValue:
+                    1,
+
+                  duration:
+                    330,
+
+                  easing:
+                    Easing.out(
+                      Easing.ease
+                    ),
+
+                  useNativeDriver:
+                    true,
+                }
+              ),
+
+              Animated.spring(
+                logoScale,
+                {
+                  toValue:
+                    1,
+
+                  friction:
+                    6,
+
+                  tension:
+                    70,
+
+                  useNativeDriver:
+                    true,
+                }
+              ),
+            ]),
+
+            Animated.parallel([
+              Animated.timing(
+                cardOpacity,
+                {
+                  toValue:
+                    1,
+
+                  duration:
+                    430,
+
+                  easing:
+                    Easing.out(
+                      Easing.cubic
+                    ),
+
+                  useNativeDriver:
+                    true,
+                }
+              ),
+
+              Animated.timing(
+                cardTranslateY,
+                {
+                  toValue:
+                    0,
+
+                  duration:
+                    430,
+
+                  easing:
+                    Easing.out(
+                      Easing.cubic
+                    ),
+
+                  useNativeDriver:
+                    true,
+                }
+              ),
+            ]),
+          ]),
+        ]).start();
+      }),
     [
       headerOpacity,
       headerTranslateY,
@@ -312,16 +385,166 @@ export default function SignInScreen() {
   );
 
   // ==========================================================
-  // SHAKE ERROR
+  // STAY SIGNED IN
+  //
+  // A saved session skips this screen. The opening animation
+  // waits for this check, so people go straight from it to the
+  // dashboard. (authorizedFetch renews an expired token; if that
+  // fails the session is cleared and this screen stays.)
   // ==========================================================
 
+  useEffect(
+    () => {
+      let active = true;
+
+      const releaseIntro =
+        holdIntro();
+
+      (async () => {
+        try {
+          const token =
+            await getAccessToken();
+
+          if (!token) {
+            return;
+          }
+
+          const data =
+            await getCurrentUser(
+              token
+            );
+
+          if (
+            !active ||
+            !data?.user
+          ) {
+            return;
+          }
+
+          router.replace(
+            data.user
+              .onboarding_complete ===
+              true
+              ? '/dashboard'
+              : '/complete-profile/personal'
+          );
+        } catch (error) {
+          console.log(
+            'RESTORE SESSION ERROR:',
+            error
+          );
+        } finally {
+          releaseIntro();
+        }
+      })();
+
+      return () => {
+        active = false;
+
+        releaseIntro();
+      };
+    },
+    []
+  );
+
+  // ==========================================================
+  // COOLDOWN COUNTDOWN
+  // ==========================================================
+
+  useEffect(
+    () => {
+      if (!cooldownUntil) {
+        return;
+      }
+
+      const timer =
+        setInterval(
+          () => {
+            const current =
+              Date.now();
+
+            setNow(current);
+
+            if (
+              current >=
+              cooldownUntil
+            ) {
+              setCooldownUntil(
+                null
+              );
+
+              setErrorMessage('');
+            }
+          },
+          1000
+        );
+
+      return () =>
+        clearInterval(timer);
+    },
+    [
+      cooldownUntil,
+    ]
+  );
+
+  const cooldownSeconds =
+    cooldownUntil
+      ? Math.max(
+          0,
+          Math.ceil(
+            (cooldownUntil - now) /
+              1000
+          )
+        )
+      : 0;
+
+  const cooldownText =
+    `${Math.floor(
+      cooldownSeconds / 60
+    )}:${String(
+      cooldownSeconds % 60
+    ).padStart(2, '0')}`;
+
+  // ==========================================================
+  // ERRORS
+  // ==========================================================
+
+  // Clears everything about a previous attempt.
+  function resetErrors() {
+    setErrorMessage('');
+    setFieldErrors({});
+    setInvalidField(null);
+    setErrorAction(null);
+  }
+
+  // Banner (with an optional next step) + red outline on the
+  // field it's about.
   function triggerError(
-    message: string
+    message: string,
+    options: {
+      field?: 'email' | 'password';
+      action?: {
+        label: string;
+        onPress: () => void;
+      };
+    } = {}
   ) {
     setErrorMessage(
       message
     );
 
+    setInvalidField(
+      options.field || null
+    );
+
+    setErrorAction(
+      options.action || null
+    );
+
+    shake();
+  }
+
+  function shake() {
     errorShake.setValue(
       0
     );
@@ -501,7 +724,14 @@ export default function SignInScreen() {
   // ==========================================================
 
   async function handleSignIn() {
-    setErrorMessage('');
+    if (
+      loading ||
+      cooldownSeconds > 0
+    ) {
+      return;
+    }
+
+    resetErrors();
 
     const cleanEmail =
       email
@@ -509,63 +739,41 @@ export default function SignInScreen() {
         .toLowerCase();
 
     // --------------------------------------------------------
-    // BOTH EMPTY
-    // --------------------------------------------------------
-
-    if (
-      !cleanEmail &&
-      !password
-    ) {
-      triggerError(
-        'Please enter your email address and password.'
-      );
-
-      return;
-    }
-
-    // --------------------------------------------------------
-    // EMAIL EMPTY
-    // --------------------------------------------------------
-
-    if (
-      !cleanEmail
-    ) {
-      triggerError(
-        'Please enter your email address.'
-      );
-
-      return;
-    }
-
-    // --------------------------------------------------------
-    // PASSWORD EMPTY
-    // --------------------------------------------------------
-
-    if (
-      !password
-    ) {
-      triggerError(
-        'Please enter your password.'
-      );
-
-      return;
-    }
-
-    // --------------------------------------------------------
-    // EMAIL FORMAT
+    // CHECK THE FIELDS (messages under each one)
     // --------------------------------------------------------
 
     const emailPattern =
       /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
-    if (
+    const errors: {
+      email?: string;
+      password?: string;
+    } = {};
+
+    if (!cleanEmail) {
+      errors.email =
+        'Enter your email address.';
+    } else if (
       !emailPattern.test(
         cleanEmail
       )
     ) {
-      triggerError(
-        'Please enter a valid email address.'
-      );
+      errors.email =
+        'Enter a valid email address.';
+    }
+
+    if (!password) {
+      errors.password =
+        'Enter your password.';
+    }
+
+    if (
+      errors.email ||
+      errors.password
+    ) {
+      setFieldErrors(errors);
+
+      shake();
 
       return;
     }
@@ -625,17 +833,6 @@ export default function SignInScreen() {
         );
       }
 
-      console.log(
-        'LOGIN PROFILE:',
-        data.profile
-      );
-
-      console.log(
-        'ONBOARDING COMPLETE:',
-        data.profile
-          .onboarding_complete
-      );
-
       // ------------------------------------------------------
       // COMPLETED USER
       // ------------------------------------------------------
@@ -670,6 +867,20 @@ export default function SignInScreen() {
       let message =
         'Unable to sign in. Please try again.';
 
+      let field:
+        | 'email'
+        | 'password'
+        | undefined;
+
+      let action:
+        | {
+            label: string;
+            onPress: () => void;
+          }
+        | undefined;
+
+      let lockMinutes = 0;
+
       // ------------------------------------------------------
       // STRUCTURED API ERRORS
       // ------------------------------------------------------
@@ -691,8 +902,25 @@ export default function SignInScreen() {
           'ACCOUNT_NOT_FOUND'
         ) {
           message =
-            error.message ||
-            'Account does not exist.';
+            'No account uses this email.';
+
+          field = 'email';
+
+          action = {
+            label:
+              'Create an account',
+
+            onPress: () =>
+              router.replace({
+                pathname:
+                  '/signup',
+
+                params: {
+                  email:
+                    cleanEmail,
+                },
+              }),
+          };
         }
 
         // ----------------------------------------------------
@@ -706,6 +934,8 @@ export default function SignInScreen() {
           message =
             error.message ||
             'Incorrect password.';
+
+          field = 'password';
         }
 
         // ----------------------------------------------------
@@ -739,6 +969,8 @@ export default function SignInScreen() {
             message =
               'Invalid email or password.';
           }
+
+          field = 'password';
         }
 
         // ----------------------------------------------------
@@ -750,8 +982,25 @@ export default function SignInScreen() {
           'EMAIL_NOT_VERIFIED'
         ) {
           message =
-            error.message ||
             'Please verify your email before signing in.';
+
+          field = 'email';
+
+          action = {
+            label:
+              'Verify email',
+
+            onPress: () =>
+              router.push({
+                pathname:
+                  '/verify-email',
+
+                params: {
+                  email:
+                    cleanEmail,
+                },
+              }),
+          };
         }
 
         // ----------------------------------------------------
@@ -769,11 +1018,14 @@ export default function SignInScreen() {
             );
 
           message =
+            'Too many incorrect password attempts.';
+
+          lockMinutes =
             Number.isFinite(
               retryMinutes
             )
-              ? `Too many incorrect password attempts.\nPlease try again in ${retryMinutes} minute${retryMinutes === 1 ? '' : 's'}.`
-              : 'Too many incorrect password attempts. Please try again later.';
+              ? retryMinutes
+              : 3;
         }
 
         // ----------------------------------------------------
@@ -791,11 +1043,14 @@ export default function SignInScreen() {
             );
 
           message =
+            'Too many login attempts from this network.';
+
+          lockMinutes =
             Number.isFinite(
               retryMinutes
             )
-              ? `Too many login attempts from this network.\nPlease try again in ${retryMinutes} minute${retryMinutes === 1 ? '' : 's'}.`
-              : 'Too many login attempts from this network. Please try again later.';
+              ? retryMinutes
+              : 3;
         }
 
         // ----------------------------------------------------
@@ -866,8 +1121,21 @@ export default function SignInScreen() {
       // ERROR STAYS INSIDE APP + SHAKE
       // ------------------------------------------------------
 
+      if (lockMinutes > 0) {
+        setNow(Date.now());
+
+        setCooldownUntil(
+          Date.now() +
+            lockMinutes * 60000
+        );
+      }
+
       triggerError(
-        message
+        message,
+        {
+          field,
+          action,
+        }
       );
     } finally {
       setLoading(
@@ -1083,53 +1351,31 @@ export default function SignInScreen() {
                         TABS
                     ============================================== */}
 
-                    <View
-                      style={
-                        styles.tabs
+                    <AuthTabs
+                      active="signin"
+                      disabled={
+                        loading
                       }
-                    >
-                      <View
-                        style={
-                          styles.activeTab
-                        }
-                      >
-                        <Text
-                          style={
-                            styles.activeTabText
-                          }
-                        >
-                          Sign In
-                        </Text>
-                      </View>
+                      onSwitch={() =>
+                        router.replace({
+                          pathname:
+                            '/signup',
 
-                      <TouchableOpacity
-                        style={
-                          styles.inactiveTab
-                        }
-                        activeOpacity={
-                          0.7
-                        }
-                        disabled={
-                          loading
-                        }
-                        onPress={() =>
-                          router.push(
-                            '/signup'
-                          )
-                        }
-                      >
-                        <Text
-                          style={
-                            styles.inactiveTabText
-                          }
-                        >
-                          Sign Up
-                        </Text>
-                      </TouchableOpacity>
-                    </View>
+                          params:
+                            email.trim()
+                              ? {
+                                  email:
+                                    email
+                                      .trim()
+                                      .toLowerCase(),
+                                }
+                              : {},
+                        } as any)
+                      }
+                    />
 
                     {/* ==============================================
-                        ERROR
+                        ERROR (+ next step)
                     ============================================== */}
 
                     {errorMessage ? (
@@ -1146,117 +1392,204 @@ export default function SignInScreen() {
                             ],
                           },
                         ]}
+                        accessibilityLiveRegion="polite"
                       >
                         <Text
                           style={
                             styles.errorText
                           }
                         >
-                          {
-                            errorMessage
-                          }
+                          {cooldownSeconds >
+                          0
+                            ? `${errorMessage}\nTry again in ${cooldownText}.`
+                            : errorMessage}
                         </Text>
+
+                        {errorAction ? (
+                          <TouchableOpacity
+                            style={
+                              styles.errorAction
+                            }
+                            activeOpacity={
+                              0.75
+                            }
+                            accessibilityRole="button"
+                            onPress={
+                              errorAction.onPress
+                            }
+                          >
+                            <Text
+                              style={
+                                styles.errorActionText
+                              }
+                            >
+                              {
+                                errorAction.label
+                              }
+                            </Text>
+
+                            <MaterialIcons
+                              name="arrow-forward"
+                              size={15}
+                              color={
+                                COLORS.redButton
+                              }
+                            />
+                          </TouchableOpacity>
+                        ) : null}
                       </Animated.View>
                     ) : null}
 
                     {/* ==============================================
-                        EMAIL
+                        FIELDS
                     ============================================== */}
 
-                    <Text
-                      style={
-                        styles.label
-                      }
-                    >
-                      Email Address
-                    </Text>
-
-                    <TextInput
-                      style={
-                        styles.input
-                      }
-                      placeholder="Enter your email"
-                      placeholderTextColor={
-                        COLORS.placeholder
-                      }
-                      keyboardType="email-address"
-                      autoCapitalize="none"
-                      autoCorrect={
-                        false
-                      }
-                      autoComplete="email"
-                      value={
-                        email
-                      }
-                      editable={
-                        !loading
-                      }
-                      returnKeyType="next"
-                      onChangeText={value => {
-                        setEmail(
-                          value
-                        );
-
-                        if (
-                          errorMessage
-                        ) {
-                          setErrorMessage(
-                            ''
-                          );
-                        }
+                    <Animated.View
+                      style={{
+                        transform: [
+                          {
+                            translateX:
+                              errorMessage
+                                ? 0
+                                : errorShake,
+                          },
+                        ],
                       }}
-                    />
-
-                    {/* ==============================================
-                        PASSWORD
-                    ============================================== */}
-
-                    <Text
-                      style={
-                        styles.label
-                      }
                     >
-                      Password
-                    </Text>
-
-                    <View
-                      style={
-                        styles.passwordBox
-                      }
-                    >
-                      <TextInput
-                        style={
-                          styles.passwordInput
+                      <AuthField
+                        label="Email Address"
+                        icon="mail-outline"
+                        placeholder="Enter your email"
+                        keyboardType="email-address"
+                        autoCapitalize="none"
+                        autoCorrect={
+                          false
                         }
+                        autoComplete="email"
+                        textContentType="emailAddress"
+                        value={
+                          email
+                        }
+                        editable={
+                          !loading
+                        }
+                        returnKeyType="next"
+                        submitBehavior="submit"
+                        error={
+                          fieldErrors.email
+                        }
+                        invalid={
+                          invalidField ===
+                          'email'
+                        }
+                        onChangeText={value => {
+                          setEmail(
+                            value
+                          );
+
+                          if (
+                            fieldErrors.email ||
+                            invalidField ===
+                              'email'
+                          ) {
+                            setFieldErrors(
+                              current => ({
+                                ...current,
+                                email:
+                                  undefined,
+                              })
+                            );
+
+                            setInvalidField(
+                              null
+                            );
+                          }
+
+                          if (
+                            errorMessage &&
+                            !cooldownSeconds
+                          ) {
+                            setErrorMessage(
+                              ''
+                            );
+
+                            setErrorAction(
+                              null
+                            );
+                          }
+                        }}
+                        onBlur={() =>
+                          setEmail(
+                            current =>
+                              current.trim()
+                          )
+                        }
+                        onSubmitEditing={() =>
+                          passwordRef.current?.focus()
+                        }
+                      />
+
+                      <AuthField
+                        ref={
+                          passwordRef
+                        }
+                        label="Password"
+                        icon="lock-outline"
+                        password
                         placeholder="Enter your password"
-                        placeholderTextColor={
-                          COLORS.placeholder
+                        autoCapitalize="none"
+                        autoCorrect={
+                          false
                         }
+                        autoComplete="current-password"
+                        textContentType="password"
                         value={
                           password
                         }
                         editable={
                           !loading
                         }
-                        secureTextEntry={
-                          !showPassword
+                        returnKeyType="go"
+                        error={
+                          fieldErrors.password
                         }
-                        autoCapitalize="none"
-                        autoCorrect={
-                          false
+                        invalid={
+                          invalidField ===
+                          'password'
                         }
-                        autoComplete="password"
-                        returnKeyType="done"
                         onChangeText={value => {
                           setPassword(
                             value
                           );
 
                           if (
-                            errorMessage
+                            fieldErrors.password ||
+                            invalidField ===
+                              'password'
+                          ) {
+                            setFieldErrors(
+                              current => ({
+                                ...current,
+                                password:
+                                  undefined,
+                              })
+                            );
+
+                            setInvalidField(
+                              null
+                            );
+                          }
+
+                          if (
+                            errorMessage &&
+                            !cooldownSeconds
                           ) {
                             setErrorMessage(
                               ''
+                            );
+
+                            setErrorAction(
+                              null
                             );
                           }
                         }}
@@ -1264,32 +1597,7 @@ export default function SignInScreen() {
                           handleSignIn
                         }
                       />
-
-                      <TouchableOpacity
-                        activeOpacity={
-                          0.7
-                        }
-                        disabled={
-                          loading
-                        }
-                        onPress={() =>
-                          setShowPassword(
-                            current =>
-                              !current
-                          )
-                        }
-                      >
-                        <Text
-                          style={
-                            styles.showText
-                          }
-                        >
-                          {showPassword
-                            ? 'Hide'
-                            : 'Show'}
-                        </Text>
-                      </TouchableOpacity>
-                    </View>
+                    </Animated.View>
 
                     {/* ==============================================
                         FORGOT PASSWORD
@@ -1336,14 +1644,19 @@ export default function SignInScreen() {
                         style={[
                           styles.primaryButton,
 
-                          loading &&
+                          (loading ||
+                            cooldownSeconds >
+                              0) &&
                             styles.disabledButton,
                         ]}
                         activeOpacity={
                           1
                         }
+                        accessibilityRole="button"
                         disabled={
-                          loading
+                          loading ||
+                          cooldownSeconds >
+                            0
                         }
                         onPressIn={
                           handleButtonPressIn
@@ -1355,6 +1668,14 @@ export default function SignInScreen() {
                           handleSignIn
                         }
                       >
+                        {loading ? (
+                          <ActivityIndicator
+                            color={
+                              COLORS.white
+                            }
+                          />
+                        ) : null}
+
                         <Text
                           style={
                             styles.primaryButtonText
@@ -1362,7 +1683,10 @@ export default function SignInScreen() {
                         >
                           {loading
                             ? 'Signing In...'
-                            : 'Sign In'}
+                            : cooldownSeconds >
+                                0
+                              ? `Try again in ${cooldownText}`
+                              : 'Sign In'}
                         </Text>
                       </TouchableOpacity>
                     </Animated.View>
@@ -1559,7 +1883,7 @@ const styles =
         'Inter_400Regular',
 
       fontSize:
-        12,
+        12.5,
     },
 
     // ========================================================
@@ -1751,75 +2075,10 @@ const styles =
     // TABS
     // ========================================================
 
-    tabs: {
-      flexDirection:
-        'row',
 
-      marginBottom:
-        24,
-    },
 
-    activeTab: {
-      flex:
-        1,
 
-      height:
-        43,
 
-      marginHorizontal:
-        7,
-
-      borderRadius:
-        22,
-
-      backgroundColor:
-        COLORS.redButton,
-
-      alignItems:
-        'center',
-
-      justifyContent:
-        'center',
-    },
-
-    inactiveTab: {
-      flex:
-        1,
-
-      height:
-        43,
-
-      marginHorizontal:
-        7,
-
-      alignItems:
-        'center',
-
-      justifyContent:
-        'center',
-    },
-
-    activeTabText: {
-      color:
-        COLORS.white,
-
-      fontFamily:
-        'Poppins_600SemiBold',
-
-      fontSize:
-        13,
-    },
-
-    inactiveTabText: {
-      color:
-        COLORS.black,
-
-      fontFamily:
-        'Inter_500Medium',
-
-      fontSize:
-        13,
-    },
 
     // ========================================================
     // ERROR
@@ -1848,6 +2107,25 @@ const styles =
         '#FDECEC',
     },
 
+    // "Verify email" / "Create an account" under the message.
+    errorAction: {
+      marginTop: 8,
+      alignSelf: 'center',
+      minHeight: 30,
+      paddingHorizontal: 12,
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 5,
+      borderRadius: 15,
+      backgroundColor: COLORS.white,
+    },
+
+    errorActionText: {
+      color: COLORS.redButton,
+      fontFamily: 'Inter_600SemiBold',
+      fontSize: 12.5,
+    },
+
     errorText: {
       color:
         COLORS.redButton,
@@ -1856,10 +2134,10 @@ const styles =
         'Inter_500Medium',
 
       fontSize:
-        11,
+        12,
 
       lineHeight:
-        16,
+        17,
 
       textAlign:
         'center',
@@ -1869,117 +2147,10 @@ const styles =
     // FORM
     // ========================================================
 
-    label: {
-      marginBottom:
-        7,
 
-      color:
-        COLORS.black,
 
-      fontFamily:
-        'Inter_500Medium',
 
-      fontSize:
-        12,
-    },
 
-    input: {
-      height:
-        43,
-
-      marginBottom:
-        19,
-
-      paddingHorizontal:
-        15,
-
-      borderWidth:
-        1,
-
-      borderColor:
-        COLORS.inputBorder,
-
-      borderRadius:
-        22,
-
-      color:
-        COLORS.black,
-
-      backgroundColor:
-        COLORS.white,
-
-      fontFamily:
-        'Inter_400Regular',
-
-      fontSize:
-        12,
-
-      outlineStyle:
-        Platform.OS ===
-          'web'
-          ? 'none'
-          : undefined,
-    } as any,
-
-    passwordBox: {
-      height:
-        43,
-
-      flexDirection:
-        'row',
-
-      alignItems:
-        'center',
-
-      paddingLeft:
-        15,
-
-      paddingRight:
-        13,
-
-      borderWidth:
-        1,
-
-      borderColor:
-        COLORS.inputBorder,
-
-      borderRadius:
-        22,
-
-      backgroundColor:
-        COLORS.white,
-    },
-
-    passwordInput: {
-      flex:
-        1,
-
-      color:
-        COLORS.black,
-
-      fontFamily:
-        'Inter_400Regular',
-
-      fontSize:
-        12,
-
-      outlineStyle:
-        Platform.OS ===
-          'web'
-          ? 'none'
-          : undefined,
-    } as any,
-
-    showText: {
-      color:
-        COLORS.muted,
-
-      fontFamily:
-        'Inter_400Regular',
-
-      fontSize:
-        11,
-    },
 
     // ========================================================
     // FORGOT
@@ -2001,7 +2172,7 @@ const styles =
         'Inter_500Medium',
 
       fontSize:
-        11,
+        12,
     },
 
     // ========================================================
@@ -2009,6 +2180,11 @@ const styles =
     // ========================================================
 
     primaryButton: {
+      flexDirection:
+        'row',
+
+      gap: 8,
+
       height:
         50,
 
@@ -2041,6 +2217,6 @@ const styles =
         'Poppins_600SemiBold',
 
       fontSize:
-        13,
+        14.5,
     },
   });

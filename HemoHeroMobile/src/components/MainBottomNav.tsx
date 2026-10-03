@@ -349,7 +349,7 @@ const styles =
         'Inter_600SemiBold',
 
       fontSize:
-        10,
+        11,
     },
 
     navText: {
@@ -360,6 +360,6 @@ const styles =
         'Inter_500Medium',
 
       fontSize:
-        10,
+        11,
     },
   });

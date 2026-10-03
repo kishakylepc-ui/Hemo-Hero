@@ -5,7 +5,9 @@ const {
   getMyNotifications,
   getUnreadNotificationCount,
   markNotificationAsRead,
-  markAllNotificationsAsRead
+  markAllNotificationsAsRead,
+  registerPushToken,
+  removePushToken
 } =
   require(
     '../controllers/notificationController'
@@ -96,6 +98,26 @@ router.patch(
   }),
 
   markAllNotificationsAsRead
+);
+
+// ============================================================
+// PUSH NOTIFICATION DEVICE
+//
+// PUT    /api/notifications/push-token   (signed in / app start)
+// DELETE /api/notifications/push-token   (signing out)
+//
+// Not activity-logged: the app re-registers on every start.
+// Keep before /:id routes.
+// ============================================================
+
+router.put(
+  '/push-token',
+  registerPushToken
+);
+
+router.delete(
+  '/push-token',
+  removePushToken
 );
 
 // ============================================================

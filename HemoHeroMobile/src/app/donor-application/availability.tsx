@@ -381,7 +381,7 @@ const styles = StyleSheet.create({
   },
   headerSubtitle: {
     marginTop: 1, color: 'rgba(255,255,255,0.82)',
-    fontFamily: 'Inter_400Regular', fontSize: 11, lineHeight: 17,
+    fontFamily: 'Inter_400Regular', fontSize: 12.5, lineHeight: 18,
   },
   body: { flex: 1, paddingHorizontal: 18, paddingBottom: 16 },
   card: {
@@ -397,7 +397,7 @@ const styles = StyleSheet.create({
   progressActive: { backgroundColor: COLORS.redButton },
   progressLabel: {
     marginTop: 6, color: COLORS.lightMuted,
-    fontFamily: 'Inter_500Medium', fontSize: 9, lineHeight: 14,
+    fontFamily: 'Inter_500Medium', fontSize: 11.5, lineHeight: 16,
   },
   progressLabelActive: {
     color: COLORS.redButton, fontFamily: 'Inter_600SemiBold',
@@ -407,11 +407,11 @@ const styles = StyleSheet.create({
   },
   description: {
     marginTop: 3, marginBottom: 18, color: COLORS.muted,
-    fontFamily: 'Inter_400Regular', fontSize: 11.5, lineHeight: 17,
+    fontFamily: 'Inter_400Regular', fontSize: 12.5, lineHeight: 18,
   },
   label: {
     marginBottom: 8, marginTop: 3, color: COLORS.black,
-    fontFamily: 'Inter_500Medium', fontSize: 11.5, lineHeight: 18,
+    fontFamily: 'Inter_500Medium', fontSize: 12.5, lineHeight: 18,
   },
   locationCard: {
     minHeight: 62, marginBottom: 18, paddingHorizontal: 11, paddingVertical: 12,
@@ -424,10 +424,10 @@ const styles = StyleSheet.create({
   },
   locationContent: { flex: 1 },
   locationTitle: {
-    color: COLORS.black, fontFamily: 'Inter_500Medium', fontSize: 11.5, lineHeight: 18,
+    color: COLORS.black, fontFamily: 'Inter_500Medium', fontSize: 13.5, lineHeight: 18,
   },
   locationSubtitle: {
-    marginTop: 2, color: COLORS.muted, fontFamily: 'Inter_400Regular', fontSize: 9.5,
+    marginTop: 2, color: COLORS.muted, fontFamily: 'Inter_400Regular', fontSize: 12,
   },
   updateButton: {
     minWidth: 60, minHeight: 44, marginLeft: 4,
@@ -446,7 +446,7 @@ const styles = StyleSheet.create({
   distanceButtonSelected: {
     borderColor: COLORS.redButton, backgroundColor: COLORS.redButton,
   },
-  distanceText: { color: COLORS.black, fontFamily: 'Inter_500Medium', fontSize: 10 },
+  distanceText: { color: COLORS.black, fontFamily: 'Inter_500Medium', fontSize: 12},
   distanceTextSelected: { color: COLORS.white },
   choiceCard: {
     minHeight: 55, marginBottom: 8, paddingHorizontal: 12, paddingVertical: 12,
@@ -456,7 +456,7 @@ const styles = StyleSheet.create({
   choiceSelected: { borderColor: '#DFAAAA', backgroundColor: '#FFF8F8' },
   choiceContent: { flex: 1 },
   choiceTitle: {
-    color: COLORS.black, fontFamily: 'Inter_500Medium', fontSize: 11.5, lineHeight: 18,
+    color: COLORS.black, fontFamily: 'Inter_500Medium', fontSize: 13.5, lineHeight: 18,
   },
   choiceDescription: {
     marginTop: 2, color: COLORS.muted, fontFamily: 'Inter_400Regular',
@@ -470,7 +470,7 @@ const styles = StyleSheet.create({
   },
   errorText: {
     marginTop: 12, color: COLORS.redButton,
-    fontFamily: 'Inter_500Medium', fontSize: 10, textAlign: 'center',
+    fontFamily: 'Inter_500Medium', fontSize: 12, textAlign: 'center',
   },
   spacer: { flex: 1, minHeight: 24 },
   buttonRow: { flexDirection: 'row', gap: 11 },
@@ -481,7 +481,7 @@ const styles = StyleSheet.create({
   },
   backText: {
     color: '#444444', fontFamily: 'Poppins_600SemiBold',
-    fontSize: 11.5, lineHeight: 18, textAlign: 'center', flexShrink: 1,
+    fontSize: 14, lineHeight: 18, textAlign: 'center', flexShrink: 1,
   },
   continueButton: {
     flex: 1.2, minHeight: 49, paddingVertical: 12, paddingHorizontal: 10,
@@ -490,6 +490,6 @@ const styles = StyleSheet.create({
   },
   continueText: {
     color: COLORS.white, fontFamily: 'Poppins_600SemiBold',
-    fontSize: 11.5, lineHeight: 18, textAlign: 'center', flexShrink: 1,
+    fontSize: 14.5, lineHeight: 18, textAlign: 'center', flexShrink: 1,
   },
 });

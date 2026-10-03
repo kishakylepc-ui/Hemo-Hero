@@ -4,6 +4,25 @@ const {
   '../config/supabase'
 );
 
+const {
+  createNotification,
+  createNotifications,
+} = require(
+  '../services/notificationService'
+);
+
+const {
+  setActivityEntity,
+} = require(
+  '../middleware/activityLogMiddleware'
+);
+
+const {
+  closeOpenOffers,
+} = require(
+  '../services/requestClosingService'
+);
+
 // ============================================================
 // CONSTANTS
 // ============================================================
@@ -23,6 +42,7 @@ const REQUEST_STATUSES = [
   'active',
   'fulfilled',
   'cancelled',
+  'expired',
 ];
 
 const URGENCY_TYPES = [
@@ -238,6 +258,14 @@ function buildRequestSummary(
         'cancelled'
     );
 
+  // Closed by the expiry sweep without a recorded donation.
+  const expired =
+    rows.filter(
+      request =>
+        request.status ===
+        'expired'
+    );
+
   const urgentActive =
     active.filter(
       request =>
@@ -289,6 +317,9 @@ function buildRequestSummary(
 
     cancelled:
       cancelled.length,
+
+    expired:
+      expired.length,
 
     urgent_active:
       urgentActive.length,
@@ -1322,6 +1353,517 @@ async function getAdminBloodRequestById(
 }
 
 // ============================================================
+// REQUEST REPORTS (false request / asking for payment)
+//
+// Open reports made from the request page (no conversation).
+// Closed together when an admin removes or keeps the request.
+// ============================================================
+
+async function closeRequestReports(
+  requestId,
+  adminId,
+  status,
+  note
+) {
+  const now =
+    new Date().toISOString();
+
+  const {
+    error,
+  } =
+    await supabaseAdmin
+      .from(
+        'user_reports'
+      )
+      .update({
+        status,
+        admin_note:
+          note ||
+          null,
+        reviewed_by:
+          adminId,
+        reviewed_at:
+          now,
+        updated_at:
+          now,
+      })
+      .eq(
+        'request_id',
+        requestId
+      )
+      .eq(
+        'kind',
+        'report'
+      )
+      .is(
+        'response_id',
+        null
+      )
+      .in(
+        'status',
+        [
+          'open',
+          'in_review',
+        ]
+      );
+
+  if (error) {
+    console.error(
+      'CLOSE REQUEST REPORTS ERROR:',
+      error
+    );
+  }
+}
+
+async function loadRequestForReview(
+  requestId
+) {
+  const {
+    data,
+    error,
+  } =
+    await supabaseAdmin
+      .from(
+        'blood_requests'
+      )
+      .select(
+        'id, requester_id, blood_type, facility_name, status, flagged_at, removed_at'
+      )
+      .eq(
+        'id',
+        requestId
+      )
+      .maybeSingle();
+
+  if (error) {
+    throw error;
+  }
+
+  return data;
+}
+
+// ============================================================
+// PATCH /api/requests/admin/:id/remove
+//
+// Body: { note } (required, shown to the requester)
+//
+// Takes down a false request: status 'cancelled' with the
+// removal recorded, donors with offers and the requester are
+// notified, and the request's open reports are resolved.
+// ============================================================
+
+async function removeAdminBloodRequest(
+  req,
+  res
+) {
+  try {
+    if (
+      !isAdmin(
+        req
+      )
+    ) {
+      return res
+        .status(403)
+        .json({
+          error:
+            'Admin access is required.',
+        });
+    }
+
+    const requestId =
+      cleanText(
+        req.params.id
+      );
+
+    const note =
+      cleanText(
+        req.body?.note
+      );
+
+    if (!requestId) {
+      return res
+        .status(400)
+        .json({
+          error:
+            'Blood request ID is required.',
+        });
+    }
+
+    if (!note) {
+      return res
+        .status(400)
+        .json({
+          error:
+            'Add a short reason. The requester will see it.',
+        });
+    }
+
+    if (
+      note.length >
+      1000
+    ) {
+      return res
+        .status(400)
+        .json({
+          error:
+            'The reason must not exceed 1000 characters.',
+        });
+    }
+
+    const request =
+      await loadRequestForReview(
+        requestId
+      );
+
+    if (!request) {
+      return res
+        .status(404)
+        .json({
+          error:
+            'Blood request not found.',
+        });
+    }
+
+    if (
+      request.removed_at
+    ) {
+      return res
+        .status(409)
+        .json({
+          error:
+            'This request was already removed.',
+        });
+    }
+
+    if (
+      request.status !==
+      'active'
+    ) {
+      return res
+        .status(409)
+        .json({
+          error:
+            `This request is already ${request.status}.`,
+        });
+    }
+
+    // Donors to tell (looked up before the status changes).
+    const {
+      data:
+        responses,
+      error:
+        responsesError,
+    } =
+      await supabaseAdmin
+        .from(
+          'blood_request_responses'
+        )
+        .select(
+          'donor_id'
+        )
+        .eq(
+          'request_id',
+          requestId
+        )
+        .in(
+          'status',
+          [
+            'pending',
+            'accepted',
+          ]
+        );
+
+    if (responsesError) {
+      console.error(
+        'REMOVE REQUEST DONOR LOOKUP ERROR:',
+        responsesError
+      );
+    }
+
+    const now =
+      new Date().toISOString();
+
+    const {
+      error:
+        updateError,
+    } =
+      await supabaseAdmin
+        .from(
+          'blood_requests'
+        )
+        .update({
+          status:
+            'cancelled',
+          cancelled_at:
+            now,
+          removed_at:
+            now,
+          removed_by:
+            req.dbUser.id,
+          removal_reason:
+            note,
+        })
+        .eq(
+          'id',
+          requestId
+        )
+        .eq(
+          'status',
+          'active'
+        );
+
+    if (updateError) {
+      console.error(
+        'REMOVE REQUEST ERROR:',
+        updateError
+      );
+
+      return res
+        .status(500)
+        .json({
+          error:
+            'Unable to remove this request.',
+        });
+    }
+
+    setActivityEntity(
+      res,
+      'blood_request',
+      requestId
+    );
+
+    await closeRequestReports(
+      requestId,
+      req.dbUser.id,
+      'resolved',
+      note
+    );
+
+    await createNotification({
+      userId:
+        request.requester_id,
+      type:
+        'blood_request_removed',
+      title:
+        'Request Removed by Hemo-Hero',
+      message:
+        `Your ${request.blood_type} request at ${request.facility_name} was removed: ${note}`,
+      data: {
+        request_id:
+          requestId,
+        recipient_role:
+          'requester',
+      },
+    });
+
+    // Pending offers/invitations close and trips end.
+    const closed =
+      await closeOpenOffers(
+        requestId
+      );
+
+    const donorIds = [
+      ...new Set(
+        [
+          ...(responses || []).map(
+            row =>
+              row.donor_id
+          ),
+
+          ...closed.invitedDonorIds,
+        ].filter(Boolean)
+      ),
+    ];
+
+    await createNotifications(
+      donorIds.map(
+        donorId => ({
+          userId:
+            donorId,
+          type:
+            'blood_request_cancelled',
+          title:
+            'Blood Request Removed',
+          message:
+            `The ${request.blood_type} request at ${request.facility_name} was removed by Hemo-Hero after review. You don't need to go.`,
+          data: {
+            request_id:
+              requestId,
+            blood_type:
+              request.blood_type,
+            facility_name:
+              request.facility_name,
+            status:
+              'cancelled',
+          },
+        })
+      )
+    );
+
+    return res
+      .status(200)
+      .json({
+        message:
+          'The request was removed.',
+      });
+  } catch (error) {
+    console.error(
+      'REMOVE ADMIN BLOOD REQUEST ERROR:',
+      error
+    );
+
+    return res
+      .status(500)
+      .json({
+        error:
+          'Unable to remove this request.',
+      });
+  }
+}
+
+// ============================================================
+// PATCH /api/requests/admin/:id/keep
+//
+// Body: { note? }
+//
+// The reports were not valid: the request stays up, is shown
+// to nearby donors again, and its open reports are dismissed.
+// ============================================================
+
+async function keepAdminBloodRequest(
+  req,
+  res
+) {
+  try {
+    if (
+      !isAdmin(
+        req
+      )
+    ) {
+      return res
+        .status(403)
+        .json({
+          error:
+            'Admin access is required.',
+        });
+    }
+
+    const requestId =
+      cleanText(
+        req.params.id
+      );
+
+    const note =
+      cleanText(
+        req.body?.note
+      );
+
+    if (!requestId) {
+      return res
+        .status(400)
+        .json({
+          error:
+            'Blood request ID is required.',
+        });
+    }
+
+    if (
+      note.length >
+      1000
+    ) {
+      return res
+        .status(400)
+        .json({
+          error:
+            'The note must not exceed 1000 characters.',
+        });
+    }
+
+    const request =
+      await loadRequestForReview(
+        requestId
+      );
+
+    if (!request) {
+      return res
+        .status(404)
+        .json({
+          error:
+            'Blood request not found.',
+        });
+    }
+
+    if (
+      request.flagged_at
+    ) {
+      const {
+        error:
+          updateError,
+      } =
+        await supabaseAdmin
+          .from(
+            'blood_requests'
+          )
+          .update({
+            flagged_at:
+              null,
+          })
+          .eq(
+            'id',
+            requestId
+          );
+
+      if (updateError) {
+        console.error(
+          'KEEP REQUEST ERROR:',
+          updateError
+        );
+
+        return res
+          .status(500)
+          .json({
+            error:
+              'Unable to update this request.',
+          });
+      }
+    }
+
+    setActivityEntity(
+      res,
+      'blood_request',
+      requestId
+    );
+
+    await closeRequestReports(
+      requestId,
+      req.dbUser.id,
+      'dismissed',
+      note ||
+        'Reviewed: the request is valid.'
+    );
+
+    return res
+      .status(200)
+      .json({
+        message:
+          'The request stays up.',
+      });
+  } catch (error) {
+    console.error(
+      'KEEP ADMIN BLOOD REQUEST ERROR:',
+      error
+    );
+
+    return res
+      .status(500)
+      .json({
+        error:
+          'Unable to update this request.',
+      });
+  }
+}
+
+// ============================================================
 // EXPORTS
 // ============================================================
 
@@ -1329,4 +1871,6 @@ module.exports = {
   getAdminBloodRequests,
   getAdminBloodTypeDemand,
   getAdminBloodRequestById,
+  removeAdminBloodRequest,
+  keepAdminBloodRequest,
 };

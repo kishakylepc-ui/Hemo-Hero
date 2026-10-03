@@ -50,34 +50,40 @@ import {
   getAccessToken,
 } from '../../lib/session';
 
+import {
+  type BloodType,
+  getCompatibleDonorTypes,
+  isBloodType,
+} from '../../lib/bloodCompatibility';
+
 // ============================================================
 // COLORS
 // ============================================================
 
 const COLORS = {
-  red: '#D31217',
-  redDark: '#8F1014',
-  redButton: '#C62828',
+  red: '#DB0A0A',
+  redDark: '#8F1111',
+  redButton: '#B42323',
 
   white: '#FFFFFF',
-  black: '#1D1D1F',
+  black: '#171717',
 
-  page: '#F7F7F8',
+  page: '#FFF8F8',
 
-  muted: '#6E6E73',
-  lightMuted: '#A0A0A5',
+  muted: '#666666',
+  lightMuted: '#9A9A9A',
 
-  border: '#E7E7EA',
+  border: '#E8DADA',
 
-  pinkSoft: '#FFF1F2',
+  pinkSoft: '#FFF1F1',
 
-  green: '#178B49',
+  green: '#159447',
   greenSoft: '#EAF7EF',
 
-  orange: '#DD7A20',
-  orangeSoft: '#FFF3E7',
+  orange: '#DF721D',
+  orangeSoft: '#FDF1E6',
 
-  graySoft: '#F2F2F4',
+  graySoft: '#F5EFEF',
 };
 
 // ============================================================
@@ -113,7 +119,9 @@ function normalizeBloodType(
     .toUpperCase();
 }
 
-function bloodTypesMatchExactly(
+// Same rule as the server: the donor's verified blood type
+// must be red-cell compatible with the requested type.
+function isCompatibleDonorForRequest(
   requestBloodType?: string | null,
   donorBloodType?: string | null
 ) {
@@ -128,13 +136,15 @@ function bloodTypesMatchExactly(
     );
 
   if (
-    !required ||
-    !donor
+    !isBloodType(required) ||
+    !isBloodType(donor)
   ) {
     return false;
   }
 
-  return required === donor;
+  return getCompatibleDonorTypes(
+    required
+  ).includes(donor);
 }
 
 // ============================================================
@@ -252,7 +262,7 @@ export default function DonorDetailsScreen() {
 
         return activeRequests.filter(
           request =>
-            bloodTypesMatchExactly(
+            isCompatibleDonorForRequest(
               request.blood_type,
               donor.blood_type
             )
@@ -549,14 +559,14 @@ export default function DonorDetailsScreen() {
       );
 
       // ------------------------------------------------------
-      // AUTO-SELECT ONLY AN EXACT BLOOD-TYPE MATCH
+      // AUTO-SELECT WHEN EXACTLY ONE REQUEST IS COMPATIBLE
       // ------------------------------------------------------
 
       if (donor) {
         const matching =
           active.filter(
             request =>
-              bloodTypesMatchExactly(
+              isCompatibleDonorForRequest(
                 request.blood_type,
                 donor.blood_type
               )
@@ -649,14 +659,14 @@ export default function DonorDetailsScreen() {
     // --------------------------------------------------------
 
     if (
-      !bloodTypesMatchExactly(
+      !isCompatibleDonorForRequest(
         selected.blood_type,
         donor.blood_type
       )
     ) {
       showMessage(
-        'Blood Type Does Not Match',
-        `This request requires ${selected.blood_type}, but this donor's verified blood type is ${donor.blood_type}.`
+        'Blood Type Not Compatible',
+        `A ${donor.blood_type} donor cannot donate to a ${selected.blood_type} request. Compatible donors: ${getCompatibleDonorTypes(normalizeBloodType(selected.blood_type) as BloodType).join(', ')}.`
       );
 
       return;
@@ -890,7 +900,7 @@ export default function DonorDetailsScreen() {
 
           <LinearGradient
             colors={[
-              '#D9191E',
+              '#D2151A',
               COLORS.redDark,
             ]}
             style={
@@ -1087,6 +1097,59 @@ export default function DonorDetailsScreen() {
                     }
                   />
                 </View>
+
+                {/* Completed donations and requester ratings */}
+                {typeof donor.donations_count ===
+                'number' ? (
+                  <View
+                    style={[
+                      styles.summaryCard,
+                      styles.summaryCardStacked,
+                    ]}
+                  >
+                    <SummaryItem
+                      icon="volunteer-activism"
+                      label={
+                        donor.donations_count ===
+                        1
+                          ? 'Donation'
+                          : 'Donations'
+                      }
+                      value={
+                        donor.donations_count ===
+                        0
+                          ? 'New donor'
+                          : String(
+                              donor.donations_count
+                            )
+                      }
+                    />
+
+                    <View
+                      style={
+                        styles.summaryDivider
+                      }
+                    />
+
+                    <SummaryItem
+                      icon="star"
+                      label={
+                        donor.ratings_count
+                          ? `Rating (${donor.ratings_count})`
+                          : 'Rating'
+                      }
+                      value={
+                        donor.ratings_count &&
+                        typeof donor.average_rating ===
+                          'number'
+                          ? `${donor.average_rating.toFixed(
+                              1
+                            )} / 5`
+                          : 'No ratings yet'
+                      }
+                    />
+                  </View>
+                ) : null}
               </>
             ) : null}
           </LinearGradient>
@@ -1211,7 +1274,7 @@ export default function DonorDetailsScreen() {
             donor ? (
               <>
                 <SectionTitle
-                  title="Donor Status"
+                  title="Details"
                 />
 
                 <View
@@ -1237,26 +1300,14 @@ export default function DonorDetailsScreen() {
                     value={
                       donor.availability_status ===
                       'available'
-                        ? 'Available'
-                        : 'Unavailable'
+                        ? 'Available to donate'
+                        : 'Unavailable right now'
                     }
                     valueColor={
                       donor.availability_status ===
                       'available'
                         ? COLORS.green
                         : COLORS.muted
-                    }
-                  />
-
-                  <Divider />
-
-                  <InfoRow
-                    icon="directions-car"
-                    label="Travel Range"
-                    value={
-                      donor.travel_radius_km
-                        ? `Up to ${donor.travel_radius_km} km`
-                        : 'Not specified'
                     }
                   />
 
@@ -1274,118 +1325,51 @@ export default function DonorDetailsScreen() {
                         ? COLORS.orangeSoft
                         : COLORS.graySoft
                     }
-                    label="Urgent Requests"
+                    label="Requests"
                     value={
                       donor.allow_urgent_requests
                         ? 'Accepts urgent requests'
                         : 'Regular requests only'
                     }
                   />
-                </View>
 
-                <SectionTitle
-                  title="Donation Information"
-                />
+                  <Divider />
 
-                <View
-                  style={
-                    styles.infoCard
-                  }
-                >
                   <InfoRow
-                    icon="volunteer-activism"
-                    label="Previous Donor"
+                    icon="directions-car"
+                    label="Travels up to"
                     value={
-                      donor.has_donated_before
-                        ? 'Yes'
-                        : 'No'
-                    }
-                  />
-
-                  {donor.has_donated_before ? (
-                    <>
-                      <Divider />
-
-                      <InfoRow
-                        icon="history"
-                        label="Last Donation"
-                        value={
-                          formatDate(
-                            donor.last_donation_date
-                          )
-                        }
-                      />
-                    </>
-                  ) : null}
-                </View>
-
-                <SectionTitle
-                  title="Location"
-                />
-
-                <View
-                  style={
-                    styles.infoCard
-                  }
-                >
-                  <InfoRow
-                    icon="location-on"
-                    label="General Location"
-                    value={
-                      donorLocation
+                      donor.travel_radius_km
+                        ? `${donor.travel_radius_km} km`
+                        : 'Not specified'
                     }
                   />
 
                   <Divider />
 
                   <InfoRow
-                    icon="lock-outline"
-                    label="Location Privacy"
-                    value="Exact location hidden"
+                    icon="volunteer-activism"
+                    label="Donated before"
+                    value={
+                      donor.has_donated_before
+                        ? donor.last_donation_date
+                          ? `Yes · last on ${formatDate(
+                              donor.last_donation_date
+                            )}`
+                          : 'Yes'
+                        : 'Not yet'
+                    }
                   />
-                </View>
 
-                <View
-                  style={
-                    styles.privacyCard
-                  }
-                >
-                  <View
-                    style={
-                      styles.privacyIcon
+                  <Divider />
+
+                  <InfoRow
+                    icon="location-on"
+                    label="Area"
+                    value={
+                      donorLocation
                     }
-                  >
-                    <MaterialIcons
-                      name="security"
-                      size={20}
-                      color={
-                        COLORS.redButton
-                      }
-                    />
-                  </View>
-
-                  <View
-                    style={
-                      styles.privacyBody
-                    }
-                  >
-                    <Text
-                      style={
-                        styles.privacyTitle
-                      }
-                    >
-                      Privacy Protected
-                    </Text>
-
-                    <Text
-                      style={
-                        styles.privacyDescription
-                      }
-                    >
-                      Exact address, coordinates, phone number, and email are
-                      hidden. Communication happens securely through Hemo-Hero.
-                    </Text>
-                  </View>
+                  />
                 </View>
 
                 <TouchableOpacity
@@ -1445,8 +1429,29 @@ export default function DonorDetailsScreen() {
                       styles.helperText
                     }
                   >
-                    Only an active request with the same blood type as this donor
-                    can be sent.
+                    Sends your active request if their blood type matches.
+                  </Text>
+                </View>
+
+                <View
+                  style={
+                    styles.helperRow
+                  }
+                >
+                  <MaterialIcons
+                    name="shield"
+                    size={13}
+                    color={
+                      COLORS.lightMuted
+                    }
+                  />
+
+                  <Text
+                    style={
+                      styles.helperText
+                    }
+                  >
+                    Exact location and contact details stay private.
                   </Text>
                 </View>
 
@@ -1751,7 +1756,7 @@ export default function DonorDetailsScreen() {
                         styles.modalStateTitle
                       }
                     >
-                      Blood Type Does Not Match
+                      Blood Type Not Compatible
                     </Text>
 
                     <Text
@@ -1759,7 +1764,7 @@ export default function DonorDetailsScreen() {
                         styles.modalStateText
                       }
                     >
-                      Your active request requires{' '}
+                      Your active request needs{' '}
                       <Text
                         style={
                           styles.boldStateText
@@ -1770,7 +1775,7 @@ export default function DonorDetailsScreen() {
                             ?.blood_type
                         }
                       </Text>
-                      , while this donor&apos;s verified blood type is{' '}
+                      , and this donor&apos;s verified blood type{' '}
                       <Text
                         style={
                           styles.boldStateText
@@ -1780,7 +1785,7 @@ export default function DonorDetailsScreen() {
                           donor?.blood_type
                         }
                       </Text>
-                      .
+                      {' '}cannot donate to it.
                     </Text>
 
                     <View
@@ -1801,8 +1806,8 @@ export default function DonorDetailsScreen() {
                           styles.matchRuleText
                         }
                       >
-                        Hemo-Hero only allows direct invitations when the request
-                        and donor blood types are exactly the same.
+                        Hemo-Hero only allows direct invitations when the donor's
+                        blood type is compatible with the request.
                       </Text>
                     </View>
 
@@ -2058,7 +2063,7 @@ export default function DonorDetailsScreen() {
                             styles.invitationNoticeText
                           }
                         >
-                          The blood types match. The donor can review this request
+                          The blood types are compatible. The donor can review this request
                           and choose whether to accept or decline.
                         </Text>
                       </View>
@@ -2566,7 +2571,7 @@ const styles =
         'Poppins_600SemiBold',
 
       fontSize:
-        14.5,
+        17,
     },
 
     profileHeader: {
@@ -2636,10 +2641,10 @@ const styles =
         'Poppins_700Bold',
 
       fontSize:
-        16.5,
+        20,
 
       lineHeight:
-        20,
+        26,
     },
 
     locationRow: {
@@ -2667,7 +2672,7 @@ const styles =
         'Inter_400Regular',
 
       fontSize:
-        8.5,
+        12.5,
     },
 
     verifiedBadge: {
@@ -2707,7 +2712,7 @@ const styles =
         'Inter_600SemiBold',
 
       fontSize:
-        8,
+        11.5,
     },
 
     summaryCard: {
@@ -2754,6 +2759,14 @@ const styles =
 
       elevation:
         3,
+    },
+
+    summaryCardStacked: {
+      minHeight:
+        58,
+
+      marginTop:
+        8,
     },
 
     summaryItem: {
@@ -2809,7 +2822,7 @@ const styles =
         'Inter_600SemiBold',
 
       fontSize:
-        10,
+        13.5,
     },
 
     summaryLabel: {
@@ -2823,7 +2836,7 @@ const styles =
         'Inter_400Regular',
 
       fontSize:
-        7.5,
+        11,
     },
 
     summaryDivider: {
@@ -2870,7 +2883,7 @@ const styles =
         'Poppins_600SemiBold',
 
       fontSize:
-        12.5,
+        14.5,
     },
 
     infoCard: {
@@ -2943,7 +2956,7 @@ const styles =
         'Inter_400Regular',
 
       fontSize:
-        8,
+        11.5,
     },
 
     infoValue: {
@@ -2954,10 +2967,10 @@ const styles =
         'Inter_600SemiBold',
 
       fontSize:
-        10,
+        13,
 
       lineHeight:
-        14,
+        18,
     },
 
     divider: {
@@ -2969,91 +2982,6 @@ const styles =
 
       backgroundColor:
         COLORS.border,
-    },
-
-    privacyCard: {
-      marginBottom:
-        15,
-
-      padding:
-        12,
-
-      flexDirection:
-        'row',
-
-      alignItems:
-        'flex-start',
-
-      borderWidth:
-        1,
-
-      borderColor:
-        '#ECD2D2',
-
-      borderRadius:
-        14,
-
-      backgroundColor:
-        COLORS.pinkSoft,
-    },
-
-    privacyIcon: {
-      width:
-        38,
-
-      height:
-        38,
-
-      marginRight:
-        10,
-
-      borderRadius:
-        19,
-
-      alignItems:
-        'center',
-
-      justifyContent:
-        'center',
-
-      backgroundColor:
-        COLORS.white,
-    },
-
-    privacyBody: {
-      flex:
-        1,
-
-      minWidth:
-        0,
-    },
-
-    privacyTitle: {
-      color:
-        COLORS.black,
-
-      fontFamily:
-        'Inter_600SemiBold',
-
-      fontSize:
-        10.5,
-    },
-
-    privacyDescription: {
-      marginTop:
-        3,
-
-      color:
-        COLORS.muted,
-
-      fontFamily:
-        'Inter_400Regular',
-
-      fontSize:
-        8.5,
-
-      lineHeight:
-        13,
     },
 
     requestHelpButton: {
@@ -3092,7 +3020,7 @@ const styles =
         'Poppins_600SemiBold',
 
       fontSize:
-        11,
+        14.5,
     },
 
     helperRow: {
@@ -3126,10 +3054,10 @@ const styles =
         'Inter_400Regular',
 
       fontSize:
-        8,
+        12,
 
       lineHeight:
-        12,
+        17,
 
       textAlign:
         'center',
@@ -3200,7 +3128,7 @@ const styles =
         'Poppins_600SemiBold',
 
       fontSize:
-        13.5,
+        15,
 
       textAlign:
         'center',
@@ -3220,10 +3148,10 @@ const styles =
         'Inter_400Regular',
 
       fontSize:
-        9.5,
+        12.5,
 
       lineHeight:
-        14,
+        18,
 
       textAlign:
         'center',
@@ -3266,7 +3194,7 @@ const styles =
         'Inter_600SemiBold',
 
       fontSize:
-        10,
+        13,
     },
 
     modalOverlay: {
@@ -3370,7 +3298,7 @@ const styles =
         'Poppins_600SemiBold',
 
       fontSize:
-        15,
+        17,
     },
 
     modalSubtitle: {
@@ -3384,10 +3312,10 @@ const styles =
         'Inter_400Regular',
 
       fontSize:
-        9,
+        12.5,
 
       lineHeight:
-        13,
+        18,
     },
 
     modalClose: {
@@ -3484,7 +3412,7 @@ const styles =
         'Poppins_600SemiBold',
 
       fontSize:
-        12,
+        14.5,
     },
 
     modalStateText: {
@@ -3501,10 +3429,10 @@ const styles =
         'Inter_400Regular',
 
       fontSize:
-        9,
+        12.5,
 
       lineHeight:
-        14,
+        18,
 
       textAlign:
         'center',
@@ -3555,10 +3483,10 @@ const styles =
         'Inter_400Regular',
 
       fontSize:
-        8.5,
+        12,
 
       lineHeight:
-        13,
+        17,
     },
 
     modalSecondaryButton: {
@@ -3604,7 +3532,7 @@ const styles =
         'Inter_600SemiBold',
 
       fontSize:
-        9.5,
+        13.5,
     },
 
     createRequestButton: {
@@ -3644,7 +3572,7 @@ const styles =
         'Inter_600SemiBold',
 
       fontSize:
-        9.5,
+        13.5,
     },
 
     chooseRequestLabel: {
@@ -3661,7 +3589,7 @@ const styles =
         'Inter_600SemiBold',
 
       fontSize:
-        8,
+        12,
 
       letterSpacing:
         0.8,
@@ -3742,7 +3670,7 @@ const styles =
         'Inter_700Bold',
 
       fontSize:
-        10,
+        13.5,
     },
 
     matchBadge: {
@@ -3779,7 +3707,7 @@ const styles =
         'Inter_600SemiBold',
 
       fontSize:
-        8,
+        11.5,
     },
 
     requestFacility: {
@@ -3793,7 +3721,7 @@ const styles =
         'Inter_600SemiBold',
 
       fontSize:
-        10.5,
+        13.5,
     },
 
     requestMetaRow: {
@@ -3832,7 +3760,7 @@ const styles =
         'Inter_400Regular',
 
       fontSize:
-        8,
+        12,
     },
 
     requestMetaDot: {
@@ -3883,10 +3811,10 @@ const styles =
         'Inter_400Regular',
 
       fontSize:
-        8,
+        12,
 
       lineHeight:
-        12,
+        17,
     },
 
     sendInvitationButton: {
@@ -3928,7 +3856,7 @@ const styles =
         'Poppins_600SemiBold',
 
       fontSize:
-        10.5,
+        14.5,
     },
 
     // ========================================================
@@ -4041,7 +3969,7 @@ const styles =
         'Poppins_600SemiBold',
 
       fontSize:
-        16,
+        17,
 
       lineHeight:
         22,
@@ -4061,10 +3989,10 @@ const styles =
         'Inter_400Regular',
 
       fontSize:
-        11,
+        13.5,
 
       lineHeight:
-        17,
+        20,
 
       textAlign:
         'center',
@@ -4098,6 +4026,6 @@ const styles =
         'Poppins_600SemiBold',
 
       fontSize:
-        10,
+        14,
     },
   });

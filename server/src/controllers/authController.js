@@ -16,6 +16,39 @@ const {
   '../middleware/activityLogMiddleware'
 );
 
+const {
+  getBloodTypeProof,
+  removeBloodTypeProofs,
+} = require(
+  '../services/bloodTypeProofService'
+);
+
+// The profile plus whether a blood type proof is on file.
+async function withBloodTypeProof(
+  user
+) {
+  if (!user) {
+    return user;
+  }
+
+  const proof =
+    await getBloodTypeProof(
+      user.id
+    );
+
+  return {
+    ...user,
+
+    blood_type_proof:
+      proof
+        ? {
+            uploaded_at:
+              proof.uploaded_at,
+          }
+        : null,
+  };
+}
+
 // ============================================================
 // CONSTANTS
 // ============================================================
@@ -596,6 +629,47 @@ async function register(
             },
           },
         });
+
+    // --------------------------------------------------------
+    // ALREADY REGISTERED
+    //
+    // Supabase either errors ("User already registered") or,
+    // with email confirmation on, returns a user with no
+    // identities and sends nothing. Without this the app would
+    // wait for a verification code that never comes. (Sign in
+    // already tells whether an account exists.)
+    // --------------------------------------------------------
+
+    const alreadyRegistered =
+      (error &&
+        /already (registered|exists)/i.test(
+          error.message ||
+            ''
+        )) ||
+      (!error &&
+        Array.isArray(
+          data?.user
+            ?.identities
+        ) &&
+        data.user
+          .identities
+          .length === 0);
+
+    if (
+      alreadyRegistered
+    ) {
+      return res
+        .status(
+          409
+        )
+        .json({
+          code:
+            'EMAIL_ALREADY_REGISTERED',
+
+          error:
+            'An account with this email already exists.',
+        });
+    }
 
     if (error) {
       console.log(
@@ -1545,6 +1619,161 @@ async function login(
 }
 
 // ============================================================
+// POST /api/auth/refresh
+//
+// Exchanges a refresh token for a new session so the mobile
+// app stays signed in after the access token expires (~1 hour).
+//
+// Body: { refresh_token: string }
+//
+// Does NOT require a valid access token (the old one has
+// usually expired). Deactivated accounts cannot refresh.
+// ============================================================
+
+async function refreshSession(
+  req,
+  res
+) {
+  try {
+    const refreshToken =
+      typeof req.body?.refresh_token ===
+      'string'
+        ? req.body.refresh_token.trim()
+        : '';
+
+    if (!refreshToken) {
+      return res
+        .status(400)
+        .json({
+          error:
+            'Refresh token is required.',
+
+          code:
+            'REFRESH_TOKEN_REQUIRED',
+        });
+    }
+
+    const {
+      data,
+      error,
+    } =
+      await supabaseAnon
+        .auth
+        .refreshSession({
+          refresh_token:
+            refreshToken,
+        });
+
+    if (
+      error ||
+      !data?.session ||
+      !data?.user
+    ) {
+      return res
+        .status(401)
+        .json({
+          error:
+            'Your session has expired. Please sign in again.',
+
+          code:
+            'REFRESH_TOKEN_INVALID',
+        });
+    }
+
+    // --------------------------------------------------------
+    // ACCOUNT MUST STILL BE ACTIVE
+    // --------------------------------------------------------
+
+    const {
+      data:
+        dbUser,
+      error:
+        dbError,
+    } =
+      await supabaseAdmin
+        .from(
+          'users'
+        )
+        .select(
+          '*'
+        )
+        .eq(
+          'id',
+          data.user.id
+        )
+        .maybeSingle();
+
+    if (dbError) {
+      console.error(
+        'REFRESH PROFILE LOOKUP ERROR:',
+        dbError
+      );
+
+      return res
+        .status(500)
+        .json({
+          error:
+            'Unable to refresh session.',
+        });
+    }
+
+    if (
+      !dbUser ||
+      dbUser.is_active ===
+        false
+    ) {
+      try {
+        await supabaseAdmin
+          .auth
+          .admin
+          .signOut(
+            data.session.access_token
+          );
+      } catch (signOutError) {
+        console.error(
+          'REFRESH SIGNOUT ERROR:',
+          signOutError
+        );
+      }
+
+      return res
+        .status(403)
+        .json({
+          error:
+            'Your account has been deactivated. Please contact an administrator.',
+
+          code:
+            'ACCOUNT_DEACTIVATED',
+        });
+    }
+
+    return res
+      .status(200)
+      .json({
+        session:
+          data.session,
+
+        profile:
+          dbUser,
+      });
+  } catch (
+    error
+  ) {
+    console.error(
+      'REFRESH SESSION ERROR:',
+      error
+    );
+
+    return res
+      .status(500)
+      .json({
+        error:
+          'Unable to refresh session.',
+      });
+  }
+}
+
+// ============================================================
 // POST /api/auth/logout
 // ============================================================
 
@@ -2206,7 +2435,9 @@ async function getProfile(
     )
     .json({
       user:
-        req.dbUser,
+        await withBloodTypeProof(
+          req.dbUser
+        ),
     });
 }
 
@@ -2571,6 +2802,11 @@ async function updateProfile(
     // BLOOD TYPE
     // ========================================================
 
+    // Clearing it removes the proof too. A new blood type needs a
+    // proof photo (PUT /api/auth/me/blood-type).
+    let clearBloodTypeProof =
+      false;
+
     if (
       blood_type !==
       undefined
@@ -2583,6 +2819,9 @@ async function updateProfile(
       ) {
         updates.blood_type =
           null;
+
+        clearBloodTypeProof =
+          true;
       } else {
         if (
           typeof blood_type !==
@@ -2616,6 +2855,23 @@ async function updateProfile(
             .json({
               error:
                 'Invalid blood type',
+            });
+        }
+
+        if (
+          cleanBloodType !==
+          req.dbUser
+            ?.blood_type
+        ) {
+          return res
+            .status(
+              400
+            )
+            .json({
+              error:
+                'Add a photo of your blood type proof to change your blood type.',
+              code:
+                'BLOOD_TYPE_PROOF_REQUIRED',
             });
         }
 
@@ -2831,6 +3087,15 @@ async function updateProfile(
         )
         .single();
 
+    if (
+      !error &&
+      clearBloodTypeProof
+    ) {
+      await removeBloodTypeProofs(
+        data.id
+      );
+    }
+
     if (error) {
       console.error(
         'UPDATE PROFILE SUPABASE ERROR:',
@@ -2887,7 +3152,9 @@ async function updateProfile(
             : 'Profile updated successfully',
 
         user:
-          data,
+          await withBloodTypeProof(
+            data
+          ),
       });
   } catch (
     error
@@ -2917,6 +3184,7 @@ module.exports = {
   verifyEmail,
   resendVerification,
   login,
+  refreshSession,
   logout,
   forgotPassword,
   verifyRecoveryCode,

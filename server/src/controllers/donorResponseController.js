@@ -17,6 +17,28 @@ const {
     '../middleware/activityLogMiddleware'
   );
 
+const {
+  areRedBloodCellsCompatible,
+  getCompatibleDonorTypes
+} =
+  require(
+    '../utils/bloodCompatibility'
+  );
+
+const {
+  getDonorStats
+} = require(
+  '../services/donorStatsService'
+);
+
+const {
+  getNextEligibleDate,
+  isEligibleToDonate,
+  formatEligibleDate
+} = require(
+  '../services/eligibilityService'
+);
+
 // ============================================================
 // HELPERS
 // ============================================================
@@ -96,41 +118,26 @@ function normalizeBloodType(
 }
 
 // ============================================================
-// EXACT BLOOD TYPE MATCH
+// BLOOD TYPE COMPATIBILITY
 //
-// Hemo-Hero direct donor response rule:
+// Hemo-Hero donor response rule (same as donor invitations):
+// the donor's verified blood type must be red-cell compatible
+// with the requested type.
 //
-// Request O+ -> verified donor O+ only
-// Request AB- -> verified donor AB- only
+// Request A+  -> donors O-, O+, A-, A+
+// Request O-  -> donors O- only
 //
-// This intentionally uses exact matching rather than
-// transfusion compatibility.
+// Final compatibility is always confirmed by blood-bank
+// testing at the facility.
 // ============================================================
 
-function bloodTypesMatchExactly(
+function isCompatibleDonorBloodType(
   requestBloodType,
   donorBloodType
 ) {
-  const requiredBloodType =
-    normalizeBloodType(
-      requestBloodType
-    );
-
-  const verifiedBloodType =
-    normalizeBloodType(
-      donorBloodType
-    );
-
-  if (
-    !requiredBloodType ||
-    !verifiedBloodType
-  ) {
-    return false;
-  }
-
-  return (
-    requiredBloodType ===
-    verifiedBloodType
+  return areRedBloodCellsCompatible(
+    requestBloodType,
+    donorBloodType
   );
 }
 
@@ -157,7 +164,8 @@ async function getVerifiedDonorApplication(
         blood_type,
         availability_status,
         travel_radius_km,
-        allow_urgent_requests
+        allow_urgent_requests,
+        last_donation_date
       `)
       .eq(
         'user_id',
@@ -431,6 +439,12 @@ async function enrichDonorResponses(
     );
   }
 
+  // Completed donations and requester ratings per donor.
+  const statsMap =
+    await getDonorStats(
+      donorIds
+    );
+
   return responses.map(
     response => {
       const user =
@@ -443,14 +457,24 @@ async function enrichDonorResponses(
           response.donor_id
         );
 
+      const profile =
+        buildSafeDonorProfile(
+          user,
+          donorApplication
+        );
+
       return {
         ...response,
 
         donor:
-          buildSafeDonorProfile(
-            user,
-            donorApplication
-          )
+          profile
+            ? {
+                ...profile,
+                ...(statsMap.get(
+                  response.donor_id
+                ) || {})
+              }
+            : profile
       };
     }
   );
@@ -640,7 +664,8 @@ async function respondToBloodRequest(
           requester_id,
           status,
           blood_type,
-          facility_name
+          facility_name,
+          flagged_at
         `)
         .eq(
           'id',
@@ -708,6 +733,18 @@ async function respondToBloodRequest(
         });
     }
 
+    // Reported by several people and waiting for admin review.
+    if (
+      bloodRequest.flagged_at
+    ) {
+      return res
+        .status(409)
+        .json({
+          error:
+            'This request is under review by Hemo-Hero and isn’t accepting offers right now.'
+        });
+    }
+
     // ========================================================
     // VERIFIED DONOR
     // ========================================================
@@ -731,11 +768,43 @@ async function respondToBloodRequest(
     }
 
     // ========================================================
-    // EXACT BLOOD TYPE VALIDATION
+    // WAITING PERIOD SINCE THE LAST DONATION
     // ========================================================
 
     if (
-      !bloodTypesMatchExactly(
+      !isEligibleToDonate(
+        donorApplication
+          .last_donation_date
+      )
+    ) {
+      const nextEligible =
+        getNextEligibleDate(
+          donorApplication
+            .last_donation_date
+        );
+
+      return res
+        .status(409)
+        .json({
+          code:
+            'DONOR_NOT_YET_ELIGIBLE',
+
+          error:
+            `You donated recently. You can donate again from ${formatEligibleDate(
+              nextEligible
+            )}.`,
+
+          next_eligible_at:
+            nextEligible.toISOString()
+        });
+    }
+
+    // ========================================================
+    // BLOOD TYPE COMPATIBILITY
+    // ========================================================
+
+    if (
+      !isCompatibleDonorBloodType(
         bloodRequest.blood_type,
         donorApplication
           .blood_type
@@ -745,7 +814,7 @@ async function respondToBloodRequest(
         .status(409)
         .json({
           error:
-            'Your verified blood type does not match the blood type required by this request.',
+            'Your verified blood type is not compatible with the blood type required by this request.',
 
           required_blood_type:
             normalizeBloodType(
@@ -756,6 +825,12 @@ async function respondToBloodRequest(
           donor_blood_type:
             normalizeBloodType(
               donorApplication
+                .blood_type
+            ),
+
+          compatible_donor_types:
+            getCompatibleDonorTypes(
+              bloodRequest
                 .blood_type
             )
         });
@@ -1487,6 +1562,9 @@ async function getResponsesForMyBloodRequest(
         0,
 
       withdrawn:
+        0,
+
+      no_show:
         0
     };
 
@@ -1523,6 +1601,14 @@ async function getResponsesForMyBloodRequest(
         'withdrawn'
       ) {
         counts.withdrawn +=
+          1;
+      }
+
+      if (
+        response.status ===
+        'no_show'
+      ) {
+        counts.no_show +=
           1;
       }
     }
@@ -1755,11 +1841,11 @@ async function acceptDonorResponse(
     }
 
     // ========================================================
-    // EXACT BLOOD TYPE REVALIDATION
+    // BLOOD TYPE COMPATIBILITY REVALIDATION
     // ========================================================
 
     if (
-      !bloodTypesMatchExactly(
+      !isCompatibleDonorBloodType(
         bloodRequest.blood_type,
         donorApplication
           .blood_type
@@ -1769,7 +1855,7 @@ async function acceptDonorResponse(
         .status(409)
         .json({
           error:
-            'This donor\'s verified blood type does not match the blood type required by this request.',
+            'This donor\'s verified blood type is not compatible with the blood type required by this request.',
 
           required_blood_type:
             normalizeBloodType(

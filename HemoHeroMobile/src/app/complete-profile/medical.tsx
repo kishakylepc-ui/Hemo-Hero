@@ -21,9 +21,15 @@ import {
 import { StatusBar } from 'expo-status-bar';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import BloodTypeProofField from '../../components/BloodTypeProofField';
+
 import {
+  saveBloodTypeWithProof,
   updateProfile,
+  uploadProfilePhoto,
 } from '../../lib/api';
+
+import type { PickedImage } from '../../lib/imageUpload';
 
 import {
   getAccessToken,
@@ -38,7 +44,7 @@ const COLORS = {
   backgroundBottom: '#D90B12',
 
   white: '#FFFFFF',
-  black: '#111111',
+  black: '#171717',
 
   muted: '#646464',
 
@@ -97,6 +103,12 @@ export default function MedicalInformationScreen() {
     bloodType,
     setBloodType,
   ] = useState('');
+
+  // Photo proving the blood type (required to save one).
+  const [
+    bloodTypeProof,
+    setBloodTypeProof,
+  ] = useState<PickedImage | null>(null);
 
   const [
     loading,
@@ -223,6 +235,17 @@ export default function MedicalInformationScreen() {
 
     setErrorMessage('');
 
+    if (
+      bloodType &&
+      !bloodTypeProof
+    ) {
+      setErrorMessage(
+        'Add a photo of your blood type proof, or clear the blood type and add it later.'
+      );
+
+      return;
+    }
+
     try {
       setLoading(true);
 
@@ -239,6 +262,19 @@ export default function MedicalInformationScreen() {
         );
 
         return;
+      }
+
+      // Blood type first, together with its proof, so it's never
+      // saved without one.
+      if (
+        bloodType &&
+        bloodTypeProof
+      ) {
+        await saveBloodTypeWithProof(
+          accessToken,
+          bloodType,
+          bloodTypeProof
+        );
       }
 
       const latitude =
@@ -309,29 +345,15 @@ export default function MedicalInformationScreen() {
             ? longitude
             : null,
 
-        blood_type:
-          bloodType ||
-          null,
-
         complete_onboarding:
           true,
       };
-
-      console.log(
-        'SAVING COMPLETE PROFILE:',
-        profileData
-      );
 
       const result =
         await updateProfile(
           accessToken,
           profileData
         );
-
-      console.log(
-        'PROFILE SAVE RESPONSE:',
-        result
-      );
 
       if (
         !result?.user
@@ -349,6 +371,34 @@ export default function MedicalInformationScreen() {
         throw new Error(
           'Profile information was saved, but onboarding was not completed.'
         );
+      }
+
+      // Photo chosen on the first step. The profile is already
+      // saved, so a failed upload doesn't block finishing; the
+      // photo can be added later from Profile.
+      if (
+        params.profile_photo_uri
+      ) {
+        try {
+          await uploadProfilePhoto(
+            accessToken,
+            {
+              uri:
+                params.profile_photo_uri,
+
+              fileName:
+                `profile-${Date.now()}.jpg`,
+
+              mimeType:
+                'image/jpeg',
+            }
+          );
+        } catch (photoError) {
+          console.log(
+            'ONBOARDING PHOTO UPLOAD ERROR:',
+            photoError
+          );
+        }
       }
 
       router.replace({
@@ -618,7 +668,7 @@ export default function MedicalInformationScreen() {
                     styles.optionalText
                   }
                 >
-                  Optional — you can add or update this later
+                  Optional — only with proof, like a blood donor card or lab result
                 </Text>
 
                 {/* ==============================================
@@ -732,9 +782,10 @@ export default function MedicalInformationScreen() {
                       disabled={
                         loading
                       }
-                      onPress={() =>
-                        setBloodType('')
-                      }
+                      onPress={() => {
+                        setBloodType('');
+                        setBloodTypeProof(null);
+                      }}
                     >
                       <Text
                         style={
@@ -768,6 +819,23 @@ export default function MedicalInformationScreen() {
                     </Text>
                   </View>
                 )}
+
+                {bloodType ? (
+                  <BloodTypeProofField
+                    image={bloodTypeProof}
+                    disabled={loading}
+                    onChange={image => {
+                      setBloodTypeProof(image);
+                      setErrorMessage('');
+                    }}
+                    onError={message =>
+                      showMessage(
+                        'Photo Not Added',
+                        message
+                      )
+                    }
+                  />
+                ) : null}
 
                 {/* ==============================================
                     ERROR
@@ -822,12 +890,12 @@ export default function MedicalInformationScreen() {
                         styles.infoHighlight
                       }
                     >
-                      Not sure?{' '}
+                      Not tested yet?{' '}
                     </Text>
 
-                    That's okay. You can skip this for now and add your blood
-                    type later from your profile once you have confirmed it.
-                    Please do not guess your blood type.
+                    Skip this for now and get your blood typed at your local Red
+                    Cross chapter, hospital or health center. Then add it with a
+                    photo of the result from your profile. Please don't guess.
                   </Text>
                 </View>
 
@@ -1152,7 +1220,7 @@ const styles =
       fontFamily:
         'Poppins_700Bold',
 
-      fontSize: 17,
+      fontSize: 20,
     },
 
     // ========================================================
@@ -1164,7 +1232,7 @@ const styles =
 
       minHeight: 669,
 
-      paddingHorizontal: 28,
+      paddingHorizontal: 20,
       paddingBottom: 30,
     },
 
@@ -1177,9 +1245,9 @@ const styles =
 
       minHeight: 640,
 
-      paddingHorizontal: 24,
-      paddingTop: 13,
-      paddingBottom: 22,
+      paddingHorizontal: 20,
+      paddingTop: 16,
+      paddingBottom: 24,
 
       backgroundColor:
         '#FAFAFA',
@@ -1244,7 +1312,7 @@ const styles =
       fontFamily:
         'Inter_600SemiBold',
 
-      fontSize: 12,
+      fontSize: 14.5,
 
       marginBottom: 15,
     },
@@ -1256,7 +1324,7 @@ const styles =
       fontFamily:
         'Inter_500Medium',
 
-      fontSize: 10,
+      fontSize: 12.5,
 
       marginBottom: 3,
     },
@@ -1268,7 +1336,7 @@ const styles =
       fontFamily:
         'Inter_400Regular',
 
-      fontSize: 8,
+      fontSize: 11.5,
 
       marginBottom: 12,
     },
@@ -1339,7 +1407,7 @@ const styles =
       fontFamily:
         'Inter_600SemiBold',
 
-      fontSize: 10,
+      fontSize: 14,
     },
 
     bloodButtonTextSelected: {
@@ -1400,7 +1468,7 @@ const styles =
       fontFamily:
         'Inter_400Regular',
 
-      fontSize: 8,
+      fontSize: 12,
     },
 
     selectedBloodType: {
@@ -1412,7 +1480,7 @@ const styles =
       fontFamily:
         'Inter_600SemiBold',
 
-      fontSize: 10,
+      fontSize: 13.5,
     },
 
     clearSelectionButton: {
@@ -1427,7 +1495,7 @@ const styles =
       fontFamily:
         'Inter_600SemiBold',
 
-      fontSize: 8,
+      fontSize: 12,
     },
 
     // ========================================================
@@ -1467,9 +1535,9 @@ const styles =
       fontFamily:
         'Inter_400Regular',
 
-      fontSize: 8,
+      fontSize: 12,
 
-      lineHeight: 12,
+      lineHeight: 17,
     },
 
     // ========================================================
@@ -1500,9 +1568,9 @@ const styles =
       fontFamily:
         'Inter_500Medium',
 
-      fontSize: 9,
+      fontSize: 12,
 
-      lineHeight: 13,
+      lineHeight: 17,
 
       textAlign: 'center',
     },
@@ -1550,9 +1618,9 @@ const styles =
       fontFamily:
         'Inter_400Regular',
 
-      fontSize: 9,
+      fontSize: 12,
 
-      lineHeight: 14,
+      lineHeight: 17,
     },
 
     infoHighlight: {
@@ -1607,7 +1675,7 @@ const styles =
       fontFamily:
         'Poppins_600SemiBold',
 
-      fontSize: 11,
+      fontSize: 14,
     },
 
     completeButton: {
@@ -1632,7 +1700,7 @@ const styles =
       fontFamily:
         'Poppins_600SemiBold',
 
-      fontSize: 10,
+      fontSize: 14.5,
     },
 
     loadingRow: {
@@ -1730,7 +1798,7 @@ const styles =
       fontFamily:
         'Poppins_600SemiBold',
 
-      fontSize: 16,
+      fontSize: 17,
       lineHeight: 22,
 
       textAlign: 'center',
@@ -1745,8 +1813,8 @@ const styles =
       fontFamily:
         'Inter_400Regular',
 
-      fontSize: 11,
-      lineHeight: 17,
+      fontSize: 13.5,
+      lineHeight: 20,
 
       textAlign: 'center',
     },
@@ -1772,6 +1840,6 @@ const styles =
       fontFamily:
         'Poppins_600SemiBold',
 
-      fontSize: 10,
+      fontSize: 14,
     },
   });

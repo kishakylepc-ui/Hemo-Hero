@@ -1,14 +1,20 @@
 import {
+  type ReactNode,
   useEffect,
   useMemo,
+  useRef,
   useState,
 } from 'react';
 
 import {
+  ActivityIndicator,
+  Animated,
+  Easing,
   Image,
   KeyboardAvoidingView,
   Modal,
   Platform,
+  Pressable,
   ScrollView,
   StyleSheet,
   Text,
@@ -19,6 +25,7 @@ import {
 } from 'react-native';
 
 import {
+  MaterialCommunityIcons,
   MaterialIcons,
 } from '@expo/vector-icons';
 
@@ -36,13 +43,29 @@ import {
 
 import {
   SafeAreaView,
+  useSafeAreaInsets,
 } from 'react-native-safe-area-context';
 
 import * as Location from 'expo-location';
 
 import {
+  FadeInView,
+  PressableScale,
+  PulseRing,
+} from '../../components/Motion';
+
+import TimeWheelPicker from '../../components/TimeWheelPicker';
+
+import {
+  type BloodType,
+  getCompatibleDonorTypes,
+  isBloodType,
+} from '../../lib/bloodCompatibility';
+
+import {
   createBloodRequest,
   getCurrentUser,
+  getMyActiveBloodRequest,
   getNearbyFacilities,
 } from '../../lib/api';
 
@@ -67,25 +90,31 @@ const COLORS = {
   white: '#FFFFFF',
   black: '#171717',
 
-  pageTop: '#F3B5B7',
-  pageBottom: '#D90B12',
-
-  card: '#FAFAFA',
+  page: '#FFF8F8',
 
   muted: '#666666',
   lightMuted: '#9A9A9A',
 
   border: '#D5D5D5',
+  softBorder: '#EFE3E3',
+  tileBorder: '#F0D6D6',
+  divider: '#F3E9E9',
+
+  inputBackground: '#FFFCFC',
 
   pinkLight: '#FFF1F1',
   pinkBorder: '#E7A6A6',
 
   green: '#159447',
+  greenLight: '#EAF7EF',
 
-  hospitalSoft: '#FFF0F0',
-  bloodBankSoft: '#FDECEF',
-  redCrossSoft: '#FBE8E8',
-  medicalSoft: '#F2F2F2',
+  orange: '#DF721D',
+  orangeLight: '#FDF1E6',
+
+  blue: '#2F6FDB',
+  blueLight: '#EAF1FD',
+
+  cardBorder: '#E8DADA',
 };
 
 // ============================================================
@@ -102,6 +131,44 @@ const BLOOD_TYPES = [
   'O+',
   'O-',
 ];
+
+// ============================================================
+// FORM
+// ============================================================
+
+// Blood, location and timing are required; the note is not.
+const REQUIRED_STEPS = 3;
+
+const MESSAGE_LIMIT = 250;
+
+// One-tap notes: a short chip label, and the sentence it adds.
+const QUICK_NOTES = [
+  {
+    label: 'In the ER',
+    text: 'Patient is admitted in the ER',
+  },
+  {
+    label: 'For surgery',
+    text: 'Needed for a scheduled surgery',
+  },
+  {
+    label: 'Message me first',
+    text: 'Please message me before going',
+  },
+];
+
+const URGENCY_OPTIONS = [
+  {
+    value: 'urgent',
+    title: 'Urgent',
+    icon: 'bolt',
+  },
+  {
+    value: 'needed',
+    title: 'Scheduled',
+    icon: 'event',
+  },
+] as const;
 
 
 // ============================================================
@@ -204,61 +271,71 @@ function formatDateForApi(
 }
 
 // ============================================================
-// FACILITY DISPLAY HELPERS
+// FACILITY VISUALS
+//
+// Each facility type gets its own icon and tint so the list is
+// easy to scan: hospital building, blood bag, Red Cross plus,
+// and a medical bag for clinics.
 // ============================================================
 
-function getFacilityIcon(
+type FacilityVisual = {
+  icon: keyof typeof MaterialCommunityIcons.glyphMap;
+  label: string;
+  color: string;
+  background: string;
+};
+
+function getFacilityVisual(
   type?: string | null
-) {
+): FacilityVisual {
   switch (type) {
-    case 'red_cross':
-      return 'add-box';
+    case 'hospital':
+      return {
+        icon: 'hospital-building',
+        label: 'Hospital',
+        color: COLORS.blue,
+        background: COLORS.blueLight,
+      };
 
     case 'blood_bank':
-      return 'bloodtype';
+      return {
+        icon: 'blood-bag',
+        label: 'Blood Bank',
+        color: COLORS.redButton,
+        background: COLORS.pinkLight,
+      };
 
-    case 'hospital':
-      return 'local-hospital';
+    case 'red_cross':
+      return {
+        icon: 'plus-thick',
+        label: 'Red Cross',
+        color: COLORS.red,
+        background: COLORS.white,
+      };
 
     default:
-      return 'medical-services';
+      return {
+        icon: 'medical-bag',
+        label: 'Clinic',
+        color: COLORS.green,
+        background: COLORS.greenLight,
+      };
   }
 }
 
-function getFacilityLabel(
-  type?: string | null
+function formatDistance(
+  km?: number | null
 ) {
-  switch (type) {
-    case 'red_cross':
-      return 'Philippine Red Cross';
+  const value =
+    Number(km);
 
-    case 'blood_bank':
-      return 'Blood Bank / Blood Center';
-
-    case 'hospital':
-      return 'Hospital';
-
-    default:
-      return 'Medical Facility';
+  if (!Number.isFinite(value)) {
+    return '';
   }
-}
 
-function getFacilityIconBackground(
-  type?: string | null
-) {
-  switch (type) {
-    case 'red_cross':
-      return COLORS.redCrossSoft;
-
-    case 'blood_bank':
-      return COLORS.bloodBankSoft;
-
-    case 'hospital':
-      return COLORS.hospitalSoft;
-
-    default:
-      return COLORS.medicalSoft;
-  }
+  return value < 1
+    ? `${Math.round(value * 1000)} m`
+    : `${value.toFixed(1)} km`;
 }
 
 // ============================================================
@@ -274,6 +351,9 @@ export default function CreateBloodRequestScreen() {
     Platform.OS !== 'web' &&
     height <= 844;
 
+  const insets =
+    useSafeAreaInsets();
+
   // ==========================================================
   // PROFILE
   // ==========================================================
@@ -282,11 +362,6 @@ export default function CreateBloodRequestScreen() {
     profile,
     setProfile,
   ] = useState<any>(null);
-
-  const [
-    loadingProfile,
-    setLoadingProfile,
-  ] = useState(true);
 
   // ==========================================================
   // REQUEST
@@ -457,6 +532,47 @@ export default function CreateBloodRequestScreen() {
     setSubmitting,
   ] = useState(false);
 
+  // Highlights the input being typed in.
+  const [
+    focusedField,
+    setFocusedField,
+  ] = useState<
+    | 'facilityName'
+    | 'facilityAddress'
+    | 'message'
+    | null
+  >(null);
+
+  // Bottom sheet: what's missing / review before posting /
+  // posted confirmation.
+  const [
+    sheet,
+    setSheet,
+  ] = useState<
+    | 'missing'
+    | 'review'
+    | 'success'
+    | null
+  >(null);
+
+  const [
+    submitError,
+    setSubmitError,
+  ] = useState('');
+
+  const [
+    createdRequestId,
+    setCreatedRequestId,
+  ] = useState('');
+
+  // Set when the user already has an active request (the
+  // server allows only one at a time).
+  const [
+    activeRequestId,
+    setActiveRequestId,
+  ] = useState<string | null>(
+    null
+  );
 
   const [
     actionPopup,
@@ -545,9 +661,66 @@ export default function CreateBloodRequestScreen() {
     loadInitialData();
   }, []);
 
+  // Profile, facilities and the active-request check are
+  // independent: load them together.
   async function loadInitialData() {
-    await loadProfile();
-    await loadNearbyFacilities();
+    await Promise.all([
+      loadProfile(),
+      loadNearbyFacilities(),
+      checkActiveRequest(),
+    ]);
+  }
+
+  // ==========================================================
+  // ACTIVE REQUEST CHECK
+  //
+  // The server allows one active request per user (409), so
+  // warn before the form is filled in. Returns the id.
+  // ==========================================================
+
+  async function checkActiveRequest() {
+    try {
+      const token =
+        await getAccessToken();
+
+      if (!token) {
+        return null;
+      }
+
+      const data =
+        await getMyActiveBloodRequest(
+          token
+        );
+
+      const requestId =
+        data?.request?.id ||
+        null;
+
+      setActiveRequestId(
+        requestId
+      );
+
+      return requestId as
+        | string
+        | null;
+    } catch (error) {
+      console.log(
+        'ACTIVE REQUEST CHECK ERROR:',
+        error
+      );
+
+      return null;
+    }
+  }
+
+  function openActiveRequest() {
+    if (!activeRequestId) {
+      return;
+    }
+
+    router.replace(
+      `/blood-request/${activeRequestId}` as any
+    );
   }
 
   // ==========================================================
@@ -556,10 +729,6 @@ export default function CreateBloodRequestScreen() {
 
   async function loadProfile() {
     try {
-      setLoadingProfile(
-        true
-      );
-
       const token =
         await getAccessToken();
 
@@ -586,10 +755,6 @@ export default function CreateBloodRequestScreen() {
       console.log(
         'REQUEST PROFILE ERROR:',
         error
-      );
-    } finally {
-      setLoadingProfile(
-        false
       );
     }
   }
@@ -695,20 +860,141 @@ export default function CreateBloodRequestScreen() {
   // DISPLAY
   // ==========================================================
 
-  const displayName =
-    loadingProfile
-      ? 'Loading...'
-      : [
-          profile?.first_name,
-          profile?.last_name,
-        ]
-          .filter(Boolean)
-          .join(' ') ||
-        'Hemo-Hero User';
-
   const profilePhotoUrl =
     profile?.profile_photo_url ||
     '';
+
+  const initials =
+    [
+      profile?.first_name,
+      profile?.last_name,
+    ]
+      .map(value =>
+        String(value || '')
+          .trim()
+          .charAt(0)
+      )
+      .join('')
+      .toUpperCase();
+
+  // ==========================================================
+  // PROGRESS (required steps)
+  // ==========================================================
+
+  const bloodStepDone =
+    isBloodType(bloodType);
+
+  const locationStepDone =
+    manualFacilityMode
+      ? Boolean(
+          manualFacilityName.trim() &&
+            manualFacilityAddress.trim()
+        )
+      : Boolean(
+          selectedFacility
+        );
+
+  const timingStepDone =
+    urgency === 'urgent' ||
+    (urgency === 'needed' &&
+      Boolean(neededDate) &&
+      Boolean(neededTime));
+
+  const completedSteps =
+    [
+      bloodStepDone,
+      locationStepDone,
+      timingStepDone,
+    ].filter(Boolean).length;
+
+  const allStepsDone =
+    completedSteps ===
+    REQUIRED_STEPS;
+
+  // Header bar eases to the new value as steps complete.
+  const progress =
+    useRef(
+      new Animated.Value(0)
+    ).current;
+
+  useEffect(() => {
+    Animated.timing(progress, {
+      toValue:
+        completedSteps /
+        REQUIRED_STEPS,
+      duration: 420,
+      easing: Easing.out(
+        Easing.cubic
+      ),
+      useNativeDriver: false,
+    }).start();
+  }, [completedSteps]);
+
+  // Checklist shown when something is still missing.
+  const requiredChecklist = [
+    {
+      label: 'Blood type',
+      done: bloodStepDone,
+    },
+    {
+      label: 'Donation place',
+      done: locationStepDone,
+    },
+    {
+      label:
+        urgency === 'needed'
+          ? 'Date and time needed'
+          : 'When it is needed',
+      done: timingStepDone,
+    },
+  ];
+
+  // ==========================================================
+  // QUICK NOTES
+  //
+  // Tapping a suggestion adds it to the message as a
+  // sentence; tapping it again removes it.
+  // ==========================================================
+
+  function toggleQuickNote(
+    note: string
+  ) {
+    if (submitting) {
+      return;
+    }
+
+    const sentence =
+      `${note}.`;
+
+    setMessage(current => {
+      if (
+        current.includes(
+          sentence
+        )
+      ) {
+        return current
+          .replace(
+            sentence,
+            ''
+          )
+          .replace(
+            /\s{2,}/g,
+            ' '
+          )
+          .trim();
+      }
+
+      const next =
+        current.trim()
+          ? `${current.trim()} ${sentence}`
+          : sentence;
+
+      return next.length <=
+        MESSAGE_LIMIT
+        ? next
+        : current;
+    });
+  }
 
   // ==========================================================
   // MESSAGE HELPER
@@ -722,25 +1008,6 @@ export default function CreateBloodRequestScreen() {
         onConfirm: undefined,
       })
     );
-  }
-
-  function showMessage(
-    title: string,
-    messageText: string,
-    variant: ActionPopupVariant =
-      'error'
-  ) {
-    setActionPopup({
-      visible: true,
-      title,
-      message: messageText,
-      variant,
-      confirmText: 'Okay',
-      cancelText: 'Cancel',
-      showCancel: false,
-      dismissOnBackdrop: true,
-      onConfirm: undefined,
-    });
   }
 
   // ==========================================================
@@ -1015,27 +1282,19 @@ export default function CreateBloodRequestScreen() {
           .getMinutes()
       );
     } else {
-      const now =
+      // Start the wheels at the next full hour.
+      const nextHour =
         new Date();
 
-      let minute =
-        Math.ceil(
-          now.getMinutes() /
-            5
-        ) * 5;
+      nextHour.setHours(
+        nextHour.getHours() + 1,
+        0,
+        0,
+        0
+      );
 
-      let hour =
-        now.getHours();
-
-      if (
-        minute >= 60
-      ) {
-        minute = 0;
-
-        hour =
-          (hour + 1) %
-          24;
-      }
+      const hour =
+        nextHour.getHours();
 
       setSelectedPeriod(
         hour >= 12
@@ -1049,9 +1308,7 @@ export default function CreateBloodRequestScreen() {
           : hour % 12
       );
 
-      setSelectedMinute(
-        minute
-      );
+      setSelectedMinute(0);
     }
 
     setShowTimePicker(
@@ -1059,68 +1316,52 @@ export default function CreateBloodRequestScreen() {
     );
   }
 
-  function decreaseHour() {
-    setSelectedHour(
-      current =>
-        current === 1
-          ? 12
-          : current - 1
-    );
-  }
-
-  function increaseHour() {
-    setSelectedHour(
-      current =>
-        current === 12
-          ? 1
-          : current + 1
-    );
-  }
-
-  function decreaseMinute() {
-    setSelectedMinute(
-      current =>
-        current === 0
-          ? 55
-          : current - 5
-    );
-  }
-
-  function increaseMinute() {
-    setSelectedMinute(
-      current =>
-        current === 55
-          ? 0
-          : current + 5
-    );
-  }
-
-  function confirmTime() {
-    let hour24 =
-      selectedHour;
-
-    if (
-      selectedPeriod ===
-        'AM' &&
-      selectedHour === 12
-    ) {
-      hour24 = 0;
+  function getSelectedHour24() {
+    if (selectedPeriod === 'AM') {
+      return selectedHour === 12
+        ? 0
+        : selectedHour;
     }
 
-    if (
-      selectedPeriod ===
-        'PM' &&
-      selectedHour !== 12
-    ) {
-      hour24 =
-        selectedHour + 12;
+    return selectedHour === 12
+      ? 12
+      : selectedHour + 12;
+  }
+
+  // True when the picked date is today and the wheel time has
+  // already passed, so it's caught here instead of on submit.
+  const selectedTimeHasPassed =
+    (() => {
+      if (!neededDate) {
+        return false;
+      }
+
+      const combined =
+        new Date(neededDate);
+
+      combined.setHours(
+        getSelectedHour24(),
+        selectedMinute,
+        0,
+        0
+      );
+
+      return (
+        combined.getTime() <=
+        Date.now()
+      );
+    })();
+
+  function confirmTime() {
+    if (selectedTimeHasPassed) {
+      return;
     }
 
     const value =
       new Date();
 
     value.setHours(
-      hour24,
+      getSelectedHour24(),
       selectedMinute,
       0,
       0
@@ -1375,6 +1616,7 @@ export default function CreateBloodRequestScreen() {
   // SUBMIT
   // ==========================================================
 
+  // Missing items -> checklist sheet; complete -> review sheet.
   function handleSubmit() {
     if (submitting) {
       return;
@@ -1390,65 +1632,48 @@ export default function CreateBloodRequestScreen() {
         validation
       );
 
-      showMessage(
-        'Incomplete Request',
-        validation
-      );
+      setSheet('missing');
 
       return;
     }
 
-    const facilityName =
-      manualFacilityMode
-        ? manualFacilityName
-            .trim()
-        : selectedFacility
-            ?.name ||
-          '';
+    setSubmitError('');
 
-    const neededBy =
-      urgency === 'urgent'
-        ? 'As soon as possible'
-        : `${neededDate
-            ? formatDate(
-                neededDate
-              )
-            : ''
-          } at ${
-            neededTime
-              ? formatTime(
-                  neededTime
-                )
-              : ''
-          }`;
-
-    const summary =
-      `Blood Type: ${bloodType}\n` +
-      `Units/Bags: ${unitsNeeded}\n` +
-      `Location: ${facilityName}\n` +
-      `Urgency: ${
-        urgency === 'urgent'
-          ? 'Urgent'
-          : 'Needed'
-      }\n` +
-      `Needed By: ${neededBy}`;
-
-    setActionPopup({
-      visible: true,
-      title: 'Submit Blood Request?',
-      message:
-        `${summary}\n\nPlease confirm that these details are correct.`,
-      variant: 'warning',
-      confirmText: 'Submit Request',
-      cancelText: 'Go Back',
-      showCancel: true,
-      dismissOnBackdrop: true,
-      onConfirm: () => {
-        closeActionPopup();
-        handleConfirmedSubmit();
-      },
-    });
+    setSheet('review');
   }
+
+  function closeSheet() {
+    if (submitting) {
+      return;
+    }
+
+    setSheet(null);
+  }
+
+  // Text for the review sheet.
+  const reviewFacilityName =
+    manualFacilityMode
+      ? manualFacilityName.trim()
+      : selectedFacility?.name ||
+        '';
+
+  const reviewFacilityAddress =
+    manualFacilityMode
+      ? manualFacilityAddress.trim()
+      : selectedFacility?.address ||
+        '';
+
+  const reviewNeededBy =
+    urgency === 'urgent'
+      ? 'As soon as possible'
+      : neededDate &&
+          neededTime
+        ? `${formatDate(
+            neededDate
+          )} • ${formatTime(
+            neededTime
+          )}`
+        : '';
 
 
   // ==========================================================
@@ -1464,6 +1689,7 @@ export default function CreateBloodRequestScreen() {
       setSubmitting(true);
 
       setErrorMessage('');
+      setSubmitError('');
 
       const accessToken =
         await getAccessToken();
@@ -1476,40 +1702,18 @@ export default function CreateBloodRequestScreen() {
       const requestData =
         buildRequestData();
 
-      console.log(
-        'SUBMITTING BLOOD REQUEST:',
-        requestData
-      );
-
       const result =
         await createBloodRequest(
           accessToken,
           requestData
         );
 
-      console.log(
-        'BLOOD REQUEST CREATED:',
-        result
+      setCreatedRequestId(
+        result?.request?.id || ''
       );
 
-      setActionPopup({
-        visible: true,
-        title: 'Request Submitted',
-        message:
-          'Your blood request has been created successfully and can now be shown to nearby compatible donors.',
-        variant: 'success',
-        confirmText: 'Go to Dashboard',
-        cancelText: 'Cancel',
-        showCancel: false,
-        dismissOnBackdrop: false,
-        onConfirm: () => {
-          closeActionPopup();
-          router.replace(
-            '/dashboard'
-          );
-        },
-      });
-
+      // Same sheet switches to the "posted" state.
+      setSheet('success');
     } catch (error) {
       console.log(
         'CREATE BLOOD REQUEST ERROR:',
@@ -1521,12 +1725,45 @@ export default function CreateBloodRequestScreen() {
           ? error.message
           : 'Unable to submit your blood request. Please try again.';
 
-      setErrorMessage(
-        errorText
-      );
+      // Another request became active (e.g. from another
+      // device): offer to open it instead.
+      if (
+        /active blood request/i.test(
+          errorText
+        )
+      ) {
+        const existingId =
+          await checkActiveRequest();
 
-      showMessage(
-        'Unable to Submit Request',
+        if (existingId) {
+          setSheet(null);
+
+          setActionPopup({
+            visible: true,
+            title: 'Active Request Found',
+            message:
+              'You already have an active blood request. Mark it fulfilled or cancel it before posting a new one.',
+            variant: 'warning',
+            confirmText:
+              'View Active Request',
+            cancelText: 'Stay Here',
+            showCancel: true,
+            dismissOnBackdrop: true,
+            onConfirm: () => {
+              closeActionPopup();
+
+              router.replace(
+                `/blood-request/${existingId}` as any
+              );
+            },
+          });
+
+          return;
+        }
+      }
+
+      // Shown inside the review sheet so the details stay visible.
+      setSubmitError(
         errorText
       );
     } finally {
@@ -1540,38 +1777,58 @@ export default function CreateBloodRequestScreen() {
   // UI
   // ==========================================================
 
+  // Keep the last sheet's content on screen while it fades out.
+  const lastSheet =
+    useRef(sheet);
+
+  if (sheet) {
+    lastSheet.current = sheet;
+  }
+
+  const visibleSheet =
+    sheet ||
+    lastSheet.current;
+
+  const compatibleDonors =
+    isBloodType(bloodType)
+      ? getCompatibleDonorTypes(
+          bloodType as BloodType
+        )
+      : [];
+
+  function leaveAfterPosting(
+    destination: 'request' | 'home'
+  ) {
+    setSheet(null);
+
+    // Replace so "back" never returns to the submitted form.
+    router.replace(
+      destination === 'request' &&
+        createdRequestId
+        ? (`/blood-request/${createdRequestId}` as any)
+        : '/dashboard'
+    );
+  }
+
   return (
-    <View
-      style={
-        styles.desktopBackground
-      }
-    >
-      <View
-        style={
-          styles.phone
-        }
-      >
+    <View style={styles.desktopBackground}>
+      <View style={styles.phone}>
         <SafeAreaView
-          style={
-            styles.safeArea
-          }
+          style={styles.safeArea}
           edges={['top']}
         >
-          <StatusBar
-            style="light"
-          />
+          <StatusBar style="light" />
 
           <KeyboardAvoidingView
             style={styles.flex}
             behavior={
-              Platform.OS ===
-              'ios'
+              Platform.OS === 'ios'
                 ? 'padding'
                 : undefined
             }
           >
             {/* ==================================================
-                HEADER
+                HEADER + PROGRESS
             ================================================== */}
 
             <LinearGradient
@@ -1586,2150 +1843,1636 @@ export default function CreateBloodRequestScreen() {
                   styles.headerSmall,
               ]}
             >
-              <View
-                style={
-                  styles.headerCircleLeft
-                }
-              />
+              <View style={styles.headerCircleLeft} />
+              <View style={styles.headerCircleRight} />
 
-              <View
-                style={
-                  styles.headerCircleRight
-                }
-              />
-
-              <View
-                style={
-                  styles.headerRow
-                }
-              >
+              <View style={styles.headerRow}>
                 <TouchableOpacity
-                  style={
-                    styles.backButton
-                  }
-                  disabled={
-                    submitting
-                  }
-                  activeOpacity={
-                    0.75
-                  }
-                  onPress={() =>
-                    router.back()
-                  }
+                  style={styles.backButton}
+                  disabled={submitting}
+                  activeOpacity={0.75}
+                  accessibilityLabel="Go back"
+                  onPress={() => router.back()}
                 >
                   <MaterialIcons
                     name="arrow-back"
-                    size={26}
-                    color={
-                      COLORS.white
-                    }
+                    size={23}
+                    color={COLORS.white}
                   />
                 </TouchableOpacity>
 
-                <Text
-                  style={
-                    styles.headerTitle
-                  }
-                >
-                  Request Blood
-                </Text>
+                <View style={styles.headerText}>
+                  <Text style={styles.headerTitle}>
+                    Request Blood
+                  </Text>
+
+                  <Text style={styles.headerSubtitle}>
+                    {allStepsDone
+                      ? 'Ready to review'
+                      : `${completedSteps} of ${REQUIRED_STEPS} steps done`}
+                  </Text>
+                </View>
+
+                <View style={styles.headerAvatar}>
+                  {profilePhotoUrl ? (
+                    <Image
+                      source={{
+                        uri: profilePhotoUrl,
+                      }}
+                      style={styles.headerAvatarImage}
+                      resizeMode="cover"
+                    />
+                  ) : initials ? (
+                    <Text style={styles.headerAvatarText}>
+                      {initials}
+                    </Text>
+                  ) : (
+                    <MaterialIcons
+                      name="person"
+                      size={20}
+                      color={COLORS.white}
+                    />
+                  )}
+                </View>
+              </View>
+
+              <View style={styles.progressTrack}>
+                <Animated.View
+                  style={[
+                    styles.progressFill,
+
+                    {
+                      width: progress.interpolate({
+                        inputRange: [0, 1],
+                        outputRange: ['0%', '100%'],
+                      }),
+                    },
+                  ]}
+                />
               </View>
             </LinearGradient>
 
             {/* ==================================================
-                BODY
+                BODY (rounded sheet over the header)
             ================================================== */}
 
-            <LinearGradient
-              colors={[
-                COLORS.pageTop,
-                COLORS.pageBottom,
-              ]}
-              style={
-                styles.body
-              }
-            >
-              {/* ==================================================
-                  FIXED WHITE FORM CONTAINER
-              ================================================== */}
-
-              <View
-                style={
-                  styles.formCard
-                }
+            <View style={styles.body}>
+              <ScrollView
+                style={styles.flex}
+                contentContainerStyle={styles.scrollContent}
+                keyboardShouldPersistTaps="handled"
+                showsVerticalScrollIndicator={false}
               >
-                <ScrollView
-                  style={
-                    styles.formScroll
-                  }
-                  contentContainerStyle={
-                    styles.formScrollContent
-                  }
-                  keyboardShouldPersistTaps="handled"
-                  showsVerticalScrollIndicator={
-                    false
-                  }
-                  bounces={false}
-                >
-                  {/* ==================================================
-                      REQUESTING AS
-                  ================================================== */}
+                {/* EXISTING ACTIVE REQUEST */}
 
-                  <View
-                    style={
-                      styles.requestingCard
-                    }
-                  >
-                    <Text
-                      style={
-                        styles.requestingLabel
-                      }
-                    >
-                      Requesting as
+                {activeRequestId ? (
+                  <FadeInView style={styles.activeBanner}>
+                    <MaterialIcons
+                      name="info-outline"
+                      size={20}
+                      color={COLORS.orange}
+                    />
+
+                    <Text style={styles.activeBannerText}>
+                      You already have an active request.
                     </Text>
 
-                    <View
-                      style={
-                        styles.requestingRow
-                      }
+                    <TouchableOpacity
+                      activeOpacity={0.7}
+                      onPress={openActiveRequest}
                     >
-                      <View
-                        style={
-                          styles.avatar
-                        }
-                      >
-                        {profilePhotoUrl ? (
-                          <Image
-                            source={{
-                              uri:
-                                profilePhotoUrl,
-                            }}
-                            style={
-                              styles.avatarImage
-                            }
-                            resizeMode="cover"
-                          />
-                        ) : (
-                          <MaterialIcons
-                            name="person"
-                            size={21}
-                            color={
-                              COLORS.redDark
-                            }
-                          />
-                        )}
-                      </View>
+                      <Text style={styles.activeBannerLink}>
+                        View
+                      </Text>
+                    </TouchableOpacity>
+                  </FadeInView>
+                ) : null}
 
-                      <View
-                        style={
-                          styles.requesterInfo
-                        }
-                      >
-                        <Text
-                          numberOfLines={1}
-                          style={
-                            styles.requesterName
-                          }
-                        >
-                          {displayName}
-                        </Text>
+                {/* ================================================
+                    1. BLOOD TYPE + BAGS
+                ================================================ */}
 
-                        <View
-                          style={
-                            styles.signedInRow
-                          }
-                        >
-                          <MaterialIcons
-                            name="check-circle"
-                            size={11}
-                            color={
-                              COLORS.green
-                            }
-                          />
+                <FadeInView delay={0}>
+                  <SectionHeader
+                    icon="bloodtype"
+                    title="Blood Type"
+                    done={bloodStepDone}
+                  />
 
-                          <Text
-                            style={
-                              styles.signedInText
-                            }
-                          >
-                            Signed-in account
-                          </Text>
-                        </View>
-                      </View>
-                    </View>
-                  </View>
-
-                  {/* ==================================================
-                      BLOOD TYPE
-                  ================================================== */}
-
-                  <Text
-                    style={
-                      styles.label
-                    }
-                  >
-                    Blood Type Needed
-                    <Text
-                      style={
-                        styles.required
-                      }
-                    >
-                      {' '}*
-                    </Text>
-                  </Text>
-
-                  <View
-                    style={
-                      styles.bloodGrid
-                    }
-                  >
-                    {BLOOD_TYPES.map(
-                      type => {
+                  <View style={styles.card}>
+                    <View style={styles.bloodGrid}>
+                      {BLOOD_TYPES.map(type => {
                         const selected =
-                          bloodType ===
-                          type;
+                          bloodType === type;
 
                         return (
-                          <TouchableOpacity
+                          <PressableScale
                             key={type}
+                            containerStyle={styles.bloodTileContainer}
                             style={[
-                              styles.bloodButton,
+                              styles.bloodTile,
 
                               selected &&
-                                styles.bloodButtonSelected,
+                                styles.bloodTileSelected,
                             ]}
-                            disabled={
-                              submitting
-                            }
-                            activeOpacity={
-                              0.8
-                            }
+                            disabled={submitting}
+                            accessibilityRole="button"
+                            accessibilityLabel={`Blood type ${type}`}
+                            accessibilityState={{
+                              selected,
+                            }}
                             onPress={() => {
-                              setBloodType(
-                                type
-                              );
-
-                              setErrorMessage(
-                                ''
-                              );
+                              setBloodType(type);
+                              setErrorMessage('');
                             }}
                           >
                             <Text
                               style={[
-                                styles.bloodButtonText,
+                                styles.bloodTileText,
 
                                 selected &&
-                                  styles.bloodButtonTextSelected,
+                                  styles.bloodTileTextSelected,
                               ]}
                             >
                               {type}
                             </Text>
-                          </TouchableOpacity>
+                          </PressableScale>
                         );
-                      }
-                    )}
-                  </View>
-
-                  {/* ==================================================
-                      UNITS
-                  ================================================== */}
-
-                  <Text
-                    style={
-                      styles.label
-                    }
-                  >
-                    Units / Bags Needed
-                    <Text
-                      style={
-                        styles.required
-                      }
-                    >
-                      {' '}*
-                    </Text>
-                  </Text>
-
-                  <View
-                    style={
-                      styles.unitsRow
-                    }
-                  >
-                    <TouchableOpacity
-                      style={[
-                        styles.unitButton,
-
-                        unitsNeeded <=
-                          1 &&
-                          styles.unitDisabled,
-                      ]}
-                      disabled={
-                        unitsNeeded <=
-                          1 ||
-                        submitting
-                      }
-                      onPress={
-                        decreaseUnits
-                      }
-                    >
-                      <MaterialIcons
-                        name="remove"
-                        size={21}
-                        color={
-                          COLORS.black
-                        }
-                      />
-                    </TouchableOpacity>
-
-                    <View
-                      style={
-                        styles.unitValue
-                      }
-                    >
-                      <Text
-                        style={
-                          styles.unitValueText
-                        }
-                      >
-                        {unitsNeeded}
-                      </Text>
+                      })}
                     </View>
 
-                    <TouchableOpacity
-                      style={
-                        styles.unitButton
-                      }
-                      disabled={
-                        submitting
-                      }
-                      onPress={
-                        increaseUnits
-                      }
-                    >
-                      <MaterialIcons
-                        name="add"
-                        size={21}
-                        color={
-                          COLORS.black
-                        }
-                      />
-                    </TouchableOpacity>
+                    {compatibleDonors.length > 0 ? (
+                      <FadeInView
+                        key={bloodType}
+                        offset={4}
+                        style={styles.compatRow}
+                      >
+                        <Text style={styles.compatText}>
+                          Compatible donors{'  '}
+                          <Text style={styles.compatTypes}>
+                            {compatibleDonors.join('  ')}
+                          </Text>
+                        </Text>
+                      </FadeInView>
+                    ) : null}
+
+                    <View style={styles.divider} />
+
+                    <View style={styles.unitsRow}>
+                      <Text style={styles.fieldLabel}>
+                        Bags needed
+                      </Text>
+
+                      <View style={styles.stepper}>
+                        <TouchableOpacity
+                          style={[
+                            styles.stepperButton,
+
+                            unitsNeeded <= 1 &&
+                              styles.stepperButtonDisabled,
+                          ]}
+                          disabled={
+                            unitsNeeded <= 1 ||
+                            submitting
+                          }
+                          activeOpacity={0.75}
+                          accessibilityLabel="Fewer bags"
+                          onPress={decreaseUnits}
+                        >
+                          <MaterialIcons
+                            name="remove"
+                            size={19}
+                            color={COLORS.redButton}
+                          />
+                        </TouchableOpacity>
+
+                        <View style={styles.stepperValue}>
+                          <FadeInView
+                            key={unitsNeeded}
+                            offset={5}
+                          >
+                            <Text style={styles.stepperValueText}>
+                              {unitsNeeded}
+                            </Text>
+                          </FadeInView>
+                        </View>
+
+                        <TouchableOpacity
+                          style={[
+                            styles.stepperButton,
+                            styles.stepperButtonAdd,
+
+                            unitsNeeded >= 20 &&
+                              styles.stepperButtonDisabled,
+                          ]}
+                          disabled={
+                            unitsNeeded >= 20 ||
+                            submitting
+                          }
+                          activeOpacity={0.75}
+                          accessibilityLabel="More bags"
+                          onPress={increaseUnits}
+                        >
+                          <MaterialIcons
+                            name="add"
+                            size={19}
+                            color={COLORS.white}
+                          />
+                        </TouchableOpacity>
+                      </View>
+                    </View>
                   </View>
+                </FadeInView>
 
-                  {/* ==================================================
-                      FACILITY
-                  ================================================== */}
+                {/* ================================================
+                    2. DONATION PLACE
+                ================================================ */}
 
-                  <Text
-                    style={
-                      styles.label
-                    }
-                  >
-                    Donation Facility
-                    <Text
-                      style={
-                        styles.required
-                      }
-                    >
-                      {' '}*
-                    </Text>
-                  </Text>
-
-                  <Text
-                    style={
-                      styles.helper
-                    }
-                  >
-                    Choose the hospital, blood center, or Philippine Red Cross location where donors should go.
-                  </Text>
+                <FadeInView delay={60}>
+                  <SectionHeader
+                    icon="place"
+                    title="Donation Place"
+                    done={locationStepDone}
+                  />
 
                   {!manualFacilityMode ? (
                     <>
-                      <TouchableOpacity
-                        style={[
-                          styles.facilitySelector,
-
-                          selectedFacility &&
-                            styles.facilitySelectorSelected,
-                        ]}
-                        disabled={
-                          submitting
+                      <FadeInView
+                        key={
+                          selectedFacility?.id ||
+                          'empty'
                         }
-                        activeOpacity={
-                          0.8
-                        }
-                        onPress={
-                          openFacilityPicker
-                        }
+                        offset={4}
                       >
-                        <View
+                        <PressableScale
                           style={[
-                            styles.selectorIcon,
+                            styles.card,
+                            styles.placeCard,
 
-                            selectedFacility &&
-                              styles.selectorIconSelected,
+                            !selectedFacility &&
+                              styles.placeCardEmpty,
                           ]}
+                          disabled={submitting}
+                          accessibilityRole="button"
+                          accessibilityLabel={
+                            selectedFacility
+                              ? `Donation place ${selectedFacility.name}. Tap to change.`
+                              : 'Choose a nearby donation place'
+                          }
+                          onPress={openFacilityPicker}
                         >
+                          {loadingFacilities &&
+                          !selectedFacility ? (
+                            <View
+                              style={[
+                                styles.placeIconEmpty,
+                              ]}
+                            >
+                              <ActivityIndicator
+                                size="small"
+                                color={COLORS.redButton}
+                              />
+                            </View>
+                          ) : selectedFacility ? (
+                            <FacilityIcon
+                              type={selectedFacility.type}
+                              size={46}
+                            />
+                          ) : (
+                            <View style={styles.placeIconEmpty}>
+                              <MaterialCommunityIcons
+                                name="map-marker-plus-outline"
+                                size={24}
+                                color={COLORS.redButton}
+                              />
+                            </View>
+                          )}
+
+                          <View style={styles.placeBody}>
+                            <Text
+                              numberOfLines={2}
+                              style={[
+                                styles.placeTitle,
+
+                                !selectedFacility &&
+                                  styles.placePlaceholder,
+                              ]}
+                            >
+                              {selectedFacility
+                                ? selectedFacility.name
+                                : loadingFacilities
+                                  ? 'Finding places near you...'
+                                  : 'Choose a nearby place'}
+                            </Text>
+
+                            <Text
+                              numberOfLines={1}
+                              style={styles.placeMeta}
+                            >
+                              {selectedFacility
+                                ? [
+                                    getFacilityVisual(
+                                      selectedFacility.type
+                                    ).label,
+                                    formatDistance(
+                                      selectedFacility.distance_km
+                                    ),
+                                  ]
+                                    .filter(Boolean)
+                                    .join(' • ')
+                                : facilities.length > 0
+                                  ? `${facilities.length} found near you`
+                                  : 'Hospitals, blood banks & Red Cross'}
+                            </Text>
+                          </View>
+
                           <MaterialIcons
-                            name={
-                              selectedFacility
-                                ? getFacilityIcon(
-                                    selectedFacility.type
-                                  ) as any
-                                : 'medical-services'
-                            }
-                            size={21}
-                            color={
-                              selectedFacility
-                                ? COLORS.white
-                                : COLORS.redButton
-                            }
+                            name="chevron-right"
+                            size={24}
+                            color={COLORS.lightMuted}
                           />
-                        </View>
-
-                        <View
-                          style={
-                            styles.selectorContent
-                          }
-                        >
-                          <Text
-                            numberOfLines={1}
-                            style={[
-                              styles.selectorTitle,
-
-                              !selectedFacility &&
-                                styles.selectorPlaceholder,
-                            ]}
-                          >
-                            {selectedFacility
-                              ? selectedFacility
-                                  .name
-                              : loadingFacilities
-                                ? 'Finding nearby facilities...'
-                                : 'Choose Nearby Facility'}
-                          </Text>
-
-                          <Text
-                            numberOfLines={1}
-                            style={
-                              styles.selectorSubtitle
-                            }
-                          >
-                            {selectedFacility
-                              ? `${getFacilityLabel(
-                                  selectedFacility.type
-                                )} • ${
-                                  selectedFacility
-                                    .distance_km
-                                } km away`
-                              : facilities.length >
-                                  0
-                                ? `${facilities.length} nearby facilities found`
-                                : 'Tap to view nearby facilities'}
-                          </Text>
-                        </View>
-
-                        <MaterialIcons
-                          name="keyboard-arrow-down"
-                          size={24}
-                          color={
-                            COLORS.muted
-                          }
-                        />
-                      </TouchableOpacity>
+                        </PressableScale>
+                      </FadeInView>
 
                       {facilityError ? (
-                        <View
-                          style={
-                            styles.smallErrorBox
-                          }
+                        <FadeInView
+                          offset={4}
+                          style={styles.inlineError}
                         >
-                          <MaterialIcons
-                            name="error-outline"
-                            size={15}
-                            color={
-                              COLORS.redButton
-                            }
-                          />
-
-                          <Text
-                            style={
-                              styles.smallErrorText
-                            }
-                          >
-                            {facilityError}
+                          <Text style={styles.inlineErrorText}>
+                            {facilityError}{' '}
+                            <Text
+                              style={styles.inlineErrorLink}
+                              onPress={loadNearbyFacilities}
+                            >
+                              Try again
+                            </Text>
                           </Text>
-                        </View>
+                        </FadeInView>
                       ) : null}
 
-                      <View
-                        style={
-                          styles.orDivider
-                        }
-                      >
-                        <View
-                          style={
-                            styles.orLine
-                          }
-                        />
-
-                        <Text
-                          style={
-                            styles.orText
-                          }
-                        >
-                          or
-                        </Text>
-
-                        <View
-                          style={
-                            styles.orLine
-                          }
-                        />
-                      </View>
-
                       <TouchableOpacity
-                        style={
-                          styles.enterManuallyButton
-                        }
-                        disabled={
-                          submitting
-                        }
-                        activeOpacity={
-                          0.8
-                        }
-                        onPress={
-                          switchToManualFacility
-                        }
+                        style={styles.textLink}
+                        disabled={submitting}
+                        activeOpacity={0.7}
+                        onPress={switchToManualFacility}
                       >
-                        <View
-                          style={
-                            styles.enterManuallyIcon
-                          }
-                        >
-                          <MaterialIcons
-                            name="edit-location-alt"
-                            size={18}
-                            color={
-                              COLORS.redButton
-                            }
-                          />
-                        </View>
-
-                        <View
-                          style={
-                            styles.enterManuallyContent
-                          }
-                        >
-                          <Text
-                            style={
-                              styles.enterManuallyTitle
-                            }
-                          >
-                            Enter Facility Manually
+                        <Text style={styles.textLinkMuted}>
+                          Not listed?{' '}
+                          <Text style={styles.textLinkStrong}>
+                            Enter manually
                           </Text>
-
-                          <Text
-                            style={
-                              styles.enterManuallySubtitle
-                            }
-                          >
-                            Use this if the facility is not listed
-                          </Text>
-                        </View>
-
-                        <MaterialIcons
-                          name="chevron-right"
-                          size={22}
-                          color={
-                            COLORS.redButton
-                          }
-                        />
-                      </TouchableOpacity>
-                    </>
-                  ) : (
-                    <>
-                      <View
-                        style={
-                          styles.manualModeCard
-                        }
-                      >
-                        <View
-                          style={
-                            styles.manualModeHeader
-                          }
-                        >
-                          <View
-                            style={
-                              styles.manualModeIcon
-                            }
-                          >
-                            <MaterialIcons
-                              name="edit-location-alt"
-                              size={18}
-                              color={
-                                COLORS.redButton
-                              }
-                            />
-                          </View>
-
-                          <View
-                            style={
-                              styles.manualModeHeading
-                            }
-                          >
-                            <Text
-                              style={
-                                styles.manualModeTitle
-                              }
-                            >
-                              Manual Facility Entry
-                            </Text>
-
-                            <Text
-                              style={
-                                styles.manualModeSubtitle
-                              }
-                            >
-                              Enter the hospital, blood center, or Red Cross details.
-                            </Text>
-                          </View>
-                        </View>
-
-                        <Text
-                          style={
-                            styles.manualFieldLabel
-                          }
-                        >
-                          Facility Name
-                          <Text
-                            style={
-                              styles.required
-                            }
-                          >
-                            {' '}*
-                          </Text>
-                        </Text>
-
-                        <View
-                          style={
-                            styles.manualInputContainer
-                          }
-                        >
-                          <MaterialIcons
-                            name="local-hospital"
-                            size={18}
-                            color={
-                              COLORS.lightMuted
-                            }
-                          />
-
-                          <TextInput
-                            style={
-                              styles.manualInput
-                            }
-                            editable={
-                              !submitting
-                            }
-                            placeholder="Hospital, blood center, or Red Cross name"
-                            placeholderTextColor={
-                              COLORS.lightMuted
-                            }
-                            value={
-                              manualFacilityName
-                            }
-                            onChangeText={
-                              value => {
-                                setManualFacilityName(
-                                  value
-                                );
-
-                                setErrorMessage(
-                                  ''
-                                );
-                              }
-                            }
-                          />
-                        </View>
-
-                        <Text
-                          style={
-                            styles.manualFieldLabel
-                          }
-                        >
-                          Address / Location
-                          <Text
-                            style={
-                              styles.required
-                            }
-                          >
-                            {' '}*
-                          </Text>
-                        </Text>
-
-                        <View
-                          style={
-                            styles.manualInputContainer
-                          }
-                        >
-                          <MaterialIcons
-                            name="location-on"
-                            size={18}
-                            color={
-                              COLORS.lightMuted
-                            }
-                          />
-
-                          <TextInput
-                            style={
-                              styles.manualInput
-                            }
-                            editable={
-                              !submitting
-                            }
-                            placeholder="City, province, or facility address"
-                            placeholderTextColor={
-                              COLORS.lightMuted
-                            }
-                            value={
-                              manualFacilityAddress
-                            }
-                            onChangeText={
-                              value => {
-                                setManualFacilityAddress(
-                                  value
-                                );
-
-                                setErrorMessage(
-                                  ''
-                                );
-                              }
-                            }
-                          />
-                        </View>
-                      </View>
-
-                      <TouchableOpacity
-                        style={
-                          styles.returnNearbyButton
-                        }
-                        disabled={
-                          submitting
-                        }
-                        activeOpacity={
-                          0.8
-                        }
-                        onPress={
-                          switchToNearbyFacility
-                        }
-                      >
-                        <MaterialIcons
-                          name="location-searching"
-                          size={16}
-                          color={
-                            COLORS.redButton
-                          }
-                        />
-
-                        <Text
-                          style={
-                            styles.returnNearbyText
-                          }
-                        >
-                          Use Nearby Facilities Instead
                         </Text>
                       </TouchableOpacity>
                     </>
-                  )}
-
-                  {/* ==================================================
-                      URGENCY
-                  ================================================== */}
-
-                  <Text
-                    style={
-                      styles.label
-                    }
-                  >
-                    Urgency
-                    <Text
-                      style={
-                        styles.required
-                      }
-                    >
-                      {' '}*
-                    </Text>
-                  </Text>
-
-                  <View
-                    style={
-                      styles.urgencyRow
-                    }
-                  >
-                    <TouchableOpacity
-                      style={[
-                        styles.urgencyButton,
-
-                        urgency ===
-                          'urgent' &&
-                          styles.urgencySelected,
-                      ]}
-                      disabled={
-                        submitting
-                      }
-                      activeOpacity={
-                        0.8
-                      }
-                      onPress={() =>
-                        selectUrgency(
-                          'urgent'
-                        )
-                      }
-                    >
-                      <Text
-                        style={[
-                          styles.urgencyTitle,
-
-                          urgency ===
-                            'urgent' &&
-                            styles.whiteText,
-                        ]}
-                      >
-                        Urgent
-                      </Text>
-
-                      <Text
-                        style={[
-                          styles.urgencySub,
-
-                          urgency ===
-                            'urgent' &&
-                            styles.whiteMutedText,
-                        ]}
-                      >
-                        As soon as possible
-                      </Text>
-                    </TouchableOpacity>
-
-                    <TouchableOpacity
-                      style={[
-                        styles.urgencyButton,
-
-                        urgency ===
-                          'needed' &&
-                          styles.urgencySelected,
-                      ]}
-                      disabled={
-                        submitting
-                      }
-                      activeOpacity={
-                        0.8
-                      }
-                      onPress={() =>
-                        selectUrgency(
-                          'needed'
-                        )
-                      }
-                    >
-                      <Text
-                        style={[
-                          styles.urgencyTitle,
-
-                          urgency ===
-                            'needed' &&
-                            styles.whiteText,
-                        ]}
-                      >
-                        Needed
-                      </Text>
-
-                      <Text
-                        style={[
-                          styles.urgencySub,
-
-                          urgency ===
-                            'needed' &&
-                            styles.whiteMutedText,
-                        ]}
-                      >
-                        By selected date
-                      </Text>
-                    </TouchableOpacity>
-                  </View>
-
-                  {/* ==================================================
-                      NEEDED BY
-                  ================================================== */}
-
-                  <Text
-                    style={
-                      styles.label
-                    }
-                  >
-                    Needed by
-
-                    {urgency ===
-                    'needed' ? (
-                      <Text
-                        style={
-                          styles.required
-                        }
-                      >
-                        {' '}*
-                      </Text>
-                    ) : null}
-                  </Text>
-
-                  {urgency ===
-                  'urgent' ? (
-                    <View
-                      style={
-                        styles.asapBox
-                      }
-                    >
-                      <MaterialIcons
-                        name="bolt"
-                        size={19}
-                        color={
-                          COLORS.redButton
-                        }
-                      />
-
-                      <Text
-                        style={
-                          styles.asapText
-                        }
-                      >
-                        As soon as possible
-                      </Text>
-                    </View>
                   ) : (
-                    <View
-                      style={
-                        styles.dateTimeRow
-                      }
+                    <FadeInView
+                      key="manual"
+                      offset={6}
                     >
-                      <TouchableOpacity
+                      <View
                         style={[
-                          styles.dateTimeButton,
-
-                          urgency !==
-                            'needed' &&
-                            styles.dateTimeDisabled,
+                          styles.card,
+                          styles.cardAttached,
                         ]}
-                        disabled={
-                          urgency !==
-                            'needed' ||
-                          submitting
-                        }
-                        activeOpacity={
-                          0.8
-                        }
-                        onPress={
-                          handleDatePress
-                        }
                       >
-                        <MaterialIcons
-                          name="calendar-today"
-                          size={18}
-                          color={
-                            neededDate
-                              ? COLORS.redButton
-                              : COLORS.lightMuted
-                          }
-                        />
-
                         <View
-                          style={{
-                            flex: 1,
-                          }}
-                        >
-                          <Text
-                            style={
-                              styles.dateTimeTinyLabel
-                            }
-                          >
-                            Date
-                          </Text>
-
-                          <Text
-                            numberOfLines={1}
-                            style={[
-                              styles.dateTimeValue,
-
-                              neededDate &&
-                                styles.dateTimeValueSelected,
-                            ]}
-                          >
-                            {neededDate
-                              ? formatDate(
-                                  neededDate
-                                )
-                              : 'Select Date'}
-                          </Text>
-                        </View>
-                      </TouchableOpacity>
-
-                      <TouchableOpacity
-                        style={[
-                          styles.dateTimeButton,
-
-                          urgency !==
-                            'needed' &&
-                            styles.dateTimeDisabled,
-                        ]}
-                        disabled={
-                          urgency !==
-                            'needed' ||
-                          submitting
-                        }
-                        activeOpacity={
-                          0.8
-                        }
-                        onPress={
-                          handleTimePress
-                        }
-                      >
-                        <MaterialIcons
-                          name="access-time"
-                          size={19}
-                          color={
-                            neededTime
-                              ? COLORS.redButton
-                              : COLORS.lightMuted
-                          }
-                        />
-
-                        <View
-                          style={{
-                            flex: 1,
-                          }}
-                        >
-                          <Text
-                            style={
-                              styles.dateTimeTinyLabel
-                            }
-                          >
-                            Time
-                          </Text>
-
-                          <Text
-                            numberOfLines={1}
-                            style={[
-                              styles.dateTimeValue,
-
-                              neededTime &&
-                                styles.dateTimeValueSelected,
-                            ]}
-                          >
-                            {neededTime
-                              ? formatTime(
-                                  neededTime
-                                )
-                              : 'Select Time'}
-                          </Text>
-                        </View>
-                      </TouchableOpacity>
-                    </View>
-                  )}
-
-                  {/* ==================================================
-                      MESSAGE
-                  ================================================== */}
-
-                  <Text
-                    style={
-                      styles.label
-                    }
-                  >
-                    Message to Donors
-
-                    <Text
-                      style={
-                        styles.optional
-                      }
-                    >
-                      {' '}(Optional)
-                    </Text>
-                  </Text>
-
-                  <View
-                    style={
-                      styles.messageBox
-                    }
-                  >
-                    <TextInput
-                      style={
-                        styles.messageInput
-                      }
-                      editable={
-                        !submitting
-                      }
-                      placeholder="Briefly explain anything donors should know..."
-                      placeholderTextColor={
-                        COLORS.lightMuted
-                      }
-                      multiline
-                      maxLength={250}
-                      value={message}
-                      onChangeText={
-                        setMessage
-                      }
-                      textAlignVertical="top"
-                    />
-
-                    <Text
-                      style={
-                        styles.characterCount
-                      }
-                    >
-                      {message.length}/250
-                    </Text>
-                  </View>
-
-                  {/* ==================================================
-                      INFO
-                  ================================================== */}
-
-                  <View
-                    style={
-                      styles.infoBox
-                    }
-                  >
-                    <MaterialIcons
-                      name="info-outline"
-                      size={19}
-                      color={
-                        COLORS.redButton
-                      }
-                    />
-
-                    <Text
-                      style={
-                        styles.infoText
-                      }
-                    >
-                      Your request will be shown to nearby compatible donors based on the selected donation facility.
-                    </Text>
-                  </View>
-
-                  {/* ==================================================
-                      ERROR
-                  ================================================== */}
-
-                  {errorMessage ? (
-                    <View
-                      style={
-                        styles.errorBox
-                      }
-                    >
-                      <MaterialIcons
-                        name="error-outline"
-                        size={17}
-                        color={
-                          COLORS.redButton
-                        }
-                      />
-
-                      <Text
-                        style={
-                          styles.errorText
-                        }
-                      >
-                        {errorMessage}
-                      </Text>
-                    </View>
-                  ) : null}
-
-                  {/* ==================================================
-                      SUBMIT
-                  ================================================== */}
-
-                  <TouchableOpacity
-                    style={[
-                      styles.submitButton,
-
-                      submitting &&
-                        styles.submitDisabled,
-                    ]}
-                    disabled={
-                      submitting
-                    }
-                    activeOpacity={
-                      0.85
-                    }
-                    onPress={
-                      handleSubmit
-                    }
-                  >
-                    <Text
-                      style={
-                        styles.submitText
-                      }
-                    >
-                      {submitting
-                        ? 'Submitting...'
-                        : 'Submit Blood Request'}
-                    </Text>
-
-                    {!submitting ? (
-                      <MaterialIcons
-                        name="arrow-forward"
-                        size={18}
-                        color={
-                          COLORS.white
-                        }
-                      />
-                    ) : null}
-                  </TouchableOpacity>
-                </ScrollView>
-              </View>
-            </LinearGradient>
-          </KeyboardAvoidingView>
-        </SafeAreaView>
-
-        {/* ====================================================
-            FACILITY PICKER
-        ==================================================== */}
-
-        <Modal
-          transparent
-          visible={
-            showFacilityPicker
-          }
-          animationType="fade"
-          onRequestClose={() =>
-            setShowFacilityPicker(
-              false
-            )
-          }
-        >
-          <View
-            style={
-              styles.modalOverlay
-            }
-          >
-            <View
-              style={
-                styles.facilityModal
-              }
-            >
-              <View
-                style={
-                  styles.modalHeader
-                }
-              >
-                <View>
-                  <Text
-                    style={
-                      styles.modalTitle
-                    }
-                  >
-                    Nearby Facilities
-                  </Text>
-
-                  <Text
-                    style={
-                      styles.modalSubtitle
-                    }
-                  >
-                    Hospitals, blood centers & Red Cross
-                  </Text>
-                </View>
-
-                <TouchableOpacity
-                  style={
-                    styles.closeButton
-                  }
-                  onPress={() =>
-                    setShowFacilityPicker(
-                      false
-                    )
-                  }
-                >
-                  <MaterialIcons
-                    name="close"
-                    size={22}
-                    color={
-                      COLORS.black
-                    }
-                  />
-                </TouchableOpacity>
-              </View>
-
-              {loadingFacilities ? (
-                <View
-                  style={
-                    styles.facilityModalLoading
-                  }
-                >
-                  <MaterialIcons
-                    name="location-searching"
-                    size={32}
-                    color={
-                      COLORS.redButton
-                    }
-                  />
-
-                  <Text
-                    style={
-                      styles.facilityModalLoadingText
-                    }
-                  >
-                    Finding nearby facilities...
-                  </Text>
-                </View>
-              ) : (
-                <ScrollView
-                  style={
-                    styles.facilityList
-                  }
-                  showsVerticalScrollIndicator={
-                    false
-                  }
-                >
-                  {facilities.map(
-                    facility => {
-                      const selected =
-                        selectedFacility
-                          ?.id ===
-                        facility.id;
-
-                      return (
-                        <TouchableOpacity
-                          key={
-                            facility.id
-                          }
                           style={[
-                            styles.facilityOption,
+                            styles.inputBox,
 
-                            selected &&
-                              styles.facilityOptionSelected,
+                            focusedField ===
+                              'facilityName' &&
+                              styles.inputFocused,
                           ]}
-                          onPress={() =>
-                            chooseFacility(
-                              facility
-                            )
-                          }
                         >
-                          <View
-                            style={[
-                              styles.facilityOptionIcon,
+                          <MaterialCommunityIcons
+                            name="hospital-building"
+                            size={19}
+                            color={
+                              focusedField ===
+                              'facilityName'
+                                ? COLORS.redButton
+                                : COLORS.lightMuted
+                            }
+                          />
 
-                              {
-                                backgroundColor:
-                                  getFacilityIconBackground(
-                                    facility.type
-                                  ),
-                              },
+                          <TextInput
+                            style={styles.input}
+                            editable={!submitting}
+                            placeholder="Place name"
+                            placeholderTextColor={COLORS.lightMuted}
+                            value={manualFacilityName}
+                            onFocus={() =>
+                              setFocusedField('facilityName')
+                            }
+                            onBlur={() =>
+                              setFocusedField(null)
+                            }
+                            onChangeText={value => {
+                              setManualFacilityName(value);
+                              setErrorMessage('');
+                            }}
+                          />
+                        </View>
+
+                        <View
+                          style={[
+                            styles.inputBox,
+                            styles.inputBoxSpaced,
+
+                            focusedField ===
+                              'facilityAddress' &&
+                              styles.inputFocused,
+                          ]}
+                        >
+                          <MaterialIcons
+                            name="place"
+                            size={19}
+                            color={
+                              focusedField ===
+                              'facilityAddress'
+                                ? COLORS.redButton
+                                : COLORS.lightMuted
+                            }
+                          />
+
+                          <TextInput
+                            style={styles.input}
+                            editable={!submitting}
+                            placeholder="Address or city"
+                            placeholderTextColor={COLORS.lightMuted}
+                            value={manualFacilityAddress}
+                            onFocus={() =>
+                              setFocusedField('facilityAddress')
+                            }
+                            onBlur={() =>
+                              setFocusedField(null)
+                            }
+                            onChangeText={value => {
+                              setManualFacilityAddress(value);
+                              setErrorMessage('');
+                            }}
+                          />
+                        </View>
+                      </View>
+
+                      <TouchableOpacity
+                        style={styles.textLink}
+                        disabled={submitting}
+                        activeOpacity={0.7}
+                        onPress={switchToNearbyFacility}
+                      >
+                        <Text style={styles.textLinkStrong}>
+                          Use nearby places
+                        </Text>
+                      </TouchableOpacity>
+                    </FadeInView>
+                  )}
+                </FadeInView>
+
+                {/* ================================================
+                    3. WHEN
+                ================================================ */}
+
+                <FadeInView delay={120}>
+                  <SectionHeader
+                    icon="schedule"
+                    title="When"
+                    done={timingStepDone}
+                  />
+
+                  <View style={styles.card}>
+                    <View style={styles.segment}>
+                      {URGENCY_OPTIONS.map(option => {
+                        const selected =
+                          urgency === option.value;
+
+                        return (
+                          <TouchableOpacity
+                            key={option.value}
+                            style={[
+                              styles.segmentItem,
 
                               selected &&
-                                styles.facilityOptionIconSelected,
+                                styles.segmentItemSelected,
                             ]}
+                            disabled={submitting}
+                            activeOpacity={0.85}
+                            accessibilityRole="button"
+                            accessibilityState={{
+                              selected,
+                            }}
+                            onPress={() =>
+                              selectUrgency(option.value)
+                            }
                           >
                             <MaterialIcons
-                              name={
-                                getFacilityIcon(
-                                  facility.type
-                                ) as any
-                              }
-                              size={
-                                facility.type ===
-                                'red_cross'
-                                  ? 23
-                                  : 20
-                              }
+                              name={option.icon}
+                              size={18}
                               color={
                                 selected
                                   ? COLORS.white
                                   : COLORS.redButton
                               }
                             />
-                          </View>
 
-                          <View
-                            style={
-                              styles.facilityOptionContent
+                            <Text
+                              style={[
+                                styles.segmentText,
+
+                                selected &&
+                                  styles.segmentTextSelected,
+                              ]}
+                            >
+                              {option.title}
+                            </Text>
+                          </TouchableOpacity>
+                        );
+                      })}
+                    </View>
+
+                    {urgency === 'urgent' ? (
+                      <FadeInView
+                        key="urgent"
+                        offset={4}
+                      >
+                        <Text style={styles.whenHint}>
+                          Donors will see this as needed as soon as possible.
+                        </Text>
+                      </FadeInView>
+                    ) : urgency === 'needed' ? (
+                      <FadeInView
+                        key="needed"
+                        offset={4}
+                        style={styles.dateTimeRow}
+                      >
+                        <PressableScale
+                          containerStyle={styles.flexFill}
+                          style={[
+                            styles.dateTimeField,
+
+                            neededDate &&
+                              styles.dateTimeFieldFilled,
+                          ]}
+                          disabled={submitting}
+                          accessibilityRole="button"
+                          accessibilityLabel="Pick the date"
+                          onPress={handleDatePress}
+                        >
+                          <MaterialIcons
+                            name="calendar-today"
+                            size={17}
+                            color={
+                              neededDate
+                                ? COLORS.redButton
+                                : COLORS.lightMuted
+                            }
+                          />
+
+                          <Text
+                            numberOfLines={1}
+                            adjustsFontSizeToFit
+                            minimumFontScale={0.8}
+                            maxFontSizeMultiplier={1.3}
+                            style={[
+                              styles.dateTimeText,
+
+                              neededDate &&
+                                styles.dateTimeTextFilled,
+                            ]}
+                          >
+                            {neededDate
+                              ? formatDate(neededDate)
+                              : 'Date'}
+                          </Text>
+                        </PressableScale>
+
+                        <PressableScale
+                          containerStyle={styles.flexFill}
+                          style={[
+                            styles.dateTimeField,
+
+                            neededTime &&
+                              styles.dateTimeFieldFilled,
+                          ]}
+                          disabled={submitting}
+                          accessibilityRole="button"
+                          accessibilityLabel="Pick the time"
+                          onPress={handleTimePress}
+                        >
+                          <MaterialIcons
+                            name="access-time"
+                            size={18}
+                            color={
+                              neededTime
+                                ? COLORS.redButton
+                                : COLORS.lightMuted
+                            }
+                          />
+
+                          <Text
+                            numberOfLines={1}
+                            adjustsFontSizeToFit
+                            minimumFontScale={0.8}
+                            maxFontSizeMultiplier={1.3}
+                            style={[
+                              styles.dateTimeText,
+
+                              neededTime &&
+                                styles.dateTimeTextFilled,
+                            ]}
+                          >
+                            {neededTime
+                              ? formatTime(neededTime)
+                              : 'Time'}
+                          </Text>
+                        </PressableScale>
+                      </FadeInView>
+                    ) : null}
+                  </View>
+                </FadeInView>
+
+                {/* ================================================
+                    4. NOTE (optional)
+                ================================================ */}
+
+                <FadeInView delay={180}>
+                  <SectionHeader
+                    icon="notes"
+                    title="Note"
+                    optional
+                    done={message.trim().length > 0}
+                  />
+
+                  <View
+                    style={[
+                      styles.card,
+
+                      focusedField === 'message' &&
+                        styles.cardFocused,
+                    ]}
+                  >
+                    <TextInput
+                      style={styles.messageInput}
+                      editable={!submitting}
+                      placeholder="Anything donors should know"
+                      placeholderTextColor={COLORS.lightMuted}
+                      multiline
+                      maxLength={MESSAGE_LIMIT}
+                      value={message}
+                      onFocus={() =>
+                        setFocusedField('message')
+                      }
+                      onBlur={() =>
+                        setFocusedField(null)
+                      }
+                      onChangeText={setMessage}
+                      textAlignVertical="top"
+                    />
+
+                    <Text style={styles.characterCount}>
+                      {message.length}/{MESSAGE_LIMIT}
+                    </Text>
+
+                    <View style={styles.quickNotes}>
+                      {QUICK_NOTES.map(note => {
+                        const active =
+                          message.includes(
+                            `${note.text}.`
+                          );
+
+                        return (
+                          <TouchableOpacity
+                            key={note.label}
+                            style={[
+                              styles.quickNote,
+
+                              active &&
+                                styles.quickNoteActive,
+                            ]}
+                            disabled={submitting}
+                            activeOpacity={0.8}
+                            accessibilityState={{
+                              selected: active,
+                            }}
+                            onPress={() =>
+                              toggleQuickNote(note.text)
                             }
                           >
                             <Text
-                              numberOfLines={2}
-                              style={
-                                styles.facilityOptionName
-                              }
+                              style={[
+                                styles.quickNoteText,
+
+                                active &&
+                                  styles.quickNoteTextActive,
+                              ]}
                             >
-                              {facility.name}
+                              {active ? '✓ ' : '+ '}
+                              {note.label}
                             </Text>
+                          </TouchableOpacity>
+                        );
+                      })}
+                    </View>
+                  </View>
+                </FadeInView>
+              </ScrollView>
+            </View>
 
-                            <Text
-                              style={
-                                styles.facilityOptionMeta
-                              }
-                            >
-                              {getFacilityLabel(
-                                facility.type
-                              )}
-                              {' • '}
-                              {facility.distance_km}{' '}
-                              km away
-                            </Text>
+            {/* ==================================================
+                FOOTER
+            ================================================== */}
 
-                            {facility.address ? (
-                              <Text
-                                numberOfLines={1}
-                                style={
-                                  styles.facilityOptionAddress
-                                }
-                              >
-                                {facility.address}
-                              </Text>
-                            ) : null}
-                          </View>
+            <View
+              style={[
+                styles.footer,
 
-                          <View
-                            style={[
-                              styles.radio,
+                {
+                  paddingBottom: Math.max(
+                    insets.bottom,
+                    12
+                  ),
+                },
+              ]}
+            >
+              <PressableScale
+                style={[
+                  styles.submitButton,
 
-                              selected &&
-                                styles.radioSelected,
-                            ]}
-                          >
-                            {selected ? (
-                              <View
-                                style={
-                                  styles.radioInner
-                                }
-                              />
-                            ) : null}
-                          </View>
-                        </TouchableOpacity>
-                      );
-                    }
-                  )}
-                </ScrollView>
-              )}
-
-              <View
-                style={
-                  styles.modalFooter
+                  !allStepsDone &&
+                    !activeRequestId &&
+                    styles.submitButtonIncomplete,
+                ]}
+                disabled={submitting}
+                accessibilityRole="button"
+                onPress={
+                  activeRequestId
+                    ? openActiveRequest
+                    : handleSubmit
                 }
               >
+                <LinearGradient
+                  colors={[
+                    '#D2151A',
+                    COLORS.redDark,
+                  ]}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 1 }}
+                  style={styles.submitGradient}
+                >
+                  <Text style={styles.submitText}>
+                    {activeRequestId
+                      ? 'View Active Request'
+                      : 'Review Request'}
+                  </Text>
+
+                  <MaterialIcons
+                    name="arrow-forward"
+                    size={19}
+                    color={COLORS.white}
+                  />
+                </LinearGradient>
+              </PressableScale>
+            </View>
+          </KeyboardAvoidingView>
+        </SafeAreaView>
+
+        {/* ====================================================
+            REQUEST SHEET: missing / review / posted
+        ==================================================== */}
+
+        <BottomSheet
+          visible={sheet !== null}
+          onClose={
+            visibleSheet === 'success'
+              ? undefined
+              : closeSheet
+          }
+        >
+          {visibleSheet === 'missing' ? (
+            <>
+              <View
+                style={[
+                  styles.sheetIcon,
+
+                  {
+                    backgroundColor: COLORS.orangeLight,
+                  },
+                ]}
+              >
+                <MaterialIcons
+                  name="checklist"
+                  size={28}
+                  color={COLORS.orange}
+                />
+              </View>
+
+              <Text style={styles.sheetTitle}>
+                {allStepsDone
+                  ? 'Check the time'
+                  : 'Almost there'}
+              </Text>
+
+              {/* Every step can be filled yet still invalid
+                  (a past date/time) — then show that reason
+                  instead of an all-green checklist. */}
+              <Text style={styles.sheetText}>
+                {allStepsDone
+                  ? errorMessage
+                  : 'Complete these to post your request.'}
+              </Text>
+
+              {!allStepsDone ? (
+                <View style={styles.checklist}>
+                  {requiredChecklist.map(item => (
+                    <View
+                      key={item.label}
+                      style={styles.checkRow}
+                    >
+                      <MaterialIcons
+                        name={
+                          item.done
+                            ? 'check-circle'
+                            : 'radio-button-unchecked'
+                        }
+                        size={21}
+                        color={
+                          item.done
+                            ? COLORS.green
+                            : COLORS.redButton
+                        }
+                      />
+
+                      <Text
+                        style={[
+                          styles.checkText,
+
+                          item.done &&
+                            styles.checkTextDone,
+                        ]}
+                      >
+                        {item.label}
+                      </Text>
+                    </View>
+                  ))}
+                </View>
+              ) : null}
+
+              <TouchableOpacity
+                style={styles.sheetPrimaryFull}
+                activeOpacity={0.85}
+                onPress={closeSheet}
+              >
+                <Text style={styles.sheetPrimaryText}>
+                  Got it
+                </Text>
+              </TouchableOpacity>
+            </>
+          ) : visibleSheet === 'review' ? (
+            <>
+              <View style={styles.sheetHeaderRow}>
+                <Text style={styles.sheetTitleLeft}>
+                  Review Request
+                </Text>
+
                 <TouchableOpacity
-                  style={
-                    styles.refreshFacilityButton
-                  }
-                  onPress={
-                    loadNearbyFacilities
-                  }
+                  style={styles.sheetClose}
+                  disabled={submitting}
+                  accessibilityLabel="Close"
+                  onPress={closeSheet}
                 >
                   <MaterialIcons
-                    name="refresh"
-                    size={17}
-                    color={
-                      COLORS.redButton
-                    }
+                    name="close"
+                    size={20}
+                    color={COLORS.muted}
                   />
-
-                  <Text
-                    style={
-                      styles.refreshFacilityText
-                    }
-                  >
-                    Refresh
-                  </Text>
-                </TouchableOpacity>
-
-                <TouchableOpacity
-                  style={
-                    styles.manualFacilityModalButton
-                  }
-                  onPress={
-                    switchToManualFacility
-                  }
-                >
-                  <MaterialIcons
-                    name="edit-location-alt"
-                    size={17}
-                    color={
-                      COLORS.white
-                    }
-                  />
-
-                  <Text
-                    style={
-                      styles.manualFacilityModalText
-                    }
-                  >
-                    Enter Manually
-                  </Text>
                 </TouchableOpacity>
               </View>
+
+              {/* Blood type + bags + urgency */}
+              <View style={styles.reviewHero}>
+                <View style={styles.reviewBlood}>
+                  <Text style={styles.reviewBloodText}>
+                    {bloodType}
+                  </Text>
+                </View>
+
+                <View style={styles.flexFill}>
+                  <Text style={styles.reviewHeroTitle}>
+                    {unitsNeeded}{' '}
+                    {unitsNeeded === 1 ? 'bag' : 'bags'} of{' '}
+                    {bloodType}
+                  </Text>
+
+                  <View
+                    style={[
+                      styles.urgencyPill,
+
+                      {
+                        backgroundColor:
+                          urgency === 'urgent'
+                            ? COLORS.pinkLight
+                            : COLORS.blueLight,
+                      },
+                    ]}
+                  >
+                    <MaterialIcons
+                      name={
+                        urgency === 'urgent'
+                          ? 'bolt'
+                          : 'event'
+                      }
+                      size={14}
+                      color={
+                        urgency === 'urgent'
+                          ? COLORS.redButton
+                          : COLORS.blue
+                      }
+                    />
+
+                    <Text
+                      style={[
+                        styles.urgencyPillText,
+
+                        {
+                          color:
+                            urgency === 'urgent'
+                              ? COLORS.redButton
+                              : COLORS.blue,
+                        },
+                      ]}
+                    >
+                      {urgency === 'urgent'
+                        ? 'Urgent'
+                        : 'Scheduled'}
+                    </Text>
+                  </View>
+                </View>
+              </View>
+
+              {/* Details */}
+              <View style={styles.reviewRows}>
+                <ReviewRow
+                  icon="place"
+                  iconNode={
+                    manualFacilityMode ? undefined : (
+                      <FacilityIcon
+                        type={selectedFacility?.type}
+                        size={38}
+                      />
+                    )
+                  }
+                  label="Place"
+                  value={reviewFacilityName}
+                  detail={reviewFacilityAddress}
+                />
+
+                <ReviewRow
+                  icon="schedule"
+                  label="Needed"
+                  value={reviewNeededBy}
+                />
+
+                {message.trim() ? (
+                  <ReviewRow
+                    icon="notes"
+                    label="Note"
+                    value={message.trim()}
+                    last
+                  />
+                ) : null}
+              </View>
+
+              {compatibleDonors.length > 0 ? (
+                <View style={styles.reviewVisibility}>
+                  <MaterialIcons
+                    name="visibility"
+                    size={16}
+                    color={COLORS.green}
+                  />
+
+                  <Text style={styles.reviewVisibilityText}>
+                    Visible to nearby{' '}
+                    <Text style={styles.reviewVisibilityStrong}>
+                      {compatibleDonors.join(', ')}
+                    </Text>{' '}
+                    donors
+                  </Text>
+                </View>
+              ) : null}
+
+              {submitError ? (
+                <FadeInView
+                  key={submitError}
+                  offset={4}
+                  style={styles.sheetError}
+                >
+                  <MaterialIcons
+                    name="error-outline"
+                    size={17}
+                    color={COLORS.redButton}
+                  />
+
+                  <Text style={styles.sheetErrorText}>
+                    {submitError}
+                  </Text>
+                </FadeInView>
+              ) : null}
+
+              <View style={styles.sheetActions}>
+                <TouchableOpacity
+                  style={styles.sheetSecondary}
+                  disabled={submitting}
+                  activeOpacity={0.8}
+                  onPress={closeSheet}
+                >
+                  <MaterialIcons
+                    name="edit"
+                    size={17}
+                    color={COLORS.redButton}
+                  />
+
+                  <Text style={styles.sheetSecondaryText}>
+                    Edit
+                  </Text>
+                </TouchableOpacity>
+
+                <PressableScale
+                  containerStyle={styles.flexFill}
+                  style={styles.sheetPrimaryWrap}
+                  disabled={submitting}
+                  accessibilityRole="button"
+                  onPress={handleConfirmedSubmit}
+                >
+                  <LinearGradient
+                    colors={[
+                      '#D2151A',
+                      COLORS.redDark,
+                    ]}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 1 }}
+                    style={styles.sheetPrimaryGradient}
+                  >
+                    {submitting ? (
+                      <ActivityIndicator
+                        size="small"
+                        color={COLORS.white}
+                      />
+                    ) : (
+                      <>
+                        <MaterialIcons
+                          name="send"
+                          size={17}
+                          color={COLORS.white}
+                        />
+
+                        <Text style={styles.sheetPrimaryText}>
+                          Post Request
+                        </Text>
+                      </>
+                    )}
+                  </LinearGradient>
+                </PressableScale>
+              </View>
+            </>
+          ) : visibleSheet === 'success' ? (
+            <FadeInView
+              key="success"
+              offset={8}
+              style={styles.centered}
+            >
+              <View style={styles.successIconWrap}>
+                <PulseRing
+                  size={76}
+                  color="rgba(21,148,71,0.35)"
+                />
+
+                <View style={styles.successIcon}>
+                  <MaterialIcons
+                    name="check"
+                    size={40}
+                    color={COLORS.white}
+                  />
+                </View>
+              </View>
+
+              <Text style={styles.sheetTitle}>
+                Request Posted
+              </Text>
+
+              <Text style={styles.sheetText}>
+                Compatible donors nearby can now see your{' '}
+                {bloodType} request. We&apos;ll notify you when
+                someone offers to help.
+              </Text>
+
+              <TouchableOpacity
+                style={styles.sheetPrimaryFull}
+                activeOpacity={0.85}
+                onPress={() =>
+                  leaveAfterPosting('request')
+                }
+              >
+                <Text style={styles.sheetPrimaryText}>
+                  View My Request
+                </Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={styles.sheetTextButton}
+                activeOpacity={0.7}
+                onPress={() =>
+                  leaveAfterPosting('home')
+                }
+              >
+                <Text style={styles.sheetTextButtonText}>
+                  Back to Home
+                </Text>
+              </TouchableOpacity>
+            </FadeInView>
+          ) : null}
+        </BottomSheet>
+
+        {/* ====================================================
+            NEARBY PLACES PICKER
+        ==================================================== */}
+
+        <BottomSheet
+          visible={showFacilityPicker}
+          onClose={() =>
+            setShowFacilityPicker(false)
+          }
+        >
+          <View style={styles.sheetHeaderRow}>
+            <View style={styles.flexFill}>
+              <Text style={styles.sheetTitleLeft}>
+                Nearby Places
+              </Text>
+
+              {facilities.length > 0 ? (
+                <Text style={styles.sheetSubtitleLeft}>
+                  {facilities.length} found near you
+                </Text>
+              ) : null}
             </View>
+
+            <TouchableOpacity
+              style={styles.sheetClose}
+              accessibilityLabel="Close"
+              onPress={() =>
+                setShowFacilityPicker(false)
+              }
+            >
+              <MaterialIcons
+                name="close"
+                size={20}
+                color={COLORS.muted}
+              />
+            </TouchableOpacity>
           </View>
-        </Modal>
+
+          {loadingFacilities ? (
+            <View style={styles.sheetLoading}>
+              <ActivityIndicator
+                size="large"
+                color={COLORS.redButton}
+              />
+
+              <Text style={styles.sheetLoadingText}>
+                Finding places near you...
+              </Text>
+            </View>
+          ) : facilities.length === 0 ? (
+            <View style={styles.sheetLoading}>
+              <MaterialCommunityIcons
+                name="map-search-outline"
+                size={38}
+                color={COLORS.lightMuted}
+              />
+
+              <Text style={styles.sheetLoadingText}>
+                {facilityError ||
+                  'No places found nearby.'}
+              </Text>
+            </View>
+          ) : (
+            <ScrollView
+              style={styles.facilityList}
+              showsVerticalScrollIndicator={false}
+            >
+              {facilities.map((facility, index) => {
+                const selected =
+                  selectedFacility?.id === facility.id;
+
+                const visual =
+                  getFacilityVisual(facility.type);
+
+                return (
+                  <FadeInView
+                    key={facility.id}
+                    delay={Math.min(index * 35, 210)}
+                  >
+                    <TouchableOpacity
+                      style={[
+                        styles.facilityOption,
+
+                        selected &&
+                          styles.facilityOptionSelected,
+                      ]}
+                      activeOpacity={0.8}
+                      onPress={() =>
+                        chooseFacility(facility)
+                      }
+                    >
+                      <FacilityIcon
+                        type={facility.type}
+                        size={42}
+                      />
+
+                      <View style={styles.facilityOptionBody}>
+                        <Text
+                          numberOfLines={2}
+                          style={styles.facilityOptionName}
+                        >
+                          {facility.name}
+                        </Text>
+
+                        <Text
+                          numberOfLines={1}
+                          style={styles.facilityOptionMeta}
+                        >
+                          <Text style={{ color: visual.color }}>
+                            {visual.label}
+                          </Text>
+                          {facility.distance_km !== undefined
+                            ? `  •  ${formatDistance(
+                                facility.distance_km
+                              )}`
+                            : ''}
+                        </Text>
+                      </View>
+
+                      <MaterialIcons
+                        name={
+                          selected
+                            ? 'check-circle'
+                            : 'chevron-right'
+                        }
+                        size={22}
+                        color={
+                          selected
+                            ? COLORS.redButton
+                            : COLORS.lightMuted
+                        }
+                      />
+                    </TouchableOpacity>
+                  </FadeInView>
+                );
+              })}
+            </ScrollView>
+          )}
+
+          <View style={styles.sheetActions}>
+            <TouchableOpacity
+              style={styles.sheetSecondary}
+              disabled={loadingFacilities}
+              activeOpacity={0.8}
+              onPress={loadNearbyFacilities}
+            >
+              <MaterialIcons
+                name="refresh"
+                size={18}
+                color={COLORS.redButton}
+              />
+
+              <Text style={styles.sheetSecondaryText}>
+                Refresh
+              </Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.sheetSecondary}
+              activeOpacity={0.8}
+              onPress={switchToManualFacility}
+            >
+              <MaterialIcons
+                name="edit-location-alt"
+                size={18}
+                color={COLORS.redButton}
+              />
+
+              <Text style={styles.sheetSecondaryText}>
+                Enter manually
+              </Text>
+            </TouchableOpacity>
+          </View>
+        </BottomSheet>
 
         {/* ====================================================
             DATE PICKER
         ==================================================== */}
 
-        <Modal
-          transparent
-          visible={
-            showDatePicker
-          }
-          animationType="fade"
-          onRequestClose={() =>
-            setShowDatePicker(
-              false
-            )
-          }
+        <BottomSheet
+          visible={showDatePicker}
+          onClose={() => setShowDatePicker(false)}
         >
-          <View
-            style={
-              styles.modalOverlay
-            }
-          >
-            <View
-              style={
-                styles.calendarModal
-              }
+          <View style={styles.sheetHeaderRow}>
+            <Text style={styles.sheetTitleLeft}>
+              Pick a Date
+            </Text>
+
+            <TouchableOpacity
+              style={styles.sheetClose}
+              accessibilityLabel="Close"
+              onPress={() => setShowDatePicker(false)}
             >
-              <View
-                style={
-                  styles.modalHeader
-                }
-              >
-                <Text
-                  style={
-                    styles.modalTitle
-                  }
-                >
-                  Select Date
-                </Text>
-
-                <TouchableOpacity
-                  style={
-                    styles.closeButton
-                  }
-                  onPress={() =>
-                    setShowDatePicker(
-                      false
-                    )
-                  }
-                >
-                  <MaterialIcons
-                    name="close"
-                    size={22}
-                    color={
-                      COLORS.black
-                    }
-                  />
-                </TouchableOpacity>
-              </View>
-
-              <View
-                style={
-                  styles.calendarNavigation
-                }
-              >
-                <TouchableOpacity
-                  style={
-                    styles.calendarArrow
-                  }
-                  onPress={
-                    previousMonth
-                  }
-                >
-                  <MaterialIcons
-                    name="chevron-left"
-                    size={25}
-                    color={
-                      COLORS.redButton
-                    }
-                  />
-                </TouchableOpacity>
-
-                <Text
-                  style={
-                    styles.calendarMonth
-                  }
-                >
-                  {MONTHS[
-                    calendarMonth
-                  ]}{' '}
-                  {calendarYear}
-                </Text>
-
-                <TouchableOpacity
-                  style={
-                    styles.calendarArrow
-                  }
-                  onPress={
-                    nextMonth
-                  }
-                >
-                  <MaterialIcons
-                    name="chevron-right"
-                    size={25}
-                    color={
-                      COLORS.redButton
-                    }
-                  />
-                </TouchableOpacity>
-              </View>
-
-              <View
-                style={
-                  styles.weekRow
-                }
-              >
-                {WEEKDAYS.map(
-                  (
-                    day,
-                    index
-                  ) => (
-                    <Text
-                      key={`${day}-${index}`}
-                      style={
-                        styles.weekDay
-                      }
-                    >
-                      {day}
-                    </Text>
-                  )
-                )}
-              </View>
-
-              <View
-                style={
-                  styles.calendarGrid
-                }
-              >
-                {calendarDays.map(
-                  (
-                    day,
-                    index
-                  ) => {
-                    if (!day) {
-                      return (
-                        <View
-                          key={index}
-                          style={
-                            styles.calendarCell
-                          }
-                        />
-                      );
-                    }
-
-                    const today =
-                      new Date();
-
-                    today.setHours(
-                      0,
-                      0,
-                      0,
-                      0
-                    );
-
-                    const comparison =
-                      new Date(day);
-
-                    comparison.setHours(
-                      0,
-                      0,
-                      0,
-                      0
-                    );
-
-                    const disabled =
-                      comparison.getTime() <
-                      today.getTime();
-
-                    const selected =
-                      sameDate(
-                        neededDate,
-                        day
-                      );
-
-                    return (
-                      <TouchableOpacity
-                        key={index}
-                        style={
-                          styles.calendarCell
-                        }
-                        disabled={
-                          disabled
-                        }
-                        onPress={() =>
-                          selectCalendarDate(
-                            day
-                          )
-                        }
-                      >
-                        <View
-                          style={[
-                            styles.dayCircle,
-
-                            selected &&
-                              styles.dayCircleSelected,
-                          ]}
-                        >
-                          <Text
-                            style={[
-                              styles.dayText,
-
-                              disabled &&
-                                styles.dayDisabled,
-
-                              selected &&
-                                styles.daySelectedText,
-                            ]}
-                          >
-                            {day.getDate()}
-                          </Text>
-                        </View>
-                      </TouchableOpacity>
-                    );
-                  }
-                )}
-              </View>
-
-              <TouchableOpacity
-                style={[
-                  styles.confirmPickerButton,
-
-                  !neededDate &&
-                    styles.confirmPickerDisabled,
-                ]}
-                disabled={
-                  !neededDate
-                }
-                onPress={() =>
-                  setShowDatePicker(
-                    false
-                  )
-                }
-              >
-                <Text
-                  style={
-                    styles.confirmPickerText
-                  }
-                >
-                  Confirm Date
-                </Text>
-              </TouchableOpacity>
-            </View>
+              <MaterialIcons
+                name="close"
+                size={20}
+                color={COLORS.muted}
+              />
+            </TouchableOpacity>
           </View>
-        </Modal>
+
+          <View style={styles.calendarNavigation}>
+            <TouchableOpacity
+              style={styles.calendarArrow}
+              accessibilityLabel="Previous month"
+              onPress={previousMonth}
+            >
+              <MaterialIcons
+                name="chevron-left"
+                size={24}
+                color={COLORS.redButton}
+              />
+            </TouchableOpacity>
+
+            <Text style={styles.calendarMonth}>
+              {MONTHS[calendarMonth]} {calendarYear}
+            </Text>
+
+            <TouchableOpacity
+              style={styles.calendarArrow}
+              accessibilityLabel="Next month"
+              onPress={nextMonth}
+            >
+              <MaterialIcons
+                name="chevron-right"
+                size={24}
+                color={COLORS.redButton}
+              />
+            </TouchableOpacity>
+          </View>
+
+          <View style={styles.weekRow}>
+            {WEEKDAYS.map((day, index) => (
+              <Text
+                key={`${day}-${index}`}
+                style={styles.weekDay}
+              >
+                {day}
+              </Text>
+            ))}
+          </View>
+
+          <View style={styles.calendarGrid}>
+            {calendarDays.map((day, index) => {
+              if (!day) {
+                return (
+                  <View
+                    key={index}
+                    style={styles.calendarCell}
+                  />
+                );
+              }
+
+              const today = new Date();
+              today.setHours(0, 0, 0, 0);
+
+              const comparison = new Date(day);
+              comparison.setHours(0, 0, 0, 0);
+
+              const disabled =
+                comparison.getTime() <
+                today.getTime();
+
+              const isToday =
+                comparison.getTime() ===
+                today.getTime();
+
+              const selected =
+                sameDate(neededDate, day);
+
+              return (
+                <TouchableOpacity
+                  key={index}
+                  style={styles.calendarCell}
+                  disabled={disabled}
+                  onPress={() =>
+                    selectCalendarDate(day)
+                  }
+                >
+                  <View
+                    style={[
+                      styles.dayCircle,
+
+                      isToday &&
+                        !selected &&
+                        styles.dayCircleToday,
+
+                      selected &&
+                        styles.dayCircleSelected,
+                    ]}
+                  >
+                    <Text
+                      style={[
+                        styles.dayText,
+
+                        disabled &&
+                          styles.dayDisabled,
+
+                        selected &&
+                          styles.daySelectedText,
+                      ]}
+                    >
+                      {day.getDate()}
+                    </Text>
+                  </View>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+
+          <TouchableOpacity
+            style={[
+              styles.sheetPrimaryFull,
+
+              !neededDate &&
+                styles.buttonDisabled,
+            ]}
+            disabled={!neededDate}
+            activeOpacity={0.85}
+            onPress={() => setShowDatePicker(false)}
+          >
+            <Text style={styles.sheetPrimaryText}>
+              {neededDate
+                ? `Use ${formatDate(neededDate)}`
+                : 'Pick a date'}
+            </Text>
+          </TouchableOpacity>
+        </BottomSheet>
 
         {/* ====================================================
             TIME PICKER
         ==================================================== */}
 
-        <Modal
-          transparent
-          visible={
-            showTimePicker
-          }
-          animationType="fade"
-          onRequestClose={() =>
-            setShowTimePicker(
-              false
-            )
-          }
+        <BottomSheet
+          visible={showTimePicker}
+          onClose={() => setShowTimePicker(false)}
         >
-          <View
-            style={
-              styles.modalOverlay
-            }
-          >
-            <View
-              style={
-                styles.timeModal
-              }
+          <View style={styles.sheetHeaderRow}>
+            <Text style={styles.sheetTitleLeft}>
+              Pick a Time
+            </Text>
+
+            <TouchableOpacity
+              style={styles.sheetClose}
+              accessibilityLabel="Close"
+              onPress={() => setShowTimePicker(false)}
             >
-              <View
-                style={
-                  styles.modalHeader
-                }
-              >
-                <Text
-                  style={
-                    styles.modalTitle
-                  }
-                >
-                  Select Time
-                </Text>
-
-                <TouchableOpacity
-                  style={
-                    styles.closeButton
-                  }
-                  onPress={() =>
-                    setShowTimePicker(
-                      false
-                    )
-                  }
-                >
-                  <MaterialIcons
-                    name="close"
-                    size={22}
-                    color={
-                      COLORS.black
-                    }
-                  />
-                </TouchableOpacity>
-              </View>
-
-              <View
-                style={
-                  styles.timePickerRow
-                }
-              >
-                <View
-                  style={
-                    styles.timeColumn
-                  }
-                >
-                  <Text
-                    style={
-                      styles.timeLabel
-                    }
-                  >
-                    Hour
-                  </Text>
-
-                  <TouchableOpacity
-                    style={
-                      styles.timeArrow
-                    }
-                    onPress={
-                      increaseHour
-                    }
-                  >
-                    <MaterialIcons
-                      name="keyboard-arrow-up"
-                      size={28}
-                      color={
-                        COLORS.redButton
-                      }
-                    />
-                  </TouchableOpacity>
-
-                  <View
-                    style={
-                      styles.timeValueBox
-                    }
-                  >
-                    <Text
-                      style={
-                        styles.timeValueText
-                      }
-                    >
-                      {selectedHour}
-                    </Text>
-                  </View>
-
-                  <TouchableOpacity
-                    style={
-                      styles.timeArrow
-                    }
-                    onPress={
-                      decreaseHour
-                    }
-                  >
-                    <MaterialIcons
-                      name="keyboard-arrow-down"
-                      size={28}
-                      color={
-                        COLORS.redButton
-                      }
-                    />
-                  </TouchableOpacity>
-                </View>
-
-                <Text
-                  style={
-                    styles.timeColon
-                  }
-                >
-                  :
-                </Text>
-
-                <View
-                  style={
-                    styles.timeColumn
-                  }
-                >
-                  <Text
-                    style={
-                      styles.timeLabel
-                    }
-                  >
-                    Minute
-                  </Text>
-
-                  <TouchableOpacity
-                    style={
-                      styles.timeArrow
-                    }
-                    onPress={
-                      increaseMinute
-                    }
-                  >
-                    <MaterialIcons
-                      name="keyboard-arrow-up"
-                      size={28}
-                      color={
-                        COLORS.redButton
-                      }
-                    />
-                  </TouchableOpacity>
-
-                  <View
-                    style={
-                      styles.timeValueBox
-                    }
-                  >
-                    <Text
-                      style={
-                        styles.timeValueText
-                      }
-                    >
-                      {String(
-                        selectedMinute
-                      ).padStart(
-                        2,
-                        '0'
-                      )}
-                    </Text>
-                  </View>
-
-                  <TouchableOpacity
-                    style={
-                      styles.timeArrow
-                    }
-                    onPress={
-                      decreaseMinute
-                    }
-                  >
-                    <MaterialIcons
-                      name="keyboard-arrow-down"
-                      size={28}
-                      color={
-                        COLORS.redButton
-                      }
-                    />
-                  </TouchableOpacity>
-                </View>
-
-                <View
-                  style={
-                    styles.periodColumn
-                  }
-                >
-                  <TouchableOpacity
-                    style={[
-                      styles.periodButton,
-
-                      selectedPeriod ===
-                        'AM' &&
-                        styles.periodButtonSelected,
-                    ]}
-                    onPress={() =>
-                      setSelectedPeriod(
-                        'AM'
-                      )
-                    }
-                  >
-                    <Text
-                      style={[
-                        styles.periodText,
-
-                        selectedPeriod ===
-                          'AM' &&
-                          styles.periodSelectedText,
-                      ]}
-                    >
-                      AM
-                    </Text>
-                  </TouchableOpacity>
-
-                  <TouchableOpacity
-                    style={[
-                      styles.periodButton,
-
-                      selectedPeriod ===
-                        'PM' &&
-                        styles.periodButtonSelected,
-                    ]}
-                    onPress={() =>
-                      setSelectedPeriod(
-                        'PM'
-                      )
-                    }
-                  >
-                    <Text
-                      style={[
-                        styles.periodText,
-
-                        selectedPeriod ===
-                          'PM' &&
-                          styles.periodSelectedText,
-                      ]}
-                    >
-                      PM
-                    </Text>
-                  </TouchableOpacity>
-                </View>
-              </View>
-
-              <TouchableOpacity
-                style={
-                  styles.confirmPickerButton
-                }
-                onPress={
-                  confirmTime
-                }
-              >
-                <Text
-                  style={
-                    styles.confirmPickerText
-                  }
-                >
-                  Confirm Time
-                </Text>
-              </TouchableOpacity>
-            </View>
+              <MaterialIcons
+                name="close"
+                size={20}
+                color={COLORS.muted}
+              />
+            </TouchableOpacity>
           </View>
-        </Modal>
+
+          <TimeWheelPicker
+            hour={selectedHour}
+            minute={selectedMinute}
+            period={selectedPeriod}
+            onHourChange={setSelectedHour}
+            onMinuteChange={setSelectedMinute}
+            onPeriodChange={setSelectedPeriod}
+          />
+
+          <TouchableOpacity
+            style={[
+              styles.sheetPrimaryFull,
+
+              selectedTimeHasPassed &&
+                styles.buttonDisabled,
+            ]}
+            disabled={selectedTimeHasPassed}
+            activeOpacity={0.85}
+            onPress={confirmTime}
+          >
+            <Text style={styles.sheetPrimaryText}>
+              {selectedTimeHasPassed
+                ? 'That time has passed'
+                : `Use ${selectedHour}:${String(
+                    selectedMinute
+                  ).padStart(2, '0')} ${selectedPeriod}`}
+            </Text>
+          </TouchableOpacity>
+        </BottomSheet>
 
         {/* ====================================================
-            IN-APP ACTION POPUP
+            IN-APP MESSAGE (e.g. active request found)
         ==================================================== */}
 
         <Modal
           transparent
-          visible={
-            actionPopup.visible
-          }
+          visible={actionPopup.visible}
           animationType="fade"
+          statusBarTranslucent
           onRequestClose={() => {
-            if (
-              actionPopup.dismissOnBackdrop
-            ) {
+            if (actionPopup.dismissOnBackdrop) {
               closeActionPopup();
             }
           }}
         >
-          <TouchableOpacity
-            activeOpacity={1}
-            style={
-              styles.actionPopupOverlay
-            }
-            onPress={() => {
-              if (
-                actionPopup.dismissOnBackdrop
-              ) {
-                closeActionPopup();
-              }
-            }}
-          >
-            <TouchableOpacity
-              activeOpacity={1}
-              style={
-                styles.actionPopupCard
-              }
-              onPress={() => {}}
+          <View style={styles.popupOverlay}>
+            <Pressable
+              style={StyleSheet.absoluteFill}
+              onPress={() => {
+                if (actionPopup.dismissOnBackdrop) {
+                  closeActionPopup();
+                }
+              }}
+            />
+
+            <FadeInView
+              offset={10}
+              style={styles.popupCard}
             >
               <View
                 style={[
-                  styles.actionPopupIcon,
-                  actionPopup.variant ===
-                    'success' &&
-                    styles.actionPopupIconSuccess,
-                  actionPopup.variant ===
-                    'warning' &&
-                    styles.actionPopupIconWarning,
-                  actionPopup.variant ===
-                    'error' &&
-                    styles.actionPopupIconError,
+                  styles.sheetIcon,
+
+                  {
+                    backgroundColor:
+                      actionPopup.variant === 'success'
+                        ? COLORS.greenLight
+                        : actionPopup.variant === 'warning'
+                          ? COLORS.orangeLight
+                          : COLORS.pinkLight,
+                  },
                 ]}
               >
                 <MaterialIcons
                   name={
-                    actionPopup.variant ===
-                    'success'
+                    actionPopup.variant === 'success'
                       ? 'check-circle-outline'
-                      : actionPopup.variant ===
-                          'warning'
-                        ? 'warning-amber'
-                        : actionPopup.variant ===
-                            'error'
+                      : actionPopup.variant === 'warning'
+                        ? 'info-outline'
+                        : actionPopup.variant === 'error'
                           ? 'error-outline'
                           : 'info-outline'
                   }
-                  size={30}
+                  size={28}
                   color={
-                    actionPopup.variant ===
-                    'success'
+                    actionPopup.variant === 'success'
                       ? COLORS.green
-                      : COLORS.redButton
+                      : actionPopup.variant === 'warning'
+                        ? COLORS.orange
+                        : COLORS.redButton
                   }
                 />
               </View>
 
-              <Text
-                style={
-                  styles.actionPopupTitle
-                }
-              >
+              <Text style={styles.sheetTitle}>
                 {actionPopup.title}
               </Text>
 
-              <Text
-                style={
-                  styles.actionPopupMessage
-                }
-              >
+              <Text style={styles.sheetText}>
                 {actionPopup.message}
               </Text>
 
-              <View
-                style={[
-                  styles.actionPopupActions,
-                  !actionPopup.showCancel &&
-                    styles.actionPopupActionsSingle,
-                ]}
-              >
+              <View style={styles.sheetActions}>
                 {actionPopup.showCancel ? (
                   <TouchableOpacity
-                    style={
-                      styles.actionPopupSecondaryButton
-                    }
+                    style={styles.sheetSecondary}
                     activeOpacity={0.8}
-                    onPress={
-                      closeActionPopup
-                    }
+                    onPress={closeActionPopup}
                   >
-                    <Text
-                      style={
-                        styles.actionPopupSecondaryText
-                      }
-                    >
+                    <Text style={styles.sheetSecondaryText}>
                       {actionPopup.cancelText}
                     </Text>
                   </TouchableOpacity>
                 ) : null}
 
                 <TouchableOpacity
-                  style={
-                    styles.actionPopupPrimaryButton
-                  }
+                  style={[
+                    styles.sheetPrimarySolid,
+
+                    !actionPopup.showCancel &&
+                      styles.flexFill,
+                  ]}
                   activeOpacity={0.85}
                   onPress={() => {
-                    if (
-                      actionPopup.onConfirm
-                    ) {
+                    if (actionPopup.onConfirm) {
                       actionPopup.onConfirm();
                       return;
                     }
@@ -3737,17 +3480,13 @@ export default function CreateBloodRequestScreen() {
                     closeActionPopup();
                   }}
                 >
-                  <Text
-                    style={
-                      styles.actionPopupPrimaryText
-                    }
-                  >
+                  <Text style={styles.sheetPrimaryText}>
                     {actionPopup.confirmText}
                   </Text>
                 </TouchableOpacity>
               </View>
-            </TouchableOpacity>
-          </TouchableOpacity>
+            </FadeInView>
+          </View>
         </Modal>
       </View>
     </View>
@@ -3755,1920 +3494,1362 @@ export default function CreateBloodRequestScreen() {
 }
 
 // ============================================================
+// SECTION HEADER (dashboard-style: icon + title, check when
+// the section is complete)
+// ============================================================
+
+function SectionHeader({
+  icon,
+  title,
+  done,
+  optional = false,
+}: {
+  icon: keyof typeof MaterialIcons.glyphMap;
+  title: string;
+  done: boolean;
+  optional?: boolean;
+}) {
+  return (
+    <View style={styles.sectionHeader}>
+      <View style={styles.sectionTitleRow}>
+        <MaterialIcons
+          name={icon}
+          size={19}
+          color={COLORS.redButton}
+        />
+
+        <Text style={styles.sectionTitle}>
+          {title}
+        </Text>
+      </View>
+
+      {done ? (
+        <FadeInView offset={0}>
+          <MaterialIcons
+            name="check-circle"
+            size={19}
+            color={COLORS.green}
+          />
+        </FadeInView>
+      ) : optional ? (
+        <Text style={styles.sectionOptional}>
+          Optional
+        </Text>
+      ) : null}
+    </View>
+  );
+}
+
+// ============================================================
+// FACILITY ICON
+// ============================================================
+
+function FacilityIcon({
+  type,
+  size,
+}: {
+  type?: string | null;
+  size: number;
+}) {
+  const visual =
+    getFacilityVisual(type);
+
+  return (
+    <View
+      style={[
+        styles.facilityIcon,
+
+        {
+          width: size,
+          height: size,
+          borderRadius: size * 0.3,
+          backgroundColor: visual.background,
+        },
+
+        // Red Cross: red plus on white, like the emblem.
+        type === 'red_cross' &&
+          styles.facilityIconRedCross,
+      ]}
+    >
+      <MaterialCommunityIcons
+        name={visual.icon}
+        size={size * 0.52}
+        color={visual.color}
+      />
+    </View>
+  );
+}
+
+// ============================================================
+// REVIEW ROW
+// ============================================================
+
+function ReviewRow({
+  icon,
+  iconNode,
+  label,
+  value,
+  detail,
+  last = false,
+}: {
+  icon?: keyof typeof MaterialIcons.glyphMap;
+  iconNode?: ReactNode;
+  label: string;
+  value: string;
+  detail?: string | null;
+  last?: boolean;
+}) {
+  return (
+    <View
+      style={[
+        styles.reviewRow,
+
+        last &&
+          styles.reviewRowLast,
+      ]}
+    >
+      {iconNode || (
+        <View style={styles.reviewRowIcon}>
+          <MaterialIcons
+            name={icon || 'info-outline'}
+            size={19}
+            color={COLORS.redButton}
+          />
+        </View>
+      )}
+
+      <View style={styles.flexFill}>
+        <Text style={styles.reviewRowLabel}>
+          {label}
+        </Text>
+
+        <Text
+          numberOfLines={3}
+          style={styles.reviewRowValue}
+        >
+          {value || '—'}
+        </Text>
+
+        {detail ? (
+          <Text
+            numberOfLines={1}
+            style={styles.reviewRowDetail}
+          >
+            {detail}
+          </Text>
+        ) : null}
+      </View>
+    </View>
+  );
+}
+
+// ============================================================
+// BOTTOM SHEET
+//
+// Slides up from the bottom; same width as the phone frame on
+// web. Tapping outside closes it unless onClose is omitted.
+// ============================================================
+
+function BottomSheet({
+  visible,
+  onClose,
+  children,
+}: {
+  visible: boolean;
+  onClose?: () => void;
+  children: ReactNode;
+}) {
+  const insets =
+    useSafeAreaInsets();
+
+  return (
+    <Modal
+      transparent
+      visible={visible}
+      animationType="fade"
+      statusBarTranslucent
+      onRequestClose={() => onClose?.()}
+    >
+      <View style={styles.sheetOverlay}>
+        <Pressable
+          style={StyleSheet.absoluteFill}
+          onPress={() => onClose?.()}
+        />
+
+        <FadeInView
+          offset={48}
+          style={[
+            styles.sheet,
+
+            {
+              paddingBottom:
+                Math.max(insets.bottom, 14) + 6,
+            },
+          ]}
+        >
+          <View style={styles.sheetHandle} />
+
+          {children}
+        </FadeInView>
+      </View>
+    </Modal>
+  );
+}
+
+// ============================================================
 // STYLES
 // ============================================================
 
-const styles =
-  StyleSheet.create({
-    flex: {
-      flex: 1,
-    },
-
-    desktopBackground: {
-      flex: 1,
-
-      alignItems: 'center',
-      justifyContent: 'center',
-
-      backgroundColor:
-        Platform.OS === 'web'
-          ? '#242424'
-          : COLORS.pageBottom,
-    },
-
-    phone: {
-      width:
-        Platform.OS === 'web'
-          ? 440
-          : '100%',
-
-      height:
-        Platform.OS === 'web'
-          ? '100%'
-          : '100%',
-
-      maxWidth: '100%',
-
-      overflow: 'hidden',
-
-      backgroundColor:
-        COLORS.pageBottom,
-    },
-
-    safeArea: {
-      flex: 1,
-
-      backgroundColor:
-        COLORS.red,
-    },
-
-    // ========================================================
-    // HEADER
-    // ========================================================
-
-    header: {
-      height:
-        Platform.OS === 'web'
-          ? 118
-          : 108,
-
-      paddingHorizontal: 25,
-
-      paddingTop:
-        Platform.OS === 'web'
-          ? 18
-          : 6,
-
-      overflow: 'hidden',
-    },
-
-    headerSmall: {
-      height: 104,
-    },
-
-    headerCircleLeft: {
-      position: 'absolute',
-
-      width: 160,
-      height: 160,
-
-      borderRadius: 80,
-
-      left: -98,
-      top: -73,
-
-      backgroundColor:
-        'rgba(255,255,255,0.06)',
-    },
-
-    headerCircleRight: {
-      position: 'absolute',
-
-      width: 170,
-      height: 170,
-
-      borderRadius: 85,
-
-      right: -73,
-      top: -78,
-
-      backgroundColor:
-        'rgba(255,255,255,0.08)',
-    },
-
-    headerRow: {
-      flexDirection: 'row',
-
-      alignItems: 'center',
-
-      marginTop: 1,
-    },
-
-    backButton: {
-      width: 43,
-      height: 43,
-
-      borderRadius: 22,
-
-      borderWidth: 3,
-
-      borderColor:
-        COLORS.white,
-
-      alignItems: 'center',
-      justifyContent: 'center',
-
-      marginRight: 17,
-    },
-
-    headerTitle: {
-      color:
-        COLORS.white,
-
-      fontFamily:
-        'Poppins_700Bold',
-
-      fontSize: 20,
-    },
-
-    // ========================================================
-    // BODY / FIXED FORM
-    // ========================================================
-
-    body: {
-      flex: 1,
-
-      paddingHorizontal: 18,
-
-      paddingBottom: 16,
-    },
-
-    formCard: {
-      flex: 1,
-
-      marginTop: -14,
-
-      borderRadius: 27,
-
-      backgroundColor:
-        COLORS.card,
-
-      overflow: 'hidden',
-
-      shadowColor:
-        '#000000',
-
-      shadowOffset: {
-        width: 0,
-        height: 3,
-      },
-
-      shadowOpacity: 0.16,
-
-      shadowRadius: 7,
-
-      elevation: 6,
-    },
-
-    formScroll: {
-      flex: 1,
-    },
-
-    formScrollContent: {
-      paddingHorizontal: 21,
-
-      paddingTop: 22,
-
-      paddingBottom: 30,
-    },
-
-    // ========================================================
-    // REQUESTER
-    // ========================================================
-
-    requestingCard: {
-      minHeight: 72,
-
-      paddingHorizontal: 14,
-      paddingVertical: 10,
-
-      marginBottom: 19,
-
-      borderRadius: 10,
-
-      borderWidth: 1,
-
-      borderColor:
-        COLORS.pinkBorder,
-
-      backgroundColor:
-        COLORS.pinkLight,
-    },
-
-    requestingLabel: {
-      color:
-        COLORS.black,
-
-      fontFamily:
-        'Inter_600SemiBold',
-
-      fontSize: 10.5,
-
-      marginBottom: 7,
-    },
-
-    requestingRow: {
-      flexDirection: 'row',
-
-      alignItems: 'center',
-    },
-
-    avatar: {
-      width: 32,
-      height: 32,
-
-      borderRadius: 16,
-
-      marginRight: 9,
-
-      backgroundColor:
-        '#F8DCDC',
-
-      alignItems: 'center',
-      justifyContent: 'center',
-
-      overflow: 'hidden',
-    },
-
-    avatarImage: {
-      width: '100%',
-      height: '100%',
-    },
-
-    requesterInfo: {
-      flex: 1,
-    },
-
-    requesterName: {
-      color:
-        COLORS.black,
-
-      fontFamily:
-        'Inter_600SemiBold',
-
-      fontSize: 11.5,
-    },
-
-    signedInRow: {
-      marginTop: 2,
-
-      flexDirection: 'row',
-
-      alignItems: 'center',
-
-      gap: 3,
-    },
-
-    signedInText: {
-      color:
-        COLORS.green,
-
-      fontFamily:
-        'Inter_400Regular',
-
-      fontSize: 7.5,
-    },
-
-    // ========================================================
-    // LABELS
-    // ========================================================
-
-    label: {
-      color:
-        COLORS.black,
-
-      fontFamily:
-        'Inter_500Medium',
-
-      fontSize: 11.5,
-
-      marginBottom: 7,
-
-      marginTop: 2,
-    },
-
-    required: {
-      color:
-        COLORS.red,
-    },
-
-    optional: {
-      color:
-        COLORS.muted,
-
-      fontFamily:
-        'Inter_400Regular',
-    },
-
-    helper: {
-      marginTop: -3,
-
-      marginBottom: 8,
-
-      color:
-        COLORS.muted,
-
-      fontFamily:
-        'Inter_400Regular',
-
-      fontSize: 8.2,
-
-      lineHeight: 12,
-    },
-
-    // ========================================================
-    // BLOOD TYPES
-    // ========================================================
-
-    bloodGrid: {
-      flexDirection: 'row',
-
-      flexWrap: 'wrap',
-
-      justifyContent:
-        'space-between',
-
-      rowGap: 9,
-
-      marginBottom: 19,
-    },
-
-    bloodButton: {
-      width: '22.5%',
-
-      height: 45,
-
-      borderWidth: 1,
-
-      borderColor:
-        '#999999',
-
-      borderRadius: 12,
-
-      backgroundColor:
-        COLORS.white,
-
-      alignItems: 'center',
-      justifyContent: 'center',
-    },
-
-    bloodButtonSelected: {
-      borderColor:
-        COLORS.redButton,
-
-      backgroundColor:
-        COLORS.redButton,
-    },
-
-    bloodButtonText: {
-      color:
-        '#333333',
-
-      fontFamily:
-        'Poppins_600SemiBold',
-
-      fontSize: 10,
-    },
-
-    bloodButtonTextSelected: {
-      color:
-        COLORS.white,
-    },
-
-    // ========================================================
-    // UNITS
-    // ========================================================
-
-    unitsRow: {
-      flexDirection: 'row',
-
-      gap: 7,
-
-      marginBottom: 19,
-    },
-
-    unitButton: {
-      width: 55,
-
-      height: 43,
-
-      borderWidth: 1,
-
-      borderColor:
-        COLORS.border,
-
-      borderRadius: 9,
-
-      backgroundColor:
-        COLORS.white,
-
-      alignItems: 'center',
-      justifyContent: 'center',
-    },
-
-    unitDisabled: {
-      opacity: 0.4,
-    },
-
-    unitValue: {
-      flex: 1,
-
-      height: 43,
-
-      borderWidth: 1,
-
-      borderColor:
-        COLORS.border,
-
-      borderRadius: 9,
-
-      backgroundColor:
-        COLORS.white,
-
-      alignItems: 'center',
-      justifyContent: 'center',
-    },
-
-    unitValueText: {
-      color:
-        COLORS.black,
-
-      fontFamily:
-        'Poppins_600SemiBold',
-
-      fontSize: 13,
-    },
-
-    // ========================================================
-    // FACILITY
-    // ========================================================
-
-    facilitySelector: {
-      minHeight: 61,
-
-      paddingHorizontal: 11,
-      paddingVertical: 9,
-
-      flexDirection: 'row',
-
-      alignItems: 'center',
-
-      borderRadius: 11,
-
-      borderWidth: 1,
-
-      borderColor:
-        COLORS.border,
-
-      backgroundColor:
-        COLORS.white,
-    },
-
-    facilitySelectorSelected: {
-      borderColor:
-        COLORS.redButton,
-
-      backgroundColor:
-        '#FFF8F8',
-    },
-
-    selectorIcon: {
-      width: 38,
-      height: 38,
-
-      borderRadius: 19,
-
-      alignItems: 'center',
-      justifyContent: 'center',
-
-      marginRight: 9,
-
-      backgroundColor:
-        COLORS.pinkLight,
-    },
-
-    selectorIconSelected: {
-      backgroundColor:
-        COLORS.redButton,
-    },
-
-    selectorContent: {
-      flex: 1,
-
-      paddingRight: 5,
-    },
-
-    selectorTitle: {
-      color:
-        COLORS.black,
-
-      fontFamily:
-        'Inter_600SemiBold',
-
-      fontSize: 10.5,
-    },
-
-    selectorPlaceholder: {
-      color:
-        '#555555',
-    },
-
-    selectorSubtitle: {
-      marginTop: 3,
-
-      color:
-        COLORS.muted,
-
-      fontFamily:
-        'Inter_400Regular',
-
-      fontSize: 8,
-    },
-
-    smallErrorBox: {
-      marginTop: 7,
-
-      paddingHorizontal: 9,
-      paddingVertical: 7,
-
-      flexDirection: 'row',
-
-      alignItems: 'center',
-
-      gap: 5,
-
-      borderRadius: 8,
-
-      backgroundColor:
-        COLORS.pinkLight,
-    },
-
-    smallErrorText: {
-      flex: 1,
-
-      color:
-        COLORS.redButton,
-
-      fontFamily:
-        'Inter_400Regular',
-
-      fontSize: 8,
-
-      lineHeight: 11,
-    },
-
-    // ========================================================
-    // OR / MANUAL
-    // ========================================================
-
-    orDivider: {
-      flexDirection: 'row',
-
-      alignItems: 'center',
-
-      marginTop: 11,
-
-      marginBottom: 9,
-    },
-
-    orLine: {
-      flex: 1,
-
-      height: 1,
-
-      backgroundColor:
-        '#E2E2E2',
-    },
-
-    orText: {
-      marginHorizontal: 9,
-
-      color:
-        COLORS.lightMuted,
-
-      fontFamily:
-        'Inter_400Regular',
-
-      fontSize: 8,
-    },
-
-    enterManuallyButton: {
-      minHeight: 55,
-
-      marginBottom: 19,
-
-      paddingHorizontal: 11,
-
-      flexDirection: 'row',
-
-      alignItems: 'center',
-
-      borderWidth: 1,
-
-      borderColor:
-        COLORS.pinkBorder,
-
-      borderRadius: 10,
-
-      backgroundColor:
-        COLORS.pinkLight,
-    },
-
-    enterManuallyIcon: {
-      width: 34,
-      height: 34,
-
-      borderRadius: 17,
-
-      alignItems: 'center',
-      justifyContent: 'center',
-
-      marginRight: 9,
-
-      backgroundColor:
-        COLORS.white,
-    },
-
-    enterManuallyContent: {
-      flex: 1,
-    },
-
-    enterManuallyTitle: {
-      color:
-        COLORS.redButton,
-
-      fontFamily:
-        'Inter_600SemiBold',
-
-      fontSize: 9.5,
-    },
-
-    enterManuallySubtitle: {
-      marginTop: 2,
-
-      color:
-        COLORS.muted,
-
-      fontFamily:
-        'Inter_400Regular',
-
-      fontSize: 7.5,
-    },
-
-    manualModeCard: {
-      padding: 12,
-
-      marginBottom: 8,
-
-      borderWidth: 1,
-
-      borderColor:
-        COLORS.pinkBorder,
-
-      borderRadius: 11,
-
-      backgroundColor:
-        COLORS.pinkLight,
-    },
-
-    manualModeHeader: {
-      flexDirection: 'row',
-
-      alignItems: 'center',
-
-      marginBottom: 12,
-    },
-
-    manualModeIcon: {
-      width: 35,
-      height: 35,
-
-      borderRadius: 18,
-
-      marginRight: 8,
-
-      alignItems: 'center',
-      justifyContent: 'center',
-
-      backgroundColor:
-        COLORS.white,
-    },
-
-    manualModeHeading: {
-      flex: 1,
-    },
-
-    manualModeTitle: {
-      color:
-        COLORS.redButton,
-
-      fontFamily:
-        'Inter_600SemiBold',
-
-      fontSize: 9.5,
-    },
-
-    manualModeSubtitle: {
-      marginTop: 2,
-
-      color:
-        COLORS.muted,
-
-      fontFamily:
-        'Inter_400Regular',
-
-      fontSize: 7.5,
-    },
-
-    manualFieldLabel: {
-      marginBottom: 5,
-
-      color:
-        COLORS.black,
-
-      fontFamily:
-        'Inter_500Medium',
-
-      fontSize: 8.5,
-    },
-
-    manualInputContainer: {
-      height: 44,
-
-      marginBottom: 10,
-
-      paddingHorizontal: 11,
-
-      flexDirection: 'row',
-
-      alignItems: 'center',
-
-      borderWidth: 1,
-
-      borderColor:
-        COLORS.border,
-
-      borderRadius: 9,
-
-      backgroundColor:
-        COLORS.white,
-    },
-
-    manualInput: {
-      flex: 1,
-
-      height: '100%',
-
-      marginLeft: 7,
-
-      color:
-        COLORS.black,
-
-      fontFamily:
-        'Inter_400Regular',
-
-      fontSize: 9,
-
-      outlineStyle:
-        Platform.OS === 'web'
-          ? 'none'
-          : undefined,
-    } as any,
-
-    returnNearbyButton: {
-      height: 40,
-
-      marginBottom: 19,
-
-      flexDirection: 'row',
-
-      alignItems: 'center',
-      justifyContent: 'center',
-
-      gap: 5,
-
-      borderWidth: 1,
-
-      borderColor:
-        COLORS.pinkBorder,
-
-      borderRadius: 9,
-
-      backgroundColor:
-        COLORS.white,
-    },
-
-    returnNearbyText: {
-      color:
-        COLORS.redButton,
-
-      fontFamily:
-        'Inter_600SemiBold',
-
-      fontSize: 8.5,
-    },
-
-    // ========================================================
-    // URGENCY
-    // ========================================================
-
-    urgencyRow: {
-      flexDirection: 'row',
-
-      gap: 9,
-
-      marginBottom: 19,
-    },
-
-    urgencyButton: {
-      flex: 1,
-
-      height: 55,
-
-      borderWidth: 1,
-
-      borderColor:
-        COLORS.border,
-
-      borderRadius: 9,
-
-      backgroundColor:
-        COLORS.white,
-
-      alignItems: 'center',
-      justifyContent: 'center',
-    },
-
-    urgencySelected: {
-      borderColor:
-        COLORS.redButton,
-
-      backgroundColor:
-        COLORS.redButton,
-    },
-
-    urgencyTitle: {
-      color:
-        COLORS.black,
-
-      fontFamily:
-        'Inter_600SemiBold',
-
-      fontSize: 10.5,
-    },
-
-    urgencySub: {
-      marginTop: 3,
-
-      color:
-        COLORS.lightMuted,
-
-      fontFamily:
-        'Inter_400Regular',
-
-      fontSize: 7.5,
-    },
-
-    whiteText: {
-      color:
-        COLORS.white,
-    },
-
-    whiteMutedText: {
-      color:
-        'rgba(255,255,255,0.82)',
-    },
-
-    // ========================================================
-    // DATE / TIME
-    // ========================================================
-
-    dateTimeRow: {
-      flexDirection: 'row',
-
-      gap: 8,
-
-      marginBottom: 19,
-    },
-
-    dateTimeButton: {
-      flex: 1,
-
-      height: 49,
-
-      paddingHorizontal: 10,
-
-      flexDirection: 'row',
-
-      alignItems: 'center',
-
-      gap: 7,
-
-      borderWidth: 1,
-
-      borderColor:
-        COLORS.border,
-
-      borderRadius: 9,
-
-      backgroundColor:
-        COLORS.white,
-    },
-
-    dateTimeDisabled: {
-      opacity: 0.45,
-    },
-
-    dateTimeTinyLabel: {
-      color:
-        COLORS.lightMuted,
-
-      fontFamily:
-        'Inter_400Regular',
-
-      fontSize: 6.5,
-    },
-
-    dateTimeValue: {
-      marginTop: 1,
-
-      color:
-        COLORS.lightMuted,
-
-      fontFamily:
-        'Inter_400Regular',
-
-      fontSize: 8.7,
-    },
-
-    dateTimeValueSelected: {
-      color:
-        COLORS.black,
-
-      fontFamily:
-        'Inter_500Medium',
-    },
-
-    asapBox: {
-      height: 45,
-
-      marginBottom: 19,
-
-      paddingHorizontal: 12,
-
-      flexDirection: 'row',
-
-      alignItems: 'center',
-
-      gap: 6,
-
-      borderWidth: 1,
-
-      borderColor:
-        COLORS.pinkBorder,
-
-      borderRadius: 9,
-
-      backgroundColor:
-        COLORS.pinkLight,
-    },
-
-    asapText: {
-      color:
-        COLORS.redButton,
-
-      fontFamily:
-        'Inter_500Medium',
-
-      fontSize: 9,
-    },
-
-    // ========================================================
-    // MESSAGE
-    // ========================================================
-
-    messageBox: {
-      minHeight: 105,
-
-      padding: 11,
-
-      marginBottom: 13,
-
-      borderWidth: 1,
-
-      borderColor:
-        COLORS.border,
-
-      borderRadius: 9,
-
-      backgroundColor:
-        COLORS.white,
-    },
-
-    messageInput: {
-      minHeight: 70,
-
-      color:
-        COLORS.black,
-
-      fontFamily:
-        'Inter_400Regular',
-
-      fontSize: 9,
-
-      lineHeight: 13,
-
-      outlineStyle:
-        Platform.OS === 'web'
-          ? 'none'
-          : undefined,
-    } as any,
-
-    characterCount: {
-      alignSelf: 'flex-end',
-
-      color:
-        COLORS.lightMuted,
-
-      fontFamily:
-        'Inter_400Regular',
-
-      fontSize: 8,
-    },
-
-    // ========================================================
-    // INFO / ERROR
-    // ========================================================
-
-    infoBox: {
-      minHeight: 70,
-
-      paddingHorizontal: 12,
-      paddingVertical: 11,
-
-      marginBottom: 13,
-
-      flexDirection: 'row',
-
-      alignItems: 'center',
-
-      gap: 8,
-
-      borderWidth: 1,
-
-      borderColor:
-        COLORS.pinkBorder,
-
-      borderRadius: 9,
-
-      backgroundColor:
-        COLORS.pinkLight,
-    },
-
-    infoText: {
-      flex: 1,
-
-      color:
-        COLORS.black,
-
-      fontFamily:
-        'Inter_400Regular',
-
-      fontSize: 8.5,
-
-      lineHeight: 12,
-    },
-
-    errorBox: {
-      padding: 10,
-
-      marginBottom: 12,
-
-      flexDirection: 'row',
-
-      alignItems: 'center',
-
-      gap: 6,
-
-      borderRadius: 8,
-
-      backgroundColor:
-        COLORS.pinkLight,
-    },
-
-    errorText: {
-      flex: 1,
-
-      color:
-        COLORS.redButton,
-
-      fontFamily:
-        'Inter_400Regular',
-
-      fontSize: 8.5,
-    },
-
-    // ========================================================
-    // SUBMIT
-    // ========================================================
-
-    submitButton: {
-      height: 49,
-
-      flexDirection: 'row',
-
-      alignItems: 'center',
-      justifyContent: 'center',
-
-      gap: 6,
-
-      borderRadius: 9,
-
-      backgroundColor:
-        COLORS.redButton,
-    },
-
-    submitDisabled: {
-      opacity: 0.6,
-    },
-
-    submitText: {
-      color:
-        COLORS.white,
-
-      fontFamily:
-        'Poppins_600SemiBold',
-
-      fontSize: 11,
-    },
-
-    // ========================================================
-    // MODAL
-    // ========================================================
-
-    modalOverlay: {
-      flex: 1,
-
-      alignItems: 'center',
-      justifyContent: 'center',
-
-      paddingHorizontal: 23,
-
-      backgroundColor:
-        'rgba(0,0,0,0.45)',
-    },
-
-    modalHeader: {
-      flexDirection: 'row',
-
-      alignItems: 'center',
-      justifyContent:
-        'space-between',
-
-      marginBottom: 15,
-    },
-
-    modalTitle: {
-      color:
-        COLORS.black,
-
-      fontFamily:
-        'Poppins_600SemiBold',
-
-      fontSize: 15,
-    },
-
-    modalSubtitle: {
-      marginTop: 1,
-
-      color:
-        COLORS.muted,
-
-      fontFamily:
-        'Inter_400Regular',
-
-      fontSize: 8,
-    },
-
-    closeButton: {
-      width: 34,
-      height: 34,
-
-      borderRadius: 17,
-
-      alignItems: 'center',
-      justifyContent: 'center',
-
-      backgroundColor:
-        '#F3F3F3',
-    },
-
-    // ========================================================
-    // FACILITY MODAL
-    // ========================================================
-
-    facilityModal: {
-      width: '100%',
-
-      maxWidth: 360,
-
-      maxHeight: '78%',
-
-      paddingHorizontal: 16,
-      paddingTop: 17,
-      paddingBottom: 14,
-
-      borderRadius: 21,
-
-      backgroundColor:
-        COLORS.white,
-    },
-
-    facilityModalLoading: {
-      minHeight: 180,
-
-      alignItems: 'center',
-      justifyContent: 'center',
-    },
-
-    facilityModalLoadingText: {
-      marginTop: 8,
-
-      color:
-        COLORS.muted,
-
-      fontFamily:
-        'Inter_400Regular',
-
-      fontSize: 9,
-    },
-
-    facilityList: {
-      maxHeight: 430,
-    },
-
-    facilityOption: {
-      minHeight: 65,
-
-      marginBottom: 8,
-
-      paddingHorizontal: 10,
-      paddingVertical: 9,
-
-      flexDirection: 'row',
-
-      alignItems: 'center',
-
-      borderWidth: 1,
-
-      borderColor:
-        COLORS.border,
-
-      borderRadius: 10,
-
-      backgroundColor:
-        COLORS.white,
-    },
-
-    facilityOptionSelected: {
-      borderColor:
-        COLORS.redButton,
-
-      backgroundColor:
-        '#FFF4F4',
-    },
-
-    facilityOptionIcon: {
-      width: 37,
-      height: 37,
-
-      borderRadius: 19,
-
-      marginRight: 9,
-
-      alignItems: 'center',
-      justifyContent: 'center',
-
-      backgroundColor:
-        COLORS.pinkLight,
-    },
-
-    facilityOptionIconSelected: {
-      backgroundColor:
-        COLORS.redButton,
-    },
-
-    facilityOptionContent: {
-      flex: 1,
-
-      paddingRight: 7,
-    },
-
-    facilityOptionName: {
-      color:
-        COLORS.black,
-
-      fontFamily:
-        'Inter_600SemiBold',
-
-      fontSize: 9.5,
-
-      lineHeight: 13,
-    },
-
-    facilityOptionMeta: {
-      marginTop: 3,
-
-      color:
-        COLORS.redButton,
-
-      fontFamily:
-        'Inter_400Regular',
-
-      fontSize: 7.5,
-    },
-
-    facilityOptionAddress: {
-      marginTop: 2,
-
-      color:
-        COLORS.muted,
-
-      fontFamily:
-        'Inter_400Regular',
-
-      fontSize: 7,
-    },
-
-    radio: {
-      width: 19,
-      height: 19,
-
-      borderRadius: 10,
-
-      borderWidth: 1.5,
-
-      borderColor:
-        '#BBBBBB',
-
-      alignItems: 'center',
-      justifyContent: 'center',
-    },
-
-    radioSelected: {
-      borderColor:
-        COLORS.redButton,
-    },
-
-    radioInner: {
-      width: 9,
-      height: 9,
-
-      borderRadius: 5,
-
-      backgroundColor:
-        COLORS.redButton,
-    },
-
-    modalFooter: {
-      flexDirection: 'row',
-
-      gap: 8,
-
-      marginTop: 8,
-    },
-
-    refreshFacilityButton: {
-      flex: 0.8,
-
-      height: 41,
-
-      flexDirection: 'row',
-
-      alignItems: 'center',
-      justifyContent: 'center',
-
-      gap: 5,
-
-      borderWidth: 1,
-
-      borderColor:
-        COLORS.pinkBorder,
-
-      borderRadius: 9,
-
-      backgroundColor:
-        COLORS.pinkLight,
-    },
-
-    refreshFacilityText: {
-      color:
-        COLORS.redButton,
-
-      fontFamily:
-        'Inter_500Medium',
-
-      fontSize: 8.5,
-    },
-
-    manualFacilityModalButton: {
-      flex: 1.2,
-
-      height: 41,
-
-      flexDirection: 'row',
-
-      alignItems: 'center',
-      justifyContent: 'center',
-
-      gap: 5,
-
-      borderRadius: 9,
-
-      backgroundColor:
-        COLORS.redButton,
-    },
-
-    manualFacilityModalText: {
-      color:
-        COLORS.white,
-
-      fontFamily:
-        'Inter_600SemiBold',
-
-      fontSize: 8.5,
-    },
-
-    // ========================================================
-    // CALENDAR
-    // ========================================================
-
-    calendarModal: {
-      width: '100%',
-
-      maxWidth: 350,
-
-      padding: 18,
-
-      borderRadius: 21,
-
-      backgroundColor:
-        COLORS.white,
-    },
-
-    calendarNavigation: {
-      flexDirection: 'row',
-
-      alignItems: 'center',
-      justifyContent:
-        'space-between',
-
-      marginBottom: 13,
-    },
-
-    calendarArrow: {
-      width: 36,
-      height: 36,
-
-      borderRadius: 18,
-
-      alignItems: 'center',
-      justifyContent: 'center',
-
-      backgroundColor:
-        COLORS.pinkLight,
-    },
-
-    calendarMonth: {
-      color:
-        COLORS.black,
-
-      fontFamily:
-        'Inter_600SemiBold',
-
-      fontSize: 12,
-    },
-
-    weekRow: {
-      flexDirection: 'row',
-
-      marginBottom: 4,
-    },
-
-    weekDay: {
-      width: '14.285%',
-
-      color:
-        COLORS.muted,
-
-      fontFamily:
-        'Inter_600SemiBold',
-
-      fontSize: 8,
-
-      textAlign: 'center',
-    },
-
-    calendarGrid: {
-      flexDirection: 'row',
-
-      flexWrap: 'wrap',
-
-      marginBottom: 15,
-    },
-
-    calendarCell: {
-      width: '14.285%',
-
-      height: 39,
-
-      alignItems: 'center',
-      justifyContent: 'center',
-    },
-
-    dayCircle: {
-      width: 33,
-      height: 33,
-
-      borderRadius: 17,
-
-      alignItems: 'center',
-      justifyContent: 'center',
-    },
-
-    dayCircleSelected: {
-      backgroundColor:
-        COLORS.redButton,
-    },
-
-    dayText: {
-      color:
-        COLORS.black,
-
-      fontFamily:
-        'Inter_500Medium',
-
-      fontSize: 9.5,
-    },
-
-    dayDisabled: {
-      color:
-        '#CCCCCC',
-    },
-
-    daySelectedText: {
-      color:
-        COLORS.white,
-
-      fontFamily:
-        'Inter_600SemiBold',
-    },
-
-    confirmPickerButton: {
-      height: 44,
-
-      alignItems: 'center',
-      justifyContent: 'center',
-
-      borderRadius: 9,
-
-      backgroundColor:
-        COLORS.redButton,
-    },
-
-    confirmPickerDisabled: {
-      opacity: 0.4,
-    },
-
-    confirmPickerText: {
-      color:
-        COLORS.white,
-
-      fontFamily:
-        'Poppins_600SemiBold',
-
-      fontSize: 10,
-    },
-
-    // ========================================================
-    // TIME
-    // ========================================================
-
-    timeModal: {
-      width: '100%',
-
-      maxWidth: 335,
-
-      padding: 18,
-
-      borderRadius: 21,
-
-      backgroundColor:
-        COLORS.white,
-    },
-
-    timePickerRow: {
-      flexDirection: 'row',
-
-      alignItems: 'center',
-      justifyContent: 'center',
-
-      marginBottom: 19,
-    },
-
-    timeColumn: {
-      width: 75,
-
-      alignItems: 'center',
-    },
-
-    timeLabel: {
-      marginBottom: 4,
-
-      color:
-        COLORS.muted,
-
-      fontFamily:
-        'Inter_400Regular',
-
-      fontSize: 8,
-    },
-
-    timeArrow: {
-      width: 40,
-      height: 31,
-
-      alignItems: 'center',
-      justifyContent: 'center',
-    },
-
-    timeValueBox: {
-      width: 61,
-      height: 52,
-
-      borderWidth: 1,
-
-      borderColor:
-        COLORS.pinkBorder,
-
-      borderRadius: 11,
-
-      alignItems: 'center',
-      justifyContent: 'center',
-
-      backgroundColor:
-        COLORS.pinkLight,
-    },
-
-    timeValueText: {
-      color:
-        COLORS.black,
-
-      fontFamily:
-        'Poppins_600SemiBold',
-
-      fontSize: 19,
-    },
-
-    timeColon: {
-      marginHorizontal: 3,
-
-      marginTop: 12,
-
-      color:
-        COLORS.black,
-
-      fontFamily:
-        'Poppins_700Bold',
-
-      fontSize: 21,
-    },
-
-    periodColumn: {
-      marginLeft: 12,
-
-      marginTop: 18,
-
-      gap: 7,
-    },
-
-    periodButton: {
-      width: 48,
-      height: 36,
-
-      borderWidth: 1,
-
-      borderColor:
-        COLORS.border,
-
-      borderRadius: 8,
-
-      alignItems: 'center',
-      justifyContent: 'center',
-    },
-
-    periodButtonSelected: {
-      borderColor:
-        COLORS.redButton,
-
-      backgroundColor:
-        COLORS.redButton,
-    },
-
-    periodText: {
-      color:
-        COLORS.black,
-
-      fontFamily:
-        'Inter_600SemiBold',
-
-      fontSize: 9,
-    },
-
-    periodSelectedText: {
-      color:
-        COLORS.white,
-    },
-
-    // ========================================================
-    // IN-APP ACTION POPUP
-    // ========================================================
-
-    actionPopupOverlay: {
-      flex: 1,
-
-      alignItems: 'center',
-      justifyContent: 'center',
-
-      paddingHorizontal: 24,
-
-      backgroundColor:
-        'rgba(0,0,0,0.48)',
-    },
-
-    actionPopupCard: {
-      width: '100%',
-
-      maxWidth: 360,
-
-      paddingHorizontal: 20,
-      paddingTop: 22,
-      paddingBottom: 18,
-
-      borderRadius: 22,
-
-      backgroundColor:
-        COLORS.white,
-
-      shadowColor:
-        '#000000',
-
-      shadowOffset: {
-        width: 0,
-        height: 8,
-      },
-
-      shadowOpacity: 0.2,
-
-      shadowRadius: 18,
-
-      elevation: 10,
-    },
-
-    actionPopupIcon: {
-      width: 56,
-      height: 56,
-
-      borderRadius: 28,
-
-      alignSelf: 'center',
-
-      alignItems: 'center',
-      justifyContent: 'center',
-
-      marginBottom: 13,
-
-      backgroundColor:
-        COLORS.pinkLight,
-    },
-
-    actionPopupIconSuccess: {
-      backgroundColor:
-        '#EAF8EF',
-    },
-
-    actionPopupIconWarning: {
-      backgroundColor:
-        '#FFF6E7',
-    },
-
-    actionPopupIconError: {
-      backgroundColor:
-        COLORS.pinkLight,
-    },
-
-    actionPopupTitle: {
-      color:
-        COLORS.black,
-
-      fontFamily:
-        'Poppins_600SemiBold',
-
-      fontSize: 16,
-
-      textAlign: 'center',
-    },
-
-    actionPopupMessage: {
-      marginTop: 8,
-
-      color:
-        COLORS.muted,
-
-      fontFamily:
-        'Inter_400Regular',
-
-      fontSize: 10.5,
-
-      lineHeight: 17,
-
-      textAlign: 'center',
-    },
-
-    actionPopupActions: {
-      flexDirection: 'row',
-
-      gap: 9,
-
-      marginTop: 19,
-    },
-
-    actionPopupActionsSingle: {
-      justifyContent: 'center',
-    },
-
-    actionPopupSecondaryButton: {
-      flex: 1,
-
-      height: 45,
-
-      alignItems: 'center',
-      justifyContent: 'center',
-
-      borderWidth: 1,
-
-      borderColor:
-        COLORS.pinkBorder,
-
-      borderRadius: 10,
-
-      backgroundColor:
-        COLORS.white,
-    },
-
-    actionPopupSecondaryText: {
-      color:
-        COLORS.redButton,
-
-      fontFamily:
-        'Poppins_600SemiBold',
-
-      fontSize: 10,
-    },
-
-    actionPopupPrimaryButton: {
-      flex: 1,
-
-      minWidth: 130,
-
-      height: 45,
-
-      alignItems: 'center',
-      justifyContent: 'center',
-
-      borderRadius: 10,
-
-      backgroundColor:
-        COLORS.redButton,
-    },
-
-    actionPopupPrimaryText: {
-      color:
-        COLORS.white,
-
-      fontFamily:
-        'Poppins_600SemiBold',
-
-      fontSize: 10,
-    },
-  });
+const styles = StyleSheet.create({
+  flex: {
+    flex: 1,
+  },
+
+  flexFill: {
+    flex: 1,
+    minWidth: 0,
+  },
+
+  centered: {
+    alignItems: 'center',
+  },
+
+  desktopBackground: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor:
+      Platform.OS === 'web'
+        ? '#242424'
+        : COLORS.page,
+  },
+
+  phone: {
+    width:
+      Platform.OS === 'web'
+        ? 440
+        : '100%',
+    height: '100%',
+    maxWidth: '100%',
+    overflow: 'hidden',
+    backgroundColor: COLORS.page,
+  },
+
+  safeArea: {
+    flex: 1,
+    backgroundColor: '#D2151A',
+  },
+
+  // ==========================================================
+  // HEADER
+  // ==========================================================
+
+  // Bottom padding leaves room for the rounded body sheet,
+  // which overlaps the header by 22.
+  header: {
+    paddingHorizontal: 20,
+    paddingTop:
+      Platform.OS === 'web'
+        ? 18
+        : 10,
+    paddingBottom: 38,
+    overflow: 'hidden',
+  },
+
+  headerSmall: {
+    paddingBottom: 34,
+  },
+
+  headerCircleLeft: {
+    position: 'absolute',
+    width: 165,
+    height: 165,
+    borderRadius: 83,
+    left: -100,
+    top: -70,
+    backgroundColor: 'rgba(255,255,255,0.06)',
+  },
+
+  headerCircleRight: {
+    position: 'absolute',
+    width: 175,
+    height: 175,
+    borderRadius: 88,
+    right: -70,
+    top: -80,
+    backgroundColor: 'rgba(255,255,255,0.08)',
+  },
+
+  headerRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+
+  backButton: {
+    width: 40,
+    height: 40,
+    marginRight: 12,
+    borderRadius: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(255,255,255,0.16)',
+  },
+
+  headerText: {
+    flex: 1,
+    minWidth: 0,
+  },
+
+  headerTitle: {
+    color: COLORS.white,
+    fontFamily: 'Poppins_700Bold',
+    fontSize: 21,
+    lineHeight: 29,
+  },
+
+  headerSubtitle: {
+    color: 'rgba(255,255,255,0.82)',
+    fontFamily: 'Inter_400Regular',
+    fontSize: 12.5,
+  },
+
+  headerAvatar: {
+    width: 40,
+    height: 40,
+    marginLeft: 10,
+    borderRadius: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+    overflow: 'hidden',
+    borderWidth: 2,
+    borderColor: 'rgba(255,255,255,0.6)',
+    backgroundColor: 'rgba(255,255,255,0.18)',
+  },
+
+  headerAvatarImage: {
+    width: '100%',
+    height: '100%',
+  },
+
+  headerAvatarText: {
+    color: COLORS.white,
+    fontFamily: 'Poppins_600SemiBold',
+    fontSize: 14,
+  },
+
+  progressTrack: {
+    height: 6,
+    marginTop: 16,
+    borderRadius: 3,
+    overflow: 'hidden',
+    backgroundColor: 'rgba(255,255,255,0.22)',
+  },
+
+  progressFill: {
+    height: '100%',
+    borderRadius: 3,
+    backgroundColor: COLORS.white,
+  },
+
+  // ==========================================================
+  // BODY
+  // ==========================================================
+
+  body: {
+    flex: 1,
+    marginTop: -22,
+    borderTopLeftRadius: 22,
+    borderTopRightRadius: 22,
+    overflow: 'hidden',
+    backgroundColor: COLORS.page,
+  },
+
+  scrollContent: {
+    paddingHorizontal: 16,
+    paddingTop: 20,
+    paddingBottom: 16,
+  },
+
+  activeBanner: {
+    marginBottom: 18,
+    paddingHorizontal: 13,
+    paddingVertical: 11,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 9,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#F5D2B3',
+    backgroundColor: COLORS.orangeLight,
+  },
+
+  activeBannerText: {
+    flex: 1,
+    color: COLORS.black,
+    fontFamily: 'Inter_500Medium',
+    fontSize: 13,
+  },
+
+  activeBannerLink: {
+    color: COLORS.orange,
+    fontFamily: 'Inter_600SemiBold',
+    fontSize: 13,
+  },
+
+  // ==========================================================
+  // SECTIONS (dashboard style)
+  // ==========================================================
+
+  sectionHeader: {
+    marginBottom: 9,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+
+  sectionTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 7,
+  },
+
+  sectionTitle: {
+    color: COLORS.black,
+    fontFamily: 'Poppins_600SemiBold',
+    fontSize: 14.5,
+  },
+
+  sectionOptional: {
+    color: COLORS.lightMuted,
+    fontFamily: 'Inter_500Medium',
+    fontSize: 12,
+  },
+
+  card: {
+    marginBottom: 20,
+    padding: 14,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: COLORS.cardBorder,
+    backgroundColor: COLORS.white,
+  },
+
+  cardFocused: {
+    borderColor: COLORS.redButton,
+  },
+
+  // A card followed by a small link; the link carries the gap.
+  cardAttached: {
+    marginBottom: 0,
+  },
+
+  // ==========================================================
+  // BLOOD TYPE
+  // ==========================================================
+
+  bloodGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'space-between',
+    rowGap: 9,
+  },
+
+  bloodTileContainer: {
+    width: '22.8%',
+  },
+
+  bloodTile: {
+    height: 46,
+    borderRadius: 11,
+    borderWidth: 1,
+    borderColor: '#D9CFCF',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: COLORS.white,
+  },
+
+  bloodTileSelected: {
+    borderColor: COLORS.redButton,
+    backgroundColor: COLORS.redButton,
+  },
+
+  bloodTileText: {
+    color: '#333333',
+    fontFamily: 'Poppins_600SemiBold',
+    fontSize: 14.5,
+  },
+
+  bloodTileTextSelected: {
+    color: COLORS.white,
+  },
+
+  compatRow: {
+    marginTop: 11,
+  },
+
+  compatText: {
+    color: COLORS.muted,
+    fontFamily: 'Inter_400Regular',
+    fontSize: 12,
+  },
+
+  compatTypes: {
+    color: COLORS.green,
+    fontFamily: 'Inter_600SemiBold',
+  },
+
+  divider: {
+    height: 1,
+    marginVertical: 13,
+    backgroundColor: COLORS.divider,
+  },
+
+  unitsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+
+  fieldLabel: {
+    color: COLORS.black,
+    fontFamily: 'Inter_600SemiBold',
+    fontSize: 13.5,
+  },
+
+  stepper: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 3,
+    borderRadius: 12,
+    backgroundColor: COLORS.pinkLight,
+  },
+
+  stepperButton: {
+    width: 34,
+    height: 34,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: COLORS.white,
+  },
+
+  stepperButtonAdd: {
+    backgroundColor: COLORS.redButton,
+  },
+
+  stepperButtonDisabled: {
+    opacity: 0.4,
+  },
+
+  stepperValue: {
+    width: 42,
+    alignItems: 'center',
+  },
+
+  stepperValueText: {
+    color: COLORS.black,
+    fontFamily: 'Poppins_700Bold',
+    fontSize: 17,
+  },
+
+  // ==========================================================
+  // DONATION PLACE
+  // ==========================================================
+
+  placeCard: {
+    marginBottom: 0,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+
+  placeCardEmpty: {
+    borderStyle: 'dashed',
+    borderColor: COLORS.pinkBorder,
+    backgroundColor: '#FFFBFB',
+  },
+
+  placeIconEmpty: {
+    width: 46,
+    height: 46,
+    borderRadius: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: COLORS.pinkLight,
+  },
+
+  placeBody: {
+    flex: 1,
+    minWidth: 0,
+  },
+
+  placeTitle: {
+    color: COLORS.black,
+    fontFamily: 'Inter_600SemiBold',
+    fontSize: 14,
+    lineHeight: 19,
+  },
+
+  placePlaceholder: {
+    color: COLORS.redButton,
+  },
+
+  placeMeta: {
+    marginTop: 2,
+    color: COLORS.muted,
+    fontFamily: 'Inter_400Regular',
+    fontSize: 12,
+  },
+
+  facilityIcon: {
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  facilityIconRedCross: {
+    borderWidth: 1.5,
+    borderColor: '#F3C4C4',
+  },
+
+  inlineError: {
+    marginTop: 8,
+  },
+
+  inlineErrorText: {
+    color: COLORS.redButton,
+    fontFamily: 'Inter_400Regular',
+    fontSize: 12,
+    lineHeight: 17,
+  },
+
+  inlineErrorLink: {
+    fontFamily: 'Inter_600SemiBold',
+    textDecorationLine: 'underline',
+  },
+
+  textLink: {
+    alignSelf: 'flex-end',
+    marginTop: 8,
+    marginBottom: 20,
+    paddingVertical: 2,
+  },
+
+  textLinkMuted: {
+    color: COLORS.muted,
+    fontFamily: 'Inter_400Regular',
+    fontSize: 12.5,
+  },
+
+  textLinkStrong: {
+    color: COLORS.redButton,
+    fontFamily: 'Inter_600SemiBold',
+    fontSize: 12.5,
+  },
+
+  inputBox: {
+    height: 48,
+    paddingHorizontal: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 9,
+    borderRadius: 12,
+    borderWidth: 1.5,
+    borderColor: COLORS.softBorder,
+    backgroundColor: COLORS.inputBackground,
+  },
+
+  inputBoxSpaced: {
+    marginTop: 10,
+  },
+
+  inputFocused: {
+    borderColor: COLORS.redButton,
+    backgroundColor: COLORS.white,
+  },
+
+  input: {
+    flex: 1,
+    height: '100%',
+    color: COLORS.black,
+    fontFamily: 'Inter_400Regular',
+    fontSize: 13.5,
+    outlineStyle:
+      Platform.OS === 'web'
+        ? 'none'
+        : undefined,
+  } as any,
+
+  // ==========================================================
+  // WHEN
+  // ==========================================================
+
+  segment: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+
+  segmentItem: {
+    flex: 1,
+    height: 46,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    borderRadius: 11,
+    borderWidth: 1,
+    borderColor: '#D9CFCF',
+    backgroundColor: COLORS.white,
+  },
+
+  segmentItemSelected: {
+    borderColor: COLORS.redButton,
+    backgroundColor: COLORS.redButton,
+  },
+
+  segmentText: {
+    color: '#333333',
+    fontFamily: 'Poppins_600SemiBold',
+    fontSize: 13.5,
+  },
+
+  segmentTextSelected: {
+    color: COLORS.white,
+  },
+
+  whenHint: {
+    marginTop: 11,
+    color: COLORS.muted,
+    fontFamily: 'Inter_400Regular',
+    fontSize: 12,
+  },
+
+  dateTimeRow: {
+    marginTop: 11,
+    flexDirection: 'row',
+    gap: 8,
+  },
+
+  dateTimeField: {
+    height: 46,
+    paddingHorizontal: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    borderRadius: 11,
+    borderWidth: 1.5,
+    borderColor: COLORS.softBorder,
+    backgroundColor: COLORS.inputBackground,
+  },
+
+  dateTimeFieldFilled: {
+    borderColor: COLORS.redButton,
+    backgroundColor: '#FFF6F6',
+  },
+
+  dateTimeText: {
+    flex: 1,
+    color: COLORS.lightMuted,
+    fontFamily: 'Inter_500Medium',
+    fontSize: 13,
+  },
+
+  dateTimeTextFilled: {
+    color: COLORS.black,
+    fontFamily: 'Inter_600SemiBold',
+  },
+
+  // ==========================================================
+  // NOTE
+  // ==========================================================
+
+  messageInput: {
+    minHeight: 64,
+    color: COLORS.black,
+    fontFamily: 'Inter_400Regular',
+    fontSize: 13.5,
+    lineHeight: 19,
+    outlineStyle:
+      Platform.OS === 'web'
+        ? 'none'
+        : undefined,
+  } as any,
+
+  characterCount: {
+    alignSelf: 'flex-end',
+    color: COLORS.lightMuted,
+    fontFamily: 'Inter_400Regular',
+    fontSize: 11,
+  },
+
+  quickNotes: {
+    marginTop: 8,
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 7,
+  },
+
+  quickNote: {
+    paddingHorizontal: 11,
+    paddingVertical: 6,
+    borderRadius: 15,
+    borderWidth: 1,
+    borderColor: COLORS.tileBorder,
+    backgroundColor: COLORS.white,
+  },
+
+  quickNoteActive: {
+    borderColor: COLORS.redButton,
+    backgroundColor: COLORS.redButton,
+  },
+
+  quickNoteText: {
+    color: COLORS.redButton,
+    fontFamily: 'Inter_500Medium',
+    fontSize: 12,
+  },
+
+  quickNoteTextActive: {
+    color: COLORS.white,
+  },
+
+  // ==========================================================
+  // FOOTER
+  // ==========================================================
+
+  footer: {
+    paddingHorizontal: 16,
+    paddingTop: 10,
+    borderTopWidth: 1,
+    borderTopColor: COLORS.softBorder,
+    backgroundColor: COLORS.white,
+  },
+
+  submitButton: {
+    borderRadius: 13,
+    overflow: 'hidden',
+  },
+
+  submitButtonIncomplete: {
+    opacity: 0.7,
+  },
+
+  submitGradient: {
+    height: 52,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+  },
+
+  submitText: {
+    color: COLORS.white,
+    fontFamily: 'Poppins_600SemiBold',
+    fontSize: 15,
+  },
+
+  buttonDisabled: {
+    opacity: 0.45,
+  },
+
+  // ==========================================================
+  // BOTTOM SHEETS
+  // ==========================================================
+
+  sheetOverlay: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'flex-end',
+    backgroundColor: 'rgba(0,0,0,0.45)',
+  },
+
+  sheet: {
+    width: '100%',
+    maxWidth: 440,
+    maxHeight: '88%',
+    paddingHorizontal: 20,
+    paddingTop: 10,
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    backgroundColor: COLORS.white,
+  },
+
+  sheetHandle: {
+    width: 40,
+    height: 4,
+    marginBottom: 16,
+    alignSelf: 'center',
+    borderRadius: 2,
+    backgroundColor: '#E6DADA',
+  },
+
+  sheetHeaderRow: {
+    marginBottom: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 10,
+  },
+
+  sheetTitleLeft: {
+    color: COLORS.black,
+    fontFamily: 'Poppins_600SemiBold',
+    fontSize: 17,
+  },
+
+  sheetSubtitleLeft: {
+    marginTop: 1,
+    color: COLORS.muted,
+    fontFamily: 'Inter_400Regular',
+    fontSize: 12.5,
+  },
+
+  sheetClose: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#F6EFEF',
+  },
+
+  sheetIcon: {
+    width: 56,
+    height: 56,
+    marginBottom: 12,
+    alignSelf: 'center',
+    borderRadius: 28,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  sheetTitle: {
+    color: COLORS.black,
+    fontFamily: 'Poppins_600SemiBold',
+    fontSize: 17,
+    textAlign: 'center',
+  },
+
+  sheetText: {
+    marginTop: 6,
+    color: COLORS.muted,
+    fontFamily: 'Inter_400Regular',
+    fontSize: 13.5,
+    lineHeight: 20,
+    textAlign: 'center',
+  },
+
+  checklist: {
+    marginTop: 16,
+    padding: 6,
+    borderRadius: 14,
+    backgroundColor: COLORS.page,
+  },
+
+  checkRow: {
+    paddingHorizontal: 10,
+    paddingVertical: 10,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+
+  checkText: {
+    color: COLORS.black,
+    fontFamily: 'Inter_600SemiBold',
+    fontSize: 14,
+  },
+
+  checkTextDone: {
+    color: COLORS.lightMuted,
+    textDecorationLine: 'line-through',
+  },
+
+  sheetPrimaryFull: {
+    height: 50,
+    marginTop: 18,
+    alignSelf: 'stretch',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 13,
+    backgroundColor: COLORS.redButton,
+  },
+
+  sheetPrimarySolid: {
+    flex: 1,
+    height: 48,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 13,
+    backgroundColor: COLORS.redButton,
+  },
+
+  sheetPrimaryText: {
+    color: COLORS.white,
+    fontFamily: 'Poppins_600SemiBold',
+    fontSize: 14.5,
+  },
+
+  sheetActions: {
+    marginTop: 18,
+    flexDirection: 'row',
+    gap: 10,
+  },
+
+  sheetSecondary: {
+    flex: 1,
+    height: 48,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    borderRadius: 13,
+    borderWidth: 1.5,
+    borderColor: COLORS.tileBorder,
+    backgroundColor: COLORS.white,
+  },
+
+  sheetSecondaryText: {
+    color: COLORS.redButton,
+    fontFamily: 'Poppins_600SemiBold',
+    fontSize: 13.5,
+  },
+
+  sheetPrimaryWrap: {
+    borderRadius: 13,
+    overflow: 'hidden',
+  },
+
+  sheetPrimaryGradient: {
+    height: 48,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 7,
+  },
+
+  sheetTextButton: {
+    marginTop: 10,
+    paddingVertical: 8,
+    alignSelf: 'center',
+  },
+
+  sheetTextButtonText: {
+    color: COLORS.muted,
+    fontFamily: 'Inter_600SemiBold',
+    fontSize: 13.5,
+  },
+
+  sheetError: {
+    marginTop: 14,
+    paddingHorizontal: 11,
+    paddingVertical: 10,
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 8,
+    borderRadius: 11,
+    backgroundColor: COLORS.pinkLight,
+  },
+
+  sheetErrorText: {
+    flex: 1,
+    color: COLORS.redButton,
+    fontFamily: 'Inter_500Medium',
+    fontSize: 12.5,
+    lineHeight: 18,
+  },
+
+  sheetLoading: {
+    minHeight: 170,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 10,
+  },
+
+  sheetLoadingText: {
+    color: COLORS.muted,
+    fontFamily: 'Inter_400Regular',
+    fontSize: 13,
+    textAlign: 'center',
+  },
+
+  // REVIEW
+
+  reviewHero: {
+    padding: 14,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 13,
+    borderRadius: 16,
+    backgroundColor: COLORS.page,
+  },
+
+  reviewBlood: {
+    width: 58,
+    height: 58,
+    borderRadius: 29,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: COLORS.redButton,
+  },
+
+  reviewBloodText: {
+    color: COLORS.white,
+    fontFamily: 'Poppins_700Bold',
+    fontSize: 18,
+  },
+
+  reviewHeroTitle: {
+    color: COLORS.black,
+    fontFamily: 'Poppins_600SemiBold',
+    fontSize: 15.5,
+  },
+
+  urgencyPill: {
+    marginTop: 5,
+    alignSelf: 'flex-start',
+    paddingHorizontal: 9,
+    paddingVertical: 4,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    borderRadius: 10,
+  },
+
+  urgencyPillText: {
+    fontFamily: 'Inter_600SemiBold',
+    fontSize: 12,
+  },
+
+  reviewRows: {
+    marginTop: 6,
+  },
+
+  reviewRow: {
+    paddingVertical: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.divider,
+  },
+
+  reviewRowLast: {
+    borderBottomWidth: 0,
+  },
+
+  reviewRowIcon: {
+    width: 38,
+    height: 38,
+    borderRadius: 11,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: COLORS.pinkLight,
+  },
+
+  reviewRowLabel: {
+    color: COLORS.lightMuted,
+    fontFamily: 'Inter_500Medium',
+    fontSize: 11.5,
+  },
+
+  reviewRowValue: {
+    marginTop: 1,
+    color: COLORS.black,
+    fontFamily: 'Inter_600SemiBold',
+    fontSize: 13.5,
+    lineHeight: 19,
+  },
+
+  reviewRowDetail: {
+    marginTop: 1,
+    color: COLORS.muted,
+    fontFamily: 'Inter_400Regular',
+    fontSize: 12,
+  },
+
+  reviewVisibility: {
+    marginTop: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 7,
+    borderRadius: 11,
+    backgroundColor: COLORS.greenLight,
+  },
+
+  reviewVisibilityText: {
+    flex: 1,
+    color: '#355B43',
+    fontFamily: 'Inter_400Regular',
+    fontSize: 12.5,
+  },
+
+  reviewVisibilityStrong: {
+    color: COLORS.green,
+    fontFamily: 'Inter_600SemiBold',
+  },
+
+  // SUCCESS
+
+  successIconWrap: {
+    width: 76,
+    height: 76,
+    marginTop: 4,
+    marginBottom: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  successIcon: {
+    width: 76,
+    height: 76,
+    borderRadius: 38,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: COLORS.green,
+  },
+
+  // PLACES PICKER
+
+  facilityList: {
+    maxHeight: 400,
+  },
+
+  facilityOption: {
+    marginBottom: 8,
+    padding: 11,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    borderRadius: 14,
+    borderWidth: 1.5,
+    borderColor: COLORS.softBorder,
+    backgroundColor: COLORS.white,
+  },
+
+  facilityOptionSelected: {
+    borderColor: COLORS.redButton,
+    backgroundColor: '#FFF6F6',
+  },
+
+  facilityOptionBody: {
+    flex: 1,
+    minWidth: 0,
+  },
+
+  facilityOptionName: {
+    color: COLORS.black,
+    fontFamily: 'Inter_600SemiBold',
+    fontSize: 13.5,
+    lineHeight: 18,
+  },
+
+  facilityOptionMeta: {
+    marginTop: 2,
+    color: COLORS.muted,
+    fontFamily: 'Inter_500Medium',
+    fontSize: 12,
+  },
+
+  // CALENDAR
+
+  calendarNavigation: {
+    marginBottom: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+
+  calendarArrow: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: COLORS.pinkLight,
+  },
+
+  calendarMonth: {
+    color: COLORS.black,
+    fontFamily: 'Poppins_600SemiBold',
+    fontSize: 14.5,
+  },
+
+  weekRow: {
+    marginBottom: 4,
+    flexDirection: 'row',
+  },
+
+  weekDay: {
+    width: '14.285%',
+    color: COLORS.lightMuted,
+    fontFamily: 'Inter_600SemiBold',
+    fontSize: 11.5,
+    textAlign: 'center',
+  },
+
+  calendarGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+  },
+
+  calendarCell: {
+    width: '14.285%',
+    height: 42,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  dayCircle: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  dayCircleToday: {
+    borderWidth: 1.5,
+    borderColor: COLORS.pinkBorder,
+  },
+
+  dayCircleSelected: {
+    backgroundColor: COLORS.redButton,
+  },
+
+  dayText: {
+    color: COLORS.black,
+    fontFamily: 'Inter_500Medium',
+    fontSize: 13.5,
+  },
+
+  dayDisabled: {
+    color: '#CFCFCF',
+  },
+
+  daySelectedText: {
+    color: COLORS.white,
+    fontFamily: 'Inter_600SemiBold',
+  },
+
+  // IN-APP MESSAGE
+
+  popupOverlay: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 24,
+    backgroundColor: 'rgba(0,0,0,0.45)',
+  },
+
+  popupCard: {
+    width: '100%',
+    maxWidth: 360,
+    paddingHorizontal: 20,
+    paddingTop: 24,
+    paddingBottom: 18,
+    borderRadius: 22,
+    backgroundColor: COLORS.white,
+  },
+});

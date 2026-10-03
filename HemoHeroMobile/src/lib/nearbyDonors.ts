@@ -1,23 +1,12 @@
-import {
-  Platform,
-} from 'react-native';
-
-// ============================================================
-// API URL
-// ============================================================
-
-const API_URL = (
-  Platform.OS === 'web'
-    ? 'http://localhost:5000'
-    : process.env.EXPO_PUBLIC_API_URL ||
-      'http://localhost:5000'
-).replace(/\/+$/, '');
+import { authorizedFetch } from './authFetch';
+import { API_URL } from './apiUrl';
+import type { DonorStats } from './donorProfile';
 
 // ============================================================
 // TYPES
 // ============================================================
 
-export type NearbyDonor = {
+export type NearbyDonor = Partial<DonorStats> & {
   id: string;
 
   full_name: string;
@@ -194,7 +183,7 @@ export async function getNearbyDonors(
   // ==========================================================
 
   const response =
-    await fetch(
+    await authorizedFetch(
       url,
       {
         method:

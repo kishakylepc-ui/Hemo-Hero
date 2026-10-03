@@ -38,6 +38,10 @@ import {
 import MainBottomNav from '../../components/MainBottomNav';
 
 import {
+  FadeInView,
+} from '../../components/Motion';
+
+import {
   AppNotification,
   getNotifications,
   markAllNotificationsAsRead,
@@ -47,6 +51,8 @@ import {
 import {
   getAccessToken,
 } from '../../lib/session';
+
+import { openNotificationDestination } from '../../lib/notificationRoutes';
 
 // ============================================================
 // COLORS
@@ -343,285 +349,6 @@ export default function NotificationsScreen() {
   }
 
   // ==========================================================
-  // OPEN NOTIFICATION DESTINATION
-  // ==========================================================
-
-  function openNotificationDestination(
-    notification:
-      AppNotification
-  ) {
-    const data =
-      notification.data ||
-      {};
-
-    const requestId =
-      String(
-        data.request_id ||
-          notification
-            .related_request_id ||
-          ''
-      ).trim();
-
-    const responseId =
-      String(
-        data.response_id ||
-          ''
-      ).trim();
-
-    const invitationId =
-      String(
-        data.invitation_id ||
-          ''
-      ).trim();
-
-    const notificationKind =
-      String(
-        data.kind ||
-          ''
-      )
-        .trim()
-        .toLowerCase();
-
-    // ========================================================
-    // DIRECT DONOR INVITATION
-    //
-    // Requester selected this donor directly.
-    //
-    // Opens:
-    //
-    // /blood-request/donor/:requestId
-    // ?invitationId=:invitationId
-    //
-    // The donor then sees the full request and can accept
-    // or decline it.
-    // ========================================================
-
-    if (
-      notificationKind ===
-      'donor_invitation'
-    ) {
-      if (
-        requestId &&
-        invitationId
-      ) {
-        router.push({
-          pathname:
-            `/blood-request/donor/${requestId}` as any,
-
-          params: {
-            invitationId,
-          },
-        } as any);
-
-        return;
-      }
-
-      // ------------------------------------------------------
-      // FALLBACK:
-      // Request exists but invitation ID is unavailable.
-      // ------------------------------------------------------
-
-      if (
-        requestId
-      ) {
-        router.push(
-          `/blood-request/donor/${requestId}` as any
-        );
-
-        return;
-      }
-
-      // ------------------------------------------------------
-      // FINAL FALLBACK:
-      // Open Requests so donor can access Invites manually.
-      // ------------------------------------------------------
-
-      router.push(
-        '/requests' as any
-      );
-
-      return;
-    }
-
-    // ========================================================
-    // DONOR INVITATION ACCEPTED
-    //
-    // This notification is sent to the requester.
-    // Existing donor-response flow can handle it.
-    // ========================================================
-
-    if (
-      notificationKind ===
-        'donor_invitation_accepted' &&
-      requestId
-    ) {
-      router.push(
-        `/blood-request/${requestId}` as any
-      );
-
-      return;
-    }
-
-    // ========================================================
-    // DONOR INVITATION DECLINED
-    //
-    // Requester can return to their blood request.
-    // ========================================================
-
-    if (
-      notificationKind ===
-        'donor_invitation_declined' &&
-      requestId
-    ) {
-      router.push(
-        `/blood-request/${requestId}` as any
-      );
-
-      return;
-    }
-
-    // ========================================================
-    // DONOR OFFER ACCEPTED
-    // ========================================================
-
-    if (
-      notification.type ===
-      'donor_response_accepted'
-    ) {
-      if (
-        requestId &&
-        responseId
-      ) {
-        router.push(
-          `/blood-request/${requestId}/coordination/${responseId}` as any
-        );
-
-        return;
-      }
-
-      router.replace(
-        '/dashboard' as any
-      );
-
-      return;
-    }
-
-    // ========================================================
-    // REQUESTER RECEIVED / LOST DONOR RESPONSE
-    // ========================================================
-
-    if (
-      notification.type ===
-        'donor_response_received' ||
-      notification.type ===
-        'donor_response_withdrawn'
-    ) {
-      if (
-        requestId
-      ) {
-        router.push(
-          `/blood-request/${requestId}` as any
-        );
-
-        return;
-      }
-    }
-
-    // ========================================================
-    // DONOR OFFER REJECTED
-    // ========================================================
-
-    if (
-      notification.type ===
-      'donor_response_rejected'
-    ) {
-      if (
-        requestId
-      ) {
-        router.push(
-          `/blood-request/donor/${requestId}` as any
-        );
-
-        return;
-      }
-    }
-
-    // ========================================================
-    // COORDINATION
-    // ========================================================
-
-    if (
-      notification.type ===
-        'coordination_message' ||
-      notification.type ===
-        'coordination_schedule'
-    ) {
-      if (
-        requestId &&
-        responseId
-      ) {
-        router.push(
-          `/blood-request/${requestId}/coordination/${responseId}` as any
-        );
-
-        return;
-      }
-    }
-
-    // ========================================================
-    // DONOR APPLICATION
-    // ========================================================
-
-    if (
-      notification.type ===
-        'donor_application_approved' ||
-      notification.type ===
-        'donor_application_rejected'
-    ) {
-      router.push(
-        '/profile' as any
-      );
-
-      return;
-    }
-
-    // ========================================================
-    // FULFILLED / CANCELLED
-    // ========================================================
-
-    if (
-      notification.type ===
-        'blood_request_fulfilled' ||
-      notification.type ===
-        'blood_request_cancelled'
-    ) {
-      router.replace(
-        '/dashboard' as any
-      );
-
-      return;
-    }
-
-    // ========================================================
-    // FALLBACK
-    // ========================================================
-
-    if (
-      requestId
-    ) {
-      router.push(
-        `/blood-request/${requestId}` as any
-      );
-
-      return;
-    }
-
-    router.replace(
-      '/dashboard' as any
-    );
-  }
-
-  // ==========================================================
   // PRESS NOTIFICATION
   // ==========================================================
 
@@ -780,7 +507,7 @@ export default function NotificationsScreen() {
 
           <LinearGradient
             colors={[
-              '#CF1115',
+              '#D2151A',
               COLORS.redDark,
             ]}
             style={
@@ -1221,20 +948,27 @@ export default function NotificationsScreen() {
 
             {!loading &&
               visibleNotifications.map(
-                notification => (
-                  <NotificationCard
+                (notification, index) => (
+                  <FadeInView
                     key={
                       notification.id
                     }
-                    notification={
-                      notification
-                    }
-                    onPress={() =>
-                      handleNotificationPress(
+                    delay={Math.min(
+                      index * 40,
+                      280
+                    )}
+                  >
+                    <NotificationCard
+                      notification={
                         notification
-                      )
-                    }
-                  />
+                      }
+                      onPress={() =>
+                        handleNotificationPress(
+                          notification
+                        )
+                      }
+                    />
+                  </FadeInView>
                 )
               )}
 
@@ -1561,10 +1295,46 @@ function getNotificationAppearance(
           COLORS.greenLight,
       };
 
+    case 'blood_request_expired':
+      return {
+        icon:
+          'history',
+
+        color:
+          COLORS.muted,
+
+        background:
+          COLORS.grayLight,
+      };
+
     case 'blood_request_cancelled':
       return {
         icon:
           'event-busy',
+
+        color:
+          COLORS.orange,
+
+        background:
+          COLORS.orangeLight,
+      };
+
+    case 'blood_request_removed':
+      return {
+        icon:
+          'block',
+
+        color:
+          COLORS.redButton,
+
+        background:
+          COLORS.pinkLight,
+      };
+
+    case 'coordination_no_show':
+      return {
+        icon:
+          'person-off',
 
         color:
           COLORS.orange,
@@ -1609,6 +1379,42 @@ function getNotificationAppearance(
           COLORS.blueLight,
       };
 
+    case 'coordination_trip_started':
+      return {
+        icon:
+          'directions-car',
+
+        color:
+          COLORS.blue,
+
+        background:
+          COLORS.blueLight,
+      };
+
+    case 'coordination_trip_near':
+      return {
+        icon:
+          'near-me',
+
+        color:
+          COLORS.orange,
+
+        background:
+          COLORS.orangeLight,
+      };
+
+    case 'coordination_trip_arrived':
+      return {
+        icon:
+          'where-to-vote',
+
+        color:
+          COLORS.green,
+
+        background:
+          COLORS.greenLight,
+      };
+
     case 'coordination_schedule':
       return {
         icon:
@@ -1619,6 +1425,66 @@ function getNotificationAppearance(
 
         background:
           COLORS.blueLight,
+      };
+
+    case 'donation_recorded':
+      return {
+        icon:
+          'task-alt',
+
+        color:
+          COLORS.green,
+
+        background:
+          COLORS.greenLight,
+      };
+
+    case 'donation_disputed':
+      return {
+        icon:
+          'hourglass-top',
+
+        color:
+          COLORS.orange,
+
+        background:
+          COLORS.orangeLight,
+      };
+
+    case 'donation_feedback_received':
+      return {
+        icon:
+          'star',
+
+        color:
+          COLORS.orange,
+
+        background:
+          COLORS.orangeLight,
+      };
+
+    case 'donation_verified':
+      return {
+        icon:
+          'verified',
+
+        color:
+          COLORS.green,
+
+        background:
+          COLORS.greenLight,
+      };
+
+    case 'donation_rejected':
+      return {
+        icon:
+          'error-outline',
+
+        color:
+          COLORS.redButton,
+
+        background:
+          COLORS.pinkLight,
       };
 
     default:
@@ -1889,7 +1755,7 @@ const styles =
         'Poppins_700Bold',
 
       fontSize:
-        18,
+        21,
     },
 
     headerSubtitle: {
@@ -1903,7 +1769,7 @@ const styles =
         'Inter_400Regular',
 
       fontSize:
-        9.5,
+        12.5,
     },
 
     // ========================================================
@@ -1998,7 +1864,7 @@ const styles =
         'Poppins_600SemiBold',
 
       fontSize:
-        12.5,
+        14.5,
     },
 
     summarySubtitle: {
@@ -2012,7 +1878,7 @@ const styles =
         'Inter_400Regular',
 
       fontSize:
-        9.5,
+        12,
     },
 
     summaryBadge: {
@@ -2046,7 +1912,7 @@ const styles =
         'Inter_600SemiBold',
 
       fontSize:
-        10,
+        12,
     },
 
     // ========================================================
@@ -2106,7 +1972,7 @@ const styles =
         'Inter_600SemiBold',
 
       fontSize:
-        10,
+        13,
     },
 
     filterTextActive: {
@@ -2145,7 +2011,7 @@ const styles =
         'Inter_600SemiBold',
 
       fontSize:
-        8,
+        11,
     },
 
     // ========================================================
@@ -2195,7 +2061,7 @@ const styles =
         'Inter_500Medium',
 
       fontSize:
-        9.5,
+        12.5,
     },
 
     // ========================================================
@@ -2283,7 +2149,7 @@ const styles =
         'Inter_500Medium',
 
       fontSize:
-        11.3,
+        13.5,
     },
 
     notificationTitleUnread: {
@@ -2319,10 +2185,10 @@ const styles =
         'Inter_400Regular',
 
       fontSize:
-        9.6,
+        12.5,
 
       lineHeight:
-        14.5,
+        18,
     },
 
     notificationFooter: {
@@ -2347,7 +2213,7 @@ const styles =
         'Inter_400Regular',
 
       fontSize:
-        8.7,
+        11.5,
     },
 
     footerSpacer: {
@@ -2363,7 +2229,7 @@ const styles =
         'Inter_600SemiBold',
 
       fontSize:
-        8.8,
+        12,
     },
 
     // ========================================================
@@ -2427,7 +2293,7 @@ const styles =
         'Poppins_600SemiBold',
 
       fontSize:
-        13,
+        15,
     },
 
     stateDescription: {
@@ -2444,10 +2310,10 @@ const styles =
         'Inter_400Regular',
 
       fontSize:
-        9.5,
+        12.5,
 
       lineHeight:
-        14,
+        18,
 
       textAlign:
         'center',

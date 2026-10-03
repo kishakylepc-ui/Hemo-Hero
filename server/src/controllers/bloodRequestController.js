@@ -3,7 +3,8 @@ const {
 } = require('../config/supabase');
 
 const {
-  createNotifications
+  createNotifications,
+  notifyAdmins
 } = require(
   '../services/notificationService'
 );
@@ -12,6 +13,12 @@ const {
   setActivityEntity
 } = require(
   '../middleware/activityLogMiddleware'
+);
+
+const {
+  closeOpenOffers
+} = require(
+  '../services/requestClosingService'
 );
 
 // ============================================================
@@ -610,6 +617,43 @@ async function createBloodRequest(
       createdRequest.id
     );
 
+    // --------------------------------------------------------
+    // ADMIN NOTIFICATION (urgent requests only)
+    //
+    // Fire-and-forget: notifyAdmins never throws.
+    // --------------------------------------------------------
+
+    if (
+      createdRequest.urgency ===
+      'urgent'
+    ) {
+      void notifyAdmins({
+        type:
+          'admin_urgent_blood_request',
+
+        title:
+          'Urgent blood request',
+
+        message:
+          `${createdRequest.units_needed} ${
+            Number(createdRequest.units_needed) === 1
+              ? 'unit'
+              : 'units'
+          } of ${createdRequest.blood_type} needed urgently at ${
+            createdRequest.facility_name ||
+            'a facility'
+          }.`,
+
+        data: {
+          request_id:
+            createdRequest.id,
+
+          route:
+            `/requests/${createdRequest.id}`
+        }
+      });
+    }
+
     return res
       .status(201)
       .json({
@@ -961,7 +1005,10 @@ async function getDonorViewBloodRequestById(
           needed_time,
           message,
           status,
-          created_at
+          created_at,
+          flagged_at,
+          removed_at,
+          removal_reason
         `)
         .eq(
           'id',
@@ -1004,16 +1051,63 @@ async function getDonorViewBloodRequestById(
         });
     }
 
+    // A closed request stays visible to donors who took part
+    // (offered, were invited, or have a donation record), so
+    // they can still see the outcome and leave feedback.
     if (
       data.status !==
       'active'
     ) {
-      return res
-        .status(409)
-        .json({
-          error:
-            'This blood request is no longer active.'
-        });
+      const [
+        responseResult,
+        invitationResult
+      ] =
+        await Promise.all([
+          supabaseAdmin
+            .from(
+              'blood_request_responses'
+            )
+            .select('id')
+            .eq(
+              'request_id',
+              requestId
+            )
+            .eq(
+              'donor_id',
+              viewerId
+            )
+            .limit(1),
+
+          supabaseAdmin
+            .from(
+              'blood_request_invitations'
+            )
+            .select('id')
+            .eq(
+              'request_id',
+              requestId
+            )
+            .eq(
+              'donor_id',
+              viewerId
+            )
+            .limit(1)
+        ]);
+
+      const tookPart =
+        (responseResult.data || [])
+          .length > 0 ||
+        (invitationResult.data || [])
+          .length > 0;
+
+      if (!tookPart) {
+        return res
+          .status(409)
+          .json({
+            error:
+              'This blood request is no longer active.'
+          });
+      }
     }
 
     const {
@@ -1204,6 +1298,61 @@ async function fulfillBloodRequest(
     }
 
     // --------------------------------------------------------
+    // CONFIRMED DONATIONS
+    //
+    // A request is fulfilled only after the requester has
+    // confirmed at least one donation (pending or verified),
+    // so every fulfilled request has a stored donation record.
+    // --------------------------------------------------------
+
+    const {
+      data:
+        confirmedDonations,
+      error:
+        donationsError
+    } =
+      await supabaseAdmin
+        .from(
+          'blood_donations'
+        )
+        .select(
+          'id,units_donated'
+        )
+        .eq(
+          'request_id',
+          requestId
+        )
+        .neq(
+          'status',
+          'rejected'
+        );
+
+    if (donationsError) {
+      console.error(
+        'FULFILL REQUEST DONATIONS ERROR:',
+        donationsError
+      );
+
+      return res
+        .status(500)
+        .json({
+          error:
+            'Unable to verify confirmed donations.'
+        });
+    }
+
+    if (
+      !confirmedDonations?.length
+    ) {
+      return res
+        .status(409)
+        .json({
+          error:
+            'Confirm at least one donor\'s donation before marking this request as fulfilled.'
+        });
+    }
+
+    // --------------------------------------------------------
     // FULFILL
     // --------------------------------------------------------
 
@@ -1219,7 +1368,11 @@ async function fulfillBloodRequest(
         )
         .update({
           status:
-            'fulfilled'
+            'fulfilled',
+
+          fulfilled_at:
+            new Date()
+              .toISOString()
         })
         .eq(
           'id',
@@ -1271,21 +1424,35 @@ async function fulfillBloodRequest(
     );
 
     // --------------------------------------------------------
-    // NOTIFY ACCEPTED DONORS
+    // CLOSE PENDING OFFERS / INVITATIONS, END TRIPS
+    // --------------------------------------------------------
+
+    const closed =
+      await closeOpenOffers(
+        requestId
+      );
+
+    // --------------------------------------------------------
+    // NOTIFY ACCEPTED DONORS (+ donors whose offer or
+    // invitation just closed)
     // --------------------------------------------------------
 
     const donorIds =
       [
         ...new Set(
-          (
-            acceptedResponses ||
-            []
-          )
-            .map(
+          [
+            ...(
+              acceptedResponses ||
+              []
+            ).map(
               response =>
                 response.donor_id
-            )
-            .filter(Boolean)
+            ),
+
+            ...closed.pendingDonorIds,
+
+            ...closed.invitedDonorIds
+          ].filter(Boolean)
         )
       ];
 
@@ -1329,6 +1496,9 @@ async function fulfillBloodRequest(
 
         accepted_donor_count:
           acceptedDonorCount,
+
+        confirmed_donation_count:
+          confirmedDonations.length,
 
         request:
           updatedRequest
@@ -1449,6 +1619,61 @@ async function cancelBloodRequest(
     }
 
     // --------------------------------------------------------
+    // CONFIRMED DONATIONS BLOCK CANCELLING
+    //
+    // Once a donation is confirmed the request was (at least
+    // partly) met, so it should be fulfilled, not cancelled.
+    // --------------------------------------------------------
+
+    const {
+      data:
+        confirmedDonations,
+      error:
+        donationsError
+    } =
+      await supabaseAdmin
+        .from(
+          'blood_donations'
+        )
+        .select(
+          'id'
+        )
+        .eq(
+          'request_id',
+          requestId
+        )
+        .neq(
+          'status',
+          'rejected'
+        )
+        .limit(1);
+
+    if (donationsError) {
+      console.error(
+        'CANCEL REQUEST DONATIONS ERROR:',
+        donationsError
+      );
+
+      return res
+        .status(500)
+        .json({
+          error:
+            'Unable to check confirmed donations.'
+        });
+    }
+
+    if (
+      confirmedDonations?.length
+    ) {
+      return res
+        .status(409)
+        .json({
+          error:
+            'This request already has a confirmed donation. Mark it as fulfilled instead of cancelling.'
+        });
+    }
+
+    // --------------------------------------------------------
     // FIND INVOLVED DONORS BEFORE CANCELLING
     // --------------------------------------------------------
 
@@ -1502,7 +1727,11 @@ async function cancelBloodRequest(
         )
         .update({
           status:
-            'cancelled'
+            'cancelled',
+
+          cancelled_at:
+            new Date()
+              .toISOString()
         })
         .eq(
           'id',
@@ -1541,21 +1770,32 @@ async function cancelBloodRequest(
     );
 
     // --------------------------------------------------------
-    // NOTIFY DONORS
+    // CLOSE PENDING OFFERS / INVITATIONS, END TRIPS
+    // --------------------------------------------------------
+
+    const closed =
+      await closeOpenOffers(
+        requestId
+      );
+
+    // --------------------------------------------------------
+    // NOTIFY DONORS (offers + invitations)
     // --------------------------------------------------------
 
     const donorIds =
       [
         ...new Set(
-          (
-            donorResponses ||
-            []
-          )
-            .map(
+          [
+            ...(
+              donorResponses ||
+              []
+            ).map(
               response =>
                 response.donor_id
-            )
-            .filter(Boolean)
+            ),
+
+            ...closed.invitedDonorIds
+          ].filter(Boolean)
         )
       ];
 

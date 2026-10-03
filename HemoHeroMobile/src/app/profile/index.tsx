@@ -1,41 +1,45 @@
 import { useCallback, useState, } from 'react';
-import { Image, Modal, Platform, ScrollView, StyleSheet, Text, TouchableOpacity, View, } from 'react-native';
+import { ActivityIndicator, Image, Modal, Platform, ScrollView, StyleSheet, Switch, Text, TouchableOpacity, View, } from 'react-native';
 import { MaterialIcons, } from '@expo/vector-icons';
 import { LinearGradient, } from 'expo-linear-gradient';
 import { router, useFocusEffect, } from 'expo-router';
 import { StatusBar, } from 'expo-status-bar';
 import { SafeAreaView, } from 'react-native-safe-area-context';
 import MainBottomNav from '../../components/MainBottomNav';
-import { getCurrentUser, logoutUser, } from '../../lib/api';
-import { getMyDonorApplication, } from '../../lib/donorApplication';
-import type { DonorApplication, } from '../../lib/donorApplication';
+import { deleteProfilePhoto, getCurrentUser, logoutUser, uploadProfilePhoto, } from '../../lib/api';
+import AppModal from '../../components/AppModal';
+import PhotoSourceSheet from '../../components/PhotoSourceSheet';
+import type { PickedImage } from '../../lib/imageUpload';
+import { unregisterPushNotifications } from '../../lib/pushNotifications';
+import { getMyDonorApplication, TRAVEL_RADIUS_OPTIONS, updateDonorPreferences, } from '../../lib/donorApplication';
+import type { DonorApplication, DonorPreferences, } from '../../lib/donorApplication';
 import { clearSession, getAccessToken, } from '../../lib/session';
 
 const COLORS = {
-    red: '#D31217',
-    redDark: '#8F1014',
+    red: '#DB0A0A',
+    redDark: '#8F1111',
     redButton: '#B42323',
 
     white: '#FFFFFF',
-    black: '#1D1D1F',
+    black: '#171717',
 
-    page: '#F7F7F8',
+    page: '#FFF8F8',
     card: '#FFFFFF',
 
-    muted: '#6E6E73',
-    lightMuted: '#A0A0A5',
+    muted: '#666666',
+    lightMuted: '#9A9A9A',
 
-    border: '#ECECEF',
+    border: '#EFE3E3',
 
-    pinkSoft: '#FFF1F2',
+    pinkSoft: '#FFF1F1',
 
-    green: '#178B49',
+    green: '#159447',
     greenSoft: '#EAF7EF',
 
-    orange: '#DD7A20',
-    orangeSoft: '#FFF3E7',
+    orange: '#DF721D',
+    orangeSoft: '#FDF1E6',
 
-    graySoft: '#F2F2F4',
+    graySoft: '#F5EFEF',
 };
 
 type ActionPopupVariant =
@@ -97,6 +101,45 @@ export default function ProfileScreen() {
     const [
         logoutModalVisible,
         setLogoutModalVisible,
+    ] = useState(
+        false
+    );
+
+    // Verified donors: first day they can donate again (null =
+    // now), and which donor setting is saving.
+    const [
+        nextEligibleAt,
+        setNextEligibleAt,
+    ] = useState<string | null>(
+        null
+    );
+
+    const [
+        savingPreference,
+        setSavingPreference,
+    ] = useState<keyof DonorPreferences | null>(
+        null
+    );
+
+    // Profile photo: source sheet, upload/remove in progress, and
+    // the remove confirmation.
+    const [
+        photoSheetVisible,
+        setPhotoSheetVisible,
+    ] = useState(
+        false
+    );
+
+    const [
+        photoBusy,
+        setPhotoBusy,
+    ] = useState(
+        false
+    );
+
+    const [
+        removePhotoVisible,
+        setRemovePhotoVisible,
     ] = useState(
         false
     );
@@ -179,6 +222,11 @@ export default function ProfileScreen() {
 
                     setDonorApplication(
                         data?.application ||
+                        null
+                    );
+
+                    setNextEligibleAt(
+                        data?.next_eligible_at ||
                         null
                     );
                 } catch (error) {
@@ -280,6 +328,228 @@ export default function ProfileScreen() {
                     title
                 ),
         });
+    }
+
+    // ==========================================================
+    // DONOR SETTINGS
+    // ==========================================================
+
+    async function saveDonorPreference<
+        Key extends keyof DonorPreferences,
+    >(
+        key: Key,
+        value: DonorPreferences[Key]
+    ) {
+        if (
+            !donorApplication ||
+            savingPreference
+        ) {
+            return;
+        }
+
+        const previous =
+            donorApplication;
+
+        setDonorApplication({
+            ...donorApplication,
+            [key]: value,
+        });
+
+        try {
+            setSavingPreference(
+                key
+            );
+
+            const token =
+                await getAccessToken();
+
+            if (!token) {
+                router.replace(
+                    '/'
+                );
+
+                return;
+            }
+
+            await updateDonorPreferences(
+                token,
+                {
+                    [key]: value,
+                }
+            );
+        } catch (error) {
+            setDonorApplication(
+                previous
+            );
+
+            showMessage(
+                'Unable to Save',
+                error instanceof Error
+                    ? error.message
+                    : 'Please try again.'
+            );
+        } finally {
+            setSavingPreference(
+                null
+            );
+        }
+    }
+
+    // "Nov 30, 2026"
+    function formatEligibleDate(
+        value: string
+    ) {
+        const date =
+            new Date(value);
+
+        return Number.isNaN(
+            date.getTime()
+        )
+            ? ''
+            : date.toLocaleDateString(
+                  'en-US',
+                  {
+                      month: 'short',
+                      day: 'numeric',
+                      year: 'numeric',
+                  }
+              );
+    }
+
+    // ==========================================================
+    // PROFILE PHOTO (camera icon)
+    // ==========================================================
+
+    function openPhotoSheet() {
+        if (
+            photoBusy ||
+            loading
+        ) {
+            return;
+        }
+
+        setPhotoSheetVisible(
+            true
+        );
+    }
+
+    async function handlePhotoPicked(
+        image: PickedImage
+    ) {
+        try {
+            setPhotoBusy(
+                true
+            );
+
+            const token =
+                await getAccessToken();
+
+            if (!token) {
+                router.replace(
+                    '/'
+                );
+
+                return;
+            }
+
+            const result =
+                await uploadProfilePhoto(
+                    token,
+                    image
+                );
+
+            const newPhotoUrl =
+                result?.profile_photo_url ||
+                result?.user
+                    ?.profile_photo_url ||
+                '';
+
+            if (!newPhotoUrl) {
+                throw new Error(
+                    'Your photo was uploaded, but it could not be shown. Pull to refresh.'
+                );
+            }
+
+            setProfile(
+                (current: any) => ({
+                    ...(current || {}),
+                    ...(result?.user || {}),
+                    profile_photo_url:
+                        newPhotoUrl,
+                })
+            );
+
+            showMessage(
+                'Profile Photo Updated',
+                'Your new profile photo has been saved.'
+            );
+        } catch (error) {
+            console.log(
+                'PROFILE PHOTO UPLOAD ERROR:',
+                error
+            );
+
+            showMessage(
+                'Unable to Update Photo',
+                error instanceof Error
+                    ? error.message
+                    : 'Please try again.'
+            );
+        } finally {
+            setPhotoBusy(
+                false
+            );
+        }
+    }
+
+    async function performRemovePhoto() {
+        try {
+            setPhotoBusy(
+                true
+            );
+
+            const token =
+                await getAccessToken();
+
+            if (!token) {
+                router.replace(
+                    '/'
+                );
+
+                return;
+            }
+
+            await deleteProfilePhoto(
+                token
+            );
+
+            setRemovePhotoVisible(
+                false
+            );
+
+            setProfile(
+                (current: any) => ({
+                    ...(current || {}),
+                    profile_photo_url:
+                        null,
+                })
+            );
+        } catch (error) {
+            setRemovePhotoVisible(
+                false
+            );
+
+            showMessage(
+                'Unable to Remove Photo',
+                error instanceof Error
+                    ? error.message
+                    : 'Please try again.'
+            );
+        } finally {
+            setPhotoBusy(
+                false
+            );
+        }
     }
 
     const fullName =
@@ -459,7 +729,15 @@ export default function ProfileScreen() {
         );
     }
 
-    function handleDonorActivity() {
+    function handleDonationHistory() {
+        router.push(
+            '/donations' as any
+        );
+    }
+
+    // Shown until the application is approved: a pending one
+    // opens its status, a rejected/withdrawn one can be sent again.
+    function handleDonorApplication() {
         if (
             !donorApplication
         ) {
@@ -483,18 +761,6 @@ export default function ProfileScreen() {
             return;
         }
 
-        if (
-            donorApplication.status ===
-            'approved'
-        ) {
-            showMessage(
-                'Donor Activity',
-                'Your donation history and donor activity will be connected next.'
-            );
-
-            return;
-        }
-
         router.push(
             '/donor-application/blood' as any
         );
@@ -507,16 +773,14 @@ export default function ProfileScreen() {
     }
 
     function handleNotifications() {
-        showMessage(
-            'Notifications',
-            'Notification preferences will be connected later.'
+        router.push(
+            '/notifications' as any
         );
     }
 
     function handleHelpCenter() {
-        showMessage(
-            'Help Center',
-            'The Hemo-Hero Help Center will be connected later.'
+        router.push(
+            '/help' as any
         );
     }
 
@@ -545,6 +809,10 @@ export default function ProfileScreen() {
             if (
                 token
             ) {
+                await unregisterPushNotifications(
+                    token
+                );
+
                 try {
                     await logoutUser(
                         token
@@ -642,7 +910,7 @@ export default function ProfileScreen() {
                     >
                         <LinearGradient
                             colors={[
-                                '#D9191E',
+                                '#D2151A',
                                 COLORS.redDark,
                             ]}
                             style={
@@ -727,9 +995,16 @@ export default function ProfileScreen() {
                                         styles.avatarContainer
                                     }
                                 >
-                                    <View
+                                    <TouchableOpacity
                                         style={
                                             styles.avatar
+                                        }
+                                        activeOpacity={
+                                            0.85
+                                        }
+                                        accessibilityLabel="Change profile photo"
+                                        onPress={
+                                            openPhotoSheet
                                         }
                                     >
                                         {profilePhotoUrl ? (
@@ -752,7 +1027,21 @@ export default function ProfileScreen() {
                                                 }
                                             />
                                         )}
-                                    </View>
+
+                                        {photoBusy ? (
+                                            <View
+                                                style={
+                                                    styles.avatarBusy
+                                                }
+                                            >
+                                                <ActivityIndicator
+                                                    color={
+                                                        COLORS.white
+                                                    }
+                                                />
+                                            </View>
+                                        ) : null}
+                                    </TouchableOpacity>
 
                                     <TouchableOpacity
                                         style={
@@ -761,8 +1050,12 @@ export default function ProfileScreen() {
                                         activeOpacity={
                                             0.8
                                         }
+                                        accessibilityLabel="Take or choose a profile photo"
+                                        disabled={
+                                            photoBusy
+                                        }
                                         onPress={
-                                            handleEditProfile
+                                            openPhotoSheet
                                         }
                                     >
                                         <MaterialIcons
@@ -1042,32 +1335,328 @@ export default function ProfileScreen() {
                                 }
                             />
 
-                            {donorApplication ? (
+                            <Divider />
+
+                            <MenuRow
+                                icon="volunteer-activism"
+                                iconColor={
+                                    COLORS.orange
+                                }
+                                title="Donation History"
+                                subtitle="Donations you gave or received"
+                                onPress={
+                                    handleDonationHistory
+                                }
+                            />
+
+                            {donorApplication &&
+                            donorApplication.status !==
+                                'approved' ? (
                                 <>
                                     <Divider />
 
                                     <MenuRow
-                                        icon="volunteer-activism"
-                                        iconColor={
-                                            COLORS.orange
-                                        }
-                                        title="Donor Activity"
+                                        icon="how-to-reg"
+                                        title="Donor Application"
                                         subtitle={
                                             donorApplication.status ===
-                                            'approved'
-                                                ? 'View your donor activity'
-                                                : donorApplication.status ===
-                                                  'pending'
-                                                    ? 'Application under review'
-                                                    : 'View donor application'
+                                            'pending'
+                                                ? 'Under review'
+                                                : 'Apply again'
                                         }
                                         onPress={
-                                            handleDonorActivity
+                                            handleDonorApplication
                                         }
                                     />
                                 </>
                             ) : null}
                         </View>
+
+                        {donorApplication?.status ===
+                        'approved' ? (
+                            <>
+                                <SectionTitle
+                                    title="Donor Settings"
+                                />
+
+                                <View
+                                    style={
+                                        styles.card
+                                    }
+                                >
+                                    {/* Available to donate */}
+                                    <View
+                                        style={
+                                            styles.menuRow
+                                        }
+                                    >
+                                        <View
+                                            style={[
+                                                styles.menuIcon,
+                                                {
+                                                    backgroundColor:
+                                                        donorApplication.availability_status ===
+                                                        'available'
+                                                            ? COLORS.greenSoft
+                                                            : COLORS.graySoft,
+                                                },
+                                            ]}
+                                        >
+                                            <MaterialIcons
+                                                name={
+                                                    donorApplication.availability_status ===
+                                                    'available'
+                                                        ? 'volunteer-activism'
+                                                        : 'pause-circle-outline'
+                                                }
+                                                size={20}
+                                                color={
+                                                    donorApplication.availability_status ===
+                                                    'available'
+                                                        ? COLORS.green
+                                                        : COLORS.muted
+                                                }
+                                            />
+                                        </View>
+
+                                        <View
+                                            style={
+                                                styles.menuContent
+                                            }
+                                        >
+                                            <Text
+                                                style={
+                                                    styles.menuTitle
+                                                }
+                                            >
+                                                Available to donate
+                                            </Text>
+
+                                            <Text
+                                                style={
+                                                    styles.menuSubtitle
+                                                }
+                                            >
+                                                {donorApplication.availability_status ===
+                                                'available'
+                                                    ? 'Requesters can find and invite you'
+                                                    : 'Paused: you won’t appear in donor search'}
+                                            </Text>
+                                        </View>
+
+                                        <Switch
+                                            value={
+                                                donorApplication.availability_status ===
+                                                'available'
+                                            }
+                                            disabled={Boolean(
+                                                savingPreference
+                                            )}
+                                            onValueChange={value =>
+                                                saveDonorPreference(
+                                                    'availability_status',
+                                                    value
+                                                        ? 'available'
+                                                        : 'unavailable'
+                                                )
+                                            }
+                                            trackColor={{
+                                                false: '#D9CFCF',
+                                                true: '#E8A3A3',
+                                            }}
+                                            thumbColor={
+                                                donorApplication.availability_status ===
+                                                'available'
+                                                    ? COLORS.redButton
+                                                    : '#FFFFFF'
+                                            }
+                                            accessibilityLabel="Available to donate"
+                                        />
+                                    </View>
+
+                                    <Divider />
+
+                                    {/* Urgent requests */}
+                                    <View
+                                        style={
+                                            styles.menuRow
+                                        }
+                                    >
+                                        <View
+                                            style={[
+                                                styles.menuIcon,
+                                                {
+                                                    backgroundColor:
+                                                        COLORS.orangeSoft,
+                                                },
+                                            ]}
+                                        >
+                                            <MaterialIcons
+                                                name="bolt"
+                                                size={20}
+                                                color={
+                                                    COLORS.orange
+                                                }
+                                            />
+                                        </View>
+
+                                        <View
+                                            style={
+                                                styles.menuContent
+                                            }
+                                        >
+                                            <Text
+                                                style={
+                                                    styles.menuTitle
+                                                }
+                                            >
+                                                Urgent requests
+                                            </Text>
+
+                                            <Text
+                                                style={
+                                                    styles.menuSubtitle
+                                                }
+                                            >
+                                                {donorApplication.allow_urgent_requests
+                                                    ? 'You’ll be asked for urgent needs'
+                                                    : 'Only scheduled requests'}
+                                            </Text>
+                                        </View>
+
+                                        <Switch
+                                            value={
+                                                donorApplication.allow_urgent_requests
+                                            }
+                                            disabled={Boolean(
+                                                savingPreference
+                                            )}
+                                            onValueChange={value =>
+                                                saveDonorPreference(
+                                                    'allow_urgent_requests',
+                                                    value
+                                                )
+                                            }
+                                            trackColor={{
+                                                false: '#D9CFCF',
+                                                true: '#E8A3A3',
+                                            }}
+                                            thumbColor={
+                                                donorApplication.allow_urgent_requests
+                                                    ? COLORS.redButton
+                                                    : '#FFFFFF'
+                                            }
+                                            accessibilityLabel="Accept urgent requests"
+                                        />
+                                    </View>
+
+                                    <Divider />
+
+                                    {/* Travel distance */}
+                                    <View
+                                        style={
+                                            styles.settingBlock
+                                        }
+                                    >
+                                        <Text
+                                            style={
+                                                styles.menuTitle
+                                            }
+                                        >
+                                            How far you can travel
+                                        </Text>
+
+                                        <View
+                                            style={
+                                                styles.radiusRow
+                                            }
+                                        >
+                                            {TRAVEL_RADIUS_OPTIONS.map(
+                                                radius => {
+                                                    const selected =
+                                                        donorApplication.travel_radius_km ===
+                                                        radius;
+
+                                                    return (
+                                                        <TouchableOpacity
+                                                            key={
+                                                                radius
+                                                            }
+                                                            style={[
+                                                                styles.radiusChip,
+
+                                                                selected &&
+                                                                    styles.radiusChipActive,
+                                                            ]}
+                                                            activeOpacity={
+                                                                0.8
+                                                            }
+                                                            disabled={Boolean(
+                                                                savingPreference
+                                                            )}
+                                                            accessibilityRole="button"
+                                                            accessibilityState={{
+                                                                selected,
+                                                            }}
+                                                            onPress={() =>
+                                                                saveDonorPreference(
+                                                                    'travel_radius_km',
+                                                                    radius
+                                                                )
+                                                            }
+                                                        >
+                                                            <Text
+                                                                style={[
+                                                                    styles.radiusChipText,
+
+                                                                    selected &&
+                                                                        styles.radiusChipTextActive,
+                                                                ]}
+                                                            >
+                                                                {radius} km
+                                                            </Text>
+                                                        </TouchableOpacity>
+                                                    );
+                                                }
+                                            )}
+                                        </View>
+                                    </View>
+
+                                    {/* Waiting period after donating */}
+                                    {nextEligibleAt ? (
+                                        <>
+                                            <Divider />
+
+                                            <View
+                                                style={
+                                                    styles.eligibleRow
+                                                }
+                                            >
+                                                <MaterialIcons
+                                                    name="event-available"
+                                                    size={17}
+                                                    color={
+                                                        COLORS.orange
+                                                    }
+                                                />
+
+                                                <Text
+                                                    style={
+                                                        styles.eligibleText
+                                                    }
+                                                >
+                                                    You can donate again from{' '}
+                                                    {formatEligibleDate(
+                                                        nextEligibleAt
+                                                    )}
+                                                    .
+                                                </Text>
+                                            </View>
+                                        </>
+                                    ) : null}
+                                </View>
+                            </>
+                        ) : null}
 
                         <SectionTitle
                             title="Personal Information"
@@ -1323,7 +1912,7 @@ export default function ProfileScreen() {
                             <MenuRow
                                 icon="notifications-none"
                                 title="Notifications"
-                                subtitle="Manage alerts and notifications"
+                                subtitle="Your alerts and updates"
                                 onPress={
                                     handleNotifications
                                 }
@@ -1342,7 +1931,7 @@ export default function ProfileScreen() {
                             <MenuRow
                                 icon="help-outline"
                                 title="Help Center"
-                                subtitle="Get help using Hemo-Hero"
+                                subtitle="How Hemo-Hero works"
                                 onPress={
                                     handleHelpCenter
                                 }
@@ -1615,6 +2204,56 @@ export default function ProfileScreen() {
                             </View>
                         </View>
                     </Modal>
+
+                    <PhotoSourceSheet
+                        visible={
+                            photoSheetVisible
+                        }
+                        hasPhoto={Boolean(
+                            profilePhotoUrl
+                        )}
+                        onClose={() =>
+                            setPhotoSheetVisible(
+                                false
+                            )
+                        }
+                        onPicked={
+                            handlePhotoPicked
+                        }
+                        onRemove={() =>
+                            setRemovePhotoVisible(
+                                true
+                            )
+                        }
+                        onError={message =>
+                            showMessage(
+                                'Permission Required',
+                                message
+                            )
+                        }
+                    />
+
+                    <AppModal
+                        visible={
+                            removePhotoVisible
+                        }
+                        variant="danger"
+                        title="Remove Photo?"
+                        message="Your profile will show the default picture."
+                        confirmLabel="Remove"
+                        cancelLabel="Keep"
+                        loading={
+                            photoBusy
+                        }
+                        onConfirm={
+                            performRemovePhoto
+                        }
+                        onClose={() =>
+                            setRemovePhotoVisible(
+                                false
+                            )
+                        }
+                    />
                 </SafeAreaView>
             </View>
         </View>
@@ -2056,7 +2695,7 @@ const styles =
                 'Poppins_700Bold',
 
             fontSize:
-                18,
+                17,
         },
 
         identityRow: {
@@ -2135,6 +2774,27 @@ const styles =
                 '100%',
         },
 
+        // Upload / remove in progress.
+        avatarBusy: {
+            position:
+                'absolute',
+
+            top: 0,
+            right: 0,
+            bottom: 0,
+            left: 0,
+
+
+            alignItems:
+                'center',
+
+            justifyContent:
+                'center',
+
+            backgroundColor:
+                'rgba(0,0,0,0.35)',
+        },
+
         cameraButton: {
             position:
                 'absolute',
@@ -2209,7 +2869,7 @@ const styles =
                 'Inter_400Regular',
 
             fontSize:
-                11,
+                12.5,
         },
 
         donorBadge: {
@@ -2243,7 +2903,7 @@ const styles =
                 'Inter_600SemiBold',
 
             fontSize:
-                9.5,
+                11.5,
         },
 
         statusDot: {
@@ -2371,10 +3031,10 @@ const styles =
                 'Inter_600SemiBold',
 
             fontSize:
-                12,
+                13.5,
 
             lineHeight:
-                16,
+                18,
         },
 
         quickLabel: {
@@ -2388,7 +3048,7 @@ const styles =
                 'Inter_400Regular',
 
             fontSize:
-                10,
+                11.5,
         },
 
         quickDivider: {
@@ -2441,7 +3101,7 @@ const styles =
                 'Poppins_600SemiBold',
 
             fontSize:
-                14,
+                14.5,
         },
 
         card: {
@@ -2543,6 +3203,59 @@ const styles =
                 6,
         },
 
+        // Donor Settings
+        settingBlock: {
+            paddingVertical: 14,
+        },
+
+        radiusRow: {
+            marginTop: 10,
+            flexDirection: 'row',
+            flexWrap: 'wrap',
+            gap: 8,
+        },
+
+        radiusChip: {
+            minWidth: 56,
+            height: 34,
+            paddingHorizontal: 12,
+            alignItems: 'center',
+            justifyContent: 'center',
+            borderRadius: 17,
+            borderWidth: 1,
+            borderColor: COLORS.border,
+            backgroundColor: COLORS.white,
+        },
+
+        radiusChipActive: {
+            borderColor: COLORS.redButton,
+            backgroundColor: COLORS.redButton,
+        },
+
+        radiusChipText: {
+            color: COLORS.black,
+            fontFamily: 'Inter_600SemiBold',
+            fontSize: 12.5,
+        },
+
+        radiusChipTextActive: {
+            color: COLORS.white,
+        },
+
+        eligibleRow: {
+            paddingVertical: 13,
+            flexDirection: 'row',
+            alignItems: 'center',
+            gap: 8,
+        },
+
+        eligibleText: {
+            flex: 1,
+            color: COLORS.orange,
+            fontFamily: 'Inter_600SemiBold',
+            fontSize: 12.5,
+        },
+
         menuTitle: {
             color:
                 COLORS.black,
@@ -2551,7 +3264,7 @@ const styles =
                 'Poppins_600SemiBold',
 
             fontSize:
-                12,
+                13.5,
         },
 
         menuSubtitle: {
@@ -2565,7 +3278,7 @@ const styles =
                 'Inter_400Regular',
 
             fontSize:
-                10,
+                12,
         },
 
         infoRow: {
@@ -2621,7 +3334,7 @@ const styles =
                 'Inter_500Medium',
 
             fontSize:
-                9.5,
+                11.5,
         },
 
         infoValue: {
@@ -2635,10 +3348,10 @@ const styles =
                 'Inter_600SemiBold',
 
             fontSize:
-                12,
+                13,
 
             lineHeight:
-                16,
+                18,
         },
 
         medicalRow: {
@@ -2697,7 +3410,7 @@ const styles =
                 'Poppins_600SemiBold',
 
             fontSize:
-                12,
+                13.5,
         },
 
         medicalHelper: {
@@ -2711,7 +3424,7 @@ const styles =
                 'Inter_400Regular',
 
             fontSize:
-                10,
+                12,
         },
 
         bloodBadge: {
@@ -2745,7 +3458,7 @@ const styles =
                 'Poppins_700Bold',
 
             fontSize:
-                13,
+                13.5,
         },
 
         statusRow: {
@@ -2804,7 +3517,7 @@ const styles =
                 'Inter_500Medium',
 
             fontSize:
-                11,
+                13,
         },
 
         statusBadge: {
@@ -2836,7 +3549,7 @@ const styles =
                 'Inter_600SemiBold',
 
             fontSize:
-                9.5,
+                11.5,
 
             textAlign:
                 'center',
@@ -2900,7 +3613,7 @@ const styles =
                 'Inter_600SemiBold',
 
             fontSize:
-                11.5,
+                13.5,
         },
 
         errorText: {
@@ -2914,7 +3627,7 @@ const styles =
                 'Inter_400Regular',
 
             fontSize:
-                10,
+                12,
         },
 
         logoutButton: {
@@ -2965,7 +3678,7 @@ const styles =
                 'Poppins_600SemiBold',
 
             fontSize:
-                12,
+                14,
         },
 
         footerText: {
@@ -2979,7 +3692,7 @@ const styles =
                 'Inter_400Regular',
 
             fontSize:
-                9.5,
+                11.5,
 
             textAlign:
                 'center',
@@ -3079,7 +3792,7 @@ const styles =
                 'Poppins_700Bold',
 
             fontSize:
-                19,
+                17,
 
             textAlign:
                 'center',
@@ -3099,7 +3812,7 @@ const styles =
                 'Inter_400Regular',
 
             fontSize:
-                13,
+                13.5,
 
             lineHeight:
                 20,
@@ -3304,7 +4017,7 @@ const styles =
                 'Poppins_700Bold',
 
             fontSize:
-                18,
+                17,
 
             lineHeight:
                 24,
@@ -3327,10 +4040,10 @@ const styles =
                 'Inter_400Regular',
 
             fontSize:
-                12,
+                13.5,
 
             lineHeight:
-                18,
+                20,
 
             textAlign:
                 'center',
@@ -3367,6 +4080,6 @@ const styles =
                 'Inter_600SemiBold',
 
             fontSize:
-                12,
+                14,
         },
     });

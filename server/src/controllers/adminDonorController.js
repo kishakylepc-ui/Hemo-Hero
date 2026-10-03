@@ -12,6 +12,12 @@ const {
   '../middleware/activityLogMiddleware'
 );
 
+const {
+  getBloodTypeProofLink,
+} = require(
+  '../services/bloodTypeProofService'
+);
+
 // ============================================================
 // CONSTANTS
 // ============================================================
@@ -517,6 +523,12 @@ async function getDonorApplicationById(
           ),
 
         verification,
+
+        // Photo proving the applicant's blood type.
+        blood_type_proof:
+          await getBloodTypeProofLink(
+            application.user_id
+          ),
       },
     });
   } catch (error) {

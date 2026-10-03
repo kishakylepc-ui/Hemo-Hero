@@ -18,6 +18,8 @@ const {
   getAdminBloodRequests,
   getAdminBloodTypeDemand,
   getAdminBloodRequestById,
+  removeAdminBloodRequest,
+  keepAdminBloodRequest,
 } =
   require(
     '../controllers/adminBloodRequestController'
@@ -44,6 +46,7 @@ const {
 
 const {
   getCoordinationInbox,
+  markCoordinationRead,
   getCoordination,
   getCoordinationMessages,
   sendCoordinationMessage,
@@ -51,6 +54,36 @@ const {
 } =
   require(
     '../controllers/coordinationController'
+  );
+
+const {
+  getTrip,
+  startTrip,
+  updateTripLocation,
+  arriveTrip,
+  endTrip,
+} =
+  require(
+    '../controllers/tripController'
+  );
+
+const {
+  submitConversationReport,
+  submitNoShowReport,
+  submitRequestReport,
+} =
+  require(
+    '../controllers/userReportController'
+  );
+
+const {
+  recordDonation,
+  getRequestDonations,
+  submitDonationFeedback,
+  disputeDonation,
+} =
+  require(
+    '../controllers/donationController'
   );
 
 const {
@@ -154,6 +187,61 @@ router.get(
 router.get(
   '/admin/:id',
   getAdminBloodRequestById
+);
+
+// ============================================================
+// ADMIN REVIEW OF REPORTED REQUESTS
+//
+// PATCH /api/requests/admin/:id/remove  { note }   take it down
+// PATCH /api/requests/admin/:id/keep    { note? }  keep it up
+//
+// Admin authorization is checked inside the controller.
+// ============================================================
+
+router.patch(
+  '/admin/:id/remove',
+
+  activityLog({
+    action:
+      'ADMIN_REMOVE_BLOOD_REQUEST',
+
+    module:
+      'Requests',
+
+    successDescription:
+      'Admin removed a reported blood request.',
+
+    failureDescription:
+      'Admin blood request removal failed.',
+
+    entityType:
+      'blood_request',
+  }),
+
+  removeAdminBloodRequest
+);
+
+router.patch(
+  '/admin/:id/keep',
+
+  activityLog({
+    action:
+      'ADMIN_KEEP_BLOOD_REQUEST',
+
+    module:
+      'Requests',
+
+    successDescription:
+      'Admin reviewed a reported blood request and kept it.',
+
+    failureDescription:
+      'Admin blood request review failed.',
+
+    entityType:
+      'blood_request',
+  }),
+
+  keepAdminBloodRequest
 );
 
 // ============================================================
@@ -395,6 +483,13 @@ router.get(
   getCoordinationMessages
 );
 
+// Clears the viewer's unread alerts for this conversation.
+// Not activity-logged: it runs every time a chat is opened.
+router.patch(
+  '/:id/responses/:responseId/read',
+  markCoordinationRead
+);
+
 // ============================================================
 // SEND COORDINATION MESSAGE
 //
@@ -451,6 +546,315 @@ router.put(
   }),
 
   setCoordinationSchedule
+);
+
+// ============================================================
+// DONOR TRIP ("ON THE WAY" MAP)
+//
+// GET  /api/requests/:id/responses/:responseId/trip
+// POST /api/requests/:id/responses/:responseId/trip/start
+// POST /api/requests/:id/responses/:responseId/trip/location
+// POST /api/requests/:id/responses/:responseId/trip/arrive
+// POST /api/requests/:id/responses/:responseId/trip/end
+//
+// Request owner and accepted donor only; only the donor can
+// change it. Coordinates are never written to the activity log,
+// and location updates (every few seconds) are not logged.
+// ============================================================
+
+router.get(
+  '/:id/responses/:responseId/trip',
+  getTrip
+);
+
+router.post(
+  '/:id/responses/:responseId/trip/start',
+
+  activityLog({
+    action:
+      'START_DONOR_TRIP',
+
+    module:
+      'Coordination',
+
+    successDescription:
+      'Donor started sharing their trip to the facility.',
+
+    failureDescription:
+      'Donor trip start attempt failed.',
+
+    entityType:
+      'donor_trip',
+  }),
+
+  startTrip
+);
+
+router.post(
+  '/:id/responses/:responseId/trip/location',
+  updateTripLocation
+);
+
+router.post(
+  '/:id/responses/:responseId/trip/arrive',
+
+  activityLog({
+    action:
+      'ARRIVE_DONOR_TRIP',
+
+    module:
+      'Coordination',
+
+    successDescription:
+      'Donor marked that they arrived at the facility.',
+
+    failureDescription:
+      'Donor arrival update failed.',
+
+    entityType:
+      'donor_trip',
+  }),
+
+  arriveTrip
+);
+
+router.post(
+  '/:id/responses/:responseId/trip/end',
+
+  activityLog({
+    action:
+      'END_DONOR_TRIP',
+
+    module:
+      'Coordination',
+
+    successDescription:
+      'Donor stopped sharing their trip.',
+
+    failureDescription:
+      'Donor trip stop attempt failed.',
+
+    entityType:
+      'donor_trip',
+  }),
+
+  endTrip
+);
+
+// ============================================================
+// COORDINATION FEEDBACK / REPORT
+//
+// POST /api/requests/:id/responses/:responseId/reports
+//
+// Accessible only by the request owner or accepted donor.
+// The reported person is derived by the server.
+//
+// Only kind/reason are logged - never the free-text details.
+// ============================================================
+
+router.post(
+  '/:id/responses/:responseId/reports',
+
+  activityLog({
+    action:
+      'SUBMIT_USER_REPORT',
+
+    module:
+      'Coordination',
+
+    successDescription:
+      'User submitted coordination feedback or a report.',
+
+    failureDescription:
+      'Coordination feedback/report submission failed.',
+
+    entityType:
+      'user_report',
+
+    metadata: ({ req }) => ({
+      kind:
+        req.body?.kind ||
+        null,
+
+      reason:
+        req.body?.reason ||
+        null,
+    }),
+  }),
+
+  submitConversationReport
+);
+
+// ============================================================
+// REPORT A NO-SHOW
+//
+// POST /api/requests/:id/responses/:responseId/no-show
+//
+// Either participant, after the agreed meeting time, while no
+// donation is recorded for the conversation.
+// ============================================================
+
+router.post(
+  '/:id/responses/:responseId/no-show',
+
+  activityLog({
+    action:
+      'REPORT_NO_SHOW',
+
+    module:
+      'Coordination',
+
+    successDescription:
+      'User reported a no-show for a donation meeting.',
+
+    failureDescription:
+      'No-show report failed.',
+
+    entityType:
+      'user_report',
+  }),
+
+  submitNoShowReport
+);
+
+// ============================================================
+// REPORT A BLOOD REQUEST (false request, asking for payment)
+//
+// POST /api/requests/:id/report
+// ============================================================
+
+router.post(
+  '/:id/report',
+
+  activityLog({
+    action:
+      'REPORT_BLOOD_REQUEST',
+
+    module:
+      'Requests',
+
+    successDescription:
+      'User reported a blood request.',
+
+    failureDescription:
+      'Blood request report failed.',
+
+    entityType:
+      'user_report',
+
+    metadata: ({ req }) => ({
+      reason:
+        req.body?.reason ||
+        null,
+    }),
+  }),
+
+  submitRequestReport
+);
+
+// ============================================================
+// DONATIONS (TRANSACTION RECORD)
+//
+// GET  /api/requests/:id/donations
+//      owner -> all donations, donor -> their own
+//
+// POST /api/requests/:id/responses/:responseId/donation
+//      owner confirms an accepted donor's donation; it is
+//      recorded right away unless an automatic check flags it
+//      for admin review.
+//
+// POST /api/requests/:id/donations/:donationId/feedback
+//      donor or requester rates the transaction
+//
+// POST /api/requests/:id/donations/:donationId/dispute
+//      donor reports a problem with the record
+// ============================================================
+
+router.get(
+  '/:id/donations',
+  getRequestDonations
+);
+
+router.post(
+  '/:id/donations/:donationId/feedback',
+
+  activityLog({
+    action:
+      'SUBMIT_DONATION_FEEDBACK',
+
+    module:
+      'Donations',
+
+    successDescription:
+      'User left feedback on a donation transaction.',
+
+    failureDescription:
+      'Donation feedback attempt failed.',
+
+    entityType:
+      'blood_donation',
+
+    // Log the rating only - never the comment text.
+    metadata: ({ req }) => ({
+      rating:
+        req.body?.rating ||
+        null,
+    }),
+  }),
+
+  submitDonationFeedback
+);
+
+router.post(
+  '/:id/donations/:donationId/dispute',
+
+  activityLog({
+    action:
+      'DISPUTE_DONATION',
+
+    module:
+      'Donations',
+
+    successDescription:
+      'Donor reported a problem with a donation record.',
+
+    failureDescription:
+      'Donation dispute attempt failed.',
+
+    entityType:
+      'blood_donation',
+  }),
+
+  disputeDonation
+);
+
+router.post(
+  '/:id/responses/:responseId/donation',
+
+  activityLog({
+    action:
+      'RECORD_DONATION',
+
+    module:
+      'Donations',
+
+    successDescription:
+      'Requester confirmed a donor\'s donation.',
+
+    failureDescription:
+      'Donation confirmation attempt failed.',
+
+    entityType:
+      'blood_donation',
+
+    metadata: ({ req }) => ({
+      units_donated:
+        req.body?.units_donated ||
+        1,
+    }),
+  }),
+
+  recordDonation
 );
 
 // ============================================================

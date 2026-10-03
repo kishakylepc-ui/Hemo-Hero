@@ -1,5 +1,6 @@
 import {
   useCallback,
+  useMemo,
   useRef,
   useState,
 } from 'react';
@@ -12,6 +13,7 @@ import {
   RefreshControl,
   StyleSheet,
   Text,
+  TextInput,
   TouchableOpacity,
   View,
 } from 'react-native';
@@ -19,10 +21,6 @@ import {
 import {
   MaterialIcons,
 } from '@expo/vector-icons';
-
-import {
-  LinearGradient,
-} from 'expo-linear-gradient';
 
 import {
   router,
@@ -38,22 +36,18 @@ import {
 } from 'react-native-safe-area-context';
 
 import {
-  useFonts,
-} from 'expo-font';
-
-import {
-  Poppins_600SemiBold,
-  Poppins_700Bold,
-} from '@expo-google-fonts/poppins';
-
-import {
-  Inter_400Regular,
-  Inter_500Medium,
-  Inter_600SemiBold,
-  Inter_700Bold,
-} from '@expo-google-fonts/inter';
+  LinearGradient,
+} from 'expo-linear-gradient';
 
 import MainBottomNav from '../components/MainBottomNav';
+import PersonAvatar from '../components/PersonAvatar';
+
+import { formatEta } from '../lib/trips';
+
+import {
+  FadeInView,
+  PressableScale,
+} from '../components/Motion';
 
 import {
   getAccessToken,
@@ -69,13 +63,14 @@ import type {
 } from '../lib/coordination';
 
 // ============================================================
-// COLORS
+// COLORS (same palette as Dashboard / Request Blood)
 // ============================================================
 
 const COLORS = {
   red: '#DB0A0A',
   redDark: '#8F1111',
   redButton: '#B42323',
+  headerTop: '#D2151A',
 
   white: '#FFFFFF',
   black: '#171717',
@@ -83,18 +78,29 @@ const COLORS = {
   page: '#FFF8F8',
 
   muted: '#666666',
+  lightMuted: '#9A9A9A',
 
-  border: '#EAE1E1',
+  cardBorder: '#E8DADA',
+  tileBorder: '#F0D6D6',
 
-  pink: '#FFF0F0',
+  pinkLight: '#FFF1F1',
 
-  green: '#2E7D32',
+  green: '#159447',
+  greenLight: '#EAF7EF',
 
-  gray: '#F5F5F5',
+  orange: '#DF721D',
+  orangeLight: '#FDF1E6',
+
+  blue: '#2F6FDB',
+  blueLight: '#EAF1FD',
+
+  star: '#F2A516',
+
+  overlay: 'rgba(0,0,0,0.45)',
 };
 
 // ============================================================
-// INITIALS
+// HELPERS
 // ============================================================
 
 function initials(
@@ -117,9 +123,18 @@ function initials(
   ).toUpperCase();
 }
 
-// ============================================================
-// ACTIVITY LABEL
-// ============================================================
+function firstName(
+  item: CoordinationInboxItem
+) {
+  return (
+    item.other_participant
+      .first_name ||
+    item.other_participant
+      .full_name
+      ?.split(' ')[0] ||
+    'them'
+  );
+}
 
 function activityLabel(
   value: string | null
@@ -129,9 +144,7 @@ function activityLabel(
   }
 
   const date =
-    new Date(
-      value
-    );
+    new Date(value);
 
   if (
     Number.isNaN(
@@ -143,10 +156,8 @@ function activityLabel(
 
   const minutes =
     Math.floor(
-      (
-        Date.now() -
-        date.getTime()
-      ) /
+      (Date.now() -
+        date.getTime()) /
         60000
     );
 
@@ -176,15 +187,10 @@ function activityLabel(
   return date.toLocaleDateString(
     'en-US',
     {
-      month:
-        'short',
-
-      day:
-        'numeric',
-
+      month: 'short',
+      day: 'numeric',
       ...(date.getFullYear() !==
-      new Date()
-        .getFullYear()
+      new Date().getFullYear()
         ? {
             year:
               'numeric' as const,
@@ -194,24 +200,18 @@ function activityLabel(
   );
 }
 
-// ============================================================
-// SCHEDULE LABEL
-// ============================================================
-
 function scheduleLabel(
   value: string
 ) {
   const date =
-    new Date(
-      value
-    );
+    new Date(value);
 
   if (
     Number.isNaN(
       date.getTime()
     )
   ) {
-    return 'Donation scheduled';
+    return 'Scheduled';
   }
 
   const today =
@@ -234,138 +234,251 @@ function scheduleLabel(
         : date.toLocaleDateString(
             'en-US',
             {
-              month:
-                'short',
-
-              day:
-                'numeric',
-
-              ...(date.getFullYear() !==
-              today.getFullYear()
-                ? {
-                    year:
-                      'numeric' as const,
-                  }
-                : {}),
+              month: 'short',
+              day: 'numeric',
             }
           );
 
-  return `${day} · ${date.toLocaleTimeString(
+  return `${day}, ${date.toLocaleTimeString(
     'en-US',
     {
-      hour:
-        'numeric',
-
-      minute:
-        '2-digit',
+      hour: 'numeric',
+      minute: '2-digit',
     }
   )}`;
 }
 
-// ============================================================
-// MESSAGE PREVIEW
-// ============================================================
+// Finished conversations: the request closed, or the donor was
+// marked as a no-show.
+function isConversationClosed(
+  item: CoordinationInboxItem
+) {
+  return (
+    item.request_status !==
+      'active' ||
+    item.response_status ===
+      'no_show'
+  );
+}
 
 function previewText(
-  item:
-    CoordinationInboxItem
+  item: CoordinationInboxItem
 ) {
-  if (
-    item.latest_message
-  ) {
+  if (item.latest_message) {
     return `${
-      item.latest_message
-        .is_mine
+      item.latest_message.is_mine
         ? 'You: '
         : ''
     }${item.latest_message.message
-      .replace(
-        /\s+/g,
-        ' '
-      )
+      .replace(/\s+/g, ' ')
       .trim()}`;
-  }
-
-  if (
-    item.schedule
-  ) {
-    return scheduleLabel(
-      item.schedule
-        .scheduled_at
-    );
   }
 
   return item.request_status ===
     'active'
-    ? 'Start coordinating your donation.'
-    : 'Conversation closed · Read only';
+    ? `Say hello to ${firstName(item)}.`
+    : 'No messages';
 }
+
+// Where this donation stands, as one short line.
+function getStatus(
+  item: CoordinationInboxItem
+): {
+  icon: keyof typeof MaterialIcons.glyphMap;
+  label: string;
+  tone: 'accent' | 'green' | 'orange' | 'blue' | 'muted';
+} {
+  const donation =
+    item.donation;
+
+  if (
+    item.response_status ===
+    'no_show'
+  ) {
+    return {
+      icon: 'person-off',
+      label:
+        item.viewer_role ===
+        'requester'
+          ? `${firstName(item)} didn't show up`
+          : 'Marked as a no-show',
+      tone: 'orange',
+    };
+  }
+
+  if (
+    donation &&
+    donation.status !==
+      'rejected'
+  ) {
+    if (!donation.my_rating) {
+      return {
+        icon: 'star-outline',
+        label: `Rate ${firstName(item)}`,
+        tone: 'accent',
+      };
+    }
+
+    if (
+      donation.status ===
+      'needs_review'
+    ) {
+      return {
+        icon: 'hourglass-top',
+        label: 'Donation under review',
+        tone: 'orange',
+      };
+    }
+
+    return {
+      icon: 'task-alt',
+      label: 'Donation recorded',
+      tone: 'green',
+    };
+  }
+
+  if (
+    item.request_status !==
+    'active'
+  ) {
+    return {
+      icon: 'lock-outline',
+      label: `Request ${item.request_status}`,
+      tone: 'muted',
+    };
+  }
+
+  if (
+    donation?.status ===
+    'rejected'
+  ) {
+    return {
+      icon: 'error-outline',
+      label: 'Record not accepted',
+      tone: 'accent',
+    };
+  }
+
+  if (
+    item.trip?.status ===
+    'arrived'
+  ) {
+    return {
+      icon: 'where-to-vote',
+      label:
+        item.viewer_role ===
+        'requester'
+          ? `${firstName(item)} has arrived`
+          : 'You’ve arrived',
+      tone: 'green',
+    };
+  }
+
+  if (
+    item.trip?.status ===
+    'on_the_way'
+  ) {
+    const eta =
+      formatEta(
+        item.trip.eta_seconds
+      );
+
+    return {
+      icon: 'directions-car',
+      label:
+        item.viewer_role ===
+        'requester'
+          ? `${firstName(item)} is on the way${eta ? ` · ${eta}` : ''}`
+          : `You’re on the way${eta ? ` · ${eta}` : ''}`,
+      tone: 'blue',
+    };
+  }
+
+  if (item.schedule) {
+    return {
+      icon: 'event',
+      label: scheduleLabel(
+        item.schedule.scheduled_at
+      ),
+      tone: 'blue',
+    };
+  }
+
+  return {
+    icon: 'schedule',
+    label: 'Set a meeting time',
+    tone: 'muted',
+  };
+}
+
+const TONES = {
+  accent: {
+    color: COLORS.redButton,
+    background: COLORS.pinkLight,
+  },
+  green: {
+    color: COLORS.green,
+    background: COLORS.greenLight,
+  },
+  orange: {
+    color: COLORS.orange,
+    background: COLORS.orangeLight,
+  },
+  blue: {
+    color: COLORS.blue,
+    background: COLORS.blueLight,
+  },
+  muted: {
+    color: COLORS.muted,
+    background: COLORS.page,
+  },
+};
+
+type Filter =
+  | 'active'
+  | 'closed';
 
 // ============================================================
 // CHAT SCREEN
 // ============================================================
 
 export default function ChatScreen() {
-  // ==========================================================
-  // FONTS
-  // ==========================================================
-
-  const [
-    fontsLoaded,
-    fontError,
-  ] =
-    useFonts({
-      Poppins_600SemiBold,
-      Poppins_700Bold,
-
-      Inter_400Regular,
-      Inter_500Medium,
-      Inter_600SemiBold,
-      Inter_700Bold,
-    });
-
-  // ==========================================================
-  // STATE
-  // ==========================================================
-
   const [
     conversations,
     setConversations,
-  ] =
-    useState<
-      CoordinationInboxItem[]
-    >([]);
+  ] = useState<
+    CoordinationInboxItem[]
+  >([]);
 
   const [
     loading,
     setLoading,
-  ] =
-    useState(
-      true
-    );
+  ] = useState(true);
 
   const [
     refreshing,
     setRefreshing,
-  ] =
-    useState(
-      false
-    );
+  ] = useState(false);
 
   const [
     error,
     setError,
-  ] =
-    useState(
-      ''
-    );
+  ] = useState('');
+
+  const [
+    search,
+    setSearch,
+  ] = useState('');
+
+  const [
+    filter,
+    setFilter,
+  ] = useState<Filter>('active');
 
   const refreshRef =
     useRef<
       null | (() => void)
-    >(
-      null
-    );
+    >(null);
 
   // ==========================================================
   // LOAD CONVERSATIONS
@@ -384,19 +497,13 @@ export default function ChatScreen() {
           AbortController | null =
           null;
 
-        setLoading(
-          true
-        );
+        setLoading(true);
 
-        setError(
-          ''
-        );
+        setError('');
 
         // Prevent a previous account's cached rows
         // from staying visible during a new session.
-        setConversations(
-          []
-        );
+        setConversations([]);
 
         async function load(
           mode:
@@ -411,16 +518,12 @@ export default function ChatScreen() {
             return;
           }
 
-          busy =
-            true;
+          busy = true;
 
           if (
-            mode ===
-            'pull'
+            mode === 'pull'
           ) {
-            setRefreshing(
-              true
-            );
+            setRefreshing(true);
           }
 
           controller =
@@ -430,8 +533,7 @@ export default function ChatScreen() {
           const timeout =
             setTimeout(
               () =>
-                controller
-                  ?.abort(),
+                controller?.abort(),
               20000
             );
 
@@ -439,20 +541,14 @@ export default function ChatScreen() {
             const token =
               await getAccessToken();
 
-            if (
-              !focused
-            ) {
+            if (!focused) {
               return;
             }
 
             if (!token) {
-              setConversations(
-                []
-              );
+              setConversations([]);
 
-              router.replace(
-                '/'
-              );
+              router.replace('/');
 
               return;
             }
@@ -463,26 +559,17 @@ export default function ChatScreen() {
                 controller.signal
               );
 
-            if (
-              !focused
-            ) {
+            if (!focused) {
               return;
             }
 
             setConversations(
-              result
-                .conversations
+              result.conversations
             );
 
-            setError(
-              ''
-            );
-          } catch (
-            loadError
-          ) {
-            if (
-              !focused
-            ) {
+            setError('');
+          } catch (loadError) {
+            if (!focused) {
               return;
             }
 
@@ -492,84 +579,52 @@ export default function ChatScreen() {
               loadError.status ===
                 401
             ) {
-              setConversations(
-                []
-              );
+              setConversations([]);
 
-              router.replace(
-                '/'
-              );
+              router.replace('/');
 
               return;
             }
 
             setError(
               loadError instanceof
-                  Error &&
+                Error &&
                 loadError.name !==
                   'AbortError'
                 ? loadError.message
                 : 'The connection timed out. Pull down or tap Try again.'
             );
           } finally {
-            clearTimeout(
-              timeout
-            );
+            clearTimeout(timeout);
 
-            busy =
-              false;
+            busy = false;
 
-            if (
-              focused
-            ) {
-              setLoading(
-                false
-              );
+            if (focused) {
+              setLoading(false);
 
-              setRefreshing(
-                false
-              );
+              setRefreshing(false);
             }
           }
         }
 
-        // ----------------------------------------------------
-        // MANUAL REFRESH
-        // ----------------------------------------------------
-
         refreshRef.current =
           () => {
-            void load(
-              'pull'
-            );
+            void load('pull');
           };
 
-        // ----------------------------------------------------
-        // INITIAL LOAD
-        // ----------------------------------------------------
+        void load('initial');
 
-        void load(
-          'initial'
-        );
-
-        // ----------------------------------------------------
-        // BACKGROUND REFRESH
-        // ----------------------------------------------------
-
+        // Background refresh while the app is open.
         const interval =
           setInterval(
             () => {
               if (
-                AppState
-                  .currentState ===
+                AppState.currentState ===
                   'active' ||
-                (
-                  Platform.OS ===
-                    'web' &&
-                  AppState
-                    .currentState ==
-                    null
-                )
+                (Platform.OS ===
+                  'web' &&
+                  AppState.currentState ==
+                    null)
               ) {
                 void load(
                   'background'
@@ -579,17 +634,12 @@ export default function ChatScreen() {
             4000
           );
 
-        // ----------------------------------------------------
-        // APP RETURNS TO FOREGROUND
-        // ----------------------------------------------------
-
         const subscription =
           AppState.addEventListener(
             'change',
             state => {
               if (
-                state ===
-                'active'
+                state === 'active'
               ) {
                 void load(
                   'background'
@@ -598,22 +648,14 @@ export default function ChatScreen() {
             }
           );
 
-        // ----------------------------------------------------
-        // CLEANUP
-        // ----------------------------------------------------
-
         return () => {
-          focused =
-            false;
+          focused = false;
 
-          clearInterval(
-            interval
-          );
+          clearInterval(interval);
 
           subscription.remove();
 
-          controller
-            ?.abort();
+          controller?.abort();
 
           refreshRef.current =
             null;
@@ -624,12 +666,85 @@ export default function ChatScreen() {
   );
 
   // ==========================================================
-  // OPEN CONVERSATION
+  // FILTER + SEARCH
   // ==========================================================
 
+  const counts =
+    useMemo(
+      () => ({
+        active:
+          conversations.filter(
+            item =>
+              !isConversationClosed(
+                item
+              )
+          ).length,
+
+        closed:
+          conversations.filter(
+            item =>
+              isConversationClosed(
+                item
+              )
+          ).length,
+      }),
+      [conversations]
+    );
+
+  const unreadTotal =
+    conversations.reduce(
+      (total, item) =>
+        total +
+        (item.unread_count || 0),
+      0
+    );
+
+  const visible =
+    useMemo(() => {
+      const query =
+        search
+          .trim()
+          .toLowerCase();
+
+      return conversations.filter(
+        item => {
+          const inTab =
+            filter === 'active'
+              ? !isConversationClosed(
+                  item
+                )
+              : isConversationClosed(
+                  item
+                );
+
+          if (!inTab) {
+            return false;
+          }
+
+          if (!query) {
+            return true;
+          }
+
+          return [
+            item.other_participant
+              .full_name,
+            item.facility_name,
+            item.blood_type,
+          ]
+            .filter(Boolean)
+            .join(' ')
+            .toLowerCase()
+            .includes(query);
+        }
+      );
+    }, [
+      conversations,
+      filter,
+      search,
+    ]);
+
   function openConversation(
-    item:
-      CoordinationInboxItem
+    item: CoordinationInboxItem
   ) {
     router.push(
       `/blood-request/${item.request_id}/coordination/${item.response_id}` as any
@@ -637,14 +752,15 @@ export default function ChatScreen() {
   }
 
   // ==========================================================
-  // RENDER CONVERSATION
+  // CONVERSATION ROW
   // ==========================================================
 
   function renderConversation({
     item,
+    index,
   }: {
-    item:
-      CoordinationInboxItem;
+    item: CoordinationInboxItem;
+    index: number;
   }) {
     const person =
       item.other_participant;
@@ -656,247 +772,150 @@ export default function ChatScreen() {
     const role =
       item.viewer_role ===
       'requester'
-        ? 'Accepted Donor'
-        : 'Blood Requester';
+        ? 'Donor'
+        : 'Requester';
 
-    const closed =
-      item.request_status !==
-      'active';
+    const unread =
+      item.unread_count || 0;
+
+    const status =
+      getStatus(item);
+
+    const tone =
+      TONES[status.tone];
 
     return (
-      <TouchableOpacity
-        style={
-          styles.conversation
-        }
-        activeOpacity={
-          0.75
-        }
-        accessibilityRole="button"
-        accessibilityLabel={`Open conversation with ${name}, ${role}, ${item.blood_type}, ${item.facility_name}${closed ? ', read only' : ''}`}
-        onPress={() =>
-          openConversation(
-            item
-          )
-        }
+      <FadeInView
+        delay={Math.min(
+          index * 45,
+          270
+        )}
       >
-        {/* ================================================
-            AVATAR
-        ================================================ */}
-
-        <View
-          style={
-            styles.avatar
+        <PressableScale
+          style={styles.row}
+          accessibilityRole="button"
+          accessibilityLabel={`Conversation with ${name}, ${role}, ${item.blood_type}, ${item.facility_name}. ${status.label}.${unread ? ` ${unread} unread.` : ''}`}
+          onPress={() =>
+            openConversation(item)
           }
         >
-          <Text
-            style={
-              styles.avatarText
+          <PersonAvatar
+            uri={
+              item.other_participant
+                ?.profile_photo_url
             }
+            label={initials(name)}
+            style={styles.avatar}
+            textStyle={styles.avatarText}
           >
-            {
-              initials(
-                name
-              )
-            }
-          </Text>
-        </View>
-
-        {/* ================================================
-            CONVERSATION BODY
-        ================================================ */}
-
-        <View
-          style={
-            styles.conversationBody
-          }
-        >
-          {/* NAME + TIME */}
-
-          <View
-            style={
-              styles.nameRow
-            }
-          >
-            <Text
-              numberOfLines={
-                1
-              }
-              style={
-                styles.personName
-              }
-            >
-              {name}
-            </Text>
-
-            <Text
-              style={
-                styles.time
-              }
-            >
-              {activityLabel(
-                item.last_activity_at
-              )}
-            </Text>
-          </View>
-
-          {/* ROLE */}
-
-          <View
-            style={
-              styles.roleRow
-            }
-          >
-            <Text
-              style={
-                styles.role
-              }
-            >
-              {role}
-            </Text>
-
-            {person.role ===
-              'donor' &&
-            person.verified ? (
-              <MaterialIcons
-                name="verified"
-                size={15}
-                color={
-                  COLORS.green
-                }
-                accessibilityLabel="Verified donor"
-                accessible
-              />
+            {unread > 0 ? (
+              <View style={styles.avatarDot} />
             ) : null}
-          </View>
+          </PersonAvatar>
 
-          {/* REQUEST */}
-
-          <View
-            style={
-              styles.requestRow
-            }
-          >
-            <View
-              style={
-                styles.bloodBadge
-              }
-            >
+          <View style={styles.rowBody}>
+            <View style={styles.rowTop}>
               <Text
-                style={
-                  styles.bloodText
-                }
+                numberOfLines={1}
+                style={[
+                  styles.name,
+
+                  unread > 0 &&
+                    styles.nameUnread,
+                ]}
               >
-                {
-                  item.blood_type
-                }
+                {name}
+              </Text>
+
+              {person.role ===
+                'donor' &&
+              person.verified ? (
+                <MaterialIcons
+                  name="verified"
+                  size={14}
+                  color={COLORS.green}
+                  accessibilityLabel="Verified donor"
+                />
+              ) : null}
+
+              <Text
+                style={[
+                  styles.time,
+
+                  unread > 0 &&
+                    styles.timeUnread,
+                ]}
+              >
+                {activityLabel(
+                  item.last_activity_at
+                )}
               </Text>
             </View>
 
             <Text
-              numberOfLines={
-                1
-              }
-              style={
-                styles.facility
-              }
+              numberOfLines={1}
+              style={styles.meta}
             >
-              {
-                item.facility_name
-              }
+              {role} · {item.blood_type} · {item.facility_name}
             </Text>
-          </View>
 
-          {/* PREVIEW */}
+            <View style={styles.previewRow}>
+              <Text
+                numberOfLines={1}
+                style={[
+                  styles.preview,
 
-          <Text
-            numberOfLines={
-              2
-            }
-            style={
-              styles.preview
-            }
-          >
-            {previewText(
-              item
-            )}
-          </Text>
+                  unread > 0 &&
+                    styles.previewUnread,
+                ]}
+              >
+                {previewText(item)}
+              </Text>
 
-          {/* CLOSED */}
+              {unread > 0 ? (
+                <View style={styles.unreadBadge}>
+                  <Text style={styles.unreadText}>
+                    {unread > 9
+                      ? '9+'
+                      : unread}
+                  </Text>
+                </View>
+              ) : null}
+            </View>
 
-          {closed ? (
             <View
-              style={
-                styles.closedRow
-              }
+              style={[
+                styles.status,
+
+                {
+                  backgroundColor:
+                    tone.background,
+                },
+              ]}
             >
               <MaterialIcons
-                name="lock-outline"
-                size={12}
-                color={
-                  COLORS.muted
-                }
+                name={status.icon}
+                size={13}
+                color={tone.color}
               />
 
               <Text
-                style={
-                  styles.closedText
-                }
+                numberOfLines={1}
+                style={[
+                  styles.statusText,
+
+                  {
+                    color:
+                      tone.color,
+                  },
+                ]}
               >
-                {item.request_status
-                  .charAt(0)
-                  .toUpperCase() +
-                  item.request_status.slice(
-                    1
-                  )}{' '}
-                · Read only
+                {status.label}
               </Text>
             </View>
-          ) : null}
-        </View>
-      </TouchableOpacity>
-    );
-  }
-
-  // ==========================================================
-  // FONT ERROR
-  // ==========================================================
-
-  if (
-    fontError
-  ) {
-    return (
-      <SafeAreaView
-        style={
-          styles.fontFallback
-        }
-      >
-        <Text>
-          Unable to load the screen fonts. Please reload Hemo-Hero.
-        </Text>
-      </SafeAreaView>
-    );
-  }
-
-  // ==========================================================
-  // FONT LOADING
-  // ==========================================================
-
-  if (
-    !fontsLoaded
-  ) {
-    return (
-      <SafeAreaView
-        style={
-          styles.fontFallback
-        }
-      >
-        <ActivityIndicator
-          color={
-            COLORS.red
-          }
-          accessibilityLabel="Loading screen"
-        />
-      </SafeAreaView>
+          </View>
+        </PressableScale>
+      </FadeInView>
     );
   }
 
@@ -905,20 +924,10 @@ export default function ChatScreen() {
   // ==========================================================
 
   return (
-    <View
-      style={
-        styles.desktopBackground
-      }
-    >
-      <View
-        style={
-          styles.phone
-        }
-      >
+    <View style={styles.desktopBackground}>
+      <View style={styles.phone}>
         <SafeAreaView
-          style={
-            styles.safeArea
-          }
+          style={styles.safeArea}
           edges={[
             'top',
             'bottom',
@@ -926,184 +935,190 @@ export default function ChatScreen() {
             'right',
           ]}
         >
-          <StatusBar
-            style="light"
-          />
+          <StatusBar style="light" />
 
-          {/* ==================================================
-              HEADER
-          ================================================== */}
+          {/* HEADER (same as the Requests tab) */}
 
           <LinearGradient
             colors={[
-              COLORS.red,
+              '#CF1115',
               COLORS.redDark,
             ]}
-            style={
-              styles.header
-            }
+            style={styles.header}
           >
-            <TouchableOpacity
-              accessibilityRole="button"
-              accessibilityLabel="Back to Home"
-              style={
-                styles.headerButton
-              }
-              onPress={() =>
-                router.replace(
-                  '/dashboard' as any
-                )
-              }
-            >
-              <MaterialIcons
-                name="arrow-back"
-                size={24}
-                color={
-                  COLORS.white
-                }
-              />
-            </TouchableOpacity>
+            <View style={styles.headerCircleLeft} />
 
-            <View
-              style={
-                styles.headerText
-              }
-            >
-              <Text
-                style={
-                  styles.eyebrow
-                }
-              >
-                CHAT
-              </Text>
+            <View style={styles.headerCircleRight} />
 
-              <Text
-                accessibilityRole="header"
-                style={
-                  styles.title
-                }
-              >
-                Donation Conversations
-              </Text>
-            </View>
-          </LinearGradient>
-
-          {/* ==================================================
-              CONTENT
-          ================================================== */}
-
-          <View
-            style={
-              styles.content
-            }
-          >
-            {/* ================================================
-                INTRO
-            ================================================ */}
-
-            <View
-              style={
-                styles.intro
-              }
-            >
-              <Text
-                style={
-                  styles.introText
-                }
-              >
-                Coordinate with your accepted donors and requesters.
-              </Text>
-
-              {!loading &&
-              !error ? (
-                <Text
-                  style={
-                    styles.count
-                  }
-                >
-                  {
-                    conversations.length
-                  }{' '}
-                  {conversations.length ===
-                  1
-                    ? 'conversation'
-                    : 'conversations'}
+            <View style={styles.headerTop}>
+              <View style={styles.headerText}>
+                <Text style={styles.eyebrow}>
+                  CHAT
                 </Text>
+
+                <Text
+                  accessibilityRole="header"
+                  style={styles.title}
+                >
+                  Messages
+                </Text>
+
+                <Text style={styles.subtitle}>
+                  Coordinate your donations
+                </Text>
+              </View>
+
+              {unreadTotal > 0 ? (
+                <FadeInView
+                  key={unreadTotal}
+                  offset={0}
+                  style={styles.newPill}
+                >
+                  <View style={styles.newDot} />
+
+                  <Text style={styles.newText}>
+                    {unreadTotal} new
+                  </Text>
+                </FadeInView>
               ) : null}
             </View>
 
-            {/* ================================================
-                REFRESH WARNING
-            ================================================ */}
+            <View style={styles.searchBox}>
+              <MaterialIcons
+                name="search"
+                size={20}
+                color={COLORS.lightMuted}
+              />
 
+              <TextInput
+                value={search}
+                onChangeText={setSearch}
+                placeholder="Search name or place"
+                placeholderTextColor={COLORS.lightMuted}
+                returnKeyType="search"
+                style={styles.searchInput}
+              />
+
+              {search ? (
+                <TouchableOpacity
+                  accessibilityLabel="Clear search"
+                  onPress={() =>
+                    setSearch('')
+                  }
+                >
+                  <MaterialIcons
+                    name="close"
+                    size={18}
+                    color={COLORS.muted}
+                  />
+                </TouchableOpacity>
+              ) : null}
+            </View>
+          </LinearGradient>
+
+          {/* CONTENT */}
+
+          <View style={styles.content}>
+            <View style={styles.tabBar}>
+              {(
+                [
+                  'active',
+                  'closed',
+                ] as const
+              ).map(value => {
+                const selected =
+                  filter === value;
+
+                return (
+                  <TouchableOpacity
+                    key={value}
+                    style={[
+                      styles.tabButton,
+
+                      selected &&
+                        styles.tabButtonActive,
+                    ]}
+                    activeOpacity={0.8}
+                    accessibilityState={{
+                      selected,
+                    }}
+                    onPress={() =>
+                      setFilter(value)
+                    }
+                  >
+                    <MaterialIcons
+                      name={
+                        value === 'active'
+                          ? 'forum'
+                          : 'lock-outline'
+                      }
+                      size={16}
+                      color={
+                        selected
+                          ? COLORS.redButton
+                          : COLORS.muted
+                      }
+                    />
+
+                    <Text
+                      style={[
+                        styles.tabText,
+
+                        selected &&
+                          styles.tabTextActive,
+                      ]}
+                    >
+                      {value === 'active'
+                        ? 'Active'
+                        : 'Closed'}
+                    </Text>
+
+                    <View style={styles.tabCount}>
+                      <Text style={styles.tabCountText}>
+                        {counts[value]}
+                      </Text>
+                    </View>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
             {error &&
-            conversations.length >
-              0 ? (
+            conversations.length > 0 ? (
               <TouchableOpacity
                 accessibilityRole="button"
-                accessibilityLabel="Refresh conversations"
-                style={
-                  styles.refreshWarning
-                }
+                style={styles.warning}
                 onPress={() =>
                   refreshRef.current?.()
                 }
               >
                 <MaterialIcons
                   name="refresh"
-                  size={18}
-                  color={
-                    COLORS.redButton
-                  }
+                  size={17}
+                  color={COLORS.redButton}
                 />
 
-                <Text
-                  style={
-                    styles.warningText
-                  }
-                >
+                <Text style={styles.warningText}>
                   Couldn’t refresh. Tap to try again.
                 </Text>
               </TouchableOpacity>
             ) : null}
 
-            {/* ================================================
-                LOADING
-            ================================================ */}
-
             {loading ? (
-              <View
-                style={
-                  styles.centerState
-                }
-              >
+              <View style={styles.centerState}>
                 <ActivityIndicator
                   size="large"
-                  color={
-                    COLORS.red
-                  }
+                  color={COLORS.redButton}
                 />
 
-                <Text
-                  style={
-                    styles.stateDescription
-                  }
-                >
+                <Text style={styles.stateText}>
                   Loading your conversations…
                 </Text>
               </View>
             ) : (
-              // ===============================================
-              // CONVERSATION LIST
-              // ===============================================
-
               <FlatList
-                data={
-                  conversations
-                }
-                keyExtractor={
-                  item =>
-                    item.response_id
+                data={visible}
+                keyExtractor={item =>
+                  item.response_id
                 }
                 renderItem={
                   renderConversation
@@ -1111,14 +1126,13 @@ export default function ChatScreen() {
                 showsVerticalScrollIndicator={
                   false
                 }
-                style={
-                  styles.list
-                }
+                keyboardShouldPersistTaps="handled"
+                style={styles.list}
                 contentContainerStyle={[
                   styles.listContent,
 
-                  !conversations.length &&
-                    styles.emptyList,
+                  !visible.length &&
+                    styles.listEmpty,
                 ]}
                 refreshControl={
                   <RefreshControl
@@ -1129,96 +1143,76 @@ export default function ChatScreen() {
                       refreshRef.current?.()
                     }
                     tintColor={
-                      COLORS.red
+                      COLORS.redButton
                     }
                     colors={[
-                      COLORS.red,
+                      COLORS.redButton,
                     ]}
                   />
                 }
                 ListEmptyComponent={
-                  <View
-                    style={
-                      styles.centerState
-                    }
+                  <FadeInView
+                    style={styles.centerState}
                   >
-                    <View
-                      style={
-                        styles.emptyIcon
-                      }
-                    >
+                    <View style={styles.emptyIcon}>
                       <MaterialIcons
                         name={
                           error
                             ? 'cloud-off'
-                            : 'chat-bubble-outline'
+                            : search
+                              ? 'search-off'
+                              : 'chat-bubble-outline'
                         }
-                        size={30}
-                        color={
-                          COLORS.redButton
-                        }
+                        size={28}
+                        color={COLORS.redButton}
                       />
                     </View>
 
                     <Text
                       accessibilityRole="header"
-                      style={
-                        styles.stateTitle
-                      }
+                      style={styles.stateTitle}
                     >
                       {error
                         ? 'Unable to load conversations'
-                        : 'No conversations yet'}
+                        : search
+                          ? 'No matches'
+                          : filter ===
+                              'active'
+                            ? 'No active conversations'
+                            : 'No closed conversations'}
                     </Text>
 
-                    <Text
-                      style={
-                        styles.stateDescription
-                      }
-                    >
+                    <Text style={styles.stateText}>
                       {error ||
-                        'A conversation appears here when a donor offer is accepted. You can be a requester or a donor.'}
+                        (search
+                          ? 'Try a different name or place.'
+                          : filter ===
+                              'active'
+                            ? 'A conversation starts when a donor offer is accepted, as a requester or a donor.'
+                            : 'Finished, cancelled, and no-show conversations appear here.')}
                     </Text>
 
-                    <TouchableOpacity
-                      accessibilityRole="button"
-                      style={
-                        styles.stateButton
-                      }
-                      activeOpacity={
-                        0.85
-                      }
-                      onPress={() =>
-                        error
-                          ? refreshRef.current?.()
-                          : router.replace(
-                              '/dashboard' as any
-                            )
-                      }
-                    >
-                      <Text
-                        style={
-                          styles.stateButtonText
+                    {error ? (
+                      <TouchableOpacity
+                        accessibilityRole="button"
+                        style={styles.stateButton}
+                        activeOpacity={0.85}
+                        onPress={() =>
+                          refreshRef.current?.()
                         }
                       >
-                        {error
-                          ? 'Try again'
-                          : 'Back to Home'}
-                      </Text>
-                    </TouchableOpacity>
-                  </View>
+                        <Text style={styles.stateButtonText}>
+                          Try Again
+                        </Text>
+                      </TouchableOpacity>
+                    ) : null}
+                  </FadeInView>
                 }
               />
             )}
           </View>
 
-          {/* ==================================================
-              SHARED BOTTOM NAVIGATION
-          ================================================== */}
-
-          <MainBottomNav
-            activeTab="chat"
-          />
+          <MainBottomNav activeTab="chat" />
         </SafeAreaView>
       </View>
     </View>
@@ -1229,637 +1223,425 @@ export default function ChatScreen() {
 // STYLES
 // ============================================================
 
-const styles =
-  StyleSheet.create({
-    desktopBackground: {
-      flex:
-        1,
+const styles = StyleSheet.create({
+  desktopBackground: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor:
+      Platform.OS === 'web'
+        ? '#242424'
+        : COLORS.page,
+  },
 
-      alignItems:
-        'center',
+  phone: {
+    width: '100%',
+    height: '100%',
+    maxWidth:
+      Platform.OS === 'web'
+        ? 440
+        : undefined,
+    overflow: 'hidden',
+    backgroundColor: COLORS.page,
+  },
 
-      justifyContent:
-        'center',
+  safeArea: {
+    flex: 1,
+    backgroundColor: COLORS.redDark,
+  },
 
-      backgroundColor:
-        Platform.OS ===
-        'web'
-          ? '#242424'
-          : COLORS.page,
+  // HEADER (same as the Requests tab)
+
+  header: {
+    paddingHorizontal: 20,
+    paddingTop: 18,
+    paddingBottom: 16,
+    overflow: 'hidden',
+  },
+
+  headerCircleLeft: {
+    position: 'absolute',
+    width: 170,
+    height: 170,
+    borderRadius: 85,
+    left: -95,
+    top: -105,
+    backgroundColor: 'rgba(255,255,255,0.07)',
+  },
+
+  headerCircleRight: {
+    position: 'absolute',
+    width: 180,
+    height: 180,
+    borderRadius: 90,
+    right: -100,
+    top: -110,
+    backgroundColor: 'rgba(255,255,255,0.07)',
+  },
+
+  headerTop: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+
+  headerText: {
+    flex: 1,
+    minWidth: 0,
+  },
+
+  eyebrow: {
+    marginBottom: 3,
+    color: 'rgba(255,255,255,0.82)',
+    fontFamily: 'Inter_500Medium',
+    fontSize: 11,
+    letterSpacing: 1.3,
+  },
+
+  title: {
+    color: COLORS.white,
+    fontFamily: 'Poppins_700Bold',
+    fontSize: 22,
+  },
+
+  subtitle: {
+    marginTop: 2,
+    color: 'rgba(255,255,255,0.82)',
+    fontFamily: 'Inter_400Regular',
+    fontSize: 12.5,
+  },
+
+  newPill: {
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    borderRadius: 14,
+    backgroundColor: 'rgba(255,255,255,0.18)',
+  },
+
+  newDot: {
+    width: 7,
+    height: 7,
+    borderRadius: 4,
+    backgroundColor: COLORS.white,
+  },
+
+  newText: {
+    color: COLORS.white,
+    fontFamily: 'Inter_600SemiBold',
+    fontSize: 12,
+  },
+
+  searchBox: {
+    height: 46,
+    marginTop: 14,
+    paddingHorizontal: 13,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    borderRadius: 13,
+    backgroundColor: COLORS.white,
+  },
+
+  searchInput: {
+    flex: 1,
+    height: '100%',
+    color: COLORS.black,
+    fontFamily: 'Inter_400Regular',
+    fontSize: 13.5,
+    outlineStyle:
+      Platform.OS === 'web'
+        ? 'none'
+        : undefined,
+  } as any,
+
+  // TABS (same as the Requests tab)
+
+  tabBar: {
+    minHeight: 52,
+    marginHorizontal: 16,
+    marginTop: 14,
+    padding: 4,
+    flexDirection: 'row',
+    borderRadius: 14,
+    backgroundColor: '#ECE5E5',
+  },
+
+  tabButton: {
+    flex: 1,
+    minWidth: 0,
+    paddingHorizontal: 3,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 5,
+    borderRadius: 11,
+  },
+
+  tabButtonActive: {
+    backgroundColor: COLORS.white,
+    shadowColor: '#000000',
+    shadowOffset: {
+      width: 0,
+      height: 1,
     },
-
-    phone: {
-      width:
-        '100%',
-
-      height:
-        '100%',
-
-      maxWidth:
-        Platform.OS ===
-        'web'
-          ? 440
-          : undefined,
-
-      maxHeight:
-        Platform.OS ===
-        'web'
-          ? '100%'
-          : undefined,
-
-      backgroundColor:
-        COLORS.page,
-
-      overflow:
-        'hidden',
-    },
-
-    safeArea: {
-      flex:
-        1,
-
-      backgroundColor:
-        COLORS.redDark,
-    },
-
-    fontFallback: {
-      flex:
-        1,
-
-      alignItems:
-        'center',
-
-      justifyContent:
-        'center',
-
-      padding:
-        24,
-
-      backgroundColor:
-        COLORS.white,
-    },
-
-    // ========================================================
-    // HEADER
-    // ========================================================
-
-    header: {
-      minHeight:
-        104,
-
-      flexDirection:
-        'row',
-
-      alignItems:
-        'center',
-
-      paddingHorizontal:
-        12,
-
-      paddingVertical:
-        20,
-    },
-
-    headerButton: {
-      width:
-        40,
-
-      height:
-        44,
-
-      alignItems:
-        'center',
-
-      justifyContent:
-        'center',
-
-      marginRight:
-        8,
-    },
-
-    headerText: {
-      flex:
-        1,
-
-      minWidth:
-        0,
-    },
-
-    eyebrow: {
-      fontFamily:
-        'Inter_500Medium',
-
-      fontSize:
-        11,
-
-      letterSpacing:
-        1.4,
-
-      color:
-        COLORS.white,
-
-      marginBottom:
-        6,
-    },
-
-    title: {
-      fontFamily:
-        'Poppins_600SemiBold',
-
-      fontSize:
-        20,
-
-      lineHeight:
-        29,
-
-      color:
-        COLORS.white,
-    },
-
-    // ========================================================
-    // CONTENT
-    // ========================================================
-
-    content: {
-      flex:
-        1,
-
-      backgroundColor:
-        COLORS.page,
-    },
-
-    intro: {
-      paddingHorizontal:
-        20,
-
-      paddingTop:
-        20,
-
-      paddingBottom:
-        14,
-    },
-
-    introText: {
-      fontFamily:
-        'Inter_400Regular',
-
-      fontSize:
-        14,
-
-      lineHeight:
-        21,
-
-      color:
-        COLORS.muted,
-    },
-
-    count: {
-      fontFamily:
-        'Inter_500Medium',
-
-      fontSize:
-        12,
-
-      color:
-        COLORS.muted,
-
-      marginTop:
-        10,
-    },
-
-    // ========================================================
-    // LIST
-    // ========================================================
-
-    list: {
-      flex:
-        1,
-    },
-
-    listContent: {
-      paddingHorizontal:
-        16,
-
-      paddingBottom:
-        20,
-    },
-
-    emptyList: {
-      flexGrow:
-        1,
-    },
-
-    // ========================================================
-    // CONVERSATION
-    // ========================================================
-
-    conversation: {
-      flexDirection:
-        'row',
-
-      padding:
-        16,
-
-      marginBottom:
-        12,
-
-      borderRadius:
-        18,
-
-      borderWidth:
-        1,
-
-      borderColor:
-        COLORS.border,
-
-      backgroundColor:
-        COLORS.white,
-    },
-
-    avatar: {
-      width:
-        44,
-
-      height:
-        44,
-
-      borderRadius:
-        22,
-
-      marginRight:
-        12,
-
-      alignItems:
-        'center',
-
-      justifyContent:
-        'center',
-
-      backgroundColor:
-        COLORS.pink,
-    },
-
-    avatarText: {
-      fontFamily:
-        'Inter_600SemiBold',
-
-      fontSize:
-        14,
-
-      color:
-        COLORS.redButton,
-    },
-
-    conversationBody: {
-      flex:
-        1,
-
-      minWidth:
-        0,
-    },
-
-    nameRow: {
-      flexDirection:
-        'row',
-
-      alignItems:
-        'baseline',
-
-      gap:
-        8,
-    },
-
-    personName: {
-      flex:
-        1,
-
-      fontFamily:
-        'Poppins_600SemiBold',
-
-      fontSize:
-        14,
-
-      lineHeight:
-        21,
-
-      color:
-        COLORS.black,
-    },
-
-    time: {
-      fontFamily:
-        'Inter_400Regular',
-
-      fontSize:
-        11,
-
-      color:
-        COLORS.muted,
-
-      flexShrink:
-        0,
-    },
-
-    roleRow: {
-      flexDirection:
-        'row',
-
-      alignItems:
-        'center',
-
-      flexWrap:
-        'wrap',
-
-      gap:
-        5,
-
-      marginTop:
-        3,
-    },
-
-    role: {
-      fontFamily:
-        'Inter_400Regular',
-
-      fontSize:
-        12,
-
-      lineHeight:
-        18,
-
-      color:
-        COLORS.muted,
-    },
-
-    requestRow: {
-      flexDirection:
-        'row',
-
-      alignItems:
-        'center',
-
-      marginTop:
-        10,
-
-      gap:
-        7,
-    },
-
-    bloodBadge: {
-      paddingHorizontal:
-        7,
-
-      paddingVertical:
-        3,
-
-      borderRadius:
-        6,
-
-      backgroundColor:
-        COLORS.pink,
-    },
-
-    bloodText: {
-      fontFamily:
-        'Inter_600SemiBold',
-
-      fontSize:
-        11,
-
-      color:
-        COLORS.redButton,
-    },
-
-    facility: {
-      flex:
-        1,
-
-      minWidth:
-        0,
-
-      fontFamily:
-        'Inter_400Regular',
-
-      fontSize:
-        12,
-
-      lineHeight:
-        18,
-
-      color:
-        COLORS.muted,
-    },
-
-    preview: {
-      fontFamily:
-        'Inter_400Regular',
-
-      fontSize:
-        14,
-
-      lineHeight:
-        21,
-
-      color:
-        COLORS.black,
-
-      marginTop:
-        10,
-    },
-
-    closedRow: {
-      flexDirection:
-        'row',
-
-      alignItems:
-        'center',
-
-      gap:
-        5,
-
-      marginTop:
-        9,
-    },
-
-    closedText: {
-      fontFamily:
-        'Inter_400Regular',
-
-      fontSize:
-        11,
-
-      color:
-        COLORS.muted,
-    },
-
-    // ========================================================
-    // EMPTY / LOADING STATE
-    // ========================================================
-
-    centerState: {
-      flex:
-        1,
-
-      alignItems:
-        'center',
-
-      justifyContent:
-        'center',
-
-      paddingHorizontal:
-        22,
-
-      paddingVertical:
-        30,
-    },
-
-    emptyIcon: {
-      width:
-        64,
-
-      height:
-        64,
-
-      borderRadius:
-        22,
-
-      backgroundColor:
-        COLORS.pink,
-
-      alignItems:
-        'center',
-
-      justifyContent:
-        'center',
-
-      marginBottom:
-        16,
-    },
-
-    stateTitle: {
-      fontFamily:
-        'Poppins_600SemiBold',
-
-      fontSize:
-        17,
-
-      lineHeight:
-        25,
-
-      textAlign:
-        'center',
-
-      color:
-        COLORS.black,
-    },
-
-    stateDescription: {
-      fontFamily:
-        'Inter_400Regular',
-
-      fontSize:
-        14,
-
-      lineHeight:
-        22,
-
-      color:
-        COLORS.muted,
-
-      textAlign:
-        'center',
-
-      marginTop:
-        10,
-    },
-
-    stateButton: {
-      minHeight:
-        46,
-
-      paddingHorizontal:
-        22,
-
-      paddingVertical:
-        12,
-
-      marginTop:
-        20,
-
-      borderRadius:
-        12,
-
-      backgroundColor:
-        COLORS.redButton,
-
-      alignItems:
-        'center',
-
-      justifyContent:
-        'center',
-    },
-
-    stateButtonText: {
-      fontFamily:
-        'Inter_500Medium',
-
-      fontSize:
-        14,
-
-      color:
-        COLORS.white,
-    },
-
-    // ========================================================
-    // REFRESH WARNING
-    // ========================================================
-
-    refreshWarning: {
-      minHeight:
-        44,
-
-      marginHorizontal:
-        16,
-
-      marginBottom:
-        12,
-
-      paddingHorizontal:
-        12,
-
-      paddingVertical:
-        10,
-
-      flexDirection:
-        'row',
-
-      alignItems:
-        'center',
-
-      gap:
-        8,
-
-      backgroundColor:
-        COLORS.pink,
-
-      borderRadius:
-        10,
-    },
-
-    warningText: {
-      flex:
-        1,
-
-      fontFamily:
-        'Inter_400Regular',
-
-      fontSize:
-        12,
-
-      lineHeight:
-        18,
-
-      color:
-        COLORS.redButton,
-    },
-  });
+    shadowOpacity: 0.07,
+    shadowRadius: 3,
+    elevation: 2,
+  },
+
+  tabText: {
+    color: COLORS.muted,
+    fontFamily: 'Inter_600SemiBold',
+    fontSize: 12.5,
+  },
+
+  tabTextActive: {
+    color: COLORS.redButton,
+  },
+
+  tabCount: {
+    minWidth: 19,
+    height: 19,
+    paddingHorizontal: 4,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: COLORS.pinkLight,
+  },
+
+  tabCountText: {
+    color: COLORS.redButton,
+    fontFamily: 'Inter_600SemiBold',
+    fontSize: 11,
+  },
+
+  // CONTENT
+
+  content: {
+    flex: 1,
+    backgroundColor: COLORS.page,
+  },
+
+  warning: {
+    marginHorizontal: 16,
+    marginTop: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    borderRadius: 12,
+    backgroundColor: COLORS.pinkLight,
+  },
+
+  warningText: {
+    flex: 1,
+    color: COLORS.redButton,
+    fontFamily: 'Inter_500Medium',
+    fontSize: 12.5,
+  },
+
+  list: {
+    flex: 1,
+  },
+
+  listContent: {
+    paddingHorizontal: 16,
+    paddingTop: 12,
+    paddingBottom: 20,
+  },
+
+  listEmpty: {
+    flexGrow: 1,
+  },
+
+  row: {
+    marginBottom: 10,
+    padding: 13,
+    flexDirection: 'row',
+    gap: 12,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: COLORS.cardBorder,
+    backgroundColor: COLORS.white,
+  },
+
+  avatar: {
+    width: 46,
+    height: 46,
+    borderRadius: 23,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: COLORS.tileBorder,
+    backgroundColor: COLORS.pinkLight,
+  },
+
+  avatarText: {
+    color: COLORS.redButton,
+    fontFamily: 'Poppins_600SemiBold',
+    fontSize: 15,
+  },
+
+  avatarDot: {
+    position: 'absolute',
+    top: 0,
+    right: 0,
+    width: 12,
+    height: 12,
+    borderRadius: 6,
+    borderWidth: 2,
+    borderColor: COLORS.white,
+    backgroundColor: COLORS.red,
+  },
+
+  rowBody: {
+    flex: 1,
+    minWidth: 0,
+  },
+
+  rowTop: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+
+  name: {
+    flexShrink: 1,
+    color: COLORS.black,
+    fontFamily: 'Inter_600SemiBold',
+    fontSize: 14,
+  },
+
+  nameUnread: {
+    fontFamily: 'Poppins_600SemiBold',
+  },
+
+  time: {
+    marginLeft: 'auto',
+    paddingLeft: 8,
+    color: COLORS.lightMuted,
+    fontFamily: 'Inter_400Regular',
+    fontSize: 11.5,
+  },
+
+  timeUnread: {
+    color: COLORS.redButton,
+    fontFamily: 'Inter_600SemiBold',
+  },
+
+  meta: {
+    marginTop: 1,
+    color: COLORS.muted,
+    fontFamily: 'Inter_400Regular',
+    fontSize: 12,
+  },
+
+  previewRow: {
+    marginTop: 6,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+
+  preview: {
+    flex: 1,
+    color: COLORS.muted,
+    fontFamily: 'Inter_400Regular',
+    fontSize: 13,
+  },
+
+  previewUnread: {
+    color: COLORS.black,
+    fontFamily: 'Inter_600SemiBold',
+  },
+
+  unreadBadge: {
+    minWidth: 20,
+    height: 20,
+    paddingHorizontal: 6,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 10,
+    backgroundColor: COLORS.red,
+  },
+
+  unreadText: {
+    color: COLORS.white,
+    fontFamily: 'Inter_700Bold',
+    fontSize: 11,
+  },
+
+  status: {
+    marginTop: 9,
+    alignSelf: 'flex-start',
+    maxWidth: '100%',
+    paddingHorizontal: 9,
+    paddingVertical: 4,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    borderRadius: 10,
+  },
+
+  statusText: {
+    flexShrink: 1,
+    fontFamily: 'Inter_600SemiBold',
+    fontSize: 11.5,
+  },
+
+  // STATES
+
+  centerState: {
+    flex: 1,
+    paddingHorizontal: 32,
+    paddingVertical: 40,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  emptyIcon: {
+    width: 60,
+    height: 60,
+    marginBottom: 12,
+    borderRadius: 30,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: COLORS.pinkLight,
+  },
+
+  stateTitle: {
+    color: COLORS.black,
+    fontFamily: 'Poppins_600SemiBold',
+    fontSize: 15,
+    textAlign: 'center',
+  },
+
+  stateText: {
+    marginTop: 6,
+    color: COLORS.muted,
+    fontFamily: 'Inter_400Regular',
+    fontSize: 12.5,
+    lineHeight: 18,
+    textAlign: 'center',
+  },
+
+  stateButton: {
+    height: 42,
+    marginTop: 16,
+    paddingHorizontal: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 11,
+    backgroundColor: COLORS.redButton,
+  },
+
+  stateButtonText: {
+    color: COLORS.white,
+    fontFamily: 'Poppins_600SemiBold',
+    fontSize: 13.5,
+  },
+});

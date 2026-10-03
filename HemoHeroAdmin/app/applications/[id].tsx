@@ -2,7 +2,6 @@ import {
   type ComponentProps,
   type ReactNode,
   useCallback,
-  useMemo,
   useState,
 } from 'react';
 
@@ -16,7 +15,6 @@ import {
   StyleSheet,
   Text,
   TextInput,
-  useWindowDimensions,
   View,
 } from 'react-native';
 
@@ -32,7 +30,11 @@ import {
 import { StatusBar } from 'expo-status-bar';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import AdminHeader from '../AdminHeader';
+import { useAdminCanvas } from '../../components/AdminCanvas';
+
+import AdminHeader from '../../components/AdminHeader';
+
+import { FadeInView } from '../../components/AdminMotion';
 
 import {
   approveDonorApplication,
@@ -49,11 +51,8 @@ import {
 } from '../../lib/session';
 
 // ============================================================
-// DESIGN
+// COLORS
 // ============================================================
-
-const DESIGN_WIDTH = 1366;
-const DESIGN_HEIGHT = 1024;
 
 const COLORS = {
   outer: '#02040A',
@@ -165,85 +164,13 @@ export default function ApplicationReviewScreen() {
       id: string;
     }>();
 
-  const {
-    width,
-    height,
-  } =
-    useWindowDimensions();
 
   // ==========================================================
   // RESPONSIVE IPAD CANVAS
   // ==========================================================
 
   const tablet =
-    useMemo(
-      () => {
-        if (
-          Platform.OS !==
-          'web'
-        ) {
-          return {
-            width,
-            height,
-
-            scale:
-              Math.min(
-                width /
-                  DESIGN_WIDTH,
-
-                height /
-                  DESIGN_HEIGHT
-              ),
-          };
-        }
-
-        const padding =
-          24;
-
-        const availableWidth =
-          Math.max(
-            width -
-              padding * 2,
-
-            320
-          );
-
-        const availableHeight =
-          Math.max(
-            height -
-              padding * 2,
-
-            320
-          );
-
-        const scale =
-          Math.min(
-            availableWidth /
-              DESIGN_WIDTH,
-
-            availableHeight /
-              DESIGN_HEIGHT,
-
-            1
-          );
-
-        return {
-          width:
-            DESIGN_WIDTH *
-            scale,
-
-          height:
-            DESIGN_HEIGHT *
-            scale,
-
-          scale,
-        };
-      },
-      [
-        width,
-        height,
-      ]
-    );
+    useAdminCanvas();
 
   // ==========================================================
   // SCALE
@@ -256,12 +183,6 @@ export default function ApplicationReviewScreen() {
     );
 
   const fs =
-    Math.max(
-      tablet.scale,
-      0.9
-    );
-
-  const headerFs =
     Math.max(
       tablet.scale,
       0.92
@@ -455,6 +376,33 @@ export default function ApplicationReviewScreen() {
     'A';
 
   // ==========================================================
+  // WAITING TIME (pending only)
+  // ==========================================================
+
+  const submittedTime =
+    new Date(
+      application?.submitted_at ||
+        application?.created_at ||
+        ''
+    ).getTime();
+
+  const waitingDays =
+    application?.status ===
+      'pending' &&
+    !Number.isNaN(
+      submittedTime
+    )
+      ? Math.max(
+          0,
+          Math.floor(
+            (Date.now() -
+              submittedTime) /
+              (24 * 60 * 60 * 1000)
+          )
+        )
+      : null;
+
+  // ==========================================================
   // CUSTOM ACTION MODAL
   // ==========================================================
 
@@ -553,6 +501,46 @@ export default function ApplicationReviewScreen() {
       action
     ) {
       void action();
+    }
+  }
+
+  // ==========================================================
+  // BLOOD TYPE PROOF
+  // ==========================================================
+
+  async function handleViewBloodTypeProof() {
+    const url =
+      application
+        ?.blood_type_proof
+        ?.url;
+
+    if (!url) {
+      showMessage(
+        'Blood Type Proof',
+        'No blood type proof is on file for this applicant.',
+        'info'
+      );
+
+      return;
+    }
+
+    try {
+      await Linking.openURL(
+        url
+      );
+    } catch (
+      viewError
+    ) {
+      console.log(
+        'OPEN BLOOD TYPE PROOF ERROR:',
+        viewError
+      );
+
+      showMessage(
+        'Unable to Open Proof',
+        'Unable to open the blood type proof.',
+        'error'
+      );
     }
   }
 
@@ -857,8 +845,7 @@ export default function ApplicationReviewScreen() {
             <AdminHeader
               profile={profile}
               scale={s}
-              fontScale={headerFs}
-              notificationCount={0}
+              fontScale={fs}
             />
 
             {/* ==================================================
@@ -1049,6 +1036,7 @@ export default function ApplicationReviewScreen() {
                     APPLICANT SUMMARY
                 ================================================== */}
 
+                <FadeInView>
                 <View
                   style={[
                     styles.profileCard,
@@ -1160,6 +1148,25 @@ export default function ApplicationReviewScreen() {
                           application.submitted_at ||
                             application.created_at
                         )}
+
+                        {waitingDays !== null ? (
+                          <Text
+                            style={
+                              waitingDays >= 3
+                                ? styles.waitingLong
+                                : styles.waitingText
+                            }
+                          >
+                            {'  •  '}
+                            {waitingDays === 0
+                              ? 'Submitted today'
+                              : `Waiting ${waitingDays} ${
+                                  waitingDays === 1
+                                    ? 'day'
+                                    : 'days'
+                                }`}
+                          </Text>
+                        ) : null}
                       </Text>
                     </View>
                   </View>
@@ -1169,6 +1176,59 @@ export default function ApplicationReviewScreen() {
                       styles.profileBadges
                     }
                   >
+                    <Pressable
+                      onPress={() =>
+                        router.push(
+                          `/users/${application.user_id}` as any
+                        )
+                      }
+                      style={({
+                        pressed,
+                      }) => [
+                        styles.viewUserButton,
+
+                        {
+                          height:
+                            38 * s,
+
+                          borderRadius:
+                            8 * s,
+
+                          paddingHorizontal:
+                            13 * s,
+
+                          gap:
+                            6 * s,
+                        },
+
+                        pressed &&
+                          styles.buttonPressed,
+                      ]}
+                    >
+                      <MaterialIcons
+                        name="person-search"
+                        size={
+                          17 * s
+                        }
+                        color={
+                          COLORS.soft
+                        }
+                      />
+
+                      <Text
+                        style={[
+                          styles.viewUserText,
+
+                          {
+                            fontSize:
+                              12.5 * fs,
+                          },
+                        ]}
+                      >
+                        View User Account
+                      </Text>
+                    </Pressable>
+
                     <BloodBadge
                       value={
                         application.blood_type
@@ -1186,6 +1246,7 @@ export default function ApplicationReviewScreen() {
                     />
                   </View>
                 </View>
+                </FadeInView>
 
                 {/* ==================================================
                     MAIN GRID
@@ -1205,7 +1266,8 @@ export default function ApplicationReviewScreen() {
                       LEFT COLUMN
                   ================================================== */}
 
-                  <View
+                  <FadeInView
+                    delay={60}
                     style={
                       styles.leftColumn
                     }
@@ -1400,13 +1462,14 @@ export default function ApplicationReviewScreen() {
                         />
                       </InfoGrid>
                     </SectionCard>
-                  </View>
+                  </FadeInView>
 
                   {/* ==================================================
                       RIGHT COLUMN
                   ================================================== */}
 
-                  <View
+                  <FadeInView
+                    delay={120}
                     style={
                       styles.rightColumn
                     }
@@ -1417,7 +1480,7 @@ export default function ApplicationReviewScreen() {
                       scale={s}
                       fontScale={fs}
                       icon="badge"
-                      title="Identity Verification"
+                      title="Verification Documents"
                     >
                       <View
                         style={[
@@ -1590,6 +1653,165 @@ export default function ApplicationReviewScreen() {
                             For security, this private link expires after 5 minutes.
                           </Text>
                         ) : null}
+                      </View>
+
+                      {/* BLOOD TYPE PROOF */}
+
+                      <View
+                        style={[
+                          styles.verificationPanel,
+
+                          {
+                            padding:
+                              18 * s,
+
+                            borderRadius:
+                              12 * s,
+
+                            marginTop:
+                              14 * s,
+                          },
+                        ]}
+                      >
+                        <View
+                          style={
+                            styles.verificationTop
+                          }
+                        >
+                          <View
+                            style={[
+                              styles.verificationIcon,
+
+                              {
+                                width:
+                                  44 * s,
+
+                                height:
+                                  44 * s,
+
+                                borderRadius:
+                                  11 * s,
+                              },
+                            ]}
+                          >
+                            <MaterialIcons
+                              name="bloodtype"
+                              size={
+                                23 * s
+                              }
+                              color={
+                                COLORS.redBright
+                              }
+                            />
+                          </View>
+
+                          <View
+                            style={
+                              styles.verificationTextArea
+                            }
+                          >
+                            <Text
+                              style={[
+                                styles.verificationTitle,
+
+                                {
+                                  fontSize:
+                                    14 * fs,
+                                },
+                              ]}
+                            >
+                              Blood Type Proof
+                            </Text>
+
+                            <Text
+                              style={[
+                                styles.verificationDescription,
+
+                                {
+                                  fontSize:
+                                    12 * fs,
+
+                                  marginTop:
+                                    3 * s,
+
+                                  lineHeight:
+                                    18 * fs,
+                                },
+                              ]}
+                            >
+                              {application
+                                .blood_type_proof
+                                ?.available
+                                ? `Blood donor card, blood typing or lab result showing ${application.blood_type}. Check it matches before approving.`
+                                : 'No proof on file. This applicant applied before proof was required.'}
+                            </Text>
+                          </View>
+                        </View>
+
+                        <Pressable
+                          disabled={
+                            !application
+                              .blood_type_proof
+                              ?.available
+                          }
+                          onPress={
+                            handleViewBloodTypeProof
+                          }
+                          style={({
+                            pressed,
+                          }) => [
+                            styles.viewIdButton,
+
+                            {
+                              height:
+                                46 * s,
+
+                              borderRadius:
+                                9 * s,
+
+                              marginTop:
+                                17 * s,
+                            },
+
+                            !application
+                              .blood_type_proof
+                              ?.available &&
+                              styles.disabledButton,
+
+                            pressed &&
+                              application
+                                .blood_type_proof
+                                ?.available &&
+                              styles.buttonPressed,
+                          ]}
+                        >
+                          <MaterialIcons
+                            name="open-in-new"
+                            size={
+                              18 * s
+                            }
+                            color={
+                              COLORS.white
+                            }
+                          />
+
+                          <Text
+                            style={[
+                              styles.viewIdText,
+
+                              {
+                                fontSize:
+                                  13 * fs,
+                              },
+                            ]}
+                          >
+                            {application
+                              .blood_type_proof
+                              ?.available
+                              ? 'View Blood Type Proof'
+                              : 'No Proof on File'}
+                          </Text>
+                        </Pressable>
                       </View>
                     </SectionCard>
 
@@ -1898,7 +2120,7 @@ export default function ApplicationReviewScreen() {
                         </View>
                       )}
                     </SectionCard>
-                  </View>
+                  </FadeInView>
                 </View>
               </ScrollView>
             ) : null}
@@ -1977,7 +2199,7 @@ function ActionModal({
       >
         <Pressable
           style={
-            StyleSheet.absoluteFillObject
+            StyleSheet.absoluteFill
           }
           onPress={
             onClose
@@ -2945,11 +3167,6 @@ const styles =
       backgroundColor:
         COLORS.navy,
 
-      borderRadius:
-        Platform.OS ===
-        'web'
-          ? 24
-          : 0,
     },
 
     nativeCanvas: {
@@ -3140,6 +3357,50 @@ const styles =
 
       fontFamily:
         'Inter_400Regular',
+    },
+
+    waitingText: {
+      color:
+        COLORS.orange,
+
+      fontFamily:
+        'Inter_600SemiBold',
+    },
+
+    waitingLong: {
+      color:
+        COLORS.redBright,
+
+      fontFamily:
+        'Inter_600SemiBold',
+    },
+
+    viewUserButton: {
+      flexDirection:
+        'row',
+
+      alignItems:
+        'center',
+
+      justifyContent:
+        'center',
+
+      borderWidth:
+        1,
+
+      borderColor:
+        COLORS.border,
+
+      backgroundColor:
+        COLORS.cardLight,
+    },
+
+    viewUserText: {
+      color:
+        COLORS.soft,
+
+      fontFamily:
+        'Inter_600SemiBold',
     },
 
     profileBadges: {

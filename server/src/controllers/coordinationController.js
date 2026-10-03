@@ -12,9 +12,47 @@ const {
   '../middleware/activityLogMiddleware'
 );
 
+const {
+  getScheduleLimit
+} = require(
+  '../services/requestExpiryService'
+);
+
 // ============================================================
 // HELPERS
 // ============================================================
+
+// "Wed, Oct 8, 2:30 PM" in Philippine time.
+function formatManilaDateTime(
+  ms
+) {
+  return new Date(ms)
+    .toLocaleString(
+      'en-US',
+      {
+        weekday: 'short',
+        month: 'short',
+        day: 'numeric',
+        hour: 'numeric',
+        minute: '2-digit',
+        timeZone: 'Asia/Manila'
+      }
+    );
+}
+
+// ISO time of the latest allowed meeting, or null.
+function getScheduleLimitIso(
+  request
+) {
+  const limit =
+    getScheduleLimit(
+      request
+    );
+
+  return Number.isFinite(limit)
+    ? new Date(limit).toISOString()
+    : null;
+}
 
 function getAuthenticatedUserId(req) {
   return (
@@ -209,6 +247,11 @@ function buildSafeProfile(user) {
 
     province:
       user.province ??
+      null,
+
+    // Shown as the avatar in chats.
+    profile_photo_url:
+      user.profile_photo_url ??
       null
   };
 }
@@ -333,12 +376,15 @@ async function getCoordinationContext(
   }
 
   // ----------------------------------------------------------
-  // MUST BE ACCEPTED
+  // MUST BE ACCEPTED (or released after a no-show, which stays
+  // readable so both people can still talk it through)
   // ----------------------------------------------------------
 
   if (
     donorResponse.status !==
-    'accepted'
+      'accepted' &&
+    donorResponse.status !==
+      'no_show'
   ) {
     return {
       error:
@@ -399,7 +445,8 @@ async function getCoordinationContext(
         last_name,
         suffix,
         city,
-        province
+        province,
+        profile_photo_url
       `)
       .in(
         'id',
@@ -662,7 +709,13 @@ async function getCoordination(
 
           schedule:
             schedule ||
-            null
+            null,
+
+          // Latest meeting time the schedule may use.
+          schedule_limit:
+            getScheduleLimitIso(
+              context.request
+            )
         }
       });
   } catch (error) {
@@ -1234,6 +1287,64 @@ async function setCoordinationSchedule(
         });
     }
 
+    if (
+      context.response.status ===
+      'no_show'
+    ) {
+      return res
+        .status(409)
+        .json({
+          error:
+            'This donor was marked as a no-show, so the meeting time can’t be changed.'
+        });
+    }
+
+    // Meet no later than the request's time: the needed date and
+    // time, or when an urgent request closes.
+    const scheduleLimit =
+      getScheduleLimit(
+        context.request
+      );
+
+    const isUrgent =
+      context.request.urgency ===
+      'urgent';
+
+    const limitText =
+      formatManilaDateTime(
+        scheduleLimit
+      );
+
+    if (
+      Date.now() >=
+      scheduleLimit
+    ) {
+      return res
+        .status(409)
+        .json({
+          error:
+            isUrgent
+              ? 'This urgent request is closing, so a meeting time can no longer be set.'
+              : `This request's time (${limitText}) has passed, so a meeting time can no longer be set.`
+        });
+    }
+
+    if (
+      scheduledAt.getTime() >
+      scheduleLimit
+    ) {
+      return res
+        .status(400)
+        .json({
+          error:
+            isUrgent
+              ? `This urgent request closes on ${limitText}. Pick a time before then.`
+              : context.request.needed_date
+                ? `The blood is needed by ${limitText}. Pick a time on or before then.`
+                : `This request closes on ${limitText}. Pick a time before then.`
+        });
+    }
+
     const now =
       new Date()
         .toISOString();
@@ -1518,10 +1629,90 @@ const INBOX_REQUEST_FIELDS =
   'id,requester_id,blood_type,units_needed,facility_name,status,created_at';
 
 const INBOX_PERSON_FIELDS =
-  'id,first_name,middle_name,last_name,suffix,city,province';
+  'id,first_name,middle_name,last_name,suffix,city,province,profile_photo_url';
 
 const INBOX_SCHEDULE_FIELDS =
   'id,request_id,response_id,scheduled_at,note,created_by,updated_by,created_at,updated_at';
+
+const INBOX_DONATION_FIELDS =
+  'id,response_id,status,units_donated,donated_at,created_at';
+
+// Notifications that belong to one conversation (unread badge).
+const COORDINATION_NOTIFICATION_TYPES = [
+  'coordination_message',
+  'coordination_schedule',
+  'coordination_trip_started',
+  'coordination_trip_near',
+  'coordination_trip_arrived'
+];
+
+const INBOX_TRIP_FIELDS =
+  'response_id,status,distance_m,eta_seconds,started_at,location_updated_at,arrived_at';
+
+// Newest record per conversation, preferring one that was not
+// rejected (a rejected record can be confirmed again).
+function pickInboxDonation(
+  rows
+) {
+  const sorted =
+    [...rows].sort(
+      (
+        a,
+        b
+      ) =>
+        inboxTimestamp(
+          b.created_at
+        ) -
+        inboxTimestamp(
+          a.created_at
+        )
+    );
+
+  return (
+    sorted.find(
+      row =>
+        row.status !==
+        'rejected'
+    ) ||
+    sorted[0] ||
+    null
+  );
+}
+
+// Live trip summary for an open conversation.
+function buildInboxTrip(
+  row,
+  response,
+  request
+) {
+  if (
+    !row ||
+    response.status !==
+      'accepted' ||
+    request.status !==
+      'active'
+  ) {
+    return null;
+  }
+
+  return {
+    status:
+      row.status,
+
+    distance_m:
+      row.distance_m,
+
+    eta_seconds:
+      row.eta_seconds,
+
+    location_updated_at:
+      row.location_updated_at ||
+      row.started_at,
+
+    arrived_at:
+      row.arrived_at
+  };
+}
 
 // ============================================================
 // READ INBOX ROWS
@@ -1741,9 +1932,12 @@ async function getCoordinationInbox(
                 'donor_id',
                 viewerId
               )
-              .eq(
+              .in(
                 'status',
-                'accepted'
+                [
+                  'accepted',
+                  'no_show'
+                ]
               )
               .order(
                 'id',
@@ -1778,9 +1972,12 @@ async function getCoordinationInbox(
               'request_id',
               ids
             )
-            .eq(
+            .in(
               'status',
-              'accepted'
+              [
+                'accepted',
+                'no_show'
+              ]
             )
             .order(
               'id',
@@ -1879,8 +2076,12 @@ async function getCoordinationInbox(
 
           return (
             request &&
-            response.status ===
-              'accepted' &&
+            (
+              response.status ===
+                'accepted' ||
+              response.status ===
+                'no_show'
+            ) &&
             (
               request.requester_id ===
                 viewerId ||
@@ -1947,7 +2148,10 @@ async function getCoordinationInbox(
     const [
       people,
       applications,
-      schedules
+      schedules,
+      donations,
+      unreadNotifications,
+      trips
     ] =
       await Promise.all([
         readInboxRowsByIds(
@@ -2023,8 +2227,256 @@ async function getCoordinationInbox(
                     true
                 }
               )
-        )
+        ),
+
+        readInboxRowsByIds(
+          visibleResponses.map(
+            row =>
+              row.id
+          ),
+
+          ids =>
+            supabaseAdmin
+              .from(
+                'blood_donations'
+              )
+              .select(
+                INBOX_DONATION_FIELDS
+              )
+              .in(
+                'response_id',
+                ids
+              )
+              .order(
+                'id',
+                {
+                  ascending:
+                    true
+                }
+              )
+        ),
+
+        // Only the viewer's own unread conversation alerts.
+        readInboxRows(
+          () =>
+            supabaseAdmin
+              .from(
+                'notifications'
+              )
+              .select(
+                'id,data'
+              )
+              .eq(
+                'user_id',
+                viewerId
+              )
+              .eq(
+                'is_read',
+                false
+              )
+              .in(
+                'type',
+                COORDINATION_NOTIFICATION_TYPES
+              )
+              .order(
+                'id',
+                {
+                  ascending:
+                    true
+                }
+              )
+        ),
+
+        // Live "on the way" trips (optional detail).
+        readInboxRowsByIds(
+          visibleResponses.map(
+            row =>
+              row.id
+          ),
+
+          ids =>
+            supabaseAdmin
+              .from(
+                'blood_request_trips'
+              )
+              .select(
+                INBOX_TRIP_FIELDS
+              )
+              .in(
+                'response_id',
+                ids
+              )
+              .neq(
+                'status',
+                'ended'
+              )
+              .order(
+                'response_id',
+                {
+                  ascending:
+                    true
+                }
+              )
+        ).catch(tripError => {
+          console.error(
+            'COORDINATION INBOX TRIPS ERROR:',
+            tripError
+          );
+
+          return [];
+        })
       ]);
+
+    const tripMap =
+      new Map(
+        trips.map(
+          row => [
+            row.response_id,
+            row
+          ]
+        )
+      );
+
+    // Donation record per conversation, and who has rated it.
+    const donationsByResponse =
+      new Map();
+
+    for (const row of donations) {
+      const list =
+        donationsByResponse.get(
+          row.response_id
+        ) ||
+        [];
+
+      list.push(row);
+
+      donationsByResponse.set(
+        row.response_id,
+        list
+      );
+    }
+
+    const inboxDonations =
+      new Map();
+
+    for (const [
+      id,
+      rows
+    ] of donationsByResponse) {
+      inboxDonations.set(
+        id,
+        pickInboxDonation(
+          rows
+        )
+      );
+    }
+
+    const feedbackRows =
+      await readInboxRowsByIds(
+        [
+          ...inboxDonations.values()
+        ]
+          .filter(Boolean)
+          .map(
+            row =>
+              row.id
+          ),
+
+        ids =>
+          supabaseAdmin
+            .from(
+              'donation_feedback'
+            )
+            .select(
+              'id,donation_id,from_role,rating'
+            )
+            .in(
+              'donation_id',
+              ids
+            )
+            .order(
+              'id',
+              {
+                ascending:
+                  true
+              }
+            )
+      );
+
+    function buildInboxDonation(
+      donation,
+      viewerRole
+    ) {
+      if (!donation) {
+        return null;
+      }
+
+      const ratings =
+        feedbackRows.filter(
+          row =>
+            row.donation_id ===
+            donation.id
+        );
+
+      const ratingFrom =
+        role =>
+          ratings.find(
+            row =>
+              row.from_role ===
+              role
+          )
+            ?.rating ||
+          null;
+
+      return {
+        id:
+          donation.id,
+
+        status:
+          donation.status,
+
+        units_donated:
+          donation.units_donated,
+
+        donated_at:
+          donation.donated_at,
+
+        my_rating:
+          ratingFrom(
+            viewerRole
+          ),
+
+        their_rating:
+          ratingFrom(
+            viewerRole ===
+            'requester'
+              ? 'donor'
+              : 'requester'
+          )
+      };
+    }
+
+    const unreadByResponse =
+      new Map();
+
+    for (const row of unreadNotifications) {
+      const id =
+        row.data
+          ?.response_id;
+
+      if (id) {
+        unreadByResponse.set(
+          id,
+          (
+            unreadByResponse.get(
+              id
+            ) ||
+            0
+          ) +
+            1
+        );
+      }
+    }
 
     const personMap =
       new Map(
@@ -2275,6 +2727,30 @@ async function getCoordinationInbox(
 
             schedule,
 
+            donation:
+              buildInboxDonation(
+                inboxDonations.get(
+                  response.id
+                ),
+                viewerRole
+              ),
+
+            unread_count:
+              unreadByResponse.get(
+                response.id
+              ) ||
+              0,
+
+            // Donor travelling to the facility (null when none).
+            trip:
+              buildInboxTrip(
+                tripMap.get(
+                  response.id
+                ),
+                response,
+                request
+              ),
+
             last_activity_at:
               activity
           };
@@ -2323,11 +2799,122 @@ async function getCoordinationInbox(
 }
 
 // ============================================================
+// MARK CONVERSATION READ
+//
+// PATCH /api/requests/:id/responses/:responseId/read
+//
+// Marks the viewer's own unread message/schedule alerts for
+// this conversation as read (clears the inbox badge). Only the
+// signed-in user's notifications are ever touched.
+// ============================================================
+
+async function markCoordinationRead(
+  req,
+  res
+) {
+  const viewerId =
+    getAuthenticatedUserId(
+      req
+    );
+
+  if (!viewerId) {
+    return res
+      .status(401)
+      .json({
+        error:
+          'Unauthorized'
+      });
+  }
+
+  const responseId =
+    getResponseId(
+      req
+    );
+
+  if (!responseId) {
+    return res
+      .status(400)
+      .json({
+        error:
+          'Conversation ID is required.'
+      });
+  }
+
+  try {
+    const {
+      data,
+      error
+    } =
+      await supabaseAdmin
+        .from(
+          'notifications'
+        )
+        .update({
+          is_read:
+            true,
+
+          read_at:
+            new Date()
+              .toISOString()
+        })
+        .eq(
+          'user_id',
+          viewerId
+        )
+        .eq(
+          'is_read',
+          false
+        )
+        .in(
+          'type',
+          COORDINATION_NOTIFICATION_TYPES
+        )
+        .eq(
+          'data->>response_id',
+          responseId
+        )
+        .select(
+          'id'
+        );
+
+    if (error) {
+      throw error;
+    }
+
+    return res
+      .status(200)
+      .json({
+        updated:
+          (data || [])
+            .length
+      });
+  } catch (error) {
+    console.error(
+      'MARK COORDINATION READ ERROR:',
+      error?.code ||
+      error
+    );
+
+    return res
+      .status(500)
+      .json({
+        error:
+          'Unable to update this conversation.'
+      });
+  }
+}
+
+// ============================================================
 // EXPORTS
 // ============================================================
 
 module.exports = {
+  // Shared with the trip controller (participant check).
+  getCoordinationContext,
+
   getCoordinationInbox,
+
+  markCoordinationRead,
 
   getCoordination,
 

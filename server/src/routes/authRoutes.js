@@ -16,6 +16,7 @@ const {
   verifyEmail,
   resendVerification,
   login,
+  refreshSession,
   logout,
   forgotPassword,
   verifyRecoveryCode,
@@ -48,6 +49,16 @@ const {
   deleteProfilePhoto,
 } = require(
   '../controllers/profilePhotoController'
+);
+
+// ============================================================
+// BLOOD TYPE CONTROLLER
+// ============================================================
+
+const {
+  updateBloodType,
+} = require(
+  '../controllers/bloodTypeController'
 );
 
 // ============================================================
@@ -171,6 +182,70 @@ function handleProfilePhotoUpload(
 }
 
 // ============================================================
+// BLOOD TYPE PROOF UPLOAD
+//
+// One photo (field "proof"), up to 5 MB.
+// ============================================================
+
+const bloodTypeProofUploader =
+  multer({
+    storage:
+      multer.memoryStorage(),
+
+    limits: {
+      fileSize:
+        MAX_PROFILE_PHOTO_SIZE,
+
+      files:
+        1,
+    },
+  });
+
+function handleBloodTypeProofUpload(
+  req,
+  res,
+  next
+) {
+  bloodTypeProofUploader.single(
+    'proof'
+  )(
+    req,
+    res,
+    error => {
+      if (!error) {
+        return next();
+      }
+
+      if (
+        error instanceof
+          multer.MulterError &&
+        error.code ===
+          'LIMIT_FILE_SIZE'
+      ) {
+        return res
+          .status(413)
+          .json({
+            error:
+              'The proof photo must be 5 MB or smaller.',
+          });
+      }
+
+      console.error(
+        'BLOOD TYPE PROOF MULTER ERROR:',
+        error
+      );
+
+      return res
+        .status(400)
+        .json({
+          error:
+            'Unable to process the selected photo.',
+        });
+    }
+  );
+}
+
+// ============================================================
 // PUBLIC AUTH ROUTES
 // ============================================================
 
@@ -285,6 +360,20 @@ router.post(
   loginLimiter,
 
   login
+);
+
+// ------------------------------------------------------------
+// REFRESH SESSION
+//
+// POST /api/auth/refresh
+//
+// Not activity-logged: apps refresh roughly every hour, which
+// would flood the Log Trails with routine entries.
+// ------------------------------------------------------------
+
+router.post(
+  '/refresh',
+  refreshSession
 );
 
 // ------------------------------------------------------------
@@ -664,6 +753,29 @@ router.delete(
   requireAuth,
 
   deleteProfilePhoto
+);
+
+// ============================================================
+// BLOOD TYPE (WITH PROOF)
+// ============================================================
+
+router.put(
+  '/me/blood-type',
+  activityLog({
+    action:
+      'UPDATE_BLOOD_TYPE',
+    module:
+      'Profile',
+    successDescription:
+      'User saved their blood type with proof.',
+    failureDescription:
+      'Blood type update attempt failed.',
+    entityType:
+      'user_profile',
+  }),
+  requireAuth,
+  handleBloodTypeProofUpload,
+  updateBloodType
 );
 
 // ============================================================

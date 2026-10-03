@@ -1,16 +1,5 @@
-import {
-  Platform,
-} from 'react-native';
-
-// ============================================================
-// API URL
-// ============================================================
-
-const API_URL =
-  Platform.OS === 'web'
-    ? 'http://localhost:5000'
-    : process.env.EXPO_PUBLIC_API_URL ||
-      'http://localhost:5000';
+import { authorizedFetch } from './authFetch';
+import { API_URL } from './apiUrl';
 
 // ============================================================
 // TYPES
@@ -115,7 +104,8 @@ export type InvitationDonorResponse = {
     | 'pending'
     | 'accepted'
     | 'rejected'
-    | 'withdrawn';
+    | 'withdrawn'
+    | 'no_show';
 
   message?:
     | string
@@ -308,7 +298,7 @@ export async function sendDonorInvitation(
 
   try {
     response =
-      await fetch(
+      await authorizedFetch(
         `${API_URL}/api/requests/${encodeURIComponent(
           cleanRequestId
         )}/invitations`,
@@ -378,7 +368,7 @@ export async function getMyDonorInvitations(
 
   try {
     response =
-      await fetch(
+      await authorizedFetch(
         `${API_URL}/api/donor-invitations/me`,
         {
           method:
@@ -449,7 +439,7 @@ export async function acceptDonorInvitation(
 
   try {
     response =
-      await fetch(
+      await authorizedFetch(
         `${API_URL}/api/donor-invitations/${encodeURIComponent(
           cleanInvitationId
         )}/accept`,
@@ -525,7 +515,7 @@ export async function declineDonorInvitation(
 
   try {
     response =
-      await fetch(
+      await authorizedFetch(
         `${API_URL}/api/donor-invitations/${encodeURIComponent(
           cleanInvitationId
         )}/decline`,

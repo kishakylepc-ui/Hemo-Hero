@@ -2,7 +2,7 @@ import {
   type ComponentProps,
   type ReactNode,
   useCallback,
-  useMemo,
+  useRef,
   useState,
 } from 'react';
 
@@ -15,7 +15,6 @@ import {
   StyleSheet,
   Text,
   TextInput,
-  useWindowDimensions,
   View,
 } from 'react-native';
 
@@ -41,7 +40,11 @@ import {
   SafeAreaView,
 } from 'react-native-safe-area-context';
 
-import AdminHeader from '../../AdminHeader';
+import { useAdminCanvas } from '../../../components/AdminCanvas';
+
+import AdminHeader from '../../../components/AdminHeader';
+
+import { FadeInView } from '../../../components/AdminMotion';
 
 import {
   getAdminUserById,
@@ -59,12 +62,6 @@ import {
 // ============================================================
 // IPAD PRO LANDSCAPE
 // ============================================================
-
-const DESIGN_WIDTH =
-  1366;
-
-const DESIGN_HEIGHT =
-  1024;
 
 // ============================================================
 // COLORS
@@ -130,85 +127,13 @@ export default function AdminEditUserScreen() {
       id?: string;
     }>();
 
-  const {
-    width,
-    height,
-  } =
-    useWindowDimensions();
 
   // ==========================================================
   // RESPONSIVE TABLET FRAME
   // ==========================================================
 
   const tablet =
-    useMemo(
-      () => {
-        if (
-          Platform.OS !==
-          'web'
-        ) {
-          return {
-            width,
-            height,
-
-            scale:
-              Math.min(
-                width /
-                  DESIGN_WIDTH,
-
-                height /
-                  DESIGN_HEIGHT
-              ),
-          };
-        }
-
-        const padding =
-          24;
-
-        const availableWidth =
-          Math.max(
-            width -
-              padding * 2,
-
-            320
-          );
-
-        const availableHeight =
-          Math.max(
-            height -
-              padding * 2,
-
-            320
-          );
-
-        const scale =
-          Math.min(
-            availableWidth /
-              DESIGN_WIDTH,
-
-            availableHeight /
-              DESIGN_HEIGHT,
-
-            1
-          );
-
-        return {
-          width:
-            DESIGN_WIDTH *
-            scale,
-
-          height:
-            DESIGN_HEIGHT *
-            scale,
-
-          scale,
-        };
-      },
-      [
-        width,
-        height,
-      ]
-    );
+    useAdminCanvas();
 
   const s =
     Math.max(
@@ -378,9 +303,32 @@ export default function AdminEditUserScreen() {
   // LOAD USER
   // ==========================================================
 
+  // Tracks which user the form was filled from. The form is
+  // loaded ONCE per user so unsaved edits are not overwritten
+  // when the screen regains focus (e.g. after the bell panel).
+  const loadedUserId =
+    useRef<string | null>(null);
+
+  const scrollRef =
+    useRef<ScrollView>(null);
+
+  function scrollToTop() {
+    scrollRef.current?.scrollTo({
+      y: 0,
+      animated: true,
+    });
+  }
+
   useFocusEffect(
     useCallback(
       () => {
+        if (
+          loadedUserId.current ===
+          id
+        ) {
+          return;
+        }
+
         loadUser();
       },
       [
@@ -506,6 +454,9 @@ export default function AdminEditUserScreen() {
         loadedUser.province ||
         ''
       );
+
+      loadedUserId.current =
+        id;
     } catch (
       error
     ) {
@@ -618,6 +569,8 @@ export default function AdminEditUserScreen() {
       setErrorMessage(
         validationError
       );
+
+      scrollToTop();
 
       return;
     }
@@ -755,6 +708,8 @@ export default function AdminEditUserScreen() {
         result.user.province ||
         ''
       );
+
+      scrollToTop();
     } catch (
       error
     ) {
@@ -769,6 +724,8 @@ export default function AdminEditUserScreen() {
           ? error.message
           : 'Unable to update user account.'
       );
+
+      scrollToTop();
     } finally {
       setSaving(
         false
@@ -872,9 +829,6 @@ export default function AdminEditUserScreen() {
               fontScale={
                 fs
               }
-              notificationCount={
-                0
-              }
             />
 
             {/* ==================================================
@@ -893,6 +847,9 @@ export default function AdminEditUserScreen() {
               }
             >
               <ScrollView
+                ref={
+                  scrollRef
+                }
                 style={
                   styles.scroll
                 }
@@ -1252,6 +1209,7 @@ export default function AdminEditUserScreen() {
                         ACCOUNT INFORMATION
                     ========================================== */}
 
+                    <FadeInView delay={40}>
                     <FormSection
                       scale={
                         s
@@ -1339,6 +1297,7 @@ export default function AdminEditUserScreen() {
                         </View>
                       </View>
                     </FormSection>
+                    </FadeInView>
 
                     <View
                       style={{
@@ -1351,6 +1310,7 @@ export default function AdminEditUserScreen() {
                         PERSONAL INFORMATION
                     ========================================== */}
 
+                    <FadeInView delay={90}>
                     <FormSection
                       scale={
                         s
@@ -1671,6 +1631,7 @@ export default function AdminEditUserScreen() {
                         </View>
                       </View>
                     </FormSection>
+                    </FadeInView>
 
                     <View
                       style={{
@@ -1683,6 +1644,7 @@ export default function AdminEditUserScreen() {
                         LOCATION
                     ========================================== */}
 
+                    <FadeInView delay={140}>
                     <FormSection
                       scale={
                         s
@@ -1789,6 +1751,7 @@ export default function AdminEditUserScreen() {
                         </View>
                       </View>
                     </FormSection>
+                    </FadeInView>
 
                     {/* ==========================================
                         ACTIONS
@@ -2352,11 +2315,6 @@ const styles =
       backgroundColor:
         COLORS.navy,
 
-      borderRadius:
-        Platform.OS ===
-          'web'
-          ? 24
-          : 0,
     },
 
     nativeCanvas: {

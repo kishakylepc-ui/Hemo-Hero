@@ -1,10 +1,5 @@
-import { Platform } from 'react-native';
-
-const API_URL = (
-  Platform.OS === 'web'
-    ? 'http://localhost:5000'
-    : process.env.EXPO_PUBLIC_API_URL || 'http://localhost:5000'
-).replace(/\/+$/, '');
+import { authorizedFetch } from './authFetch';
+import { API_URL } from './apiUrl';
 
 // ============================================================
 // TYPES
@@ -24,6 +19,7 @@ export type CoordinationPerson = {
   verified?: boolean;
   availability_status?: string | null;
   travel_radius_km?: number | null;
+  profile_photo_url?: string | null;
 };
 
 export type CoordinationRequest = {
@@ -72,6 +68,10 @@ export type CoordinationSession = {
   donor: CoordinationPerson;
   viewer_role: 'requester' | 'donor';
   schedule: CoordinationSchedule | null;
+
+  // Latest meeting time allowed (ISO): the needed date and time,
+  // or when an urgent request closes.
+  schedule_limit?: string | null;
 };
 
 export type CoordinationMessage = {
@@ -94,7 +94,8 @@ export type CoordinationInboxItem = {
   units_needed: number;
   facility_name: string;
   request_status: CoordinationRequest['status'];
-  response_status: 'accepted';
+  // 'no_show': the requester reported the donor didn't come.
+  response_status: 'accepted' | 'no_show';
   latest_message: {
     id: string;
     message: string;
@@ -102,6 +103,25 @@ export type CoordinationInboxItem = {
     is_mine: boolean;
   } | null;
   schedule: CoordinationSchedule | null;
+  // Donation record for this conversation, if one was confirmed.
+  donation: {
+    id: string;
+    status: 'completed' | 'needs_review' | 'rejected';
+    units_donated: number;
+    donated_at: string;
+    my_rating: number | null;
+    their_rating: number | null;
+  } | null;
+  // Unread message/schedule alerts for the viewer.
+  unread_count: number;
+  // Donor travelling to the facility ("on my way" map).
+  trip?: {
+    status: 'on_the_way' | 'arrived';
+    distance_m: number | null;
+    eta_seconds: number | null;
+    location_updated_at: string | null;
+    arrived_at: string | null;
+  } | null;
   last_activity_at: string | null;
 };
 
@@ -138,7 +158,7 @@ export async function getCoordinationSession(
   requestId: string,
   responseId: string
 ): Promise<{ coordination: CoordinationSession }> {
-  const response = await fetch(
+  const response = await authorizedFetch(
     `${API_URL}/api/requests/${requestId}/responses/${responseId}/coordination`,
     {
       method: 'GET',
@@ -163,7 +183,7 @@ export async function getCoordinationMessages(
   count: number;
   messages: CoordinationMessage[];
 }> {
-  const response = await fetch(
+  const response = await authorizedFetch(
     `${API_URL}/api/requests/${requestId}/responses/${responseId}/messages`,
     {
       method: 'GET',
@@ -189,7 +209,7 @@ export async function sendCoordinationMessage(
   message: string;
   data: CoordinationMessage;
 }> {
-  const response = await fetch(
+  const response = await authorizedFetch(
     `${API_URL}/api/requests/${requestId}/responses/${responseId}/messages`,
     {
       method: 'POST',
@@ -198,6 +218,30 @@ export async function sendCoordinationMessage(
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({ message }),
+    }
+  );
+
+  return parseResponse(response);
+}
+
+// ============================================================
+// MARK CONVERSATION READ
+//
+// Clears this conversation's unread badge for the viewer.
+// ============================================================
+
+export async function markCoordinationRead(
+  token: string,
+  requestId: string,
+  responseId: string
+): Promise<{ updated: number }> {
+  const response = await authorizedFetch(
+    `${API_URL}/api/requests/${requestId}/responses/${responseId}/read`,
+    {
+      method: 'PATCH',
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
     }
   );
 
@@ -218,7 +262,7 @@ export async function saveCoordinationSchedule(
   message: string;
   schedule: CoordinationSchedule;
 }> {
-  const response = await fetch(
+  const response = await authorizedFetch(
     `${API_URL}/api/requests/${requestId}/responses/${responseId}/schedule`,
     {
       method: 'PUT',
@@ -229,6 +273,58 @@ export async function saveCoordinationSchedule(
       body: JSON.stringify({
         scheduled_at: scheduledAt,
         note: note?.trim() || null,
+      }),
+    }
+  );
+
+  return parseResponse(response);
+}
+
+// ============================================================
+// SUBMIT FEEDBACK / REPORT
+//
+// The server derives who is being reported from this
+// conversation. The client never sends a user id.
+// ============================================================
+
+export type CoordinationSupportKind =
+  | 'feedback'
+  | 'report';
+
+export async function submitCoordinationSupport(
+  token: string,
+  requestId: string,
+  responseId: string,
+  input: {
+    kind: CoordinationSupportKind;
+    reason?: string;
+    details: string;
+  }
+): Promise<{
+  message: string;
+  report: {
+    id: string;
+    kind: CoordinationSupportKind;
+    reason: string | null;
+    status: string;
+    created_at: string;
+  };
+}> {
+  const response = await authorizedFetch(
+    `${API_URL}/api/requests/${requestId}/responses/${responseId}/reports`,
+    {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${token}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        kind: input.kind,
+        reason:
+          input.kind === 'report'
+            ? input.reason || null
+            : null,
+        details: input.details.trim(),
       }),
     }
   );
@@ -257,7 +353,7 @@ export async function getCoordinationInbox(
   count: number;
   conversations: CoordinationInboxItem[];
 }> {
-  const response = await fetch(
+  const response = await authorizedFetch(
     `${API_URL}/api/requests/coordination/inbox`,
     {
       method: 'GET',
@@ -278,4 +374,34 @@ export async function getCoordinationInbox(
       response.status
     );
   }
+}
+// ============================================================
+// REPORT A NO-SHOW
+//
+// After the agreed meeting time, while no donation is recorded:
+// the other person didn't come. Saved for admin review and the
+// other person is notified.
+// ============================================================
+
+export async function reportNoShow(
+  token: string,
+  requestId: string,
+  responseId: string,
+  details?: string
+): Promise<{ message: string }> {
+  const response = await authorizedFetch(
+    `${API_URL}/api/requests/${requestId}/responses/${responseId}/no-show`,
+    {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${token}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        details: details?.trim() || null,
+      }),
+    }
+  );
+
+  return parseResponse(response);
 }

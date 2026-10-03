@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState, } from 'react';
-import { ActivityIndicator, Image, Modal, Platform, RefreshControl, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View, } from 'react-native';
+import { ActivityIndicator, Image, Platform, RefreshControl, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View, } from 'react-native';
 import { MaterialIcons, } from '@expo/vector-icons';
 import { LinearGradient, } from 'expo-linear-gradient';
 import Slider from '@react-native-community/slider';
@@ -8,31 +8,37 @@ import { StatusBar, } from 'expo-status-bar';
 import { SafeAreaView, } from 'react-native-safe-area-context';
 import * as Location from 'expo-location';
 import MainBottomNav from '../components/MainBottomNav';
+import DonorTrust from '../components/DonorTrust';
+import { FadeInView, } from '../components/Motion';
 import { getNearbyBloodRequests, } from '../lib/nearbyRequests';
 import type { NearbyBloodRequest, } from '../lib/nearbyRequests';
 import { getNearbyDonors, } from '../lib/nearbyDonors';
 import type { NearbyDonor, } from '../lib/nearbyDonors';
 import { getMyDonorApplication, } from '../lib/donorApplication';
 import { getAccessToken, } from '../lib/session';
+import { type BloodType, getCompatibleRecipientTypes, isBloodType, } from '../lib/bloodCompatibility';
 // ============================================================
 // COLORS
 // ============================================================
 const COLORS = {
-    red: '#D31217',
-    redDark: '#8F1014',
-    redButton: '#C62828',
+    red: '#DB0A0A',
+    redDark: '#8F1111',
+    redButton: '#B42323',
+    headerTop: '#D2151A',
     white: '#FFFFFF',
-    black: '#1D1D1F',
-    page: '#F7F7F8',
+    black: '#171717',
+    page: '#FFF8F8',
     card: '#FFFFFF',
-    muted: '#6E6E73',
-    lightMuted: '#A0A0A5',
-    border: '#E7E7EA',
-    pinkSoft: '#FFF1F2',
-    green: '#178B49',
+    muted: '#666666',
+    lightMuted: '#9A9A9A',
+    border: '#E8DADA',
+    chipBorder: '#D9CFCF',
+    track: '#F3E7E7',
+    pinkSoft: '#FFF1F1',
+    green: '#159447',
     greenSoft: '#EAF7EF',
-    orange: '#DD7A20',
-    orangeSoft: '#FFF3E7',
+    orange: '#DF721D',
+    orangeSoft: '#FDF1E6',
 };
 // ============================================================
 // BLOOD TYPES
@@ -58,13 +64,6 @@ const BLOOD_TYPES = [
 type SearchMode = 'donors' | 'requests';
 type RequestUrgency = 'all' | 'urgent' | 'needed';
 type SortType = 'nearest' | 'recent';
-type ActionPopupVariant = 'info' | 'success' | 'warning' | 'error';
-type ActionPopupState = {
-    visible: boolean;
-    title: string;
-    message: string;
-    variant: ActionPopupVariant;
-};
 // ============================================================
 // HELPERS
 // ============================================================
@@ -152,12 +151,6 @@ export default function SearchScreen() {
     const [refreshing, setRefreshing,] = useState(false);
     const [errorMessage, setErrorMessage,] = useState('');
     const [locationPermissionDenied, setLocationPermissionDenied,] = useState(false);
-    const [actionPopup, setActionPopup,] = useState<ActionPopupState>({
-        visible: false,
-        title: '',
-        message: '',
-        variant: 'info',
-    });
     // ==========================================================
     // APPLY ROUTE FILTERS
     // ==========================================================
@@ -187,41 +180,6 @@ export default function SearchScreen() {
         requestedMode,
         requestedBloodType,
     ]);
-    // ==========================================================
-    // MESSAGE
-    // ==========================================================
-    function closeActionPopup() {
-        setActionPopup(current => ({
-            ...current,
-            visible: false,
-        }));
-    }
-    function getMessageVariant(title: string): ActionPopupVariant {
-        const value = title.toLowerCase();
-        if (value.includes('success') ||
-            value.includes('verified')) {
-            return 'success';
-        }
-        if (value.includes('unable') ||
-            value.includes('failed') ||
-            value.includes('error')) {
-            return 'error';
-        }
-        if (value.includes('required') ||
-            value.includes('select') ||
-            value.includes('permission')) {
-            return 'warning';
-        }
-        return 'info';
-    }
-    function showMessage(title: string, message: string) {
-        setActionPopup({
-            visible: true,
-            title,
-            message,
-            variant: getMessageVariant(title),
-        });
-    }
     // ==========================================================
     // LOCATION LABEL
     // ==========================================================
@@ -366,20 +324,22 @@ export default function SearchScreen() {
             // ==================================================
             // REQUESTS TAB
             //
-            // Nearby endpoint may currently return requests for
-            // different blood types. We filter them here using
-            // the APPROVED donor application blood type.
+            // Keep only active requests this donor can give red
+            // cells to (same rule the server uses for offers),
+            // based on the APPROVED donor application blood type.
             //
             // The backend donor-response validation still
-            // independently blocks mismatched donation offers.
+            // independently blocks incompatible donation offers.
             // ==================================================
             const requestResult = await getNearbyBloodRequests(token, latitude, longitude, radiusKm, 100);
+            const compatibleRequestTypes: string[] = isBloodType(currentDonorBloodType)
+                ? getCompatibleRecipientTypes(currentDonorBloodType)
+                : [];
             const matchingRequests = (requestResult
                 .requests ||
                 []).filter(request => request.status ===
                 'active' &&
-                normalizeBloodType(request.blood_type) ===
-                    currentDonorBloodType);
+                compatibleRequestTypes.includes(normalizeBloodType(request.blood_type) || ''));
             setRequests(matchingRequests);
         }
         catch (error) {
@@ -569,15 +529,6 @@ export default function SearchScreen() {
         router.push(`/donor/${donor.id}` as any);
     }
     // ==========================================================
-    // MAP
-    // ==========================================================
-    function openMap() {
-        showMessage('Map View', searchMode ===
-            'donors'
-            ? 'The donor map will display verified donors using privacy-safe approximate locations.'
-            : 'The request map will display nearby matching blood requests using the same filters.');
-    }
-    // ==========================================================
     // TIME AGO
     // ==========================================================
     function getTimeAgo(value?: string | null) {
@@ -670,7 +621,7 @@ export default function SearchScreen() {
         ================================================== */}
 
           <LinearGradient colors={[
-            '#D9191E',
+            COLORS.headerTop,
             COLORS.redDark,
         ]} style={styles.header}>
             <View style={styles.headerCircleLeft}/>
@@ -692,13 +643,6 @@ export default function SearchScreen() {
                 </Text>
               </View>
 
-              <TouchableOpacity style={styles.mapButton} activeOpacity={0.8} onPress={openMap}>
-                <MaterialIcons name="map" size={18} color={COLORS.white}/>
-
-                <Text style={styles.mapButtonText}>
-                  Map
-                </Text>
-              </TouchableOpacity>
             </View>
 
             {/* SEARCH BAR */}
@@ -709,7 +653,7 @@ export default function SearchScreen() {
               <TextInput value={searchText} onChangeText={setSearchText} placeholder={searchMode ===
             'donors'
             ? 'Name, location, or blood type'
-            : 'Hospital or location'} placeholderTextColor="#A6A6AA" style={styles.searchInput} returnKeyType="search"/>
+            : 'Hospital or location'} placeholderTextColor={COLORS.lightMuted} style={styles.searchInput} returnKeyType="search"/>
 
               {searchText ? (<TouchableOpacity style={styles.clearButton} onPress={() => setSearchText('')}>
                   <MaterialIcons name="close" size={18} color={COLORS.muted}/>
@@ -836,13 +780,13 @@ export default function SearchScreen() {
                 <View style={styles.matchContent}>
                   <Text style={styles.matchTitle}>
                     {verifiedDonorBloodType
-                ? 'Matching Your Blood Type'
+                ? 'Requests You Can Help'
                 : 'Verified Donor Required'}
                   </Text>
 
                   <Text style={styles.matchDescription}>
                     {verifiedDonorBloodType
-                ? `Only active ${verifiedDonorBloodType} requests are shown because your verified donor blood type is ${verifiedDonorBloodType}.`
+                ? `Showing ${getCompatibleRecipientTypes(verifiedDonorBloodType as BloodType).join(', ')} requests. Your ${verifiedDonorBloodType} blood is compatible with them.`
                 : 'Only verified donors can browse donation requests.'}
                   </Text>
                 </View>
@@ -887,7 +831,7 @@ export default function SearchScreen() {
                 </View>
               </View>
 
-              <Slider style={styles.slider} minimumValue={5} maximumValue={50} step={5} value={sliderDistance} minimumTrackTintColor={COLORS.redButton} maximumTrackTintColor="#DADADD" thumbTintColor={COLORS.redButton} onValueChange={value => setSliderDistance(Math.round(value))} onSlidingComplete={handleDistanceComplete}/>
+              <Slider style={styles.slider} minimumValue={5} maximumValue={50} step={5} value={sliderDistance} minimumTrackTintColor={COLORS.redButton} maximumTrackTintColor={COLORS.track} thumbTintColor={COLORS.redButton} onValueChange={value => setSliderDistance(Math.round(value))} onSlidingComplete={handleDistanceComplete}/>
 
               <View style={styles.sliderLabels}>
                 <Text style={styles.sliderLabel}>
@@ -977,7 +921,7 @@ export default function SearchScreen() {
         ================================================== */}
 
             <View style={styles.resultsHeader}>
-              <View>
+              <View style={styles.resultsHeaderText}>
                 <Text style={styles.resultsTitle}>
                   {searchMode ===
             'donors'
@@ -985,9 +929,7 @@ export default function SearchScreen() {
                 'All'
                 ? `Compatible Donors for ${selectedBloodType}`
                 : 'Nearby Donors'
-            : verifiedDonorBloodType
-                ? `${verifiedDonorBloodType} Requests Near You`
-                : 'Nearby Requests'}
+            : 'Nearby Requests'}
                 </Text>
 
                 {searchMode ===
@@ -1060,9 +1002,8 @@ export default function SearchScreen() {
                 'donors'
                 ? 'Finding Nearby Donors'
                 : 'Finding Matching Requests'} description={searchMode ===
-                'requests' &&
-                verifiedDonorBloodType
-                ? `Searching for ${verifiedDonorBloodType} requests within ${radiusKm} km.`
+                'requests'
+                ? `Searching for requests you can donate to within ${radiusKm} km.`
                 : `Searching within ${radiusKm} km of your current location.`}/>) : null}
 
             {/* ==================================================
@@ -1153,9 +1094,7 @@ export default function SearchScreen() {
                   {searchMode ===
                 'donors'
                 ? `No verified available donors match your filters within ${radiusKm} km.`
-                : verifiedDonorBloodType
-                    ? `There are currently no active ${verifiedDonorBloodType} blood requests matching your filters within ${radiusKm} km.`
-                    : `There are currently no matching blood requests within ${radiusKm} km.`}
+                : `No active requests you can donate to within ${radiusKm} km right now.`}
                 </Text>
 
                 {hasFilters ? (<TouchableOpacity style={styles.secondaryButton} onPress={resetFilters}>
@@ -1173,7 +1112,7 @@ export default function SearchScreen() {
             !errorMessage &&
             searchMode ===
                 'donors'
-            ? visibleDonors.map(donor => (<TouchableOpacity key={donor.id} style={styles.donorCard} activeOpacity={0.85} onPress={() => openDonor(donor)}>
+            ? visibleDonors.map((donor, index) => (<FadeInView key={donor.id} delay={Math.min(index * 50, 300)}><TouchableOpacity style={styles.donorCard} activeOpacity={0.85} onPress={() => openDonor(donor)}>
                       <View style={styles.donorTop}>
                         <View style={styles.avatar}>
                           {donor.profile_photo_url ? (<Image source={{
@@ -1203,6 +1142,8 @@ export default function SearchScreen() {
                     'Location unavailable'}
                             </Text>
                           </View>
+
+                          <DonorTrust stats={donor} style={styles.donorTrust}/>
                         </View>
 
                         <View style={styles.donorBloodBadge}>
@@ -1292,7 +1233,7 @@ export default function SearchScreen() {
                           <MaterialIcons name="chevron-right" size={18} color={COLORS.redButton}/>
                         </View>
                       </View>
-                    </TouchableOpacity>))
+                    </TouchableOpacity></FadeInView>))
             : null}
 
             {/* ==================================================
@@ -1304,7 +1245,7 @@ export default function SearchScreen() {
             !donorEligibilityMessage &&
             searchMode ===
                 'requests'
-            ? visibleRequests.map(request => (<TouchableOpacity key={request.id} style={styles.requestCard} activeOpacity={0.85} onPress={() => openRequest(request)}>
+            ? visibleRequests.map((request, index) => (<FadeInView key={request.id} delay={Math.min(index * 50, 300)}><TouchableOpacity style={styles.requestCard} activeOpacity={0.85} onPress={() => openRequest(request)}>
                       <View style={styles.requestBadgeRow}>
                         <View style={styles.requestBloodBadge}>
                           <MaterialIcons name="bloodtype" size={14} color={COLORS.white}/>
@@ -1403,7 +1344,7 @@ export default function SearchScreen() {
                           <MaterialIcons name="chevron-right" size={18} color={COLORS.redButton}/>
                         </View>
                       </View>
-                    </TouchableOpacity>))
+                    </TouchableOpacity></FadeInView>))
             : null}
 
             <View style={styles.bottomSpacing}/>
@@ -1414,60 +1355,6 @@ export default function SearchScreen() {
         ================================================== */}
 
           <MainBottomNav activeTab="search"/>
-
-        {/* ==================================================
-            HEMO-HERO ACTION POPUP
-        ================================================== */}
-
-    <Modal visible={actionPopup.visible} transparent animationType="fade" statusBarTranslucent onRequestClose={closeActionPopup}>
-  <View style={styles.actionPopupOverlay}>
-    <View style={styles.actionPopupCard}>
-      <View style={[
-            styles.actionPopupIcon,
-            actionPopup.variant ===
-                'success' &&
-                styles.actionPopupIconSuccess,
-            actionPopup.variant ===
-                'warning' &&
-                styles.actionPopupIconWarning,
-            actionPopup.variant ===
-                'error' &&
-                styles.actionPopupIconError,
-        ]}>
-        <MaterialIcons name={actionPopup.variant ===
-            'success'
-            ? 'check-circle-outline'
-            : actionPopup.variant ===
-                'warning'
-                ? 'warning-amber'
-                : actionPopup.variant ===
-                    'error'
-                    ? 'error-outline'
-                    : 'info-outline'} size={31} color={actionPopup.variant ===
-            'success'
-            ? COLORS.green
-            : actionPopup.variant ===
-                'warning'
-                ? COLORS.orange
-                : COLORS.redButton}/>
-      </View>
-
-      <Text style={styles.actionPopupTitle}>
-        {actionPopup.title}
-      </Text>
-
-      <Text style={styles.actionPopupMessage}>
-        {actionPopup.message}
-      </Text>
-
-      <TouchableOpacity style={styles.actionPopupButton} activeOpacity={0.85} onPress={closeActionPopup}>
-        <Text style={styles.actionPopupButtonText}>
-          Okay
-        </Text>
-      </TouchableOpacity>
-    </View>
-  </View>
-    </Modal>
         </SafeAreaView>
       </View>
     </View>);
@@ -1608,35 +1495,20 @@ const styles = StyleSheet.create({
     eyebrow: {
         color: 'rgba(255,255,255,0.80)',
         fontFamily: 'Inter_500Medium',
-        fontSize: 10,
+        fontSize: 11,
         letterSpacing: 1.4,
     },
     headerTitle: {
         marginTop: 2,
         color: COLORS.white,
         fontFamily: 'Poppins_700Bold',
-        fontSize: 24,
+        fontSize: 22,
     },
     headerSubtitle: {
         marginTop: 1,
         color: 'rgba(255,255,255,0.84)',
         fontFamily: 'Inter_400Regular',
-        fontSize: 10.5,
-    },
-    mapButton: {
-        height: 38,
-        paddingHorizontal: 11,
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'center',
-        gap: 5,
-        borderRadius: 11,
-        backgroundColor: 'rgba(255,255,255,0.16)',
-    },
-    mapButtonText: {
-        color: COLORS.white,
-        fontFamily: 'Inter_600SemiBold',
-        fontSize: 10,
+        fontSize: 12.5,
     },
     searchBar: {
         height: 49,
@@ -1653,7 +1525,7 @@ const styles = StyleSheet.create({
         height: '100%',
         color: COLORS.black,
         fontFamily: 'Inter_400Regular',
-        fontSize: 12,
+        fontSize: 13.5,
         outlineStyle: 'none',
     } as any,
     clearButton: {
@@ -1684,7 +1556,7 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         gap: 4,
         borderRadius: 12,
-        backgroundColor: '#E9E9EC',
+        backgroundColor: COLORS.track,
     },
     modeButton: {
         flex: 1,
@@ -1700,7 +1572,7 @@ const styles = StyleSheet.create({
     modeText: {
         color: COLORS.muted,
         fontFamily: 'Inter_600SemiBold',
-        fontSize: 10,
+        fontSize: 13,
     },
     modeTextActive: {
         color: COLORS.white,
@@ -1723,18 +1595,18 @@ const styles = StyleSheet.create({
     filterTitle: {
         color: COLORS.black,
         fontFamily: 'Poppins_600SemiBold',
-        fontSize: 13,
+        fontSize: 14.5,
     },
     resetText: {
         color: COLORS.redButton,
         fontFamily: 'Inter_600SemiBold',
-        fontSize: 10,
+        fontSize: 12.5,
     },
     filterLabel: {
         marginBottom: 8,
         color: COLORS.muted,
         fontFamily: 'Inter_600SemiBold',
-        fontSize: 9.5,
+        fontSize: 12,
         paddingLeft: 2,
     },
     // ========================================================
@@ -1761,7 +1633,7 @@ const styles = StyleSheet.create({
         justifyContent: 'center',
         gap: 4,
         borderWidth: 1,
-        borderColor: '#DADADD',
+        borderColor: COLORS.chipBorder,
         borderRadius: 10,
         backgroundColor: COLORS.white,
     },
@@ -1772,7 +1644,7 @@ const styles = StyleSheet.create({
     bloodChipText: {
         color: COLORS.black,
         fontFamily: 'Inter_600SemiBold',
-        fontSize: 9.5,
+        fontSize: 13,
     },
     bloodChipTextActive: {
         color: COLORS.white,
@@ -1806,14 +1678,14 @@ const styles = StyleSheet.create({
     matchTitle: {
         color: COLORS.black,
         fontFamily: 'Inter_600SemiBold',
-        fontSize: 10,
+        fontSize: 13,
     },
     matchDescription: {
         marginTop: 2,
         color: COLORS.muted,
         fontFamily: 'Inter_400Regular',
-        fontSize: 8.3,
-        lineHeight: 12,
+        fontSize: 12,
+        lineHeight: 17,
     },
     matchBloodBadge: {
         minWidth: 48,
@@ -1829,7 +1701,7 @@ const styles = StyleSheet.create({
     matchBloodText: {
         color: COLORS.white,
         fontFamily: 'Poppins_700Bold',
-        fontSize: 9.5,
+        fontSize: 13,
     },
     // ========================================================
     // DISTANCE
@@ -1856,7 +1728,7 @@ const styles = StyleSheet.create({
     distanceTitle: {
         color: COLORS.black,
         fontFamily: 'Poppins_600SemiBold',
-        fontSize: 11.5,
+        fontSize: 14,
     },
     locationRow: {
         marginTop: 5,
@@ -1868,14 +1740,14 @@ const styles = StyleSheet.create({
         flex: 1,
         color: COLORS.black,
         fontFamily: 'Inter_500Medium',
-        fontSize: 9.5,
+        fontSize: 12.5,
     },
     locationHelper: {
         marginTop: 2,
         marginLeft: 17,
         color: COLORS.lightMuted,
         fontFamily: 'Inter_400Regular',
-        fontSize: 8.5,
+        fontSize: 11.5,
     },
     radiusBadge: {
         height: 30,
@@ -1888,7 +1760,7 @@ const styles = StyleSheet.create({
     radiusBadgeText: {
         color: COLORS.redButton,
         fontFamily: 'Inter_600SemiBold',
-        fontSize: 9.5,
+        fontSize: 12,
     },
     slider: {
         width: '100%',
@@ -1903,7 +1775,7 @@ const styles = StyleSheet.create({
     sliderLabel: {
         color: COLORS.lightMuted,
         fontFamily: 'Inter_400Regular',
-        fontSize: 8,
+        fontSize: 11,
     },
     // ========================================================
     // REQUEST FILTERS
@@ -1932,7 +1804,7 @@ const styles = StyleSheet.create({
     filterButtonText: {
         color: COLORS.muted,
         fontFamily: 'Inter_600SemiBold',
-        fontSize: 9,
+        fontSize: 12.5,
     },
     filterButtonTextActive: {
         color: COLORS.white,
@@ -1975,13 +1847,13 @@ const styles = StyleSheet.create({
     urgentReadyTitle: {
         color: COLORS.black,
         fontFamily: 'Inter_600SemiBold',
-        fontSize: 10.5,
+        fontSize: 13.5,
     },
     urgentReadySubtitle: {
         marginTop: 2,
         color: COLORS.lightMuted,
         fontFamily: 'Inter_400Regular',
-        fontSize: 8.5,
+        fontSize: 12,
     },
     // ========================================================
     // RESULTS
@@ -1993,31 +1865,35 @@ const styles = StyleSheet.create({
         justifyContent: 'space-between',
         gap: 10,
     },
+    resultsHeaderText: {
+        flex: 1,
+        minWidth: 0,
+    },
     resultsTitle: {
         color: COLORS.black,
         fontFamily: 'Poppins_600SemiBold',
-        fontSize: 13.5,
+        fontSize: 14.5,
     },
     compatibilityHelper: {
         marginTop: 2,
         maxWidth: 240,
         color: COLORS.muted,
         fontFamily: 'Inter_400Regular',
-        fontSize: 8.5,
-        lineHeight: 12,
+        fontSize: 12,
+        lineHeight: 17,
     },
     resultsCount: {
         marginTop: 1,
         color: COLORS.lightMuted,
         fontFamily: 'Inter_400Regular',
-        fontSize: 8.5,
+        fontSize: 12,
     },
     sortContainer: {
         height: 34,
         padding: 3,
         flexDirection: 'row',
         borderRadius: 9,
-        backgroundColor: '#E9E9EC',
+        backgroundColor: COLORS.track,
     },
     sortButton: {
         paddingHorizontal: 7,
@@ -2032,7 +1908,7 @@ const styles = StyleSheet.create({
     sortText: {
         color: COLORS.muted,
         fontFamily: 'Inter_500Medium',
-        fontSize: 8,
+        fontSize: 11.5,
     },
     sortTextActive: {
         color: COLORS.redButton,
@@ -2045,7 +1921,7 @@ const styles = StyleSheet.create({
         marginBottom: 11,
         padding: 14,
         borderWidth: 1,
-        borderColor: '#E3DADA',
+        borderColor: COLORS.border,
         borderRadius: 15,
         backgroundColor: COLORS.white,
         shadowColor: '#000000',
@@ -2088,7 +1964,7 @@ const styles = StyleSheet.create({
         flexShrink: 1,
         color: COLORS.black,
         fontFamily: 'Poppins_600SemiBold',
-        fontSize: 12.5,
+        fontSize: 14,
     },
     donorLocationRow: {
         marginTop: 3,
@@ -2100,7 +1976,10 @@ const styles = StyleSheet.create({
         flex: 1,
         color: COLORS.lightMuted,
         fontFamily: 'Inter_400Regular',
-        fontSize: 9,
+        fontSize: 12,
+    },
+    donorTrust: {
+        marginTop: 6,
     },
     donorBloodBadge: {
         minWidth: 62,
@@ -2117,7 +1996,7 @@ const styles = StyleSheet.create({
     donorBloodText: {
         color: COLORS.white,
         fontFamily: 'Poppins_700Bold',
-        fontSize: 10.5,
+        fontSize: 14,
     },
     donorBadgeRow: {
         marginTop: 11,
@@ -2143,7 +2022,7 @@ const styles = StyleSheet.create({
     availableText: {
         color: COLORS.green,
         fontFamily: 'Inter_600SemiBold',
-        fontSize: 8.5,
+        fontSize: 11.5,
     },
     verifiedBadge: {
         height: 26,
@@ -2157,7 +2036,7 @@ const styles = StyleSheet.create({
     verifiedBadgeText: {
         color: COLORS.green,
         fontFamily: 'Inter_600SemiBold',
-        fontSize: 8.5,
+        fontSize: 11.5,
     },
     urgentBadge: {
         height: 26,
@@ -2171,7 +2050,7 @@ const styles = StyleSheet.create({
     urgentBadgeText: {
         color: COLORS.orange,
         fontFamily: 'Inter_600SemiBold',
-        fontSize: 8.5,
+        fontSize: 11.5,
     },
     donorInfoBox: {
         marginTop: 11,
@@ -2198,13 +2077,13 @@ const styles = StyleSheet.create({
     infoSmallLabel: {
         color: COLORS.lightMuted,
         fontFamily: 'Inter_400Regular',
-        fontSize: 8,
+        fontSize: 11,
     },
     infoValue: {
         marginTop: 1,
         color: COLORS.black,
         fontFamily: 'Inter_600SemiBold',
-        fontSize: 9.5,
+        fontSize: 12.5,
     },
     // ========================================================
     // REQUEST CARD
@@ -2213,7 +2092,7 @@ const styles = StyleSheet.create({
         marginBottom: 11,
         padding: 14,
         borderWidth: 1,
-        borderColor: '#E3DADA',
+        borderColor: COLORS.border,
         borderRadius: 15,
         backgroundColor: COLORS.white,
     },
@@ -2236,7 +2115,7 @@ const styles = StyleSheet.create({
     requestBloodText: {
         color: COLORS.white,
         fontFamily: 'Poppins_700Bold',
-        fontSize: 9,
+        fontSize: 12.5,
     },
     compatibleBadge: {
         height: 28,
@@ -2250,7 +2129,7 @@ const styles = StyleSheet.create({
     compatibleBadgeText: {
         color: COLORS.green,
         fontFamily: 'Inter_600SemiBold',
-        fontSize: 8,
+        fontSize: 11.5,
     },
     requestUrgencyBadge: {
         height: 28,
@@ -2272,7 +2151,7 @@ const styles = StyleSheet.create({
     requestUrgencyText: {
         color: COLORS.white,
         fontFamily: 'Inter_600SemiBold',
-        fontSize: 8.5,
+        fontSize: 11.5,
     },
     requestScheduledText: {
         color: COLORS.orange,
@@ -2280,7 +2159,7 @@ const styles = StyleSheet.create({
     requestFacility: {
         color: COLORS.black,
         fontFamily: 'Poppins_600SemiBold',
-        fontSize: 12.5,
+        fontSize: 14,
     },
     requestAddressRow: {
         marginTop: 4,
@@ -2292,7 +2171,7 @@ const styles = StyleSheet.create({
         flex: 1,
         color: COLORS.lightMuted,
         fontFamily: 'Inter_400Regular',
-        fontSize: 9,
+        fontSize: 12,
     },
     requestInfoBox: {
         marginTop: 11,
@@ -2318,7 +2197,7 @@ const styles = StyleSheet.create({
     requestDateText: {
         color: COLORS.muted,
         fontFamily: 'Inter_500Medium',
-        fontSize: 9,
+        fontSize: 12,
     },
     // ========================================================
     // FOOTER
@@ -2344,7 +2223,7 @@ const styles = StyleSheet.create({
         flexShrink: 1,
         color: COLORS.lightMuted,
         fontFamily: 'Inter_400Regular',
-        fontSize: 8.5,
+        fontSize: 11.5,
     },
     viewAction: {
         flexDirection: 'row',
@@ -2353,7 +2232,7 @@ const styles = StyleSheet.create({
     viewActionText: {
         color: COLORS.redButton,
         fontFamily: 'Inter_600SemiBold',
-        fontSize: 9.5,
+        fontSize: 12.5,
     },
     // ========================================================
     // STATES
@@ -2381,7 +2260,7 @@ const styles = StyleSheet.create({
         marginTop: 11,
         color: COLORS.black,
         fontFamily: 'Poppins_600SemiBold',
-        fontSize: 13.5,
+        fontSize: 15,
         textAlign: 'center',
     },
     stateDescription: {
@@ -2389,8 +2268,8 @@ const styles = StyleSheet.create({
         marginTop: 6,
         color: COLORS.muted,
         fontFamily: 'Inter_400Regular',
-        fontSize: 10,
-        lineHeight: 15,
+        fontSize: 12.5,
+        lineHeight: 18,
         textAlign: 'center',
     },
     primaryButton: {
@@ -2406,7 +2285,7 @@ const styles = StyleSheet.create({
     primaryButtonText: {
         color: COLORS.white,
         fontFamily: 'Inter_600SemiBold',
-        fontSize: 10,
+        fontSize: 13,
     },
     secondaryButton: {
         minHeight: 40,
@@ -2422,81 +2301,7 @@ const styles = StyleSheet.create({
     secondaryButtonText: {
         color: COLORS.redButton,
         fontFamily: 'Inter_600SemiBold',
-        fontSize: 10,
-    },
-    // ========================================================
-    // HEMO-HERO ACTION POPUP
-    // ========================================================
-    actionPopupOverlay: {
-        flex: 1,
-        paddingHorizontal: 24,
-        alignItems: 'center',
-        justifyContent: 'center',
-        backgroundColor: 'rgba(0,0,0,0.48)',
-    },
-    actionPopupCard: {
-        width: '100%',
-        maxWidth: 360,
-        paddingHorizontal: 20,
-        paddingTop: 22,
-        paddingBottom: 18,
-        borderRadius: 22,
-        backgroundColor: COLORS.white,
-        shadowColor: '#000000',
-        shadowOffset: {
-            width: 0,
-            height: 8,
-        },
-        shadowOpacity: 0.2,
-        shadowRadius: 18,
-        elevation: 10,
-    },
-    actionPopupIcon: {
-        width: 56,
-        height: 56,
-        alignSelf: 'center',
-        marginBottom: 13,
-        borderRadius: 28,
-        alignItems: 'center',
-        justifyContent: 'center',
-        backgroundColor: COLORS.pinkSoft,
-    },
-    actionPopupIconSuccess: {
-        backgroundColor: COLORS.greenSoft,
-    },
-    actionPopupIconWarning: {
-        backgroundColor: COLORS.orangeSoft,
-    },
-    actionPopupIconError: {
-        backgroundColor: COLORS.pinkSoft,
-    },
-    actionPopupTitle: {
-        color: COLORS.black,
-        fontFamily: 'Poppins_600SemiBold',
-        fontSize: 16,
-        lineHeight: 22,
-        textAlign: 'center',
-    },
-    actionPopupMessage: {
-        marginTop: 8,
-        color: COLORS.muted,
-        fontFamily: 'Inter_400Regular',
-        fontSize: 11,
-        lineHeight: 17,
-        textAlign: 'center',
-    },
-    actionPopupButton: {
-        height: 45,
-        marginTop: 19,
-        borderRadius: 10,
-        alignItems: 'center',
-        justifyContent: 'center',
-        backgroundColor: COLORS.redButton,
-    },
-    actionPopupButtonText: {
-        color: COLORS.white,
-        fontFamily: 'Poppins_600SemiBold',
-        fontSize: 10,
+        fontSize: 13,
     },
     bottomSpacing: {
         height: 10,

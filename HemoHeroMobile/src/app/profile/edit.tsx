@@ -14,7 +14,9 @@ import {
 } from 'react-native';
 
 import { MaterialIcons } from '@expo/vector-icons';
-import * as ImagePicker from 'expo-image-picker';
+import PhotoSourceSheet from '../../components/PhotoSourceSheet';
+import BloodTypeProofField from '../../components/BloodTypeProofField';
+import type { PickedImage } from '../../lib/imageUpload';
 import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
@@ -23,6 +25,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import {
   deleteProfilePhoto,
   getCurrentUser,
+  saveBloodTypeWithProof,
   updateProfile,
   uploadProfilePhoto,
 } from '../../lib/api';
@@ -44,30 +47,30 @@ import {
 // ============================================================
 
 const COLORS = {
-  red: '#D31217',
-  redDark: '#8F1014',
+  red: '#DB0A0A',
+  redDark: '#8F1111',
   redButton: '#B42323',
 
   white: '#FFFFFF',
-  black: '#1D1D1F',
+  black: '#171717',
 
-  page: '#F7F7F8',
+  page: '#FFF8F8',
   card: '#FFFFFF',
 
-  muted: '#6E6E73',
-  lightMuted: '#A0A0A5',
+  muted: '#666666',
+  lightMuted: '#9A9A9A',
 
-  border: '#ECECEF',
+  border: '#EFE3E3',
 
-  pinkSoft: '#FFF1F2',
+  pinkSoft: '#FFF1F1',
 
-  green: '#178B49',
+  green: '#159447',
   greenSoft: '#EAF7EF',
 
-  orange: '#DD7A20',
-  orangeSoft: '#FFF3E7',
+  orange: '#DF721D',
+  orangeSoft: '#FDF1E6',
 
-  graySoft: '#F2F2F4',
+  graySoft: '#F5EFEF',
 };
 
 // ============================================================
@@ -217,6 +220,15 @@ export default function EditProfileScreen() {
       false
     );
 
+  // Take Photo / Choose from Library sheet.
+  const [
+    photoSheetVisible,
+    setPhotoSheetVisible,
+  ] =
+    useState(
+      false
+    );
+
   const [
     errorMessage,
     setErrorMessage,
@@ -322,6 +334,29 @@ export default function EditProfileScreen() {
     setBloodType,
   ] =
     useState('');
+
+  // The blood type saved on the profile, whether it has a proof
+  // photo, and a new proof chosen here. A new blood type needs a
+  // proof photo.
+  const [
+    savedBloodType,
+    setSavedBloodType,
+  ] =
+    useState('');
+
+  const [
+    proofOnFile,
+    setProofOnFile,
+  ] =
+    useState(false);
+
+  const [
+    bloodTypeProof,
+    setBloodTypeProof,
+  ] =
+    useState<PickedImage | null>(
+      null
+    );
 
   const [
     profilePhotoUrl,
@@ -512,6 +547,17 @@ export default function EditProfileScreen() {
           setProfilePhotoUrl(
             user.profile_photo_url ||
             ''
+          );
+
+          setSavedBloodType(
+            user.blood_type ||
+            ''
+          );
+
+          setProofOnFile(
+            Boolean(
+              user.blood_type_proof
+            )
           );
 
           if (
@@ -1270,7 +1316,7 @@ export default function EditProfileScreen() {
   // PROFILE PHOTO
   // ==========================================================
 
-  async function handleChooseProfilePhoto() {
+  function handleChooseProfilePhoto() {
     if (
       photoBusy ||
       saving
@@ -1278,6 +1324,14 @@ export default function EditProfileScreen() {
       return;
     }
 
+    setPhotoSheetVisible(
+      true
+    );
+  }
+
+  async function handlePhotoPicked(
+    image: PickedImage
+  ) {
     try {
       setPhotoBusy(
         true
@@ -1286,55 +1340,6 @@ export default function EditProfileScreen() {
       setErrorMessage(
         ''
       );
-
-      if (
-        Platform.OS !==
-        'web'
-      ) {
-        const permission =
-          await ImagePicker
-            .requestMediaLibraryPermissionsAsync();
-
-        if (
-          !permission.granted
-        ) {
-          showMessage(
-            'Permission Required',
-            'Please allow Hemo-Hero to access your photos so you can choose a profile picture.'
-          );
-
-          return;
-        }
-      }
-
-      const result =
-        await ImagePicker
-          .launchImageLibraryAsync({
-            mediaTypes: [
-              'images',
-            ],
-
-            allowsEditing:
-              true,
-
-            aspect: [
-              1,
-              1,
-            ],
-
-            quality:
-              0.8,
-          });
-
-      if (
-        result.canceled ||
-        !result.assets?.length
-      ) {
-        return;
-      }
-
-      const asset =
-        result.assets[0];
 
       const accessToken =
         await getAccessToken();
@@ -1352,23 +1357,7 @@ export default function EditProfileScreen() {
       const uploadResult =
         await uploadProfilePhoto(
           accessToken,
-          {
-            uri:
-              asset.uri,
-
-            fileName:
-              asset.fileName ||
-              `profile-${Date.now()}.jpg`,
-
-            mimeType:
-              asset.mimeType ||
-              'image/jpeg',
-
-            webFile:
-              (asset as any)
-                .file ||
-              null,
-          }
+          image
         );
 
       const newPhotoUrl =
@@ -1664,6 +1653,31 @@ export default function EditProfileScreen() {
       return;
     }
 
+    const bloodTypeChanged =
+      !isApprovedDonor &&
+      bloodType !==
+        savedBloodType;
+
+    if (
+      bloodTypeChanged &&
+      bloodType &&
+      !bloodTypeProof
+    ) {
+      const message =
+        'Add a photo of your blood type proof, or clear the blood type.';
+
+      setErrorMessage(
+        message
+      );
+
+      showMessage(
+        'Proof Required',
+        message
+      );
+
+      return;
+    }
+
     try {
       setSaving(
         true
@@ -1680,6 +1694,20 @@ export default function EditProfileScreen() {
         );
 
         return;
+      }
+
+      // A new blood type (or a new proof for the same one) is
+      // saved with its photo first.
+      if (
+        !isApprovedDonor &&
+        bloodType &&
+        bloodTypeProof
+      ) {
+        await saveBloodTypeWithProof(
+          accessToken,
+          bloodType,
+          bloodTypeProof
+        );
       }
 
       const payload:
@@ -1720,11 +1748,12 @@ export default function EditProfileScreen() {
           cleanProvince,
       };
 
+      // Clearing the blood type also removes its proof.
       if (
-        !isApprovedDonor
+        bloodTypeChanged &&
+        !bloodType
       ) {
         payload.blood_type =
-          bloodType ||
           null;
       }
 
@@ -1891,7 +1920,7 @@ export default function EditProfileScreen() {
 
             <LinearGradient
               colors={[
-                '#D9191E',
+                '#D2151A',
                 COLORS.redDark,
               ]}
               style={
@@ -2442,7 +2471,7 @@ export default function EditProfileScreen() {
                 subtitle={
                   isApprovedDonor
                     ? 'Verified through your approved donor application.'
-                    : 'Select your blood type if you know it.'
+                    : 'Add it only with proof. Not tested yet? Get typed at your local Red Cross chapter, hospital or health center.'
                 }
               />
 
@@ -2547,13 +2576,19 @@ export default function EditProfileScreen() {
                               saving ||
                               photoBusy
                             }
-                            onPress={() =>
+                            onPress={() => {
                               setBloodType(
                                 selected
                                   ? ''
                                   : type
-                              )
-                            }
+                              );
+
+                              if (selected) {
+                                setBloodTypeProof(
+                                  null
+                                );
+                              }
+                            }}
                           >
                             <Text
                               style={[
@@ -2573,6 +2608,35 @@ export default function EditProfileScreen() {
                     )}
                   </View>
                 )}
+
+                {!isApprovedDonor &&
+                bloodType ? (
+                  <BloodTypeProofField
+                    image={bloodTypeProof}
+                    proofOnFile={
+                      proofOnFile &&
+                      bloodType ===
+                        savedBloodType
+                    }
+                    required={
+                      bloodType !==
+                      savedBloodType
+                    }
+                    disabled={
+                      saving ||
+                      photoBusy
+                    }
+                    onChange={
+                      setBloodTypeProof
+                    }
+                    onError={message =>
+                      showMessage(
+                        'Photo Not Added',
+                        message
+                      )
+                    }
+                  />
+                ) : null}
               </View>
 
               {/* ==================================================
@@ -3454,6 +3518,26 @@ export default function EditProfileScreen() {
           </View>
         </View>
       </Modal>
+
+      <PhotoSourceSheet
+        visible={
+          photoSheetVisible
+        }
+        onClose={() =>
+          setPhotoSheetVisible(
+            false
+          )
+        }
+        onPicked={
+          handlePhotoPicked
+        }
+        onError={message =>
+          showMessage(
+            'Permission Required',
+            message
+          )
+        }
+      />
     </View>
   );
 }
@@ -3591,7 +3675,7 @@ function Field({
         placeholder={
           placeholder
         }
-        placeholderTextColor="#A0A0A5"
+        placeholderTextColor="#9A9A9A"
         editable={
           editable
         }
@@ -3726,7 +3810,7 @@ const styles =
         'Poppins_600SemiBold',
 
       fontSize:
-        16,
+        15,
     },
 
     loadingText: {
@@ -3740,7 +3824,7 @@ const styles =
         'Inter_400Regular',
 
       fontSize:
-        10.5,
+        12.5,
 
       textAlign:
         'center',
@@ -3851,10 +3935,10 @@ const styles =
         'Poppins_700Bold',
 
       fontSize:
-        18,
+        20,
 
       lineHeight:
-        23,
+        26,
     },
 
     headerSubtitle: {
@@ -3868,7 +3952,7 @@ const styles =
         'Inter_400Regular',
 
       fontSize:
-        9.5,
+        12,
     },
 
     // ========================================================
@@ -3964,10 +4048,10 @@ const styles =
         'Inter_500Medium',
 
       fontSize:
-        10.5,
+        12.5,
 
       lineHeight:
-        15,
+        18,
     },
 
     // ========================================================
@@ -4001,10 +4085,10 @@ const styles =
         'Poppins_600SemiBold',
 
       fontSize:
-        14,
+        14.5,
 
       lineHeight:
-        19,
+        20,
     },
 
     sectionSubtitle: {
@@ -4021,10 +4105,10 @@ const styles =
         'Inter_400Regular',
 
       fontSize:
-        10,
+        12,
 
       lineHeight:
-        14,
+        17,
     },
 
     // ========================================================
@@ -4111,7 +4195,7 @@ const styles =
         'Inter_600SemiBold',
 
       fontSize:
-        10.5,
+        12.5,
     },
 
     input: {
@@ -4140,7 +4224,7 @@ const styles =
         'Inter_400Regular',
 
       fontSize:
-        11,
+        13.5,
     },
 
     // ========================================================
@@ -4209,7 +4293,7 @@ const styles =
         'Inter_400Regular',
 
       fontSize:
-        9,
+        11.5,
     },
 
     birthdayValue: {
@@ -4223,7 +4307,7 @@ const styles =
         'Inter_600SemiBold',
 
       fontSize:
-        11.5,
+        13.5,
     },
 
     birthdayPlaceholder: {
@@ -4275,7 +4359,7 @@ const styles =
         'Inter_500Medium',
 
       fontSize:
-        10.5,
+        13,
     },
 
     // ========================================================
@@ -4343,7 +4427,7 @@ const styles =
         'Inter_500Medium',
 
       fontSize:
-        10,
+        13,
     },
 
     genderButtonTextActive: {
@@ -4418,10 +4502,10 @@ const styles =
         'Inter_400Regular',
 
       fontSize:
-        9.5,
+        12,
 
       lineHeight:
-        14,
+        17,
     },
 
     // ========================================================
@@ -4487,7 +4571,7 @@ const styles =
         'Inter_600SemiBold',
 
       fontSize:
-        11,
+        13.5,
     },
 
     bloodTypeTextSelected: {
@@ -4546,7 +4630,7 @@ const styles =
         'Inter_400Regular',
 
       fontSize:
-        9.5,
+        11.5,
     },
 
     verifiedBloodValue: {
@@ -4597,7 +4681,7 @@ const styles =
         'Inter_600SemiBold',
 
       fontSize:
-        9,
+        11.5,
     },
 
     // ========================================================
@@ -4712,7 +4796,7 @@ const styles =
         'Inter_600SemiBold',
 
       fontSize:
-        12,
+        13.5,
     },
 
     photoDescription: {
@@ -4726,10 +4810,10 @@ const styles =
         'Inter_400Regular',
 
       fontSize:
-        9.5,
+        12,
 
       lineHeight:
-        14,
+        17,
     },
 
     photoActions: {
@@ -4786,7 +4870,7 @@ const styles =
         'Inter_600SemiBold',
 
       fontSize:
-        9.5,
+        12.5,
     },
 
     removePhotoButton: {
@@ -4829,7 +4913,7 @@ const styles =
         'Inter_500Medium',
 
       fontSize:
-        9.5,
+        12.5,
     },
 
     // ========================================================
@@ -4892,7 +4976,7 @@ const styles =
         'Poppins_600SemiBold',
 
       fontSize:
-        12,
+        14.5,
     },
 
     cancelButton: {
@@ -4917,7 +5001,7 @@ const styles =
         'Inter_500Medium',
 
       fontSize:
-        10.5,
+        13.5,
     },
 
     // ========================================================
@@ -4939,7 +5023,7 @@ const styles =
     },
 
     calendarBackdrop: {
-      ...StyleSheet.absoluteFillObject,
+      ...StyleSheet.absoluteFill,
 
       backgroundColor:
         'rgba(0,0,0,0.42)',
@@ -5014,7 +5098,7 @@ const styles =
         'Poppins_700Bold',
 
       fontSize:
-        16,
+        17,
     },
 
     calendarSubtitle: {
@@ -5028,7 +5112,7 @@ const styles =
         'Inter_400Regular',
 
       fontSize:
-        9,
+        12,
     },
 
     calendarClose: {
@@ -5125,7 +5209,7 @@ const styles =
         'Poppins_600SemiBold',
 
       fontSize:
-        12,
+        14.5,
     },
 
     calendarYearButton: {
@@ -5179,7 +5263,7 @@ const styles =
         'Inter_600SemiBold',
 
       fontSize:
-        10.5,
+        12.5,
     },
 
     // ========================================================
@@ -5220,7 +5304,7 @@ const styles =
         'Inter_600SemiBold',
 
       fontSize:
-        9.5,
+        12,
 
       textAlign:
         'center',
@@ -5275,7 +5359,7 @@ const styles =
         'Inter_600SemiBold',
 
       fontSize:
-        10.5,
+        13,
     },
 
     calendarYearOptionTextSelected: {
@@ -5317,7 +5401,7 @@ const styles =
         'Inter_600SemiBold',
 
       fontSize:
-        9,
+        11.5,
     },
 
     // ========================================================
@@ -5376,7 +5460,7 @@ const styles =
         'Inter_600SemiBold',
 
       fontSize:
-        10,
+        13.5,
     },
 
     calendarDayDisabled: {
@@ -5427,7 +5511,7 @@ const styles =
         'Inter_400Regular',
 
       fontSize:
-        9.5,
+        11.5,
     },
 
     calendarSelectedValue: {
@@ -5441,7 +5525,7 @@ const styles =
         'Inter_600SemiBold',
 
       fontSize:
-        9.5,
+        13,
     },
 
     // ========================================================
@@ -5476,7 +5560,7 @@ const styles =
         'Poppins_600SemiBold',
 
       fontSize:
-        10.5,
+        14.5,
     },
 
     // ========================================================
@@ -5592,7 +5676,7 @@ const styles =
         'Poppins_600SemiBold',
 
       fontSize:
-        16,
+        17,
 
       lineHeight:
         22,
@@ -5612,10 +5696,10 @@ const styles =
         'Inter_400Regular',
 
       fontSize:
-        11,
+        13.5,
 
       lineHeight:
-        17,
+        20,
 
       textAlign:
         'center',
@@ -5671,7 +5755,7 @@ const styles =
         'Poppins_600SemiBold',
 
       fontSize:
-        10,
+        13.5,
     },
 
     actionPopupPrimaryButton: {
@@ -5715,6 +5799,6 @@ const styles =
         'Poppins_600SemiBold',
 
       fontSize:
-        10,
+        13.5,
     },
   });
