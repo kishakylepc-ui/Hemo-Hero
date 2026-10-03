@@ -42,7 +42,7 @@ import {
 
 import { useAdminCanvas } from '../../components/AdminCanvas';
 
-import AdminHeader from '../AdminHeader';
+import AdminHeader from '../../components/AdminHeader';
 
 import { FadeInView } from '../../components/AdminMotion';
 

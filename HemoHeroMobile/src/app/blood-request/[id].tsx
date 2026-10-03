@@ -1430,7 +1430,6 @@ export default function BloodRequestDetailsScreen() {
   // keep what was entered.
   async function submitConfirmedDonation(
     value: {
-      units: number;
       donatedAt: string;
       note: string | null;
     }
@@ -1460,9 +1459,6 @@ export default function BloodRequestDetailsScreen() {
         request.id,
         response.id,
         {
-          units_donated:
-            value.units,
-
           donated_at:
             value.donatedAt,
 
@@ -3864,10 +3860,6 @@ export default function BloodRequestDetailsScreen() {
           bloodType={
             request?.blood_type ||
             ''
-          }
-          unitsNeeded={
-            request?.units_needed ||
-            1
           }
           requestCreatedAt={
             request?.created_at

@@ -25,6 +25,14 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import * as Location from 'expo-location';
 
+import {
+  getAddressFromLocation,
+} from '../../lib/api';
+
+import {
+  getAccessToken,
+} from '../../lib/session';
+
 const COLORS = {
   red: '#DB0A0A',
   redDark: '#8F1111',
@@ -118,6 +126,20 @@ export default function LocationScreen() {
   const [
     locationDetected,
     setLocationDetected,
+  ] =
+    useState(false);
+
+  // The address fields were filled in from the location, and
+  // whether OpenStreetMap supplied it (it needs to be credited).
+  const [
+    addressFilled,
+    setAddressFilled,
+  ] =
+    useState(false);
+
+  const [
+    addressFromMap,
+    setAddressFromMap,
   ] =
     useState(false);
 
@@ -289,88 +311,152 @@ export default function LocationScreen() {
       );
 
       // ========================================================
-      // NATIVE REVERSE GEOCODING
+      // ADDRESS FROM THE LOCATION
+      //
+      // OpenStreetMap (through the server) gives the city and
+      // province; on phones, the phone's own lookup often knows
+      // the barangay. Both run together and fill what they find.
       // ========================================================
 
+      const accessToken =
+        await getAccessToken();
+
+      const [
+        mapResult,
+        phoneResult,
+      ] =
+        await Promise.allSettled([
+          accessToken
+            ? getAddressFromLocation(
+                accessToken,
+                currentLatitude,
+                currentLongitude
+              )
+            : Promise.reject(
+                new Error(
+                  'Not signed in.'
+                )
+              ),
+
+          Platform.OS !==
+          'web'
+            ? Location
+                .reverseGeocodeAsync({
+                  latitude:
+                    currentLatitude,
+
+                  longitude:
+                    currentLongitude,
+                })
+            : Promise.resolve(
+                []
+              ),
+        ]);
+
+      const fromMap =
+        mapResult.status ===
+        'fulfilled'
+          ? mapResult.value
+              ?.address ||
+            null
+          : null;
+
+      const fromPhone =
+        phoneResult.status ===
+        'fulfilled'
+          ? phoneResult.value?.[0] ||
+            null
+          : null;
+
       if (
-        Platform.OS !==
-        'web'
+        mapResult.status ===
+        'rejected'
       ) {
-        try {
-          const addresses =
-            await Location
-              .reverseGeocodeAsync({
-                latitude:
-                  currentLatitude,
-
-                longitude:
-                  currentLongitude,
-              });
-
-          if (
-            addresses.length >
-            0
-          ) {
-            const address =
-              addresses[0];
-
-            const detectedBarangay =
-              address.district ||
-              address.subregion ||
-              address.street ||
-              address.name ||
-              '';
-
-            const detectedCity =
-              address.city ||
-              address.subregion ||
-              '';
-
-            const detectedProvince =
-              address.region ||
-              '';
-
-            if (
-              detectedBarangay
-            ) {
-              setBarangay(
-                detectedBarangay
-              );
-            }
-
-            if (
-              detectedCity
-            ) {
-              setCity(
-                detectedCity
-              );
-            }
-
-            if (
-              detectedProvince
-            ) {
-              setProvince(
-                detectedProvince
-              );
-            }
-          }
-        } catch (
-          geocodeError
-        ) {
-          console.log(
-            'REVERSE GEOCODE ERROR:',
-            geocodeError
-          );
-        }
+        console.log(
+          'ADDRESS LOOKUP ERROR:',
+          mapResult.reason
+        );
       }
 
       if (
-        Platform.OS ===
-        'web'
+        phoneResult.status ===
+        'rejected'
       ) {
+        console.log(
+          'REVERSE GEOCODE ERROR:',
+          phoneResult.reason
+        );
+      }
+
+      // A mapped barangay boundary first, then the phone's
+      // barangay ("district"), then the nearest named area.
+      const detectedBarangay =
+        (fromMap?.barangay_exact
+          ? fromMap.barangay
+          : '') ||
+        fromPhone?.district ||
+        fromMap?.barangay ||
+        '';
+
+      const detectedCity =
+        fromMap?.city ||
+        fromPhone?.city ||
+        '';
+
+      // On phones in the Philippines, "region" is the region
+      // (e.g. Eastern Visayas) and "subregion" the province.
+      const detectedProvince =
+        fromMap?.province ||
+        fromPhone?.subregion ||
+        '';
+
+      if (
+        detectedBarangay
+      ) {
+        setBarangay(
+          detectedBarangay
+        );
+      }
+
+      if (
+        detectedCity
+      ) {
+        setCity(
+          detectedCity
+        );
+      }
+
+      if (
+        detectedProvince
+      ) {
+        setProvince(
+          detectedProvince
+        );
+      }
+
+      const filled =
+        Boolean(
+          detectedBarangay ||
+            detectedCity ||
+            detectedProvince
+        );
+
+      setAddressFilled(
+        filled
+      );
+
+      setAddressFromMap(
+        Boolean(
+          fromMap
+        )
+      );
+
+      if (filled) {
+        clearError();
+      } else {
         showMessage(
           'Location Detected',
-          'Your GPS coordinates were detected successfully. Please confirm your Barangay or Street, City, and Province below.'
+          'Your location was found, but not its address. Please type your barangay or street, city, and province below.'
         );
       }
     } catch (
@@ -800,7 +886,9 @@ export default function LocationScreen() {
                             styles.detectedTitle
                           }
                         >
-                          Current location found
+                          {addressFilled
+                            ? 'Address filled in from your location'
+                            : 'Current location found'}
                         </Text>
 
                         <Text
@@ -808,15 +896,24 @@ export default function LocationScreen() {
                             styles.detectedCoordinates
                           }
                         >
-                          GPS:{' '}
-                          {latitude.toFixed(
-                            5
-                          )}
-                          ,{' '}
-                          {longitude.toFixed(
-                            5
-                          )}
+                          {addressFilled
+                            ? 'Check the details below before continuing.'
+                            : `GPS: ${latitude.toFixed(
+                                5
+                              )}, ${longitude.toFixed(
+                                5
+                              )}`}
                         </Text>
+
+                        {addressFromMap ? (
+                          <Text
+                            style={
+                              styles.detectedCredit
+                            }
+                          >
+                            Address data © OpenStreetMap contributors
+                          </Text>
+                        ) : null}
                       </View>
                     </View>
                   ) : null}
@@ -1297,7 +1394,7 @@ const styles =
         669,
 
       paddingHorizontal:
-        28,
+        20,
 
       paddingBottom:
         30,
@@ -1315,13 +1412,13 @@ const styles =
         640,
 
       paddingHorizontal:
-        24,
+        20,
 
       paddingTop:
-        13,
+        16,
 
       paddingBottom:
-        22,
+        24,
 
       backgroundColor:
         '#FAFAFA',
@@ -1401,7 +1498,7 @@ const styles =
         14.5,
 
       marginBottom:
-        12,
+        14,
     },
 
     // ========================================================
@@ -1431,7 +1528,7 @@ const styles =
         COLORS.mapBackground,
 
       marginBottom:
-        10,
+        14,
     },
 
     mapGreenOne: {
@@ -1613,13 +1710,13 @@ const styles =
         12,
 
       lineHeight:
-        17,
+        18,
 
       textAlign:
         'center',
 
       marginBottom:
-        13,
+        18,
     },
 
     // ========================================================
@@ -1628,7 +1725,7 @@ const styles =
 
     currentLocationButton: {
       height:
-        46,
+        48,
 
       flexDirection:
         'row',
@@ -1671,10 +1768,16 @@ const styles =
 
     detectedBox: {
       marginTop:
-        10,
+        12,
+
+      marginBottom:
+        0,
 
       minHeight:
         48,
+
+      paddingVertical:
+        9,
 
       flexDirection:
         'row',
@@ -1751,6 +1854,20 @@ const styles =
         11,
     },
 
+    detectedCredit: {
+      marginTop:
+        3,
+
+      color:
+        COLORS.placeholder,
+
+      fontFamily:
+        'Inter_400Regular',
+
+      fontSize:
+        10.5,
+    },
+
     // ========================================================
     // OR
     // ========================================================
@@ -1764,6 +1881,9 @@ const styles =
     // ========================================================
 
     locationDetailsTitle: {
+      marginTop:
+        24,
+
       color:
         COLORS.black,
 
@@ -1776,10 +1896,10 @@ const styles =
 
     locationHint: {
       marginTop:
-        3,
+        4,
 
       marginBottom:
-        10,
+        16,
 
       color:
         COLORS.muted,
@@ -1797,7 +1917,7 @@ const styles =
 
     errorBox: {
       marginBottom:
-        10,
+        14,
 
       paddingHorizontal:
         10,
@@ -1847,15 +1967,15 @@ const styles =
         12.5,
 
       marginBottom:
-        5,
+        7,
     },
 
     input: {
       height:
-        44,
+        48,
 
       marginBottom:
-        10,
+        16,
 
       paddingHorizontal:
         13,
@@ -1900,7 +2020,7 @@ const styles =
         12,
 
       marginTop:
-        9,
+        10,
     },
 
     secondaryButton: {

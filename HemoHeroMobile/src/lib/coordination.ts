@@ -68,6 +68,10 @@ export type CoordinationSession = {
   donor: CoordinationPerson;
   viewer_role: 'requester' | 'donor';
   schedule: CoordinationSchedule | null;
+
+  // Latest meeting time allowed (ISO): the needed date and time,
+  // or when an urgent request closes.
+  schedule_limit?: string | null;
 };
 
 export type CoordinationMessage = {

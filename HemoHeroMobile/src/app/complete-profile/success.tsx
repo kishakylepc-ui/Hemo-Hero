@@ -81,11 +81,12 @@ export default function ProfileSuccessScreen() {
       Profile completion is finished and the
       login session is still stored in AsyncStorage.
 
-      Go directly to the authenticated dashboard.
+      New accounts see the welcome screen first; it
+      offers an optional tour of the dashboard.
     */
 
     router.replace(
-      '/dashboard'
+      '/welcome' as any
     );
   }
 
@@ -527,7 +528,7 @@ export default function ProfileSuccessScreen() {
                       styles.dashboardButtonText
                     }
                   >
-                    Go to Dashboard
+                    Continue
                   </Text>
 
                   <MaterialIcons

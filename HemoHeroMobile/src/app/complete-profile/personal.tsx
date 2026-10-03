@@ -1897,7 +1897,7 @@ const styles =
         669,
 
       paddingHorizontal:
-        28,
+        20,
 
       paddingBottom:
         30,
@@ -1915,13 +1915,13 @@ const styles =
         640,
 
       paddingHorizontal:
-        24,
+        20,
 
       paddingTop:
-        13,
+        16,
 
       paddingBottom:
-        22,
+        24,
 
       backgroundColor:
         '#FAFAFA',

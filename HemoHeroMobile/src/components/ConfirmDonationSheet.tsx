@@ -69,10 +69,10 @@ const COLORS = {
 // ============================================================
 // CONFIRM DONATION SHEET
 //
-// The requester confirms an accepted donor's donation: how many
-// bags and which day. Recording it saves the transaction to both
-// histories. Same rules as the request page: bags up to what the
-// request needs, and no day before the request was posted.
+// The requester confirms an accepted donor's donation and which
+// day it happened. Recording it saves the transaction to both
+// histories. A donor gives one bag (450 mL) per donation, and the
+// day can't be before the request was posted.
 // ============================================================
 
 const DAY_MS =
@@ -110,7 +110,6 @@ export default function ConfirmDonationSheet({
   visible,
   donorName,
   bloodType,
-  unitsNeeded,
   requestCreatedAt,
   onClose,
   onSubmit,
@@ -118,21 +117,16 @@ export default function ConfirmDonationSheet({
   visible: boolean;
   donorName: string;
   bloodType: string;
-  unitsNeeded: number;
   requestCreatedAt?: string | null;
   onClose: () => void;
   // Throws with a readable message on failure.
   onSubmit: (value: {
-    units: number;
     donatedAt: string;
     note: string | null;
   }) => Promise<void>;
 }) {
   const insets =
     useSafeAreaInsets();
-
-  const [units, setUnits] =
-    useState(1);
 
   const [dayOffset, setDayOffset] =
     useState(0);
@@ -149,22 +143,12 @@ export default function ConfirmDonationSheet({
   // Fresh values each time it opens.
   useEffect(() => {
     if (visible) {
-      setUnits(1);
       setDayOffset(0);
       setNote('');
       setSaving(false);
       setError('');
     }
   }, [visible]);
-
-  const maxUnits =
-    Math.max(
-      1,
-      Math.min(
-        20,
-        Number(unitsNeeded) || 1
-      )
-    );
 
   const postedDay =
     startOfDay(
@@ -201,7 +185,6 @@ export default function ConfirmDonationSheet({
       setError('');
 
       await onSubmit({
-        units,
         donatedAt: new Date(
           Date.now() -
             dayOffset * DAY_MS
@@ -292,72 +275,30 @@ export default function ConfirmDonationSheet({
               </TouchableOpacity>
             </View>
 
-            {/* BAGS */}
+            {/* BAGS: one per donor (Philippine Red Cross) */}
 
             <View style={styles.row}>
               <Text style={styles.label}>
                 Bags donated
               </Text>
 
-              <View style={styles.stepper}>
-                <TouchableOpacity
-                  style={[
-                    styles.stepperButton,
+              <View style={styles.bagValue}>
+                <MaterialIcons
+                  name="bloodtype"
+                  size={16}
+                  color={COLORS.redButton}
+                />
 
-                    units <= 1 &&
-                      styles.disabled,
-                  ]}
-                  disabled={
-                    units <= 1 ||
-                    saving
-                  }
-                  accessibilityLabel="Fewer bags"
-                  onPress={() =>
-                    setUnits(value =>
-                      Math.max(1, value - 1)
-                    )
-                  }
-                >
-                  <MaterialIcons
-                    name="remove"
-                    size={19}
-                    color={COLORS.redButton}
-                  />
-                </TouchableOpacity>
-
-                <Text style={styles.stepperValue}>
-                  {units}
+                <Text style={styles.bagValueText}>
+                  1 bag · 450 mL
                 </Text>
-
-                <TouchableOpacity
-                  style={[
-                    styles.stepperButton,
-
-                    units >= maxUnits &&
-                      styles.disabled,
-                  ]}
-                  disabled={
-                    units >= maxUnits ||
-                    saving
-                  }
-                  accessibilityLabel="More bags"
-                  onPress={() =>
-                    setUnits(value =>
-                      Math.min(
-                        maxUnits,
-                        value + 1
-                      )
-                    )
-                  }
-                >
-                  <MaterialIcons
-                    name="add"
-                    size={19}
-                    color={COLORS.redButton}
-                  />
-                </TouchableOpacity>
               </View>
             </View>
+
+            <Text style={styles.bagHint}>
+              Each donor gives one bag per donation. A request
+              that needs more bags needs more donors.
+            </Text>
 
             {/* DAY */}
 
@@ -589,29 +530,29 @@ const styles = StyleSheet.create({
     fontFamily: 'Inter_400Regular',
   },
 
-  stepper: {
-    padding: 3,
+  bagValue: {
+    paddingHorizontal: 12,
+    paddingVertical: 7,
     flexDirection: 'row',
     alignItems: 'center',
+    gap: 6,
     borderRadius: 12,
     backgroundColor: COLORS.page,
   },
 
-  stepperButton: {
-    width: 34,
-    height: 34,
-    borderRadius: 10,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: COLORS.white,
+  bagValueText: {
+    color: COLORS.black,
+    fontFamily: 'Poppins_600SemiBold',
+    fontSize: 13.5,
   },
 
-  stepperValue: {
-    width: 42,
-    color: COLORS.black,
-    fontFamily: 'Poppins_700Bold',
-    fontSize: 17,
-    textAlign: 'center',
+  bagHint: {
+    marginTop: -6,
+    marginBottom: 16,
+    color: COLORS.muted,
+    fontFamily: 'Inter_400Regular',
+    fontSize: 12,
+    lineHeight: 17,
   },
 
   chips: {

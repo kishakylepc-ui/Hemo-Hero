@@ -15,6 +15,7 @@ import {
 
 import { MaterialIcons } from '@expo/vector-icons';
 import PhotoSourceSheet from '../../components/PhotoSourceSheet';
+import BloodTypeProofField from '../../components/BloodTypeProofField';
 import type { PickedImage } from '../../lib/imageUpload';
 import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
@@ -24,6 +25,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import {
   deleteProfilePhoto,
   getCurrentUser,
+  saveBloodTypeWithProof,
   updateProfile,
   uploadProfilePhoto,
 } from '../../lib/api';
@@ -333,6 +335,29 @@ export default function EditProfileScreen() {
   ] =
     useState('');
 
+  // The blood type saved on the profile, whether it has a proof
+  // photo, and a new proof chosen here. A new blood type needs a
+  // proof photo.
+  const [
+    savedBloodType,
+    setSavedBloodType,
+  ] =
+    useState('');
+
+  const [
+    proofOnFile,
+    setProofOnFile,
+  ] =
+    useState(false);
+
+  const [
+    bloodTypeProof,
+    setBloodTypeProof,
+  ] =
+    useState<PickedImage | null>(
+      null
+    );
+
   const [
     profilePhotoUrl,
     setProfilePhotoUrl,
@@ -522,6 +547,17 @@ export default function EditProfileScreen() {
           setProfilePhotoUrl(
             user.profile_photo_url ||
             ''
+          );
+
+          setSavedBloodType(
+            user.blood_type ||
+            ''
+          );
+
+          setProofOnFile(
+            Boolean(
+              user.blood_type_proof
+            )
           );
 
           if (
@@ -1617,6 +1653,31 @@ export default function EditProfileScreen() {
       return;
     }
 
+    const bloodTypeChanged =
+      !isApprovedDonor &&
+      bloodType !==
+        savedBloodType;
+
+    if (
+      bloodTypeChanged &&
+      bloodType &&
+      !bloodTypeProof
+    ) {
+      const message =
+        'Add a photo of your blood type proof, or clear the blood type.';
+
+      setErrorMessage(
+        message
+      );
+
+      showMessage(
+        'Proof Required',
+        message
+      );
+
+      return;
+    }
+
     try {
       setSaving(
         true
@@ -1633,6 +1694,20 @@ export default function EditProfileScreen() {
         );
 
         return;
+      }
+
+      // A new blood type (or a new proof for the same one) is
+      // saved with its photo first.
+      if (
+        !isApprovedDonor &&
+        bloodType &&
+        bloodTypeProof
+      ) {
+        await saveBloodTypeWithProof(
+          accessToken,
+          bloodType,
+          bloodTypeProof
+        );
       }
 
       const payload:
@@ -1673,11 +1748,12 @@ export default function EditProfileScreen() {
           cleanProvince,
       };
 
+      // Clearing the blood type also removes its proof.
       if (
-        !isApprovedDonor
+        bloodTypeChanged &&
+        !bloodType
       ) {
         payload.blood_type =
-          bloodType ||
           null;
       }
 
@@ -2395,7 +2471,7 @@ export default function EditProfileScreen() {
                 subtitle={
                   isApprovedDonor
                     ? 'Verified through your approved donor application.'
-                    : 'Select your blood type if you know it.'
+                    : 'Add it only with proof. Not tested yet? Get typed at your local Red Cross chapter, hospital or health center.'
                 }
               />
 
@@ -2500,13 +2576,19 @@ export default function EditProfileScreen() {
                               saving ||
                               photoBusy
                             }
-                            onPress={() =>
+                            onPress={() => {
                               setBloodType(
                                 selected
                                   ? ''
                                   : type
-                              )
-                            }
+                              );
+
+                              if (selected) {
+                                setBloodTypeProof(
+                                  null
+                                );
+                              }
+                            }}
                           >
                             <Text
                               style={[
@@ -2526,6 +2608,35 @@ export default function EditProfileScreen() {
                     )}
                   </View>
                 )}
+
+                {!isApprovedDonor &&
+                bloodType ? (
+                  <BloodTypeProofField
+                    image={bloodTypeProof}
+                    proofOnFile={
+                      proofOnFile &&
+                      bloodType ===
+                        savedBloodType
+                    }
+                    required={
+                      bloodType !==
+                      savedBloodType
+                    }
+                    disabled={
+                      saving ||
+                      photoBusy
+                    }
+                    onChange={
+                      setBloodTypeProof
+                    }
+                    onError={message =>
+                      showMessage(
+                        'Photo Not Added',
+                        message
+                      )
+                    }
+                  />
+                ) : null}
               </View>
 
               {/* ==================================================

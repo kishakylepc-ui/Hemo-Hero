@@ -673,6 +673,43 @@ export default function DonationCoordinationScreen() {
       ?.status ===
     'no_show';
 
+  // The meeting can't be later than the request's time: the
+  // needed date and time, or when an urgent request closes.
+  const scheduleLimit =
+    coordination
+      ?.schedule_limit
+      ? new Date(
+          coordination.schedule_limit
+        )
+      : null;
+
+  const scheduleLimitPassed =
+    scheduleLimit !== null &&
+    scheduleLimit.getTime() <=
+      Date.now();
+
+  // e.g. "Needed by Wed, Oct 8, 2:30 PM"
+  const scheduleLimitText =
+    scheduleLimit && request
+      ? `${
+          request.urgency ===
+          'urgent'
+            ? 'Urgent request · closes'
+            : request.needed_date
+              ? 'Needed by'
+              : 'Request closes'
+        } ${scheduleLimit.toLocaleString(
+          'en-US',
+          {
+            weekday: 'short',
+            month: 'short',
+            day: 'numeric',
+            hour: 'numeric',
+            minute: '2-digit',
+          }
+        )}`
+      : '';
+
   // ==========================================================
   // LOAD DONATION
   //
@@ -1503,6 +1540,44 @@ export default function DonationCoordinationScreen() {
     return days;
   }
 
+  function isAfterScheduleLimit(
+    date:
+      Date
+  ) {
+    if (!scheduleLimit) {
+      return false;
+    }
+
+    const limitDay =
+      new Date(
+        scheduleLimit
+      );
+
+    limitDay.setHours(
+      0,
+      0,
+      0,
+      0
+    );
+
+    const candidate =
+      new Date(
+        date
+      );
+
+    candidate.setHours(
+      0,
+      0,
+      0,
+      0
+    );
+
+    return (
+      candidate.getTime() >
+      limitDay.getTime()
+    );
+  }
+
   function isPastCalendarDate(
     date:
       Date
@@ -2034,6 +2109,20 @@ export default function DonationCoordinationScreen() {
       return;
     }
 
+    if (
+      scheduleLimitPassed
+    ) {
+      showMessage(
+        'Too Late to Schedule',
+        request?.urgency ===
+          'urgent'
+          ? 'This urgent request is closing, so a meeting time can no longer be set.'
+          : 'The time this blood was needed has passed, so a meeting time can no longer be set.'
+      );
+
+      return;
+    }
+
     let date =
       new Date(
         Date.now() +
@@ -2084,6 +2173,18 @@ export default function DonationCoordinationScreen() {
         date =
           existing;
       }
+    }
+
+    // Start no later than the request's time.
+    if (
+      scheduleLimit &&
+      date.getTime() >
+        scheduleLimit.getTime()
+    ) {
+      date =
+        new Date(
+          scheduleLimit
+        );
     }
 
     setScheduleDate(
@@ -2341,6 +2442,19 @@ export default function DonationCoordinationScreen() {
       return;
     }
 
+    if (
+      scheduleLimit &&
+      scheduledDate.getTime() >
+        scheduleLimit.getTime()
+    ) {
+      showMessage(
+        'Too Late for This Request',
+        `${scheduleLimitText}. Pick a time on or before then.`
+      );
+
+      return;
+    }
+
     try {
       setSavingSchedule(
         true
@@ -2431,7 +2545,6 @@ export default function DonationCoordinationScreen() {
   // Throws on failure so the sheet can show the message.
   async function submitConfirmedDonation(
     value: {
-      units: number;
       donatedAt: string;
       note: string | null;
     }
@@ -2458,9 +2571,6 @@ export default function DonationCoordinationScreen() {
         requestId,
         responseId,
         {
-          units_donated:
-            value.units,
-
           donated_at:
             value.donatedAt,
 
@@ -3714,12 +3824,22 @@ export default function DonationCoordinationScreen() {
                               : 'Not set yet'
                           }
                           detail={
-                            schedule?.note ||
+                            [
+                              schedule?.note,
+
+                              !isClosed &&
+                              !isReleased
+                                ? scheduleLimitText
+                                : '',
+                            ]
+                              .filter(Boolean)
+                              .join(' · ') ||
                             undefined
                           }
                           actionLabel={
                             isClosed ||
-                            isReleased
+                            isReleased ||
+                            scheduleLimitPassed
                               ? undefined
                               : schedule
                                 ? 'Edit'
@@ -5022,8 +5142,11 @@ export default function DonationCoordinationScreen() {
                             )
                           : false;
 
-                      const past =
+                      const unavailable =
                         isPastCalendarDate(
+                          item.date
+                        ) ||
+                        isAfterScheduleLimit(
                           item.date
                         );
 
@@ -5038,7 +5161,7 @@ export default function DonationCoordinationScreen() {
                           key={item.key}
                           accessibilityRole="button"
                           accessibilityState={{
-                            disabled: past,
+                            disabled: unavailable,
                             selected,
                           }}
                           accessibilityLabel={item.date.toLocaleDateString(
@@ -5050,7 +5173,7 @@ export default function DonationCoordinationScreen() {
                             }
                           )}
                           style={styles.dayCell}
-                          disabled={past}
+                          disabled={unavailable}
                           onPress={() =>
                             setTempSelectedDate(
                               item.date
@@ -5073,7 +5196,7 @@ export default function DonationCoordinationScreen() {
                               style={[
                                 styles.dayText,
 
-                                past &&
+                                unavailable &&
                                   styles.dayTextPast,
 
                                 selected &&
@@ -5193,6 +5316,26 @@ export default function DonationCoordinationScreen() {
                   Both of you will see this time in the chat.
                 </Text>
 
+                {scheduleLimitText ? (
+                  <View style={styles.limitNote}>
+                    <MaterialIcons
+                      name={
+                        request?.urgency ===
+                        'urgent'
+                          ? 'bolt'
+                          : 'event'
+                      }
+                      size={16}
+                      color={COLORS.redButton}
+                    />
+
+                    <Text style={styles.limitNoteText}>
+                      {scheduleLimitText}. Pick a time on or
+                      before then.
+                    </Text>
+                  </View>
+                ) : null}
+
                 <View style={styles.fieldRow}>
                   <TouchableOpacity
                     accessibilityRole="button"
@@ -5214,6 +5357,9 @@ export default function DonationCoordinationScreen() {
 
                     <Text
                       numberOfLines={1}
+                      adjustsFontSizeToFit
+                      minimumFontScale={0.8}
+                      maxFontSizeMultiplier={1.3}
                       style={styles.pickerFieldText}
                     >
                       {formatScheduleDateField()}
@@ -5240,6 +5386,9 @@ export default function DonationCoordinationScreen() {
 
                     <Text
                       numberOfLines={1}
+                      adjustsFontSizeToFit
+                      minimumFontScale={0.8}
+                      maxFontSizeMultiplier={1.3}
                       style={styles.pickerFieldText}
                     >
                       {formatScheduleTimeField()}
@@ -5312,10 +5461,6 @@ export default function DonationCoordinationScreen() {
               request?.blood_type ||
               ''
             }
-            unitsNeeded={
-              request?.units_needed ||
-              1
-            }
             requestCreatedAt={
               request?.created_at
             }
@@ -5357,9 +5502,14 @@ export default function DonationCoordinationScreen() {
               myRating?.rating ||
               0
             }
+            // A problem report starts empty; only the rating
+            // reuses the earlier comment.
             initialComment={
-              myRating?.comment ||
-              ''
+              ratingMode ===
+              'dispute'
+                ? ''
+                : myRating?.comment ||
+                  ''
             }
             quickNotes={
               myRole ===
@@ -6686,6 +6836,26 @@ const styles = StyleSheet.create({
     fontSize: 13,
     lineHeight: 19,
     textAlign: 'center',
+  },
+
+  limitNote: {
+    marginTop: -4,
+    marginBottom: 14,
+    paddingHorizontal: 12,
+    paddingVertical: 9,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    borderRadius: 12,
+    backgroundColor: COLORS.pinkLight,
+  },
+
+  limitNoteText: {
+    flex: 1,
+    color: COLORS.black,
+    fontFamily: 'Inter_500Medium',
+    fontSize: 12.5,
+    lineHeight: 18,
   },
 
   sheetText: {

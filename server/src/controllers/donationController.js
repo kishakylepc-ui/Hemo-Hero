@@ -65,7 +65,9 @@ const {
   '../services/eligibilityService'
 );
 
-const MAX_UNITS = 20;
+// A donor gives one bag (450 mL) per donation (Philippine Red
+// Cross). A request that needs more bags needs more donors.
+const BAGS_PER_DONATION = 1;
 
 const DAY_MS =
   24 * 60 * 60 * 1000;
@@ -176,16 +178,6 @@ function getFullName(
     user.email ||
     null
   );
-}
-
-function bagsLabel(
-  units
-) {
-  return `${units} ${
-    Number(units) === 1
-      ? 'bag'
-      : 'bags'
-  }`;
 }
 
 function describeReasons(
@@ -833,7 +825,7 @@ async function revertDonorHistory(
 //
 // Body:
 // {
-//   units_donated?: number   (default 1)
+//   units_donated?: number   (must be 1: one bag per donor)
 //   donated_at?:    ISO date (default now, never in the future)
 //   note?:          string   (max 500)
 // }
@@ -1071,43 +1063,20 @@ async function recordDonation(
         undefined ||
       req.body?.units_donated ===
         null
-        ? 1
+        ? BAGS_PER_DONATION
         : Number(
             req.body.units_donated
           );
 
     if (
-      !Number.isInteger(
-        unitsDonated
-      ) ||
-      unitsDonated < 1 ||
-      unitsDonated >
-        MAX_UNITS
+      unitsDonated !==
+      BAGS_PER_DONATION
     ) {
       return res
         .status(400)
         .json({
           error:
-            `Bags donated must be a whole number from 1 to ${MAX_UNITS}.`
-        });
-    }
-
-    const unitsNeeded =
-      Number(
-        bloodRequest.units_needed
-      ) || 1;
-
-    if (
-      unitsDonated >
-      unitsNeeded
-    ) {
-      return res
-        .status(400)
-        .json({
-          error:
-            `This request only needs ${bagsLabel(
-              unitsNeeded
-            )}.`
+            'Each donor gives one bag (450 mL) per donation.'
         });
     }
 

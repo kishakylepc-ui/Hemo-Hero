@@ -16,6 +16,39 @@ const {
   '../middleware/activityLogMiddleware'
 );
 
+const {
+  getBloodTypeProof,
+  removeBloodTypeProofs,
+} = require(
+  '../services/bloodTypeProofService'
+);
+
+// The profile plus whether a blood type proof is on file.
+async function withBloodTypeProof(
+  user
+) {
+  if (!user) {
+    return user;
+  }
+
+  const proof =
+    await getBloodTypeProof(
+      user.id
+    );
+
+  return {
+    ...user,
+
+    blood_type_proof:
+      proof
+        ? {
+            uploaded_at:
+              proof.uploaded_at,
+          }
+        : null,
+  };
+}
+
 // ============================================================
 // CONSTANTS
 // ============================================================
@@ -2402,7 +2435,9 @@ async function getProfile(
     )
     .json({
       user:
-        req.dbUser,
+        await withBloodTypeProof(
+          req.dbUser
+        ),
     });
 }
 
@@ -2767,6 +2802,11 @@ async function updateProfile(
     // BLOOD TYPE
     // ========================================================
 
+    // Clearing it removes the proof too. A new blood type needs a
+    // proof photo (PUT /api/auth/me/blood-type).
+    let clearBloodTypeProof =
+      false;
+
     if (
       blood_type !==
       undefined
@@ -2779,6 +2819,9 @@ async function updateProfile(
       ) {
         updates.blood_type =
           null;
+
+        clearBloodTypeProof =
+          true;
       } else {
         if (
           typeof blood_type !==
@@ -2812,6 +2855,23 @@ async function updateProfile(
             .json({
               error:
                 'Invalid blood type',
+            });
+        }
+
+        if (
+          cleanBloodType !==
+          req.dbUser
+            ?.blood_type
+        ) {
+          return res
+            .status(
+              400
+            )
+            .json({
+              error:
+                'Add a photo of your blood type proof to change your blood type.',
+              code:
+                'BLOOD_TYPE_PROOF_REQUIRED',
             });
         }
 
@@ -3027,6 +3087,15 @@ async function updateProfile(
         )
         .single();
 
+    if (
+      !error &&
+      clearBloodTypeProof
+    ) {
+      await removeBloodTypeProofs(
+        data.id
+      );
+    }
+
     if (error) {
       console.error(
         'UPDATE PROFILE SUPABASE ERROR:',
@@ -3083,7 +3152,9 @@ async function updateProfile(
             : 'Profile updated successfully',
 
         user:
-          data,
+          await withBloodTypeProof(
+            data
+          ),
       });
   } catch (
     error

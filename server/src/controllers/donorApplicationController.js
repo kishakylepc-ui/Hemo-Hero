@@ -33,6 +33,12 @@ const {
   '../services/donorStatsService'
 );
 
+const {
+  getBloodTypeProof
+} = require(
+  '../services/bloodTypeProofService'
+);
+
 // ============================================================
 // ADMIN NOTIFICATION
 //
@@ -1741,7 +1747,8 @@ async function submitDonorApplication(
         )
         .select(`
           id,
-          date_of_birth
+          date_of_birth,
+          blood_type
         `)
         .eq(
           'id',
@@ -1885,6 +1892,36 @@ async function submitDonorApplication(
         .json({
           error:
             'Please select a valid blood type.'
+        });
+    }
+
+    // The application uses the blood type proven on the profile.
+    if (
+      bloodType !==
+      user.blood_type
+    ) {
+      return res
+        .status(400)
+        .json({
+          error:
+            'Add your blood type with proof in your profile first. Your application uses that blood type.',
+          code:
+            'BLOOD_TYPE_PROOF_REQUIRED'
+        });
+    }
+
+    if (
+      !(await getBloodTypeProof(
+        userId
+      ))
+    ) {
+      return res
+        .status(400)
+        .json({
+          error:
+            'Add a photo of your blood type proof in your profile before applying.',
+          code:
+            'BLOOD_TYPE_PROOF_REQUIRED'
         });
     }
 

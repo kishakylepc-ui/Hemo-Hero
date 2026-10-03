@@ -19,6 +19,9 @@ const authRoutes =
 const facilitiesRoutes =
   require('./routes/facilitiesRoutes');
 
+const geocodeRoutes =
+  require('./routes/geocodeRoutes');
+
 const nearbyBloodRequestRoutes =
   require('./routes/nearbyBloodRequestRoutes');
 
@@ -149,6 +152,15 @@ app.use(
 app.use(
   '/api/facilities',
   facilitiesRoutes
+);
+
+// ------------------------------------------------------------
+// ADDRESS FROM GPS (Complete Profile autofill)
+// ------------------------------------------------------------
+
+app.use(
+  '/api/geocode',
+  geocodeRoutes
 );
 
 // ============================================================

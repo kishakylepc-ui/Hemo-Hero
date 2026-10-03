@@ -2431,6 +2431,9 @@ export default function CreateBloodRequestScreen() {
 
                           <Text
                             numberOfLines={1}
+                            adjustsFontSizeToFit
+                            minimumFontScale={0.8}
+                            maxFontSizeMultiplier={1.3}
                             style={[
                               styles.dateTimeText,
 
@@ -2469,6 +2472,9 @@ export default function CreateBloodRequestScreen() {
 
                           <Text
                             numberOfLines={1}
+                            adjustsFontSizeToFit
+                            minimumFontScale={0.8}
+                            maxFontSizeMultiplier={1.3}
                             style={[
                               styles.dateTimeText,
 

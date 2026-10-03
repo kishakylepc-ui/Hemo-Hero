@@ -112,9 +112,8 @@ export type MyDonationSummary =
     next_eligible_at: string | null;
   };
 
+// One bag (450 mL) per donor per donation; the server records it.
 export type RecordDonationInput = {
-  units_donated: number;
-
   // ISO timestamp; must not be in the future.
   donated_at: string;
 

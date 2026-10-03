@@ -73,7 +73,7 @@ const STEPS: {
   {
     icon: 'how-to-reg',
     title: 'Become a donor',
-    text: 'Submit your donor application with a valid ID. Once an admin approves it, you are a Verified Donor.',
+    text: 'Add your blood type with proof in your profile, then apply with a valid ID. Once an admin approves it, you are a Verified Donor.',
   },
   {
     icon: 'bloodtype',
@@ -200,6 +200,45 @@ export default function HelpScreen() {
               contentContainerStyle={styles.scrollContent}
               showsVerticalScrollIndicator={false}
             >
+              {/* APP TOUR (replay) */}
+              <TouchableOpacity
+                style={styles.tourCard}
+                activeOpacity={0.85}
+                accessibilityRole="button"
+                onPress={() =>
+                  router.replace({
+                    pathname: '/dashboard',
+                    params: {
+                      tour: '1',
+                    },
+                  } as any)
+                }
+              >
+                <View style={styles.tourIcon}>
+                  <MaterialIcons
+                    name="play-circle-outline"
+                    size={24}
+                    color={COLORS.white}
+                  />
+                </View>
+
+                <View style={styles.tourText}>
+                  <Text style={styles.tourTitle}>
+                    Take the app tour
+                  </Text>
+
+                  <Text style={styles.tourSubtitle}>
+                    See the main buttons on your Home screen.
+                  </Text>
+                </View>
+
+                <MaterialIcons
+                  name="chevron-right"
+                  size={22}
+                  color={COLORS.redButton}
+                />
+              </TouchableOpacity>
+
               {/* STEPS */}
 
               <Text style={styles.sectionTitle}>
@@ -485,6 +524,44 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingTop: 20,
     paddingBottom: 24,
+  },
+
+  tourCard: {
+    marginBottom: 20,
+    padding: 14,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: COLORS.cardBorder,
+    backgroundColor: COLORS.white,
+  },
+
+  tourIcon: {
+    width: 44,
+    height: 44,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: COLORS.redButton,
+  },
+
+  tourText: {
+    flex: 1,
+  },
+
+  tourTitle: {
+    color: COLORS.black,
+    fontFamily: 'Poppins_600SemiBold',
+    fontSize: 14.5,
+  },
+
+  tourSubtitle: {
+    marginTop: 2,
+    color: COLORS.muted,
+    fontFamily: 'Inter_400Regular',
+    fontSize: 12.5,
   },
 
   sectionTitle: {

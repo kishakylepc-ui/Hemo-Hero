@@ -26,8 +26,8 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { useAdminCanvas } from '../../components/AdminCanvas';
 
-import AdminBottomNav from '../AdminBottomNav';
-import AdminHeader from '../AdminHeader';
+import AdminBottomNav from '../../components/AdminBottomNav';
+import AdminHeader from '../../components/AdminHeader';
 
 import { FadeInView } from '../../components/AdminMotion';
 
@@ -125,6 +125,8 @@ export default function ApplicationsScreen() {
   const [filter, setFilter] =
     useState<ApplicationFilter>('pending');
 
+  // Typed text vs. the search that is applied (on Search / Enter).
+  const [searchInput, setSearchInput] = useState('');
   const [search, setSearch] = useState('');
 
   const [loading, setLoading] = useState(true);
@@ -236,6 +238,15 @@ export default function ApplicationsScreen() {
     router.push(
       `/applications/${applicationId}` as any
     );
+  }
+
+  function submitSearch() {
+    setSearch(searchInput.trim());
+  }
+
+  function clearSearch() {
+    setSearchInput('');
+    setSearch('');
   }
 
   // ==========================================================
@@ -539,8 +550,10 @@ export default function ApplicationsScreen() {
                     />
 
                     <TextInput
-                      value={search}
-                      onChangeText={setSearch}
+                      value={searchInput}
+                      onChangeText={setSearchInput}
+                      onSubmitEditing={submitSearch}
+                      returnKeyType="search"
                       placeholder="Search name, email, or blood type"
                       placeholderTextColor={COLORS.muted}
                       autoCapitalize="none"
@@ -554,11 +567,9 @@ export default function ApplicationsScreen() {
                       ]}
                     />
 
-                    {search ? (
+                    {searchInput ? (
                       <Pressable
-                        onPress={() =>
-                          setSearch('')
-                        }
+                        onPress={clearSearch}
                         hitSlop={8}
                       >
                         <MaterialIcons
@@ -569,6 +580,34 @@ export default function ApplicationsScreen() {
                       </Pressable>
                     ) : null}
                   </View>
+
+                  <Pressable
+                    onPress={submitSearch}
+                    style={({ pressed }) => [
+                      styles.primaryButton,
+
+                      {
+                        height: 44 * s,
+                        paddingHorizontal: 20 * s,
+                        borderRadius: 10 * s,
+                      },
+
+                      pressed &&
+                        styles.pressed,
+                    ]}
+                  >
+                    <Text
+                      style={[
+                        styles.primaryButtonText,
+
+                        {
+                          fontSize: 13 * fs,
+                        },
+                      ]}
+                    >
+                      Search
+                    </Text>
+                  </Pressable>
                 </View>
               </FadeInView>
 

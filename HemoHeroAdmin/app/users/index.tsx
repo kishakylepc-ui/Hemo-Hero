@@ -25,8 +25,8 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { useAdminCanvas } from '../../components/AdminCanvas';
 
-import AdminBottomNav from '../AdminBottomNav';
-import AdminHeader from '../AdminHeader';
+import AdminBottomNav from '../../components/AdminBottomNav';
+import AdminHeader from '../../components/AdminHeader';
 
 import { FadeInView } from '../../components/AdminMotion';
 

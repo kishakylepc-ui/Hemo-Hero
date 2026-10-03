@@ -58,6 +58,31 @@ const BATCH_LIMIT =
 
 let sweeping = false;
 
+// The needed date and time (ms), or null when the request has
+// no date. Dates and times are entered in Philippine time; no
+// time means the end of that day.
+function getNeededTime(
+  request
+) {
+  if (!request.needed_date) {
+    return null;
+  }
+
+  const time =
+    request.needed_time
+      ? String(request.needed_time).slice(0, 5)
+      : '23:59';
+
+  const needed =
+    Date.parse(
+      `${String(request.needed_date).slice(0, 10)}T${time}:00+08:00`
+    );
+
+  return Number.isFinite(needed)
+    ? needed
+    : null;
+}
+
 // When the request stops being worth showing (ms).
 function getDeadline(
   request
@@ -75,26 +100,43 @@ function getDeadline(
       URGENT_MAX_AGE_MS;
   }
 
-  if (request.needed_date) {
-    const time =
-      request.needed_time
-        ? String(request.needed_time).slice(0, 5)
-        : '23:59';
+  const needed =
+    getNeededTime(
+      request
+    );
 
-    // Dates and times are entered in Philippine time.
-    const needed =
-      Date.parse(
-        `${String(request.needed_date).slice(0, 10)}T${time}:00+08:00`
-      );
-
-    if (Number.isFinite(needed)) {
-      return needed +
-        SCHEDULED_GRACE_MS;
-    }
+  if (needed !== null) {
+    return needed +
+      SCHEDULED_GRACE_MS;
   }
 
   return createdAt +
     UNDATED_MAX_AGE_MS;
+}
+
+// Latest time the donor and requester can agree to meet (ms):
+// a scheduled request's needed date and time; otherwise when the
+// request closes (urgent: 3 days after posting).
+function getScheduleLimit(
+  request
+) {
+  if (
+    request.urgency !==
+    'urgent'
+  ) {
+    const needed =
+      getNeededTime(
+        request
+      );
+
+    if (needed !== null) {
+      return needed;
+    }
+  }
+
+  return getDeadline(
+    request
+  );
 }
 
 async function getDonorIds(
@@ -449,5 +491,6 @@ function startRequestExpiry() {
 module.exports = {
   expireStaleRequests,
   startRequestExpiry,
-  getDeadline
+  getDeadline,
+  getScheduleLimit
 };

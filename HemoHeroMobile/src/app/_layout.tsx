@@ -104,6 +104,14 @@ export default function RootLayout() {
           name="complete-profile"
         />
 
+        {/* WELCOME (new accounts; offers the Home tour) */}
+        <Stack.Screen
+          name="welcome"
+          options={{
+            gestureEnabled: false,
+          }}
+        />
+
         {/* USER DASHBOARD */}
         <Stack.Screen
           name="dashboard"

@@ -21,10 +21,15 @@ import {
 import { StatusBar } from 'expo-status-bar';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import BloodTypeProofField from '../../components/BloodTypeProofField';
+
 import {
+  saveBloodTypeWithProof,
   updateProfile,
   uploadProfilePhoto,
 } from '../../lib/api';
+
+import type { PickedImage } from '../../lib/imageUpload';
 
 import {
   getAccessToken,
@@ -98,6 +103,12 @@ export default function MedicalInformationScreen() {
     bloodType,
     setBloodType,
   ] = useState('');
+
+  // Photo proving the blood type (required to save one).
+  const [
+    bloodTypeProof,
+    setBloodTypeProof,
+  ] = useState<PickedImage | null>(null);
 
   const [
     loading,
@@ -224,6 +235,17 @@ export default function MedicalInformationScreen() {
 
     setErrorMessage('');
 
+    if (
+      bloodType &&
+      !bloodTypeProof
+    ) {
+      setErrorMessage(
+        'Add a photo of your blood type proof, or clear the blood type and add it later.'
+      );
+
+      return;
+    }
+
     try {
       setLoading(true);
 
@@ -240,6 +262,19 @@ export default function MedicalInformationScreen() {
         );
 
         return;
+      }
+
+      // Blood type first, together with its proof, so it's never
+      // saved without one.
+      if (
+        bloodType &&
+        bloodTypeProof
+      ) {
+        await saveBloodTypeWithProof(
+          accessToken,
+          bloodType,
+          bloodTypeProof
+        );
       }
 
       const latitude =
@@ -309,10 +344,6 @@ export default function MedicalInformationScreen() {
           hasValidCoordinates
             ? longitude
             : null,
-
-        blood_type:
-          bloodType ||
-          null,
 
         complete_onboarding:
           true,
@@ -637,7 +668,7 @@ export default function MedicalInformationScreen() {
                     styles.optionalText
                   }
                 >
-                  Optional — you can add or update this later
+                  Optional — only with proof, like a blood donor card or lab result
                 </Text>
 
                 {/* ==============================================
@@ -751,9 +782,10 @@ export default function MedicalInformationScreen() {
                       disabled={
                         loading
                       }
-                      onPress={() =>
-                        setBloodType('')
-                      }
+                      onPress={() => {
+                        setBloodType('');
+                        setBloodTypeProof(null);
+                      }}
                     >
                       <Text
                         style={
@@ -787,6 +819,23 @@ export default function MedicalInformationScreen() {
                     </Text>
                   </View>
                 )}
+
+                {bloodType ? (
+                  <BloodTypeProofField
+                    image={bloodTypeProof}
+                    disabled={loading}
+                    onChange={image => {
+                      setBloodTypeProof(image);
+                      setErrorMessage('');
+                    }}
+                    onError={message =>
+                      showMessage(
+                        'Photo Not Added',
+                        message
+                      )
+                    }
+                  />
+                ) : null}
 
                 {/* ==============================================
                     ERROR
@@ -841,12 +890,12 @@ export default function MedicalInformationScreen() {
                         styles.infoHighlight
                       }
                     >
-                      Not sure?{' '}
+                      Not tested yet?{' '}
                     </Text>
 
-                    That's okay. You can skip this for now and add your blood
-                    type later from your profile once you have confirmed it.
-                    Please do not guess your blood type.
+                    Skip this for now and get your blood typed at your local Red
+                    Cross chapter, hospital or health center. Then add it with a
+                    photo of the result from your profile. Please don't guess.
                   </Text>
                 </View>
 
@@ -1183,7 +1232,7 @@ const styles =
 
       minHeight: 669,
 
-      paddingHorizontal: 28,
+      paddingHorizontal: 20,
       paddingBottom: 30,
     },
 
@@ -1196,9 +1245,9 @@ const styles =
 
       minHeight: 640,
 
-      paddingHorizontal: 24,
-      paddingTop: 13,
-      paddingBottom: 22,
+      paddingHorizontal: 20,
+      paddingTop: 16,
+      paddingBottom: 24,
 
       backgroundColor:
         '#FAFAFA',

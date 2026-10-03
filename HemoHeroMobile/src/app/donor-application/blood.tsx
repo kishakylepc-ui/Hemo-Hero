@@ -76,22 +76,6 @@ const COLORS = {
 
 
 // ============================================================
-// BLOOD TYPES
-// ============================================================
-
-const BLOOD_TYPES = [
-  'A+',
-  'A-',
-  'B+',
-  'B-',
-  'AB+',
-  'AB-',
-  'O+',
-  'O-',
-];
-
-
-// ============================================================
 // APPLICATION STEPS
 // ============================================================
 
@@ -108,10 +92,16 @@ const STEPS = [
 // ============================================================
 
 export default function DonorBloodInformationScreen() {
+  // The application uses the blood type proven on the profile.
   const [
     bloodType,
     setBloodType,
   ] = useState('');
+
+  const [
+    proofOnFile,
+    setProofOnFile,
+  ] = useState(false);
 
   const [
     age,
@@ -258,13 +248,16 @@ export default function DonorBloodInformationScreen() {
             );
           }
 
-          if (
-            user.blood_type
-          ) {
-            setBloodType(
-              user.blood_type
-            );
-          }
+          setBloodType(
+            user.blood_type ||
+            ''
+          );
+
+          setProofOnFile(
+            Boolean(
+              user.blood_type_proof
+            )
+          );
 
           if (
             !user.date_of_birth
@@ -353,9 +346,12 @@ export default function DonorBloodInformationScreen() {
   // ==========================================================
 
   function handleContinue() {
-    if (!bloodType) {
+    if (
+      !bloodType ||
+      !proofOnFile
+    ) {
       setErrorMessage(
-        'Select your blood type to continue.'
+        'Add your blood type with a photo of your proof in your profile first.'
       );
 
       return;
@@ -623,7 +619,7 @@ export default function DonorBloodInformationScreen() {
                         styles.sectionDescription
                       }
                     >
-                      Select your confirmed blood type to continue.
+                      Your blood type comes from your profile, with proof.
                     </Text>
 
 
@@ -715,61 +711,123 @@ export default function DonorBloodInformationScreen() {
                       </Text>
                     </Text>
 
-                    <View
-                      style={
-                        styles.bloodGrid
-                      }
-                    >
-                      {BLOOD_TYPES.map(
-                        type => {
-                          const selected =
-                            bloodType ===
-                            type;
-
-                          return (
-                            <TouchableOpacity
-                              key={
-                                type
-                              }
-                              accessibilityRole="button"
-                              accessibilityState={{
-                                selected,
-                              }}
-                              accessibilityLabel={`Blood type ${type}`}
-                              style={[
-                                styles.bloodButton,
-
-                                selected &&
-                                  styles.bloodButtonSelected,
-                              ]}
-                              activeOpacity={
-                                0.8
-                              }
-                              onPress={() => {
-                                setBloodType(
-                                  type
-                                );
-
-                                setErrorMessage(
-                                  ''
-                                );
-                              }}
-                            >
-                              <Text
-                                style={[
-                                  styles.bloodButtonText,
-
-                                  selected &&
-                                    styles.bloodButtonTextSelected,
-                                ]}
-                              >
-                                {type}
-                              </Text>
-                            </TouchableOpacity>
-                          );
+                    {bloodType &&
+                    proofOnFile ? (
+                      <View
+                        style={
+                          styles.provenBlood
                         }
-                      )}
-                    </View>
+                      >
+                        <View
+                          style={
+                            styles.provenBadge
+                          }
+                        >
+                          <Text
+                            style={
+                              styles.provenBadgeText
+                            }
+                          >
+                            {bloodType}
+                          </Text>
+                        </View>
+
+                        <View
+                          style={
+                            styles.provenContent
+                          }
+                        >
+                          <Text
+                            style={
+                              styles.provenTitle
+                            }
+                          >
+                            From your profile
+                          </Text>
+
+                          <View
+                            style={
+                              styles.provenProofRow
+                            }
+                          >
+                            <MaterialIcons
+                              name="verified"
+                              size={14}
+                              color={
+                                COLORS.green
+                              }
+                            />
+
+                            <Text
+                              style={
+                                styles.provenProofText
+                              }
+                            >
+                              Proof on file · an admin checks it with your application
+                            </Text>
+                          </View>
+                        </View>
+                      </View>
+                    ) : (
+                      <View
+                        style={
+                          styles.proofNeeded
+                        }
+                      >
+                        <Text
+                          style={
+                            styles.proofNeededTitle
+                          }
+                        >
+                          {bloodType
+                            ? 'Add proof of your blood type'
+                            : 'Add your blood type first'}
+                        </Text>
+
+                        <Text
+                          style={
+                            styles.proofNeededText
+                          }
+                        >
+                          Donors need a photo of a blood donor card, blood
+                          typing result or lab result. Add it with your blood
+                          type in your profile. Not tested yet? Get typed at
+                          your local Red Cross chapter, hospital or health
+                          center.
+                        </Text>
+
+                        <TouchableOpacity
+                          accessibilityRole="button"
+                          activeOpacity={
+                            0.85
+                          }
+                          style={
+                            styles.proofNeededButton
+                          }
+                          onPress={() =>
+                            router.push(
+                              '/profile/edit'
+                            )
+                          }
+                        >
+                          <MaterialIcons
+                            name="edit"
+                            size={16}
+                            color={
+                              COLORS.white
+                            }
+                          />
+
+                          <Text
+                            style={
+                              styles.proofNeededButtonText
+                            }
+                          >
+                            Add in Profile
+                          </Text>
+                        </TouchableOpacity>
+                      </View>
+                    )}
 
 
                     {/* ==================================================
@@ -1411,63 +1469,78 @@ const styles =
     // BLOOD TYPES
     // ========================================================
 
-    bloodGrid: {
+    provenBlood: {
+      marginBottom:
+        22,
+
+      padding:
+        13,
+
       flexDirection:
         'row',
 
-      flexWrap:
-        'wrap',
+      alignItems:
+        'center',
 
-      justifyContent:
-        'space-between',
-
-      rowGap:
-        9,
-
-      marginBottom:
-        22,
-    },
-
-
-    bloodButton: {
-      width:
-        '22.5%',
-
-      height:
-        48,
+      gap:
+        12,
 
       borderWidth:
         1,
 
       borderColor:
-        '#999999',
+        COLORS.greenBorder,
 
       borderRadius:
-        12,
+        14,
 
       backgroundColor:
-        COLORS.white,
+        COLORS.greenLight,
+    },
+
+
+    provenBadge: {
+      width:
+        52,
+
+      height:
+        52,
+
+      borderRadius:
+        14,
 
       alignItems:
         'center',
 
       justifyContent:
         'center',
-    },
-
-
-    bloodButtonSelected: {
-      borderColor:
-        COLORS.redButton,
 
       backgroundColor:
         COLORS.redButton,
     },
 
 
-    bloodButtonText: {
+    provenBadgeText: {
       color:
-        '#333333',
+        COLORS.white,
+
+      fontFamily:
+        'Poppins_700Bold',
+
+      fontSize:
+        17,
+    },
+
+
+    provenContent: {
+      flex:
+        1,
+    },
+
+
+    provenTitle: {
+      color:
+        COLORS.black,
 
       fontFamily:
         'Poppins_600SemiBold',
@@ -1477,9 +1550,123 @@ const styles =
     },
 
 
-    bloodButtonTextSelected: {
+    provenProofRow: {
+      marginTop:
+        3,
+
+      flexDirection:
+        'row',
+
+      alignItems:
+        'center',
+
+      gap:
+        5,
+    },
+
+
+    provenProofText: {
+      flex:
+        1,
+
+      color:
+        COLORS.green,
+
+      fontFamily:
+        'Inter_500Medium',
+
+      fontSize:
+        11.5,
+    },
+
+
+    proofNeeded: {
+      marginBottom:
+        22,
+
+      padding:
+        14,
+
+      borderWidth:
+        1,
+
+      borderColor:
+        COLORS.pinkBorder,
+
+      borderRadius:
+        14,
+
+      backgroundColor:
+        COLORS.pinkLight,
+    },
+
+
+    proofNeededTitle: {
+      color:
+        COLORS.black,
+
+      fontFamily:
+        'Poppins_600SemiBold',
+
+      fontSize:
+        14,
+    },
+
+
+    proofNeededText: {
+      marginTop:
+        5,
+
+      color:
+        COLORS.muted,
+
+      fontFamily:
+        'Inter_400Regular',
+
+      fontSize:
+        12.5,
+
+      lineHeight:
+        18,
+    },
+
+
+    proofNeededButton: {
+      marginTop:
+        12,
+
+      height:
+        42,
+
+      flexDirection:
+        'row',
+
+      alignItems:
+        'center',
+
+      justifyContent:
+        'center',
+
+      gap:
+        7,
+
+      borderRadius:
+        11,
+
+      backgroundColor:
+        COLORS.redButton,
+    },
+
+
+    proofNeededButtonText: {
       color:
         COLORS.white,
+
+      fontFamily:
+        'Poppins_600SemiBold',
+
+      fontSize:
+        13.5,
     },
 
 

@@ -32,7 +32,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { useAdminCanvas } from '../../components/AdminCanvas';
 
-import AdminHeader from '../AdminHeader';
+import AdminHeader from '../../components/AdminHeader';
 
 import { FadeInView } from '../../components/AdminMotion';
 

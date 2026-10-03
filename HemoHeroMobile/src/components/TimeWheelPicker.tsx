@@ -41,6 +41,10 @@ const MINUTES = Array.from(
 
 const ITEM_HEIGHT = 44;
 
+// The wheel has fixed row sizes, so large system text sizes are
+// capped (bigger digits would be clipped).
+const MAX_TEXT_SCALE = 1.15;
+
 // Odd, so one row sits in the middle.
 const VISIBLE_ITEMS = 5;
 
@@ -85,7 +89,12 @@ export default function TimeWheelPicker({
           }
         />
 
-        <Text style={styles.colon}>:</Text>
+        <Text
+          style={styles.colon}
+          maxFontSizeMultiplier={MAX_TEXT_SCALE}
+        >
+          :
+        </Text>
 
         <WheelColumn
           label="Minute"
@@ -122,6 +131,7 @@ export default function TimeWheelPicker({
               }
             >
               <Text
+                maxFontSizeMultiplier={MAX_TEXT_SCALE}
                 style={[
                   styles.periodText,
 
@@ -318,6 +328,7 @@ function WheelColumn({
             }}
           >
             <Animated.Text
+              maxFontSizeMultiplier={MAX_TEXT_SCALE}
               style={[
                 styles.itemText,
 
@@ -388,10 +399,15 @@ const styles = StyleSheet.create({
         : undefined,
   } as any,
 
+  // Android adds font padding to Poppins, which pushes digits off
+  // centre in the fixed rows.
   itemText: {
     color: COLORS.black,
     fontFamily: 'Poppins_600SemiBold',
     fontSize: 20,
+    lineHeight: 28,
+    includeFontPadding: false,
+    textAlignVertical: 'center',
   },
 
   colon: {
@@ -399,6 +415,8 @@ const styles = StyleSheet.create({
     color: COLORS.black,
     fontFamily: 'Poppins_700Bold',
     fontSize: 22,
+    lineHeight: 30,
+    includeFontPadding: false,
   },
 
   periodColumn: {
@@ -426,6 +444,7 @@ const styles = StyleSheet.create({
     color: '#333333',
     fontFamily: 'Inter_600SemiBold',
     fontSize: 13,
+    includeFontPadding: false,
   },
 
   periodTextSelected: {

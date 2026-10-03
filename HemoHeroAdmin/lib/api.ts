@@ -156,6 +156,17 @@ export type DonorApplication = {
 
     expires_in_seconds?: number;
   } | null;
+
+  // Photo proving the applicant's blood type (private link).
+  blood_type_proof?: {
+    available?: boolean;
+
+    url?: string | null;
+
+    uploaded_at?: string | null;
+
+    expires_in_seconds?: number;
+  } | null;
 };
 
 // ============================================================

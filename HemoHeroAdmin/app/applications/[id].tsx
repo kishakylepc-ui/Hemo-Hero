@@ -32,7 +32,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { useAdminCanvas } from '../../components/AdminCanvas';
 
-import AdminHeader from '../AdminHeader';
+import AdminHeader from '../../components/AdminHeader';
 
 import { FadeInView } from '../../components/AdminMotion';
 
@@ -501,6 +501,46 @@ export default function ApplicationReviewScreen() {
       action
     ) {
       void action();
+    }
+  }
+
+  // ==========================================================
+  // BLOOD TYPE PROOF
+  // ==========================================================
+
+  async function handleViewBloodTypeProof() {
+    const url =
+      application
+        ?.blood_type_proof
+        ?.url;
+
+    if (!url) {
+      showMessage(
+        'Blood Type Proof',
+        'No blood type proof is on file for this applicant.',
+        'info'
+      );
+
+      return;
+    }
+
+    try {
+      await Linking.openURL(
+        url
+      );
+    } catch (
+      viewError
+    ) {
+      console.log(
+        'OPEN BLOOD TYPE PROOF ERROR:',
+        viewError
+      );
+
+      showMessage(
+        'Unable to Open Proof',
+        'Unable to open the blood type proof.',
+        'error'
+      );
     }
   }
 
@@ -1440,7 +1480,7 @@ export default function ApplicationReviewScreen() {
                       scale={s}
                       fontScale={fs}
                       icon="badge"
-                      title="Identity Verification"
+                      title="Verification Documents"
                     >
                       <View
                         style={[
@@ -1613,6 +1653,165 @@ export default function ApplicationReviewScreen() {
                             For security, this private link expires after 5 minutes.
                           </Text>
                         ) : null}
+                      </View>
+
+                      {/* BLOOD TYPE PROOF */}
+
+                      <View
+                        style={[
+                          styles.verificationPanel,
+
+                          {
+                            padding:
+                              18 * s,
+
+                            borderRadius:
+                              12 * s,
+
+                            marginTop:
+                              14 * s,
+                          },
+                        ]}
+                      >
+                        <View
+                          style={
+                            styles.verificationTop
+                          }
+                        >
+                          <View
+                            style={[
+                              styles.verificationIcon,
+
+                              {
+                                width:
+                                  44 * s,
+
+                                height:
+                                  44 * s,
+
+                                borderRadius:
+                                  11 * s,
+                              },
+                            ]}
+                          >
+                            <MaterialIcons
+                              name="bloodtype"
+                              size={
+                                23 * s
+                              }
+                              color={
+                                COLORS.redBright
+                              }
+                            />
+                          </View>
+
+                          <View
+                            style={
+                              styles.verificationTextArea
+                            }
+                          >
+                            <Text
+                              style={[
+                                styles.verificationTitle,
+
+                                {
+                                  fontSize:
+                                    14 * fs,
+                                },
+                              ]}
+                            >
+                              Blood Type Proof
+                            </Text>
+
+                            <Text
+                              style={[
+                                styles.verificationDescription,
+
+                                {
+                                  fontSize:
+                                    12 * fs,
+
+                                  marginTop:
+                                    3 * s,
+
+                                  lineHeight:
+                                    18 * fs,
+                                },
+                              ]}
+                            >
+                              {application
+                                .blood_type_proof
+                                ?.available
+                                ? `Blood donor card, blood typing or lab result showing ${application.blood_type}. Check it matches before approving.`
+                                : 'No proof on file. This applicant applied before proof was required.'}
+                            </Text>
+                          </View>
+                        </View>
+
+                        <Pressable
+                          disabled={
+                            !application
+                              .blood_type_proof
+                              ?.available
+                          }
+                          onPress={
+                            handleViewBloodTypeProof
+                          }
+                          style={({
+                            pressed,
+                          }) => [
+                            styles.viewIdButton,
+
+                            {
+                              height:
+                                46 * s,
+
+                              borderRadius:
+                                9 * s,
+
+                              marginTop:
+                                17 * s,
+                            },
+
+                            !application
+                              .blood_type_proof
+                              ?.available &&
+                              styles.disabledButton,
+
+                            pressed &&
+                              application
+                                .blood_type_proof
+                                ?.available &&
+                              styles.buttonPressed,
+                          ]}
+                        >
+                          <MaterialIcons
+                            name="open-in-new"
+                            size={
+                              18 * s
+                            }
+                            color={
+                              COLORS.white
+                            }
+                          />
+
+                          <Text
+                            style={[
+                              styles.viewIdText,
+
+                              {
+                                fontSize:
+                                  13 * fs,
+                              },
+                            ]}
+                          >
+                            {application
+                              .blood_type_proof
+                              ?.available
+                              ? 'View Blood Type Proof'
+                              : 'No Proof on File'}
+                          </Text>
+                        </Pressable>
                       </View>
                     </SectionCard>
 

@@ -12,9 +12,47 @@ const {
   '../middleware/activityLogMiddleware'
 );
 
+const {
+  getScheduleLimit
+} = require(
+  '../services/requestExpiryService'
+);
+
 // ============================================================
 // HELPERS
 // ============================================================
+
+// "Wed, Oct 8, 2:30 PM" in Philippine time.
+function formatManilaDateTime(
+  ms
+) {
+  return new Date(ms)
+    .toLocaleString(
+      'en-US',
+      {
+        weekday: 'short',
+        month: 'short',
+        day: 'numeric',
+        hour: 'numeric',
+        minute: '2-digit',
+        timeZone: 'Asia/Manila'
+      }
+    );
+}
+
+// ISO time of the latest allowed meeting, or null.
+function getScheduleLimitIso(
+  request
+) {
+  const limit =
+    getScheduleLimit(
+      request
+    );
+
+  return Number.isFinite(limit)
+    ? new Date(limit).toISOString()
+    : null;
+}
 
 function getAuthenticatedUserId(req) {
   return (
@@ -671,7 +709,13 @@ async function getCoordination(
 
           schedule:
             schedule ||
-            null
+            null,
+
+          // Latest meeting time the schedule may use.
+          schedule_limit:
+            getScheduleLimitIso(
+              context.request
+            )
         }
       });
   } catch (error) {
@@ -1252,6 +1296,52 @@ async function setCoordinationSchedule(
         .json({
           error:
             'This donor was marked as a no-show, so the meeting time can’t be changed.'
+        });
+    }
+
+    // Meet no later than the request's time: the needed date and
+    // time, or when an urgent request closes.
+    const scheduleLimit =
+      getScheduleLimit(
+        context.request
+      );
+
+    const isUrgent =
+      context.request.urgency ===
+      'urgent';
+
+    const limitText =
+      formatManilaDateTime(
+        scheduleLimit
+      );
+
+    if (
+      Date.now() >=
+      scheduleLimit
+    ) {
+      return res
+        .status(409)
+        .json({
+          error:
+            isUrgent
+              ? 'This urgent request is closing, so a meeting time can no longer be set.'
+              : `This request's time (${limitText}) has passed, so a meeting time can no longer be set.`
+        });
+    }
+
+    if (
+      scheduledAt.getTime() >
+      scheduleLimit
+    ) {
+      return res
+        .status(400)
+        .json({
+          error:
+            isUrgent
+              ? `This urgent request closes on ${limitText}. Pick a time before then.`
+              : context.request.needed_date
+                ? `The blood is needed by ${limitText}. Pick a time on or before then.`
+                : `This request closes on ${limitText}. Pick a time before then.`
         });
     }
 

@@ -1,5 +1,6 @@
 import {
   useCallback,
+  useEffect,
   useRef,
   useState,
 } from 'react';
@@ -28,6 +29,7 @@ import {
 import {
   router,
   useFocusEffect,
+  useLocalSearchParams,
 } from 'expo-router';
 
 import {
@@ -41,6 +43,10 @@ import {
 import * as Location from 'expo-location';
 
 import MainBottomNav from '../components/MainBottomNav';
+import SpotlightTour, {
+  measureView,
+  type SpotlightStep,
+} from '../components/SpotlightTour';
 
 import {
   FadeInView,
@@ -1714,6 +1720,177 @@ function showMessage(
     getActiveRequestStatus();
 
   // ==========================================================
+  // HOME TOUR
+  //
+  // Optional. Opened with ?tour=1 from the Welcome screen (new
+  // accounts) or from Help. Highlights the real buttons once the
+  // cards have loaded.
+  // ==========================================================
+
+  const { tour } =
+    useLocalSearchParams<{
+      tour?: string;
+    }>();
+
+  const scrollRef =
+    useRef<ScrollView>(null);
+
+  // Top of the scrolling content (to work out scroll offsets).
+  const scrollTopRef =
+    useRef<View>(null);
+
+  const createButtonRef =
+    useRef<View>(null);
+
+  const nearbyRef =
+    useRef<View>(null);
+
+  const findDonorsRef =
+    useRef<View>(null);
+
+  const donorCardRef =
+    useRef<View>(null);
+
+  const navRef =
+    useRef<View>(null);
+
+  const [
+    tourVisible,
+    setTourVisible,
+  ] = useState(false);
+
+  const tourDone =
+    useRef(false);
+
+  const homeLoaded =
+    !loadingProfile &&
+    !loadingActiveRequest &&
+    !loadingNearbyRequests &&
+    !loadingDonorApplication;
+
+  useEffect(() => {
+    if (
+      tour !== '1' ||
+      !homeLoaded ||
+      tourVisible ||
+      tourDone.current
+    ) {
+      return;
+    }
+
+    // Let the cards finish fading in.
+    const timer =
+      setTimeout(
+        () => setTourVisible(true),
+        700
+      );
+
+    return () =>
+      clearTimeout(timer);
+  }, [
+    tour,
+    homeLoaded,
+    tourVisible,
+  ]);
+
+  function finishTour() {
+    tourDone.current = true;
+
+    setTourVisible(false);
+
+    router.setParams({
+      tour: undefined,
+    } as any);
+
+    scrollRef.current?.scrollTo({
+      y: 0,
+      animated: true,
+    });
+  }
+
+  // Sections inside the scroll view are scrolled near the top
+  // first; the header button and the tabs are always visible.
+  async function revealTourStep(
+    step: SpotlightStep
+  ) {
+    if (
+      step.key === 'create' ||
+      step.key === 'tabs'
+    ) {
+      return;
+    }
+
+    const [top, target] =
+      await Promise.all([
+        measureView(
+          scrollTopRef.current
+        ),
+        measureView(
+          step.target.current
+        ),
+      ]);
+
+    if (top && target) {
+      scrollRef.current?.scrollTo({
+        y: Math.max(
+          0,
+          target.y - top.y - 16
+        ),
+        animated: true,
+      });
+    }
+
+    await new Promise(resolve =>
+      setTimeout(resolve, 450)
+    );
+  }
+
+  const isApprovedDonor =
+    donorApplication?.status ===
+    'approved';
+
+  const tourSteps: SpotlightStep[] = [
+    {
+      key: 'create',
+      target: createButtonRef,
+      title: activeRequest
+        ? 'Your blood request'
+        : 'Need blood?',
+      text: activeRequest
+        ? 'Open your active request here to see donor offers and chat with donors.'
+        : 'Tap Create Blood Request to post the blood type, bags needed, place and time. Compatible donors nearby are notified.',
+    },
+    {
+      key: 'nearby',
+      target: nearbyRef,
+      title: 'Requests near you',
+      text: 'Blood requests near you show up here. Once you are a verified donor, open one to offer to donate.',
+    },
+    {
+      key: 'find-donors',
+      target: findDonorsRef,
+      title: 'Find donors',
+      text: 'Pick the blood type you need to see compatible, verified donors nearby. You can invite one to your request.',
+    },
+    {
+      key: 'donor',
+      target: donorCardRef,
+      title: isApprovedDonor
+        ? 'Your donor status'
+        : 'Become a donor',
+      text: isApprovedDonor
+        ? 'You are a verified donor. Your donor status shows here.'
+        : 'Add your blood type with proof in your profile, then apply here with a valid ID. Once an admin approves it, you can offer to donate.',
+    },
+    {
+      key: 'tabs',
+      target: navRef,
+      title: 'Get around',
+      text: 'Search finds donors and requests, Chat holds your conversations, Requests tracks your requests and offers, and Profile has your settings and Help.',
+    },
+  ];
+
+  // ==========================================================
   // UI
   // ==========================================================
   // UI
@@ -2045,6 +2222,7 @@ function showMessage(
             </View>
 
             <TouchableOpacity
+              ref={createButtonRef}
               style={[
                 styles.emergencyButton,
 
@@ -2108,6 +2286,7 @@ function showMessage(
           ================================================== */}
 
           <ScrollView
+            ref={scrollRef}
             style={
               styles.content
             }
@@ -2134,6 +2313,11 @@ function showMessage(
               />
             }
           >
+            <View
+              ref={scrollTopRef}
+              collapsable={false}
+            />
+
             {/* ==================================================
                 PENDING DONATION INVITATIONS
                 (only shown when a requester invited you)
@@ -3065,6 +3249,8 @@ function showMessage(
             <FadeInView delay={100}>
 
             <View
+              ref={nearbyRef}
+              collapsable={false}
               style={
                 styles.sectionHeader
               }
@@ -3500,6 +3686,8 @@ function showMessage(
             <FadeInView delay={150}>
 
             <View
+              ref={findDonorsRef}
+              collapsable={false}
               style={
                 styles.findDonorCard
               }
@@ -3695,6 +3883,8 @@ function showMessage(
             <FadeInView delay={200}>
 
             <View
+              ref={donorCardRef}
+              collapsable={false}
               style={[
                 styles.donorCard,
 
@@ -3909,9 +4099,14 @@ function showMessage(
               SHARED BOTTOM NAVIGATION
           ================================================== */}
 
-          <MainBottomNav
-  activeTab="home"
-/>
+          <View
+            ref={navRef}
+            collapsable={false}
+          >
+            <MainBottomNav
+              activeTab="home"
+            />
+          </View>
 
 {/* ==================================================
     HEMO-HERO ACTION POPUP
@@ -4204,6 +4399,14 @@ function showMessage(
 </Modal>
 
           
+          {/* HOME TOUR (optional, on top of everything) */}
+
+          <SpotlightTour
+            steps={tourSteps}
+            visible={tourVisible}
+            onReveal={revealTourStep}
+            onFinish={finishTour}
+          />
         </SafeAreaView>
       </View>
     </View>
