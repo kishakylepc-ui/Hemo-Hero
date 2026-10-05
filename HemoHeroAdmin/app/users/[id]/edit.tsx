@@ -59,6 +59,8 @@ import {
   getAdminProfile,
 } from '../../../lib/session';
 
+import { isAdminRole } from '../../../lib/roles';
+
 // ============================================================
 // IPAD PRO LANDSCAPE
 // ============================================================
@@ -359,8 +361,7 @@ export default function AdminEditUserScreen() {
 
       if (
         !token ||
-        savedProfile?.role !==
-          'admin'
+        !isAdminRole(savedProfile?.role)
       ) {
         await clearAdminSession();
 
@@ -979,7 +980,11 @@ export default function AdminEditUserScreen() {
                     ]}
                   >
                     <MaterialIcons
-                      name="person"
+                      name={
+                        user?.role === 'admin'
+                          ? 'admin-panel-settings'
+                          : 'person'
+                      }
                       size={
                         18 * s
                       }
@@ -998,7 +1003,7 @@ export default function AdminEditUserScreen() {
                         },
                       ]}
                     >
-                      Role: User
+                      Role: {user?.role === 'admin' ? 'Admin' : 'User'}
                     </Text>
                   </View>
                 </View>

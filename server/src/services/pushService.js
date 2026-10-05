@@ -4,12 +4,20 @@ const {
   '../config/supabase'
 );
 
+const {
+  getPreferencesForUsers,
+  wantsPush
+} = require(
+  './notificationPreferenceService'
+);
+
 // ============================================================
 // PUSH NOTIFICATIONS (Expo push service)
 //
 // Every notification saved for a mobile user is also sent to
-// the phones that user signed in on (push_tokens). Admin-portal
-// alerts ('admin_*') stay in the portal.
+// the phones that user signed in on (push_tokens), unless the
+// user turned that kind of alert off (notification settings).
+// Admin-portal alerts ('admin_*') stay in the portal.
 //
 // Sending never blocks or fails the action that created the
 // notification. Tokens Expo reports as no longer registered are
@@ -185,11 +193,35 @@ async function sendPushForNotifications(
   notifications
 ) {
   try {
-    const rows =
+    const candidates =
       (notifications || []).filter(
         row =>
           row?.user_id &&
           shouldPush(
+            row.type
+          )
+      );
+
+    if (!candidates.length) {
+      return;
+    }
+
+    // Leave out the alerts each user turned off.
+    const preferences =
+      await getPreferencesForUsers(
+        candidates.map(
+          row =>
+            row.user_id
+        )
+      );
+
+    const rows =
+      candidates.filter(
+        row =>
+          wantsPush(
+            preferences.get(
+              row.user_id
+            ),
             row.type
           )
       );

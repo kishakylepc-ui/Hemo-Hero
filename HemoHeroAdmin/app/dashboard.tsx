@@ -52,6 +52,8 @@ import {
   getAdminProfile,
 } from '../lib/session';
 
+import { isAdminRole } from '../lib/roles';
+
 // ============================================================
 // DESIGN
 //
@@ -186,7 +188,7 @@ export default function AdminDashboardScreen() {
 
       if (
         !token ||
-        savedProfile?.role !== 'admin'
+        !isAdminRole(savedProfile?.role)
       ) {
         await clearAdminSession();
 
@@ -1752,6 +1754,11 @@ function getErrorMessage(
     : fallback;
 }
 
+// Older entries used another name for the same action.
+const ACTION_ALIASES: Record<string, string> = {
+  UPDATE_PROFILE: 'EDIT_PROFILE',
+};
+
 function formatActivityAction(
   action?: string | null
 ) {
@@ -1759,7 +1766,7 @@ function formatActivityAction(
     return 'Activity';
   }
 
-  return String(action)
+  return (ACTION_ALIASES[action] || String(action))
     .toLowerCase()
     .split('_')
     .map(

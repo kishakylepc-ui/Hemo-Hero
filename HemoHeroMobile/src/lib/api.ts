@@ -1263,6 +1263,75 @@ export async function getNotifications(
 }
 
 // ------------------------------------------------------------
+// NOTIFICATION SETTINGS
+//
+// Which notifications alert the phone. The inbox keeps every
+// notification either way.
+// ------------------------------------------------------------
+
+export type NotificationPreferences = {
+  // Every phone alert on or off.
+  push_enabled: boolean;
+
+  // A requester asks you to donate.
+  donation_requests: boolean;
+
+  // Offers, accepted / declined offers, closed requests.
+  request_updates: boolean;
+
+  // Chat messages, meet-up times, live trips.
+  messages: boolean;
+
+  // Donation records and feedback.
+  donations: boolean;
+};
+
+export async function getNotificationPreferences(
+  accessToken: string
+): Promise<{
+  preferences: NotificationPreferences;
+}> {
+  return request(
+    '/api/notifications/preferences',
+    {
+      method:
+        'GET',
+
+      headers: {
+        Authorization:
+          `Bearer ${accessToken}`,
+      },
+    }
+  );
+}
+
+export async function updateNotificationPreferences(
+  accessToken: string,
+  changes: Partial<NotificationPreferences>
+): Promise<{
+  message: string;
+  preferences: NotificationPreferences;
+}> {
+  return request(
+    '/api/notifications/preferences',
+    {
+      method:
+        'PUT',
+
+      headers: {
+        Authorization:
+          `Bearer ${accessToken}`,
+      },
+
+      body:
+        JSON.stringify(
+          changes
+        ),
+    }
+  );
+}
+
+// ------------------------------------------------------------
 // GET UNREAD COUNT
 // ------------------------------------------------------------
 

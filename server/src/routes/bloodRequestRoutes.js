@@ -206,7 +206,7 @@ router.patch(
       'ADMIN_REMOVE_BLOOD_REQUEST',
 
     module:
-      'Requests',
+      'Blood Requests',
 
     successDescription:
       'Admin removed a reported blood request.',
@@ -229,7 +229,7 @@ router.patch(
       'ADMIN_KEEP_BLOOD_REQUEST',
 
     module:
-      'Requests',
+      'Blood Requests',
 
     successDescription:
       'Admin reviewed a reported blood request and kept it.',
@@ -731,7 +731,7 @@ router.post(
       'REPORT_BLOOD_REQUEST',
 
     module:
-      'Requests',
+      'Blood Requests',
 
     successDescription:
       'User reported a blood request.',

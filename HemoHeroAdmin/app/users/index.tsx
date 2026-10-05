@@ -48,6 +48,8 @@ import {
   getAdminProfile,
 } from '../../lib/session';
 
+import { isAdminRole, isSuperAdmin } from '../../lib/roles';
+
 // ============================================================
 // DESIGN
 //
@@ -140,6 +142,10 @@ export default function AdminUsersScreen() {
   const [statusFilter, setStatusFilter] =
     useState<AdminUserStatusFilter>('all');
 
+  // Super admin: list admin accounts instead of users.
+  const [showAdmins, setShowAdmins] =
+    useState(false);
+
   const [selectedUser, setSelectedUser] =
     useState<AdminManagedUser | null>(null);
 
@@ -165,6 +171,7 @@ export default function AdminUsersScreen() {
       page,
       searchFilter,
       statusFilter,
+      showAdmins,
     ])
   );
 
@@ -186,7 +193,7 @@ export default function AdminUsersScreen() {
 
       if (
         !token ||
-        savedProfile?.role !== 'admin'
+        !isAdminRole(savedProfile?.role)
       ) {
         await clearAdminSession();
 
@@ -207,7 +214,12 @@ export default function AdminUsersScreen() {
           page,
           limit: PAGE_LIMIT,
           search: searchFilter || undefined,
-          status: statusFilter,
+          status: showAdmins
+            ? 'all'
+            : statusFilter,
+          role: showAdmins
+            ? 'admin'
+            : 'user',
         }),
       ]);
 
@@ -275,7 +287,14 @@ export default function AdminUsersScreen() {
   ) {
     setSuccessMessage('');
     setPage(1);
+    setShowAdmins(false);
     setStatusFilter(status);
+  }
+
+  function showAdminAccounts() {
+    setSuccessMessage('');
+    setPage(1);
+    setShowAdmins(true);
   }
 
   function openUserDetails(
@@ -592,7 +611,7 @@ export default function AdminUsersScreen() {
                     fontScale={fs}
                     label="All Users"
                     count={summary.total}
-                    active={statusFilter === 'all'}
+                    active={!showAdmins && statusFilter === 'all'}
                     onPress={() =>
                       changeStatusFilter('all')
                     }
@@ -603,7 +622,7 @@ export default function AdminUsersScreen() {
                     fontScale={fs}
                     label="Active"
                     count={summary.active}
-                    active={statusFilter === 'active'}
+                    active={!showAdmins && statusFilter === 'active'}
                     positive
                     onPress={() =>
                       changeStatusFilter('active')
@@ -615,12 +634,23 @@ export default function AdminUsersScreen() {
                     fontScale={fs}
                     label="Inactive"
                     count={summary.inactive}
-                    active={statusFilter === 'inactive'}
+                    active={!showAdmins && statusFilter === 'inactive'}
                     alert
                     onPress={() =>
                       changeStatusFilter('inactive')
                     }
                   />
+
+                  {isSuperAdmin(profile?.role) ? (
+                    <FilterButton
+                      scale={s}
+                      fontScale={fs}
+                      label="Admins"
+                      count={summary.admins ?? 0}
+                      active={showAdmins}
+                      onPress={showAdminAccounts}
+                    />
+                  ) : null}
 
                   <View
                     style={[
@@ -810,17 +840,27 @@ export default function AdminUsersScreen() {
                       icon={
                         hasFilters
                           ? 'search-off'
-                          : 'people-outline'
+                          : showAdmins
+                            ? 'admin-panel-settings'
+                            : 'people-outline'
                       }
                       title={
-                        hasFilters
-                          ? 'No Matching Users'
-                          : 'No Users Yet'
+                        showAdmins
+                          ? searchFilter
+                            ? 'No Matching Admins'
+                            : 'No Other Admins'
+                          : hasFilters
+                            ? 'No Matching Users'
+                            : 'No Users Yet'
                       }
                       text={
-                        hasFilters
-                          ? 'Try changing your search or account status filter.'
-                          : 'Registered users will appear here.'
+                        showAdmins
+                          ? searchFilter
+                            ? 'Try a different name or email.'
+                            : 'Admin accounts you create will appear here.'
+                          : hasFilters
+                            ? 'Try changing your search or account status filter.'
+                            : 'Registered users will appear here.'
                       }
                     />
                   ) : (

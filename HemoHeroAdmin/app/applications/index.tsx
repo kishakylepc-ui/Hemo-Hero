@@ -45,6 +45,8 @@ import {
   getAdminProfile,
 } from '../../lib/session';
 
+import { isAdminRole } from '../../lib/roles';
+
 // ============================================================
 // CONSTANTS
 // ============================================================
@@ -169,7 +171,7 @@ export default function ApplicationsScreen() {
 
       if (
         !token ||
-        storedProfile?.role !== 'admin'
+        !isAdminRole(storedProfile?.role)
       ) {
         await clearAdminSession();
 

@@ -21,6 +21,11 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import PhotoSourceSheet from '../../components/PhotoSourceSheet';
 
+import {
+  normalizePhone,
+  PHONE_ERROR,
+} from '../../lib/phone';
+
 const COLORS = {
   red: '#DB0A0A',
   redDark: '#8F1111',
@@ -99,6 +104,13 @@ export default function PersonalInformationScreen() {
   const [
     middleName,
     setMiddleName,
+  ] =
+    useState('');
+
+  // Optional.
+  const [
+    phone,
+    setPhone,
   ] =
     useState('');
 
@@ -597,6 +609,26 @@ export default function PersonalInformationScreen() {
       return;
     }
 
+    const cleanPhone =
+      normalizePhone(
+        phone
+      );
+
+    if (
+      cleanPhone === null
+    ) {
+      setErrorMessage(
+        PHONE_ERROR
+      );
+
+      showMessage(
+        'Check Phone Number',
+        PHONE_ERROR
+      );
+
+      return;
+    }
+
     router.push({
       pathname:
         '/complete-profile/location',
@@ -610,6 +642,9 @@ export default function PersonalInformationScreen() {
 
         middle_name:
           middleName.trim(),
+
+        phone:
+          cleanPhone,
 
         date_of_birth:
           dateOfBirth,
@@ -1212,6 +1247,53 @@ export default function PersonalInformationScreen() {
                       )}
                     </View>
                   ) : null}
+
+                  {/* ==============================================
+                      PHONE (OPTIONAL)
+                  ============================================== */}
+
+                  <Text
+                    style={[
+                      styles.label,
+                      styles.phoneLabel,
+                    ]}
+                  >
+                    Phone Number (Optional)
+                  </Text>
+
+                  <TextInput
+                    style={
+                      styles.input
+                    }
+                    placeholder="0917 123 4567"
+                    placeholderTextColor={
+                      COLORS.placeholder
+                    }
+                    value={
+                      phone
+                    }
+                    keyboardType="phone-pad"
+                    textContentType="telephoneNumber"
+                    autoComplete="tel"
+                    maxLength={
+                      17
+                    }
+                    onChangeText={value => {
+                      setPhone(
+                        value
+                      );
+
+                      clearError();
+                    }}
+                  />
+
+                  <Text
+                    style={
+                      styles.fieldHint
+                    }
+                  >
+                    Only Hemo-Hero staff can see it. Other users never do.
+                  </Text>
 
                   {/* ==============================================
                       NEXT BUTTON
@@ -2233,6 +2315,32 @@ const styles =
 
       marginBottom:
         6,
+    },
+
+    // The gender field above has no bottom margin.
+    phoneLabel: {
+      marginTop:
+        12,
+    },
+
+    fieldHint: {
+      marginTop:
+        -6,
+
+      marginBottom:
+        14,
+
+      color:
+        COLORS.placeholder,
+
+      fontFamily:
+        'Inter_400Regular',
+
+      fontSize:
+        11.5,
+
+      lineHeight:
+        16,
     },
 
     input: {

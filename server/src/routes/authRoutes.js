@@ -500,25 +500,10 @@ router.post(
 // READ
 // ------------------------------------------------------------
 
+// Not logged: the apps load the profile on most screens, and
+// reading your own profile isn't an action worth auditing.
 router.get(
   '/me',
-
-  activityLog({
-    action:
-      'VIEW_PROFILE',
-
-    module:
-      'Profile',
-
-    successDescription:
-      'User viewed their account profile.',
-
-    failureDescription:
-      'Profile view request failed.',
-
-    entityType:
-      'user_profile',
-  }),
 
   requireAuth,
 
@@ -537,16 +522,16 @@ router.patch(
 
   activityLog({
     action:
-      'UPDATE_PROFILE',
+      'EDIT_PROFILE',
 
     module:
       'Profile',
 
     successDescription:
-      'User updated their account profile.',
+      'User edited their profile.',
 
     failureDescription:
-      'Profile update attempt failed.',
+      'Profile edit attempt failed.',
 
     entityType:
       'user_profile',

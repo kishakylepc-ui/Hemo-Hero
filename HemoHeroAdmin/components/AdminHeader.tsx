@@ -39,6 +39,8 @@ import {
   getAdminAccessToken,
 } from '../lib/session';
 
+import { isSuperAdmin } from '../lib/roles';
+
 // ============================================================
 // COLORS
 // ============================================================
@@ -788,7 +790,9 @@ export default function AdminHeader({
                 },
               ]}
             >
-              Admin
+              {isSuperAdmin(profile?.role)
+                ? 'Super Admin'
+                : 'Admin'}
             </Text>
           </View>
 

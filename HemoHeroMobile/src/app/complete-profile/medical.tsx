@@ -86,6 +86,8 @@ export default function MedicalInformationScreen() {
       last_name?: string;
       middle_name?: string;
 
+      phone?: string;
+
       date_of_birth?: string;
       gender?: string;
 
@@ -309,6 +311,11 @@ export default function MedicalInformationScreen() {
         middle_name:
           params.middle_name
             ? params.middle_name
+            : null,
+
+        phone:
+          params.phone
+            ? params.phone
             : null,
 
         last_name:

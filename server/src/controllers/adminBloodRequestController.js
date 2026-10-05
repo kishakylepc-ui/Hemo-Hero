@@ -1,4 +1,10 @@
 const {
+  isAdminRole
+} = require(
+  '../utils/roles'
+);
+
+const {
   supabaseAdmin,
 } = require(
   '../config/supabase'
@@ -68,14 +74,8 @@ function cleanText(value) {
 }
 
 function isAdmin(req) {
-  return (
-    String(
-      req.dbUser?.role ||
-        ''
-    )
-      .trim()
-      .toLowerCase() ===
-    'admin'
+  return isAdminRole(
+    req.dbUser?.role
   );
 }
 

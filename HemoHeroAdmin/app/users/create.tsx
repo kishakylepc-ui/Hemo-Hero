@@ -58,6 +58,8 @@ import {
   getAdminProfile,
 } from '../../lib/session';
 
+import { isAdminRole, isSuperAdmin } from '../../lib/roles';
+
 const COLORS = {
   outer:
     '#02040A',
@@ -117,6 +119,15 @@ export default function AdminCreateUserScreen() {
     Math.max(
       tablet.scale,
       0.92
+    );
+
+  // Super admin can create admin accounts.
+  const [
+    newRole,
+    setNewRole,
+  ] =
+    useState<'user' | 'admin'>(
+      'user'
     );
 
   const [
@@ -321,8 +332,7 @@ export default function AdminCreateUserScreen() {
 
       if (
         !token ||
-        savedProfile?.role !==
-          'admin'
+        !isAdminRole(savedProfile?.role)
       ) {
         await clearAdminSession();
 
@@ -536,6 +546,9 @@ export default function AdminCreateUserScreen() {
 
             confirm_password:
               confirmPassword,
+
+            role:
+              newRole,
 
             first_name:
               firstName.trim(),
@@ -886,50 +899,137 @@ export default function AdminCreateUserScreen() {
                           },
                         ]}
                       >
-                        Create a standard Hemo-Hero user account.
+                        {newRole === 'admin'
+                          ? 'Create an administrator account for the Admin Portal.'
+                          : 'Create a standard Hemo-Hero user account.'}
                       </Text>
                     </View>
                   </View>
 
-                  <View
-                    style={[
-                      styles.roleNotice,
-
-                      {
-                        height:
-                          41 * s,
-
-                        paddingHorizontal:
-                          14 * s,
-
-                        borderRadius:
-                          10 * s,
-                      },
-                    ]}
-                  >
-                    <MaterialIcons
-                      name="person"
-                      size={
-                        18 * s
-                      }
-                      color={
-                        COLORS.soft
-                      }
-                    />
-
-                    <Text
+                  {isSuperAdmin(profile?.role) ? (
+                    <View
                       style={[
-                        styles.roleNoticeText,
+                        styles.roleChoice,
 
                         {
-                          fontSize:
-                            12.5 * fs,
+                          gap: 8 * s,
                         },
                       ]}
                     >
-                      Role: User
-                    </Text>
-                  </View>
+                      {(['user', 'admin'] as const).map(option => {
+                        const selected =
+                          newRole === option;
+
+                        return (
+                          <Pressable
+                            key={option}
+                            accessibilityRole="button"
+                            accessibilityState={{
+                              selected,
+                            }}
+                            disabled={submitting}
+                            onPress={() =>
+                              setNewRole(option)
+                            }
+                            style={({ pressed }) => [
+                              styles.roleNotice,
+
+                              {
+                                height:
+                                  41 * s,
+
+                                paddingHorizontal:
+                                  14 * s,
+
+                                borderRadius:
+                                  10 * s,
+                              },
+
+                              selected &&
+                                styles.roleOptionSelected,
+
+                              pressed &&
+                                styles.pressed,
+                            ]}
+                          >
+                            <MaterialIcons
+                              name={
+                                option === 'admin'
+                                  ? 'admin-panel-settings'
+                                  : 'person'
+                              }
+                              size={
+                                18 * s
+                              }
+                              color={
+                                selected
+                                  ? COLORS.white
+                                  : COLORS.soft
+                              }
+                            />
+
+                            <Text
+                              style={[
+                                styles.roleNoticeText,
+
+                                {
+                                  fontSize:
+                                    12.5 * fs,
+                                },
+
+                                selected &&
+                                  styles.roleOptionTextSelected,
+                              ]}
+                            >
+                              {option === 'admin'
+                                ? 'Admin'
+                                : 'User'}
+                            </Text>
+                          </Pressable>
+                        );
+                      })}
+                    </View>
+                  ) : (
+                    <View
+                      style={[
+                        styles.roleNotice,
+  
+                        {
+                          height:
+                            41 * s,
+  
+                          paddingHorizontal:
+                            14 * s,
+  
+                          borderRadius:
+                            10 * s,
+                        },
+                      ]}
+                    >
+                      <MaterialIcons
+                        name="person"
+                        size={
+                          18 * s
+                        }
+                        color={
+                          COLORS.soft
+                        }
+                      />
+  
+                      <Text
+                        style={[
+                          styles.roleNoticeText,
+  
+                          {
+                            fontSize:
+                              12.5 * fs,
+                          },
+                        ]}
+                      >
+                        Role: User
+                      </Text>
+                    </View>
+                  )}
                 </View>
 
                 {successMessage &&
@@ -2552,6 +2652,24 @@ const styles =
 
       backgroundColor:
         COLORS.card,
+    },
+
+    roleChoice: {
+      flexDirection:
+        'row',
+    },
+
+    roleOptionSelected: {
+      borderColor:
+        COLORS.red,
+
+      backgroundColor:
+        COLORS.red,
+    },
+
+    roleOptionTextSelected: {
+      color:
+        COLORS.white,
     },
 
     roleNoticeText: {

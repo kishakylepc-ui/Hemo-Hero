@@ -53,6 +53,8 @@ import {
   saveAdminSession,
 } from '../lib/session';
 
+import { isAdminRole } from '../lib/roles';
+
 // ============================================================
 // COLORS
 // ============================================================
@@ -283,8 +285,7 @@ export default function AdminLoginScreen() {
 
       if (
         token &&
-        profile?.role ===
-          'admin'
+        isAdminRole(profile?.role)
       ) {
         router.replace(
           '/dashboard'
@@ -735,8 +736,7 @@ export default function AdminLoginScreen() {
       }
 
       if (
-        result?.profile?.role !==
-        'admin'
+        !isAdminRole(result?.profile?.role)
       ) {
         await clearAdminSession();
 

@@ -14,6 +14,7 @@ import { unregisterPushNotifications } from '../../lib/pushNotifications';
 import { getMyDonorApplication, TRAVEL_RADIUS_OPTIONS, updateDonorPreferences, } from '../../lib/donorApplication';
 import type { DonorApplication, DonorPreferences, } from '../../lib/donorApplication';
 import { clearSession, getAccessToken, } from '../../lib/session';
+import { formatPhone } from '../../lib/phone';
 
 const COLORS = {
     red: '#DB0A0A',
@@ -571,8 +572,17 @@ export default function ProfileScreen() {
         profile?.email ||
         'Email unavailable';
 
+    // Off during the 90-day wait after a donation, whatever the
+    // saved setting is.
+    const donorAvailable =
+        donorApplication?.availability_status ===
+            'available' &&
+        !nextEligibleAt;
+
     const phone =
-        profile?.phone ||
+        formatPhone(
+            profile?.phone
+        ) ||
         'Not provided';
 
     const bloodType =
@@ -772,9 +782,9 @@ export default function ProfileScreen() {
         );
     }
 
-    function handleNotifications() {
+    function handleNotificationSettings() {
         router.push(
-            '/notifications' as any
+            '/notifications/settings' as any
         );
     }
 
@@ -785,9 +795,8 @@ export default function ProfileScreen() {
     }
 
     function handleAbout() {
-        showMessage(
-            'About Hemo-Hero',
-            'Hemo-Hero helps connect people requesting blood with compatible nearby donors.'
+        router.push(
+            '/about' as any
         );
     }
 
@@ -1395,8 +1404,7 @@ export default function ProfileScreen() {
                                                 styles.menuIcon,
                                                 {
                                                     backgroundColor:
-                                                        donorApplication.availability_status ===
-                                                        'available'
+                                                        donorAvailable
                                                             ? COLORS.greenSoft
                                                             : COLORS.graySoft,
                                                 },
@@ -1404,15 +1412,13 @@ export default function ProfileScreen() {
                                         >
                                             <MaterialIcons
                                                 name={
-                                                    donorApplication.availability_status ===
-                                                    'available'
+                                                    donorAvailable
                                                         ? 'volunteer-activism'
                                                         : 'pause-circle-outline'
                                                 }
                                                 size={20}
                                                 color={
-                                                    donorApplication.availability_status ===
-                                                    'available'
+                                                    donorAvailable
                                                         ? COLORS.green
                                                         : COLORS.muted
                                                 }
@@ -1437,20 +1443,21 @@ export default function ProfileScreen() {
                                                     styles.menuSubtitle
                                                 }
                                             >
-                                                {donorApplication.availability_status ===
-                                                'available'
-                                                    ? 'Requesters can find and invite you'
-                                                    : 'Paused: you won’t appear in donor search'}
+                                                {nextEligibleAt
+                                                    ? 'Off during the 90-day rest after your donation'
+                                                    : donorAvailable
+                                                      ? 'Requesters can find and invite you'
+                                                      : 'Paused: you won’t appear in donor search'}
                                             </Text>
                                         </View>
 
                                         <Switch
                                             value={
-                                                donorApplication.availability_status ===
-                                                'available'
+                                                donorAvailable
                                             }
                                             disabled={Boolean(
-                                                savingPreference
+                                                savingPreference ||
+                                                    nextEligibleAt
                                             )}
                                             onValueChange={value =>
                                                 saveDonorPreference(
@@ -1465,8 +1472,7 @@ export default function ProfileScreen() {
                                                 true: '#E8A3A3',
                                             }}
                                             thumbColor={
-                                                donorApplication.availability_status ===
-                                                'available'
+                                                donorAvailable
                                                     ? COLORS.redButton
                                                     : '#FFFFFF'
                                             }
@@ -1650,6 +1656,10 @@ export default function ProfileScreen() {
                                                         nextEligibleAt
                                                     )}
                                                     .
+                                                    {donorApplication.availability_status ===
+                                                    'available'
+                                                        ? ' You’ll show as available again then.'
+                                                        : ''}
                                                 </Text>
                                             </View>
                                         </>
@@ -1911,10 +1921,10 @@ export default function ProfileScreen() {
 
                             <MenuRow
                                 icon="notifications-none"
-                                title="Notifications"
-                                subtitle="Your alerts and updates"
+                                title="Notification Settings"
+                                subtitle="Choose what alerts your phone"
                                 onPress={
-                                    handleNotifications
+                                    handleNotificationSettings
                                 }
                             />
                         </View>
@@ -1942,7 +1952,7 @@ export default function ProfileScreen() {
                             <MenuRow
                                 icon="info-outline"
                                 title="About Hemo-Hero"
-                                subtitle="Learn about the Hemo-Hero project"
+                                subtitle="What Hemo-Hero is and how it keeps you safe"
                                 onPress={
                                     handleAbout
                                 }

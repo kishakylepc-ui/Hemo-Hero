@@ -20,7 +20,7 @@ The app finds the server by itself: it uses the address of the computer running 
 
 ## Good to know
 
-- **Notifications:** Expo Go on Android can't receive push notifications, so the app shows new notifications itself while it's open. On iPhone, Expo Go receives push notifications.
+- **Notifications:** Expo Go on Android can't receive push notifications, so the app shows new notifications itself while it's open. On iPhone, Expo Go receives push notifications. Profile → Notification Settings chooses which kinds of updates alert the phone; the Notifications inbox always keeps everything.
 - **Location:** used for nearby searches and for sharing a trip with the requester. Expo Go only shares location while the app is open, so the screen stays on during a trip.
 - After installing or updating packages, start with `npx expo start -c` to clear the cache.
 

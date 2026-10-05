@@ -57,6 +57,8 @@ import {
   getAdminProfile,
 } from '../../lib/session';
 
+import { isAdminRole } from '../../lib/roles';
+
 // ============================================================
 // LIMITS
 // ============================================================
@@ -245,7 +247,7 @@ export default function AdminAnalyticsScreen() {
 
       if (
         !token ||
-        savedProfile?.role !== 'admin'
+        !isAdminRole(savedProfile?.role)
       ) {
         await clearAdminSession();
 

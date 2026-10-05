@@ -7,6 +7,8 @@ import { router } from 'expo-router';
 
 import { clearAdminSession } from './session';
 
+import { isAdminRole } from './roles';
+
 const RAW_API_URL =
   process.env.EXPO_PUBLIC_API_URL ||
   'http://localhost:5000';
@@ -514,6 +516,9 @@ export type AdminBloodRequestDetailResponse = {
 export type AdminUserSummary = {
   total: number;
 
+  // Super admin only: number of admin accounts.
+  admins?: number;
+
   active: number;
 
   inactive: number;
@@ -600,6 +605,9 @@ export type AdminUserFilters = {
 
   status?:
     AdminUserStatusFilter;
+
+  // 'admin' lists admin accounts (super admin only).
+  role?: 'user' | 'admin';
 };
 
 export type AdminUsersResponse = {
@@ -652,6 +660,9 @@ export type AdminCreateUserInput = {
   city?: string | null;
 
   province?: string | null;
+
+  // 'admin' is allowed for the super admin only.
+  role?: 'user' | 'admin';
 };
 
 // ============================================================
@@ -1086,8 +1097,9 @@ export async function loginAdmin(
 
   if (
     !data?.profile ||
-    data.profile.role !==
-      'admin'
+    !isAdminRole(
+      data.profile.role
+    )
   ) {
     throw new Error(
       'This account is not authorized to access the Hemo-Hero Admin Portal.'
@@ -1884,6 +1896,16 @@ export async function getAdminUsers(
     params.set(
       'search',
       filters.search.trim()
+    );
+  }
+
+  if (
+    filters.role ===
+    'admin'
+  ) {
+    params.set(
+      'role',
+      'admin'
     );
   }
 
@@ -3033,5 +3055,193 @@ export function rejectAdminDonation(
     donationId,
     'reject',
     adminNote
+  );
+}
+// ============================================================
+// DATABASE BACKUPS (super admin only)
+//
+// GET    /api/admin/backups
+// POST   /api/admin/backups
+// GET    /api/admin/backups/:id/download
+// POST   /api/admin/backups/:id/restore
+// DELETE /api/admin/backups/:id
+// ============================================================
+
+export type AdminBackupKind =
+  | 'manual'
+  | 'automatic'
+  | 'before_restore';
+
+export type AdminBackup = {
+  id: string;
+
+  kind: AdminBackupKind;
+
+  size_bytes: number;
+
+  // Rows saved per table.
+  table_counts: Record<string, number>;
+
+  total_rows: number;
+
+  created_at: string;
+  created_by?: string | null;
+  created_by_name?: string | null;
+
+  // Last time this backup was restored.
+  restored_at?: string | null;
+  restored_by?: string | null;
+  restored_by_name?: string | null;
+
+  download_name?: string;
+};
+
+export type AdminBackupSummary = {
+  total: number;
+  total_size_bytes: number;
+  latest_at: string | null;
+
+  // When the next daily backup is due (null before the first).
+  next_automatic_at: string | null;
+
+  // Automatic backups kept.
+  automatic_kept: number;
+};
+
+export async function getAdminBackups(
+  token: string
+): Promise<{
+  backups: AdminBackup[];
+  summary: AdminBackupSummary;
+}> {
+  const response =
+    await fetch(
+      `${API_URL}/api/admin/backups`,
+      {
+        headers: {
+          Authorization:
+            `Bearer ${token}`,
+        },
+      }
+    );
+
+  return parseResponse(
+    response
+  );
+}
+
+export async function createAdminBackup(
+  token: string
+): Promise<{
+  message: string;
+  backup: AdminBackup;
+}> {
+  const response =
+    await fetch(
+      `${API_URL}/api/admin/backups`,
+      {
+        method:
+          'POST',
+
+        headers: {
+          Authorization:
+            `Bearer ${token}`,
+        },
+      }
+    );
+
+  return parseResponse(
+    response
+  );
+}
+
+// A link that downloads the backup file (valid 5 minutes).
+export async function getAdminBackupDownload(
+  token: string,
+  backupId: string
+): Promise<{
+  url: string;
+  file_name: string;
+  expires_in_seconds: number;
+}> {
+  const response =
+    await fetch(
+      `${API_URL}/api/admin/backups/${encodeURIComponent(backupId)}/download`,
+      {
+        headers: {
+          Authorization:
+            `Bearer ${token}`,
+        },
+      }
+    );
+
+  return parseResponse(
+    response
+  );
+}
+
+export async function restoreAdminBackup(
+  token: string,
+  backupId: string
+): Promise<{
+  message: string;
+  backup: AdminBackup;
+
+  // Rows put back per table.
+  restored: Record<string, number>;
+
+  // Made just before the restore, to undo it.
+  safety_backup: AdminBackup;
+}> {
+  const response =
+    await fetch(
+      `${API_URL}/api/admin/backups/${encodeURIComponent(backupId)}/restore`,
+      {
+        method:
+          'POST',
+
+        headers: {
+          Authorization:
+            `Bearer ${token}`,
+
+          'Content-Type':
+            'application/json',
+        },
+
+        body:
+          JSON.stringify({
+            confirm:
+              'RESTORE',
+          }),
+      }
+    );
+
+  return parseResponse(
+    response
+  );
+}
+
+export async function deleteAdminBackup(
+  token: string,
+  backupId: string
+): Promise<{
+  message: string;
+}> {
+  const response =
+    await fetch(
+      `${API_URL}/api/admin/backups/${encodeURIComponent(backupId)}`,
+      {
+        method:
+          'DELETE',
+
+        headers: {
+          Authorization:
+            `Bearer ${token}`,
+        },
+      }
+    );
+
+  return parseResponse(
+    response
   );
 }

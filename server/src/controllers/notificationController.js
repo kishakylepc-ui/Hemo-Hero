@@ -14,6 +14,15 @@ const {
   '../services/pushService'
 );
 
+const {
+  getPreferences,
+  isMissingTable,
+  readPreferenceUpdates,
+  toPreferences
+} = require(
+  '../services/notificationPreferenceService'
+);
+
 // ============================================================
 // HELPERS
 // ============================================================
@@ -818,11 +827,184 @@ async function removePushToken(
 // EXPORTS
 // ============================================================
 
+// ============================================================
+// NOTIFICATION SETTINGS
+//
+// GET /api/notifications/preferences
+// PUT /api/notifications/preferences
+// Body (any of, true/false):
+//   push_enabled, donation_requests, request_updates,
+//   messages, donations
+//
+// These choose which notifications alert the user's phones.
+// Account and donor application updates always alert.
+// ============================================================
+
+async function getNotificationPreferences(
+  req,
+  res
+) {
+  try {
+    const userId =
+      getAuthenticatedUserId(
+        req
+      );
+
+    if (!userId) {
+      return res
+        .status(401)
+        .json({
+          error:
+            'Unauthorized'
+        });
+    }
+
+    return res
+      .status(200)
+      .json({
+        preferences:
+          await getPreferences(
+            userId
+          )
+      });
+  } catch (error) {
+    console.error(
+      'GET NOTIFICATION SETTINGS ERROR:',
+      error
+    );
+
+    return res
+      .status(500)
+      .json({
+        error:
+          'Internal server error'
+      });
+  }
+}
+
+async function updateNotificationPreferences(
+  req,
+  res
+) {
+  try {
+    const userId =
+      getAuthenticatedUserId(
+        req
+      );
+
+    if (!userId) {
+      return res
+        .status(401)
+        .json({
+          error:
+            'Unauthorized'
+        });
+    }
+
+    const check =
+      readPreferenceUpdates(
+        req.body
+      );
+
+    if (!check.valid) {
+      return res
+        .status(400)
+        .json({
+          error:
+            check.error
+        });
+    }
+
+    const {
+      data,
+      error
+    } =
+      await supabaseAdmin
+        .from(
+          'notification_preferences'
+        )
+        .upsert(
+          {
+            user_id:
+              userId,
+
+            ...check.updates,
+
+            updated_at:
+              new Date()
+                .toISOString()
+          },
+          {
+            onConflict:
+              'user_id'
+          }
+        )
+        .select('*')
+        .single();
+
+    if (error) {
+      console.error(
+        'UPDATE NOTIFICATION SETTINGS ERROR:',
+        error
+      );
+
+      return res
+        .status(
+          isMissingTable(
+            error
+          )
+            ? 503
+            : 500
+        )
+        .json({
+          error:
+            isMissingTable(
+              error
+            )
+              ? 'Notification settings are not set up on the server yet.'
+              : 'Unable to save your notification settings.'
+        });
+    }
+
+    setActivityEntity(
+      res,
+      'notification_preferences',
+      userId
+    );
+
+    return res
+      .status(200)
+      .json({
+        message:
+          'Notification settings saved.',
+
+        preferences:
+          toPreferences(
+            data
+          )
+      });
+  } catch (error) {
+    console.error(
+      'UPDATE NOTIFICATION SETTINGS ERROR:',
+      error
+    );
+
+    return res
+      .status(500)
+      .json({
+        error:
+          'Internal server error'
+      });
+  }
+}
+
 module.exports = {
   getMyNotifications,
   getUnreadNotificationCount,
   markNotificationAsRead,
   markAllNotificationsAsRead,
   registerPushToken,
-  removePushToken
+  removePushToken,
+  getNotificationPreferences,
+  updateNotificationPreferences
 };

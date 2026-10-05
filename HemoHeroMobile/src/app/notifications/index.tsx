@@ -719,6 +719,30 @@ export default function NotificationsScreen() {
                   </Text>
                 </View>
               ) : null}
+
+              <TouchableOpacity
+                style={
+                  styles.settingsButton
+                }
+                activeOpacity={
+                  0.75
+                }
+                accessibilityRole="button"
+                accessibilityLabel="Notification settings"
+                onPress={() =>
+                  router.push(
+                    '/notifications/settings' as any
+                  )
+                }
+              >
+                <MaterialIcons
+                  name="tune"
+                  size={20}
+                  color={
+                    COLORS.redButton
+                  }
+                />
+              </TouchableOpacity>
             </View>
 
             {/* ==================================================
@@ -1826,6 +1850,29 @@ const styles =
 
       backgroundColor:
         COLORS.white,
+    },
+
+    settingsButton: {
+      width:
+        38,
+
+      height:
+        38,
+
+      marginLeft:
+        8,
+
+      borderRadius:
+        19,
+
+      alignItems:
+        'center',
+
+      justifyContent:
+        'center',
+
+      backgroundColor:
+        COLORS.pinkLight,
     },
 
     summaryIcon: {

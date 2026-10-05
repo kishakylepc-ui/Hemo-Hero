@@ -50,6 +50,8 @@ import {
   updateStoredAdminProfile,
 } from '../../lib/session';
 
+import { isAdminRole, isSuperAdmin } from '../../lib/roles';
+
 // ============================================================
 // DESIGN
 //
@@ -234,7 +236,7 @@ export default function AdminSettingsScreen() {
 
       if (
         !token ||
-        storedProfile?.role !== 'admin'
+        !isAdminRole(storedProfile?.role)
       ) {
         await clearAdminSession();
 
@@ -923,7 +925,9 @@ export default function AdminSettingsScreen() {
                             },
                           ]}
                         >
-                          Administrator
+                          {isSuperAdmin(source?.role)
+                            ? 'Super Admin'
+                            : 'Administrator'}
                         </Text>
                       </View>
 
@@ -1105,7 +1109,11 @@ export default function AdminSettingsScreen() {
                           <InfoItem
                             fontScale={fs}
                             label="Role"
-                            value="Administrator"
+                            value={
+                              isSuperAdmin(source?.role)
+                                ? 'Super Admin'
+                                : 'Administrator'
+                            }
                             highlight
                           />
 
@@ -1206,6 +1214,27 @@ export default function AdminSettingsScreen() {
                         last
                       />
                     </SectionCard>
+
+                    {isSuperAdmin(source?.role) ? (
+                      <SectionCard
+                        scale={s}
+                        fontScale={fs}
+                        icon="backup"
+                        title="Data Backups"
+                      >
+                        <SettingsRow
+                          scale={s}
+                          fontScale={fs}
+                          icon="settings-backup-restore"
+                          title="Backups and Restore"
+                          description="Back up the database, see the daily automatic backups, and download or restore one."
+                          onPress={() =>
+                            router.push('/backups' as any)
+                          }
+                          last
+                        />
+                      </SectionCard>
+                    ) : null}
 
                     <SectionCard
                       scale={s}

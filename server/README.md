@@ -36,15 +36,29 @@ Create two storage buckets (Supabase → Storage):
 - `profile-photos`: public
 - `donor-verification`: private. It holds government IDs and blood type proof photos; admins open them through links that expire after 5 minutes.
 
+The private `backups` bucket is created by the server the first time it makes a backup.
+
+The full structure (every table, column, key and relationship) is in [database/SCHEMA.md](database/SCHEMA.md). It's generated from the live database; after running a migration, update it with `npm run schema:doc`.
+
 The base tables (`users`, `donor_applications`, `blood_requests`, `blood_request_responses`, `blood_request_invitations`, `blood_request_coordination_messages`, `blood_request_coordination_schedules` and `facility_locations`) were created in the Supabase dashboard and are not in this repository yet. A new database needs them before the migrations run.
 
-### Admin account
+### Admin accounts
 
-Admins are regular accounts with `role = 'admin'`. Sign up (for example in the mobile app), then run in the SQL editor:
+`users.role` is one of:
+
+| Role | Can do |
+|---|---|
+| `user` | The mobile app (donors and requesters) |
+| `admin` | Every Admin Portal module, including the log trail. Manages user accounts. |
+| `super_admin` | Everything an admin can do, and also creates, edits, deactivates and deletes admin accounts (Users → Admins, or Create User → Admin), and makes, downloads and restores database backups (Settings → Data Backups) |
+
+To make the first admin, sign up (for example in the mobile app), then run in the SQL editor:
 
 ```sql
 update public.users set role = 'admin' where email = 'admin@example.com';
 ```
+
+Migration `20261006_lockouts_super_admin_cleanup.sql` makes the oldest admin account the super admin if there isn't one yet. Super admin accounts can't be changed from the Admin Portal; change them in the SQL editor.
 
 ## API
 
@@ -60,12 +74,13 @@ All routes are under `/api`. Routes for signed-in users need `Authorization: Bea
 | `/api/donations` | A user's donation history, as donor and as requester |
 | `/api/facilities` | Nearby hospitals and blood banks |
 | `/api/geocode` | Barangay, city and province for a GPS point (fills in the profile address) |
-| `/api/notifications` | In-app notifications and push tokens |
+| `/api/notifications` | In-app notifications, push tokens and notification settings (which updates alert the phone) |
 | `/api/admin/donor-applications` | Review donor applications |
-| `/api/admin/users` | Manage user accounts |
+| `/api/admin/users` | Manage user accounts; admin accounts are super admin only |
 | `/api/admin/donations` | Donation records; review flagged ones |
 | `/api/admin/reports` | Issues: user reports and feedback |
 | `/api/admin/activity-logs` | Log trail |
+| `/api/admin/backups` | Database backups: list, back up now, download, restore, delete (super admin only) |
 
 ## Background jobs
 
@@ -76,6 +91,25 @@ Shortly after start-up, and then every 30 minutes, the server closes active requ
 - requests without a date, after 7 days
 
 A request with a recorded donation becomes **fulfilled**; otherwise it becomes **expired**. Open offers and invitations are closed, live trips end, and everyone involved is notified.
+
+Two minutes after start-up, and then every hour, the server checks the automatic backup. If the last one is more than a day old, it makes a new one and keeps the newest 7.
+
+## Backups
+
+A backup is one JSON file with every row of the app's tables. It covers accounts, donor applications, requests, offers, invitations, chats, meet-up times, trips, donations, feedback, reports, notifications, notification settings, facilities and the log trail. Photos and ID images stay in Supabase Storage, and push tokens and sign-in lockouts aren't included.
+
+Restoring a backup:
+
+1. The server first saves a "Before restore" backup, so the restore can be undone.
+2. It puts the backup back in one database transaction (the `restore_backup` function from migration 20261007). If anything fails, nothing changes.
+3. Accounts made after the backup are kept. The log trail is never deleted; entries missing from it are added back.
+4. Accounts deleted since the backup can't be brought back (their sign-in is gone), so such a restore stops with a message and changes nothing.
+
+## Sign-in protection
+
+- Three wrong passwords lock the account for 1 minute. Later lockouts last 3, 5, then 10 minutes; a successful sign-in resets the count.
+- Lockouts are kept in the `login_lockouts` table, so restarting the server doesn't clear them. (Before migration 20261006 is run, they're kept in memory and the server logs a warning.)
+- One network can make at most 30 failed sign-ins in 15 minutes.
 
 ## Tests
 

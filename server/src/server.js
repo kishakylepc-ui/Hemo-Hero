@@ -55,6 +55,9 @@ const donationRoutes =
 const adminDonationRoutes =
   require('./routes/adminDonationRoutes');
 
+const adminBackupRoutes =
+  require('./routes/adminBackupRoutes');
+
 // ============================================================
 // APP
 // ============================================================
@@ -63,6 +66,12 @@ const {
   startRequestExpiry
 } = require(
   './services/requestExpiryService'
+);
+
+const {
+  startAutomaticBackups
+} = require(
+  './services/backupService'
 );
 
 const app =
@@ -259,6 +268,23 @@ app.use(
 );
 
 // ============================================================
+// ADMIN DATABASE BACKUPS
+//
+// GET    /api/admin/backups
+// POST   /api/admin/backups
+// GET    /api/admin/backups/:id/download
+// POST   /api/admin/backups/:id/restore
+// DELETE /api/admin/backups/:id
+//
+// SUPER ADMIN ONLY
+// ============================================================
+
+app.use(
+  '/api/admin/backups',
+  adminBackupRoutes
+);
+
+// ============================================================
 // DONATION HISTORY
 //
 // GET /api/donations/me
@@ -352,6 +378,9 @@ app.listen(
   () => {
     // Closes requests that are past their time (see service).
     startRequestExpiry();
+
+    // Daily database backup (see service).
+    startAutomaticBackups();
 
     console.log(
       '========================================'

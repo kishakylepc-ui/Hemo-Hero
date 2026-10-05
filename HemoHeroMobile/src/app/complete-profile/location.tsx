@@ -78,6 +78,7 @@ export default function LocationScreen() {
       first_name?: string;
       last_name?: string;
       middle_name?: string;
+      phone?: string;
       date_of_birth?: string;
       gender?: string;
       profile_photo_uri?: string;
@@ -531,6 +532,10 @@ export default function LocationScreen() {
 
         middle_name:
           params.middle_name ||
+          '',
+
+        phone:
+          params.phone ||
           '',
 
         date_of_birth:

@@ -34,6 +34,10 @@ export type PublicDonorProfile = Partial<DonorStats> & {
     | 'available'
     | 'unavailable';
 
+  // Set while the donor is in the 90-day wait after donating
+  // (they show as unavailable until then).
+  next_eligible_at?: string | null;
+
   allow_urgent_requests: boolean;
 
   city?: string | null;
@@ -305,6 +309,10 @@ export async function getPublicDonorProfile(
         'unavailable'
           ? 'unavailable'
           : 'available',
+
+      next_eligible_at:
+        data.donor.next_eligible_at ||
+        null,
 
       allow_urgent_requests:
         data.donor.allow_urgent_requests ===

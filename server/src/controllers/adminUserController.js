@@ -10,6 +10,47 @@ const {
   '../middleware/activityLogMiddleware'
 );
 
+const {
+  normalizePhone,
+} = require(
+  '../utils/phone'
+);
+
+const {
+  isSuperAdmin
+} = require(
+  '../utils/roles'
+);
+
+// Regular users can be managed by any admin, admin accounts only
+// by the super admin, and super admin accounts not from the app.
+function getManageError(
+  req,
+  targetUser
+) {
+  if (
+    targetUser.role ===
+    'user'
+  ) {
+    return null;
+  }
+
+  if (
+    targetUser.role ===
+      'admin' &&
+    isSuperAdmin(
+      req.dbUser?.role
+    )
+  ) {
+    return null;
+  }
+
+  return targetUser.role ===
+    'admin'
+    ? 'Only the super admin can manage administrator accounts.'
+    : 'Super admin accounts cannot be changed from the Users module.';
+}
+
 // ============================================================
 // CONSTANTS
 // ============================================================
@@ -660,9 +701,9 @@ async function getAdminUserSummary(
           role,
           is_active
         `)
-        .eq(
+        .in(
           'role',
-          'user'
+          ['user', 'admin']
         );
 
     if (
@@ -692,11 +733,33 @@ async function getAdminUserSummary(
         0,
     };
 
+    const superAdmin =
+      isSuperAdmin(
+        req.dbUser?.role
+      );
+
+    if (superAdmin) {
+      summary.admins =
+        0;
+    }
+
     for (
       const user of
         users ||
         []
     ) {
+      if (
+        user.role ===
+        'admin'
+      ) {
+        if (superAdmin) {
+          summary.admins +=
+            1;
+        }
+
+        continue;
+      }
+
       summary.total +=
         1;
 
@@ -793,6 +856,44 @@ async function getAdminUsers(
         });
     }
 
+    const listRole =
+      cleanText(
+        req.query.role ||
+        'user'
+      )
+        .toLowerCase();
+
+    if (
+      ![
+        'user',
+        'admin',
+      ].includes(
+        listRole
+      )
+    ) {
+      return res
+        .status(400)
+        .json({
+          error:
+            'Invalid role filter.',
+        });
+    }
+
+    if (
+      listRole ===
+        'admin' &&
+      !isSuperAdmin(
+        req.dbUser?.role
+      )
+    ) {
+      return res
+        .status(403)
+        .json({
+          error:
+            'Only the super admin can manage administrator accounts.',
+        });
+    }
+
     const {
       data:
         allUsers,
@@ -806,7 +907,7 @@ async function getAdminUsers(
         .select('*')
         .eq(
           'role',
-          'user'
+          listRole
         )
         .order(
           'created_at',
@@ -1061,17 +1162,22 @@ async function getAdminUserById(
         });
     }
 
-    if (
-      user.role !==
-      'user'
-    ) {
-      return res
-        .status(403)
-        .json({
-          error:
-            'Administrator accounts cannot be managed from the Users module.',
-        });
-    }
+    const manageError =
+        getManageError(
+          req,
+          user
+        );
+
+      if (
+        manageError
+      ) {
+        return res
+          .status(403)
+          .json({
+            error:
+              manageError,
+          });
+      }
 
     const donorMap =
       await getDonorApplicationsByUserIds(
@@ -1145,9 +1251,73 @@ async function createAdminUser(
       barangay,
       city,
       province,
+
+      role,
     } =
       req.body ||
       {};
+
+    // --------------------------------------------------------
+    // PHONE (optional)
+    // --------------------------------------------------------
+
+    const phoneCheck =
+      normalizePhone(
+        phone
+      );
+
+    if (
+      !phoneCheck.valid
+    ) {
+      return res
+        .status(400)
+        .json({
+          error:
+            phoneCheck.error,
+        });
+    }
+
+    // --------------------------------------------------------
+    // ROLE (admin accounts: super admin only)
+    // --------------------------------------------------------
+
+    const newRole =
+      cleanText(
+        role ||
+        'user'
+      )
+        .toLowerCase();
+
+    if (
+      ![
+        'user',
+        'admin',
+      ].includes(
+        newRole
+      )
+    ) {
+      return res
+        .status(400)
+        .json({
+          error:
+            'Role must be user or admin.',
+        });
+    }
+
+    if (
+      newRole ===
+        'admin' &&
+      !isSuperAdmin(
+        req.dbUser?.role
+      )
+    ) {
+      return res
+        .status(403)
+        .json({
+          error:
+            'Only the super admin can create administrator accounts.',
+        });
+    }
 
     // --------------------------------------------------------
     // REQUIRED ACCOUNT FIELDS
@@ -1493,9 +1663,7 @@ async function createAdminUser(
         ),
 
       phone:
-        cleanOptionalText(
-          phone
-        ),
+        phoneCheck.value,
 
       date_of_birth:
         cleanDateOfBirth,
@@ -1519,7 +1687,7 @@ async function createAdminUser(
         ),
 
       role:
-        'user',
+        newRole,
 
       is_active:
         true,
@@ -1812,17 +1980,22 @@ async function updateAdminUser(
     // NORMAL USERS ONLY
     // --------------------------------------------------------
 
-    if (
-      targetUser.role !==
-      'user'
-    ) {
-      return res
-        .status(403)
-        .json({
-          error:
-            'Administrator accounts cannot be edited from the Users module.',
-        });
-    }
+    const manageError =
+        getManageError(
+          req,
+          targetUser
+        );
+
+      if (
+        manageError
+      ) {
+        return res
+          .status(403)
+          .json({
+            error:
+              manageError,
+          });
+      }
 
     const {
       email,
@@ -2035,10 +2208,24 @@ async function updateAdminUser(
       phone !==
       undefined
     ) {
-      updates.phone =
-        cleanOptionalText(
+      const phoneCheck =
+        normalizePhone(
           phone
         );
+
+      if (
+        !phoneCheck.valid
+      ) {
+        return res
+          .status(400)
+          .json({
+            error:
+              phoneCheck.error,
+          });
+      }
+
+      updates.phone =
+        phoneCheck.value;
     }
 
     // --------------------------------------------------------
@@ -2450,17 +2637,22 @@ async function deactivateAdminUser(
         });
     }
 
-    if (
-      targetUser.role !==
-      'user'
-    ) {
-      return res
-        .status(403)
-        .json({
-          error:
-            'Administrator accounts cannot be deactivated from the Users module.',
-        });
-    }
+    const manageError =
+        getManageError(
+          req,
+          targetUser
+        );
+
+      if (
+        manageError
+      ) {
+        return res
+          .status(403)
+          .json({
+            error:
+              manageError,
+          });
+      }
 
     if (
       targetUser.is_active ===
@@ -2634,17 +2826,22 @@ async function activateAdminUser(
         });
     }
 
-    if (
-      targetUser.role !==
-      'user'
-    ) {
-      return res
-        .status(403)
-        .json({
-          error:
-            'Administrator accounts cannot be activated from the Users module.',
-        });
-    }
+    const manageError =
+        getManageError(
+          req,
+          targetUser
+        );
+
+      if (
+        manageError
+      ) {
+        return res
+          .status(403)
+          .json({
+            error:
+              manageError,
+          });
+      }
 
     if (
       targetUser.is_active !==
@@ -2831,17 +3028,22 @@ async function deleteAdminUser(
     // ADMIN PROTECTION
     // --------------------------------------------------------
 
-    if (
-      targetUser.role !==
-      'user'
-    ) {
-      return res
-        .status(403)
-        .json({
-          error:
-            'Administrator accounts cannot be permanently deleted from the Users module.',
-        });
-    }
+    const manageError =
+        getManageError(
+          req,
+          targetUser
+        );
+
+      if (
+        manageError
+      ) {
+        return res
+          .status(403)
+          .json({
+            error:
+              manageError,
+          });
+      }
 
     // --------------------------------------------------------
     // DELETE PUBLIC USER FIRST

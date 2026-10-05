@@ -23,6 +23,12 @@ const {
   '../services/bloodTypeProofService'
 );
 
+const {
+  normalizePhone,
+} = require(
+  '../utils/phone'
+);
+
 // The profile plus whether a blood type proof is on file.
 async function withBloodTypeProof(
   user
@@ -2572,10 +2578,24 @@ async function updateProfile(
       phone !==
       undefined
     ) {
-      updates.phone =
-        cleanOptionalText(
+      const phoneCheck =
+        normalizePhone(
           phone
         );
+
+      if (
+        !phoneCheck.valid
+      ) {
+        return res
+          .status(400)
+          .json({
+            error:
+              phoneCheck.error,
+          });
+      }
+
+      updates.phone =
+        phoneCheck.value;
     }
 
     // ========================================================

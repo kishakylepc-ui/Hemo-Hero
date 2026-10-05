@@ -9,6 +9,13 @@ const {
   '../services/donorStatsService'
 );
 
+const {
+  getNextEligibleDate,
+  isEligibleToDonate
+} = require(
+  '../services/eligibilityService'
+);
+
 // ============================================================
 // HELPERS
 // ============================================================
@@ -467,6 +474,19 @@ async function getPublicDonorProfile(
         .join(', ') ||
       null;
 
+    // First day they may donate again, while in the 90-day
+    // wait after a donation (null = can donate).
+    const restingUntil =
+      isEligibleToDonate(
+        donorApplication
+          .last_donation_date
+      )
+        ? null
+        : getNextEligibleDate(
+            donorApplication
+              .last_donation_date
+          ).toISOString();
+
     // ========================================================
     // SAFE RESPONSE
     //
@@ -521,9 +541,15 @@ async function getPublicDonorProfile(
           verified:
             true,
 
+          // Off during the 90-day wait after a donation.
           availability_status:
-            donorApplication
-              .availability_status,
+            restingUntil
+              ? 'unavailable'
+              : donorApplication
+                  .availability_status,
+
+          next_eligible_at:
+            restingUntil,
 
           allow_urgent_requests:
             Boolean(

@@ -22,7 +22,8 @@ const {
 
 const {
   getNextEligibleDate,
-  isEligibleToDonate
+  isEligibleToDonate,
+  formatEligibleDate
 } = require(
   '../services/eligibilityService'
 );
@@ -2559,6 +2560,64 @@ async function updateDonorPreferences(
             error:
               'Availability must be available or unavailable.'
           });
+      }
+
+      // Stays off until 90 days after the last donation.
+      if (
+        body.availability_status ===
+        'available'
+      ) {
+        const {
+          data: current,
+          error: currentError
+        } =
+          await supabaseAdmin
+            .from(
+              'donor_applications'
+            )
+            .select(
+              'last_donation_date'
+            )
+            .eq(
+              'user_id',
+              userId
+            )
+            .maybeSingle();
+
+        if (currentError) {
+          console.error(
+            'UPDATE DONOR PREFERENCES ERROR:',
+            currentError
+          );
+
+          return res
+            .status(500)
+            .json({
+              error:
+                'Unable to save your donor settings.'
+            });
+        }
+
+        if (
+          current &&
+          !isEligibleToDonate(
+            current.last_donation_date
+          )
+        ) {
+          return res
+            .status(409)
+            .json({
+              error:
+                `You can turn this on from ${formatEligibleDate(
+                  getNextEligibleDate(
+                    current.last_donation_date
+                  )
+                )}, 90 days after your last donation.`,
+
+              code:
+                'DONOR_RESTING'
+            });
+        }
       }
 
       updates.availability_status =

@@ -7,7 +7,9 @@ const {
   markNotificationAsRead,
   markAllNotificationsAsRead,
   registerPushToken,
-  removePushToken
+  removePushToken,
+  getNotificationPreferences,
+  updateNotificationPreferences
 } =
   require(
     '../controllers/notificationController'
@@ -118,6 +120,37 @@ router.put(
 router.delete(
   '/push-token',
   removePushToken
+);
+
+// ============================================================
+// NOTIFICATION SETTINGS
+//
+// GET /api/notifications/preferences  (not logged: read-only)
+// PUT /api/notifications/preferences
+//
+// Keep before /:id routes.
+// ============================================================
+
+router.get(
+  '/preferences',
+  getNotificationPreferences
+);
+
+router.put(
+  '/preferences',
+  activityLog({
+    action:
+      'EDIT_NOTIFICATION_SETTINGS',
+    module:
+      'Notifications',
+    successDescription:
+      'User changed their notification settings.',
+    failureDescription:
+      'User attempt to change notification settings failed.',
+    entityType:
+      'notification_preferences'
+  }),
+  updateNotificationPreferences
 );
 
 // ============================================================

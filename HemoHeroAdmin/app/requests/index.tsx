@@ -46,6 +46,8 @@ import {
   getAdminProfile,
 } from '../../lib/session';
 
+import { isAdminRole } from '../../lib/roles';
+
 // ============================================================
 // DESIGN
 //
@@ -204,7 +206,7 @@ export default function AdminBloodRequestsScreen() {
 
       if (
         !token ||
-        storedProfile?.role !== 'admin'
+        !isAdminRole(storedProfile?.role)
       ) {
         await clearAdminSession();
 

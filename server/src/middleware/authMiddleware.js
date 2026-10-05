@@ -1,4 +1,11 @@
 const {
+  isAdminRole,
+  isSuperAdmin
+} = require(
+  '../utils/roles'
+);
+
+const {
   supabaseAnon,
   supabaseAdmin,
 } = require(
@@ -314,8 +321,9 @@ function requireAdmin(
   // ----------------------------------------------------------
 
   if (
-    req.dbUser.role !==
-    'admin'
+    !isAdminRole(
+      req.dbUser.role
+    )
   ) {
     return res
       .status(403)
@@ -332,10 +340,56 @@ function requireAdmin(
 }
 
 // ============================================================
+// SUPER ADMIN ONLY
+//
+// Use after requireAuth. For work only the super admin may do
+// (database backups and restore).
+// ============================================================
+
+function requireSuperAdmin(
+  req,
+  res,
+  next
+) {
+  if (
+    !req.dbUser
+  ) {
+    return res
+      .status(401)
+      .json({
+        error:
+          'Authentication required',
+
+        code:
+          'AUTH_REQUIRED',
+      });
+  }
+
+  if (
+    !isSuperAdmin(
+      req.dbUser.role
+    )
+  ) {
+    return res
+      .status(403)
+      .json({
+        error:
+          'Only the super admin can do this.',
+
+        code:
+          'SUPER_ADMIN_REQUIRED',
+      });
+  }
+
+  return next();
+}
+
+// ============================================================
 // EXPORTS
 // ============================================================
 
 module.exports = {
   requireAuth,
   requireAdmin,
+  requireSuperAdmin,
 };

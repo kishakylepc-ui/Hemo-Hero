@@ -4,6 +4,12 @@ const {
   'express-rate-limit'
 );
 
+const {
+  supabaseAdmin,
+} = require(
+  '../config/supabase'
+);
+
 // ============================================================
 // CONSTANTS
 // ============================================================
@@ -42,14 +48,12 @@ const IP_RETRY_MINUTES =
   15;
 
 // ============================================================
-// IN-MEMORY ACCOUNT ATTEMPTS
+// ACCOUNT ATTEMPTS
 // ============================================================
 //
-// CAPSTONE / DEVELOPMENT:
-//
-// These counters are stored in server memory.
-//
-// Restarting the backend clears them.
+// Kept in memory for speed and copied to the login_lockouts
+// table (migration 20261006), so a lockout survives a server
+// restart. Until that table exists, memory alone is used.
 //
 // Each account record contains:
 //
@@ -78,8 +82,246 @@ const IP_RETRY_MINUTES =
 // Non-existent accounts must NOT consume password attempts.
 // ============================================================
 
+let lockoutTableAvailable =
+  true;
+
+function toIso(
+  ms
+) {
+  return ms
+    ? new Date(ms).toISOString()
+    : null;
+}
+
+function toMs(
+  value
+) {
+  const ms =
+    value
+      ? Date.parse(value)
+      : NaN;
+
+  return Number.isFinite(ms)
+    ? ms
+    : null;
+}
+
+function handleLockoutTableError(
+  error,
+  action
+) {
+  // Table missing: the migration hasn't been run yet.
+  if (
+    error?.code === 'PGRST205' ||
+    error?.code === '42P01'
+  ) {
+    if (lockoutTableAvailable) {
+      console.warn(
+        'login_lockouts table not found; lockouts are kept in memory only until migration 20261006 is run.'
+      );
+    }
+
+    lockoutTableAvailable =
+      false;
+
+    return;
+  }
+
+  console.error(
+    `LOGIN LOCKOUT ${action} ERROR:`,
+    error?.message ||
+      error
+  );
+}
+
+function saveLockout(
+  email,
+  record
+) {
+  if (!lockoutTableAvailable) {
+    return;
+  }
+
+  supabaseAdmin
+    .from(
+      'login_lockouts'
+    )
+    .upsert({
+      email,
+
+      failed_count:
+        record.count,
+
+      first_failed_at:
+        toIso(record.firstAttemptAt),
+
+      last_failed_at:
+        toIso(record.lastAttemptAt),
+
+      locked_until:
+        toIso(record.lockedUntil),
+
+      lock_level:
+        record.lockLevel,
+
+      updated_at:
+        new Date()
+          .toISOString(),
+    })
+    .then(
+      ({ error }) =>
+        error &&
+        handleLockoutTableError(
+          error,
+          'SAVE'
+        ),
+      error =>
+        handleLockoutTableError(
+          error,
+          'SAVE'
+        )
+    );
+}
+
+function removeLockout(
+  email
+) {
+  if (!lockoutTableAvailable) {
+    return;
+  }
+
+  supabaseAdmin
+    .from(
+      'login_lockouts'
+    )
+    .delete()
+    .eq(
+      'email',
+      email
+    )
+    .then(
+      ({ error }) =>
+        error &&
+        handleLockoutTableError(
+          error,
+          'DELETE'
+        ),
+      error =>
+        handleLockoutTableError(
+          error,
+          'DELETE'
+        )
+    );
+}
+
+// The in-memory store; every change is copied to the table.
+class SavedAttempts extends Map {
+  set(
+    email,
+    record
+  ) {
+    super.set(
+      email,
+      record
+    );
+
+    saveLockout(
+      email,
+      record
+    );
+
+    return this;
+  }
+
+  delete(
+    email
+  ) {
+    const existed =
+      super.delete(
+        email
+      );
+
+    removeLockout(
+      email
+    );
+
+    return existed;
+  }
+}
+
 const accountAttempts =
-  new Map();
+  new SavedAttempts();
+
+// Brings a saved record back into memory (e.g. after a
+// restart). Never throws.
+async function loadAccountRecord(
+  email
+) {
+  if (
+    !lockoutTableAvailable ||
+    accountAttempts.has(email)
+  ) {
+    return;
+  }
+
+  try {
+    const {
+      data,
+      error,
+    } =
+      await supabaseAdmin
+        .from(
+          'login_lockouts'
+        )
+        .select('*')
+        .eq(
+          'email',
+          email
+        )
+        .maybeSingle();
+
+    if (error) {
+      handleLockoutTableError(
+        error,
+        'LOAD'
+      );
+
+      return;
+    }
+
+    if (
+      data &&
+      !accountAttempts.has(email)
+    ) {
+      // Map.set directly: it's already saved.
+      Map.prototype.set.call(
+        accountAttempts,
+        email,
+        {
+          count:
+            data.failed_count || 0,
+
+          firstAttemptAt:
+            toMs(data.first_failed_at),
+
+          lastAttemptAt:
+            toMs(data.last_failed_at),
+
+          lockedUntil:
+            toMs(data.locked_until),
+
+          lockLevel:
+            data.lock_level || 0,
+        }
+      );
+    }
+  } catch (error) {
+    handleLockoutTableError(
+      error,
+      'LOAD'
+    );
+  }
+}
 
 // ============================================================
 // HELPERS
@@ -304,7 +546,7 @@ function getAccountRecord(
 // -> controller must NOT call recordFailedLogin()
 // ============================================================
 
-function accountLoginLimiter(
+async function accountLoginLimiter(
   req,
   res,
   next
@@ -332,6 +574,10 @@ function accountLoginLimiter(
 
     return next();
   }
+
+  await loadAccountRecord(
+    email
+  );
 
   const currentRecord =
     getAccountRecord(

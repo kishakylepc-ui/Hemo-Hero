@@ -1,4 +1,10 @@
 const {
+  isAdminRole
+} = require(
+  '../utils/roles'
+);
+
+const {
   supabaseAnon,
   supabaseAdmin,
 } = require(
@@ -956,8 +962,9 @@ async function deactivateAccount(
     // --------------------------------------------------------
 
     if (
-      req.dbUser.role ===
-      'admin'
+      isAdminRole(
+        req.dbUser.role
+      )
     ) {
       return res
         .status(403)
@@ -1192,8 +1199,9 @@ async function deleteAccountPermanently(
     // --------------------------------------------------------
 
     if (
-      req.dbUser.role ===
-      'admin'
+      isAdminRole(
+        req.dbUser.role
+      )
     ) {
       return res
         .status(403)

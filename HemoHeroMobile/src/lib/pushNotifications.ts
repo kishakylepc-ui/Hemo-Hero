@@ -6,8 +6,15 @@ import * as Notifications from 'expo-notifications';
 
 import { authorizedFetch } from './authFetch';
 import { API_URL } from './apiUrl';
-import { getNotifications } from './api';
-import type { AppNotification } from './api';
+import {
+  getNotificationPreferences,
+  getNotifications,
+} from './api';
+import type {
+  AppNotification,
+  NotificationPreferences,
+} from './api';
+import { wantsAlert } from './notificationPreferences';
 import {
   getAccessToken,
   onSessionClear,
@@ -29,7 +36,9 @@ import {
 //             notification.
 //
 // Notifications are not shown for the chat the person is
-// currently looking at.
+// currently looking at, or for the kinds the person turned off
+// in Notification Settings (the server applies the same
+// settings to remote pushes).
 // ============================================================
 
 export type PushMode =
@@ -237,6 +246,45 @@ onSessionClear(unregisterPushNotifications);
 // Null until the first check, which only records what's there.
 let seenNotificationIds: Set<string> | null = null;
 
+// The user's notification settings, re-read every few minutes
+// (and right away when they change them on this phone).
+const PREFERENCES_MAX_AGE_MS = 5 * 60 * 1000;
+
+let alertPreferences: NotificationPreferences | null = null;
+
+let alertPreferencesAt = 0;
+
+export function setAlertPreferences(
+  preferences: NotificationPreferences | null
+) {
+  alertPreferences = preferences;
+  alertPreferencesAt = preferences ? Date.now() : 0;
+}
+
+onSessionClear(() => setAlertPreferences(null));
+
+async function loadAlertPreferences(
+  accessToken: string
+) {
+  if (
+    alertPreferences &&
+    Date.now() - alertPreferencesAt < PREFERENCES_MAX_AGE_MS
+  ) {
+    return alertPreferences;
+  }
+
+  try {
+    const result = await getNotificationPreferences(accessToken);
+
+    setAlertPreferences(result?.preferences || null);
+  } catch (error) {
+    // Keep the last known settings (or the defaults).
+    console.log('NOTIFICATION SETTINGS LOAD ERROR:', error);
+  }
+
+  return alertPreferences;
+}
+
 async function checkForNewNotifications() {
   const accessToken = await getAccessToken();
 
@@ -257,14 +305,24 @@ async function checkForNewNotifications() {
     return;
   }
 
-  for (const item of [...notifications].reverse()) {
-    if (seenNotificationIds.has(item.id)) {
-      continue;
-    }
+  const fresh = [...notifications]
+    .reverse()
+    .filter(item => !seenNotificationIds?.has(item.id));
 
+  if (!fresh.length) {
+    return;
+  }
+
+  const preferences = await loadAlertPreferences(accessToken);
+
+  for (const item of fresh) {
     seenNotificationIds.add(item.id);
 
-    if (item.is_read || item.type.startsWith('admin_')) {
+    if (
+      item.is_read ||
+      item.type.startsWith('admin_') ||
+      !wantsAlert(preferences, item.type)
+    ) {
       continue;
     }
 

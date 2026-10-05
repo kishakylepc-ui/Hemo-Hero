@@ -779,6 +779,29 @@ export default function DonorDetailsScreen() {
       );
   }
 
+  // "Dec 30, 2026" from a full date-time.
+  function formatRestDate(
+    value: string
+  ) {
+    const date =
+      new Date(
+        value
+      );
+
+    return Number.isNaN(
+      date.getTime()
+    )
+      ? 'later'
+      : date.toLocaleDateString(
+          'en-US',
+          {
+            month: 'short',
+            day: 'numeric',
+            year: 'numeric',
+          }
+        );
+  }
+
   // ==========================================================
   // NEEDED BY
   // ==========================================================
@@ -1301,7 +1324,11 @@ export default function DonorDetailsScreen() {
                       donor.availability_status ===
                       'available'
                         ? 'Available to donate'
-                        : 'Unavailable right now'
+                        : donor.next_eligible_at
+                          ? `Resting after a donation until ${formatRestDate(
+                              donor.next_eligible_at
+                            )}`
+                          : 'Unavailable right now'
                     }
                     valueColor={
                       donor.availability_status ===

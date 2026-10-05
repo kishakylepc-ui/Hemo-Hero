@@ -42,6 +42,11 @@ import {
   getAccessToken,
 } from '../../lib/session';
 
+import {
+  normalizePhone,
+  PHONE_ERROR,
+} from '../../lib/phone';
+
 // ============================================================
 // COLORS
 // ============================================================
@@ -1653,6 +1658,26 @@ export default function EditProfileScreen() {
       return;
     }
 
+    const cleanPhone =
+      normalizePhone(
+        phone
+      );
+
+    if (
+      cleanPhone === null
+    ) {
+      setErrorMessage(
+        PHONE_ERROR
+      );
+
+      showMessage(
+        'Check Phone Number',
+        PHONE_ERROR
+      );
+
+      return;
+    }
+
     const bloodTypeChanged =
       !isApprovedDonor &&
       bloodType !==
@@ -1730,7 +1755,7 @@ export default function EditProfileScreen() {
           null,
 
         phone:
-          phone.trim() ||
+          cleanPhone ||
           null,
 
         date_of_birth:
@@ -2203,7 +2228,7 @@ export default function EditProfileScreen() {
                   value={
                     phone
                   }
-                  placeholder="Enter phone number"
+                  placeholder="0917 123 4567 (optional)"
                   keyboardType="phone-pad"
                   editable={
                     !saving &&

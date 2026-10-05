@@ -50,7 +50,7 @@ You need Node.js 22 or newer, a Supabase project, and the Expo Go app on the pho
    ```
    Scan the QR code with Expo Go (Android) or the Camera app (iPhone). The phones must be on the same Wi-Fi or hotspot as the laptop.
 
-First-time database setup and creating the admin account are in [server/README.md](server/README.md).
+First-time database setup and creating the admin account are in [server/README.md](server/README.md). The database structure is in [server/database/SCHEMA.md](server/database/SCHEMA.md).
 
 ### If a phone can't connect
 

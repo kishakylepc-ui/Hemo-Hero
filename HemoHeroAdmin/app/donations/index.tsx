@@ -44,6 +44,8 @@ import {
   getAdminProfile,
 } from '../../lib/session';
 
+import { isAdminRole } from '../../lib/roles';
+
 // ============================================================
 // DESIGN
 //
@@ -189,7 +191,7 @@ export default function AdminDonationsScreen() {
 
       if (
         !token ||
-        savedProfile?.role !== 'admin'
+        !isAdminRole(savedProfile?.role)
       ) {
         await clearAdminSession();
 

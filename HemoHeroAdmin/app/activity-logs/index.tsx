@@ -46,6 +46,8 @@ import {
   getAdminProfile,
 } from '../../lib/session';
 
+import { isAdminRole } from '../../lib/roles';
+
 // ============================================================
 // DESIGN
 //
@@ -101,7 +103,9 @@ const MODULES = [
   'Donor Invitations',
   'Coordination',
   'Issues',
+  'Donations',
   'Notifications',
+  'Backups',
 ] as const;
 
 // ============================================================
@@ -202,7 +206,7 @@ export default function ActivityLogsScreen() {
 
       if (
         !token ||
-        savedProfile?.role !== 'admin'
+        !isAdminRole(savedProfile?.role)
       ) {
         await clearAdminSession();
 
@@ -1772,6 +1776,11 @@ function DetailRow({
 // HELPERS
 // ============================================================
 
+// Older entries used another name for the same action.
+const ACTION_ALIASES: Record<string, string> = {
+  UPDATE_PROFILE: 'EDIT_PROFILE',
+};
+
 function formatAction(
   action?: string | null
 ) {
@@ -1779,7 +1788,7 @@ function formatAction(
     return 'Activity';
   }
 
-  return String(action)
+  return (ACTION_ALIASES[action] || String(action))
     .toLowerCase()
     .split('_')
     .filter(Boolean)

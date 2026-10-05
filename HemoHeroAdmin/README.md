@@ -17,7 +17,7 @@ Built with Expo SDK 57 and Expo Router. It runs in a web browser and on iPad (Ex
 
 **On an iPad:** set `EXPO_PUBLIC_API_URL` to the computer's network address, for example `http://192.168.1.5:5000` (the server prints it at start-up). Then run `npx expo start` and open the project in Expo Go.
 
-Only accounts with the admin role can sign in. The [server README](../server/README.md#admin-account) explains how to create one.
+Only admin and super admin accounts can sign in. The [server README](../server/README.md#admin-accounts) explains the roles and how to create the first admin.
 
 ## Modules
 
@@ -25,13 +25,13 @@ Only accounts with the admin role can sign in. The [server README](../server/REA
 |---|---|
 | Dashboard | What needs attention now, totals, blood type demand, recent activity |
 | Applications | Review donor applications and government IDs; approve or reject |
-| Users | Search, create, edit, deactivate or delete user accounts |
+| Users | Search, create, edit, deactivate or delete user accounts. The super admin also manages admin accounts. |
 | Requests | Every blood request, with filters and full details |
 | Donations | Every donation record; mark flagged records valid or reject them |
 | Analytics | Applications, accounts, request outcomes, donations, issues and activity |
 | Issues | User reports and feedback: review, resolve or dismiss, and remove false requests |
 | Log Trails | Record of user and admin actions |
-| Settings | Your admin profile, password and email, and signing out |
+| Settings | Your admin profile, password and email, and signing out. The super admin also gets **Data Backups**: back up now, the daily automatic backups, download and restore. |
 
 ## Project layout
 

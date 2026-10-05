@@ -1,4 +1,10 @@
 const {
+  ADMIN_ROLES
+} = require(
+  '../utils/roles'
+);
+
+const {
   supabaseAdmin
 } = require(
   '../config/supabase'
@@ -306,9 +312,9 @@ async function notifyAdmins({
         .select(
           'id'
         )
-        .eq(
+        .in(
           'role',
-          'admin'
+          ADMIN_ROLES
         )
         .eq(
           'is_active',
