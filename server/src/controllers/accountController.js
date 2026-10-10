@@ -22,6 +22,12 @@ const {
   '../middleware/activityLogMiddleware'
 );
 
+const {
+  releaseDeactivatedAccount,
+} = require(
+  '../services/accountReleaseService'
+);
+
 // ============================================================
 // HELPERS
 // ============================================================
@@ -1083,6 +1089,16 @@ async function deactivateAccount(
     setActivityEntity(
       res,
       'user_account',
+      deactivatedUser.id
+    );
+
+    // --------------------------------------------------------
+    // RELEASE OPEN OFFERS AND REQUESTS
+    //
+    // Donors and requesters waiting on this person are told.
+    // --------------------------------------------------------
+
+    await releaseDeactivatedAccount(
       deactivatedUser.id
     );
 

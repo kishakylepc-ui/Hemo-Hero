@@ -722,6 +722,43 @@ async function sendDonorInvitation(
         });
     }
 
+    // A deactivated account can't answer an invitation.
+    const {
+      data: donorAccount,
+      error: donorAccountError,
+    } = await supabaseAdmin
+      .from('users')
+      .select('is_active')
+      .eq('id', donorId)
+      .maybeSingle();
+
+    if (donorAccountError) {
+      console.error(
+        'INVITATION DONOR ACCOUNT ERROR:',
+        donorAccountError
+      );
+
+      return res
+        .status(500)
+        .json({
+          error:
+            'Unable to verify donor.',
+        });
+    }
+
+    if (
+      !donorAccount ||
+      donorAccount.is_active ===
+        false
+    ) {
+      return res
+        .status(409)
+        .json({
+          error:
+            'This donor is currently unavailable.',
+        });
+    }
+
     // --------------------------------------------------------
     // RED BLOOD CELL COMPATIBILITY
     // --------------------------------------------------------

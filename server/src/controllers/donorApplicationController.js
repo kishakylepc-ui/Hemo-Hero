@@ -1338,6 +1338,12 @@ async function getNearbyDonors(
         .in(
           'id',
           donorUserIds
+        )
+        // Deactivated accounts can't respond, so they're left
+        // out (a missing profile skips the donor below).
+        .eq(
+          'is_active',
+          true
         );
 
     if (

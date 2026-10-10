@@ -22,6 +22,13 @@ const {
   '../utils/roles'
 );
 
+const {
+  releaseDeactivatedAccount,
+  describeRelease,
+} = require(
+  '../services/accountReleaseService'
+);
+
 // Regular users can be managed by any admin, admin accounts only
 // by the super admin, and super admin accounts not from the app.
 function getManageError(
@@ -2728,11 +2735,27 @@ async function deactivateAdminUser(
       updatedUser.id
     );
 
+    // Their open offers, invitations and active requests stop
+    // waiting on them.
+    const released =
+      await releaseDeactivatedAccount(
+        updatedUser.id
+      );
+
+    const releaseSummary =
+      describeRelease(
+        released
+      );
+
     return res
       .status(200)
       .json({
         message:
-          'User account deactivated successfully.',
+          releaseSummary
+            ? `User account deactivated successfully. ${releaseSummary}`
+            : 'User account deactivated successfully.',
+
+        released,
 
         user:
           buildSafeUser(

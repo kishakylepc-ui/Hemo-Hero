@@ -791,8 +791,8 @@ export default function IssueReviewScreen() {
         : 'Deactivate Account',
 
       reportedUserInactive
-        ? `${reportedName}'s account is already deactivated. Resolve this report as deactivated, together with any other open chat reports about them?`
-        : `Deactivate ${reportedName}'s account? They can't use Hemo-Hero until an admin activates it again in Users. This report and any other open chat reports about them will be resolved.`,
+        ? `${reportedName}'s account is already deactivated. Resolve this report as deactivated, together with any other open chat reports about them? Anything they still had open (requests, offers) is closed too.`
+        : `Deactivate ${reportedName}'s account? They can't use Hemo-Hero until an admin activates it again in Users. Their active requests close and their offers are released, and the people involved are told. This report and any other open chat reports about them will be resolved.`,
 
       () =>
         applyUserAction(
@@ -1815,7 +1815,7 @@ export default function IssueReviewScreen() {
                           >
                             {reportedUserInactive
                               ? 'This account is already deactivated. Resolve the report as deactivated, or dismiss it below.'
-                              : 'Warn sends your admin note to them as a warning. Deactivate blocks their account and also resolves their other open chat reports.'}
+                              : 'Warn sends your admin note to them as a warning. Deactivate blocks their account, closes their active requests, releases their offers and resolves their other open chat reports.'}
                           </Text>
 
                           <View

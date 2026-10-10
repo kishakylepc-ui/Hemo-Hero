@@ -15,6 +15,13 @@ const {
   '../services/notificationService'
 );
 
+const {
+  releaseDeactivatedAccount,
+  describeRelease
+} = require(
+  '../services/accountReleaseService'
+);
+
 // ============================================================
 // ADMIN REPORT CONTROLLER
 //
@@ -247,6 +254,93 @@ function buildReviewedNotification(
   };
 }
 
+// The chat behind a report can only be opened while the offer is
+// accepted or released after a no-show. Otherwise (e.g. the
+// donor's account was deactivated) the notification opens the
+// request instead: the requester's page or the donor's view.
+async function pointClosedChatsToRequest(
+  rows,
+  reports
+) {
+  const responseIds = [
+    ...new Set(
+      rows
+        .map(
+          row =>
+            row.data.response_id
+        )
+        .filter(Boolean)
+    )
+  ];
+
+  if (!responseIds.length) {
+    return;
+  }
+
+  const {
+    data: responses,
+    error
+  } =
+    await supabaseAdmin
+      .from(
+        'blood_request_responses'
+      )
+      .select(
+        'id, status, donor_id'
+      )
+      .in(
+        'id',
+        responseIds
+      );
+
+  if (error) {
+    console.error(
+      'REVIEWED NOTIFICATION CHAT CHECK ERROR:',
+      error
+    );
+
+    return;
+  }
+
+  const responseMap =
+    new Map(
+      (responses || []).map(
+        response => [
+          response.id,
+          response
+        ]
+      )
+    );
+
+  rows.forEach(
+    (row, index) => {
+      const response =
+        responseMap.get(
+          row.data.response_id
+        );
+
+      if (
+        !response ||
+        response.status ===
+          'accepted' ||
+        response.status ===
+          'no_show'
+      ) {
+        return;
+      }
+
+      row.data.response_id =
+        null;
+
+      row.data.recipient_role =
+        response.donor_id ===
+        reports[index].reporter_id
+          ? 'donor'
+          : 'requester';
+    }
+  );
+}
+
 async function notifyReporters(
   reports,
   status
@@ -254,37 +348,49 @@ async function notifyReporters(
   const seen =
     new Set();
 
-  const rows =
+  const unique =
     (
       reports ||
       []
-    )
-      .filter(
-        report => {
-          if (
-            !report.reporter_id ||
-            seen.has(
-              report.reporter_id
-            )
-          ) {
-            return false;
-          }
-
-          seen.add(
+    ).filter(
+      report => {
+        if (
+          !report.reporter_id ||
+          seen.has(
             report.reporter_id
-          );
-
-          return true;
-        }
-      )
-      .map(
-        report =>
-          buildReviewedNotification(
-            report,
-            status
           )
-      )
-      .filter(Boolean);
+        ) {
+          return false;
+        }
+
+        seen.add(
+          report.reporter_id
+        );
+
+        return true;
+      }
+    );
+
+  const rows =
+    unique.map(
+      report =>
+        buildReviewedNotification(
+          report,
+          status
+        )
+    );
+
+  try {
+    await pointClosedChatsToRequest(
+      rows,
+      unique
+    );
+  } catch (error) {
+    console.error(
+      'REVIEWED NOTIFICATION CHAT CHECK ERROR:',
+      error
+    );
+  }
 
   // Never throws.
   await createNotifications(
@@ -1919,6 +2025,9 @@ async function takeAdminReportAction(
       report
     ];
 
+    let releaseSummary =
+      '';
+
     if (
       action ===
       'warn'
@@ -2021,6 +2130,16 @@ async function takeAdminReportAction(
             });
         }
       }
+
+      // Their open offers, invitations and active requests stop
+      // waiting on them (also when the account was already
+      // deactivated before the release existed).
+      releaseSummary =
+        describeRelease(
+          await releaseDeactivatedAccount(
+            target.id
+          )
+        );
 
       // Every other open chat report about this person is
       // answered by the same decision.
@@ -2165,6 +2284,11 @@ async function takeAdminReportAction(
       reportsToClose.length -
       1;
 
+    const deactivatedMessage =
+      otherCount > 0
+        ? `Account deactivated. This report and ${otherCount} other open report${otherCount === 1 ? '' : 's'} about them were resolved.`
+        : 'Account deactivated. The report was resolved.';
+
     return res
       .status(200)
       .json({
@@ -2172,9 +2296,9 @@ async function takeAdminReportAction(
           action ===
           'warn'
             ? 'Warning sent. The report was resolved.'
-            : otherCount > 0
-              ? `Account deactivated. This report and ${otherCount} other open report${otherCount === 1 ? '' : 's'} about them were resolved.`
-              : 'Account deactivated. The report was resolved.',
+            : releaseSummary
+              ? `${deactivatedMessage} ${releaseSummary}`
+              : deactivatedMessage,
 
         closed_count:
           reportsToClose.length,

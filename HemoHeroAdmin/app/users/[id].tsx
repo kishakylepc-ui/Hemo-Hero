@@ -1175,7 +1175,7 @@ export default function AdminUserDetailsScreen() {
         }
         message={
           user?.is_active
-            ? 'This user will no longer be able to use authenticated Hemo-Hero features until the account is activated again.'
+            ? 'This user will no longer be able to use authenticated Hemo-Hero features until the account is activated again. Their active blood requests close and their pending or accepted offers are released, and the other people involved are notified.'
             : 'This user will regain access to authenticated Hemo-Hero features.'
         }
         userName={userName}

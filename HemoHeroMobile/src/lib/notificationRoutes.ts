@@ -386,6 +386,8 @@ export function openNotificationDestination(
   // REPORT / FEEDBACK REVIEWED BY AN ADMIN
   //
   // From a chat -> back to that conversation.
+  // Chat no longer open (e.g. the other person's account was
+  // deactivated) -> the request, as requester or donor.
   // About a request (the reporter is never its requester)
   // -> the donor view of that request.
   // ========================================================
@@ -409,7 +411,10 @@ export function openNotificationDestination(
       requestId
     ) {
       router.push(
-        `/blood-request/donor/${requestId}` as any
+        (data.recipient_role ===
+        'requester'
+          ? `/blood-request/${requestId}`
+          : `/blood-request/donor/${requestId}`) as any
       );
 
       return;
