@@ -8,13 +8,20 @@ import type { AppNotification } from './api';
 // Where tapping a notification leads. Shared by the
 // Notifications screen and by tapping a push notification, so
 // both always open the same screen.
+//
+// fromNotificationsScreen: the tap came from the list itself,
+// so notices with nowhere else to go (an admin warning) stay
+// there instead of opening the list again.
 // ============================================================
 
 export function openNotificationDestination(
   notification: Pick<
     AppNotification,
     'type' | 'data' | 'related_request_id'
-  >
+  >,
+  options: {
+    fromNotificationsScreen?: boolean;
+  } = {}
 ) {
   const data =
     notification.data ||
@@ -371,6 +378,64 @@ export function openNotificationDestination(
           : `/blood-request/donor/${requestId}`
         : '/dashboard') as any
     );
+
+    return;
+  }
+
+  // ========================================================
+  // REPORT / FEEDBACK REVIEWED BY AN ADMIN
+  //
+  // From a chat -> back to that conversation.
+  // About a request (the reporter is never its requester)
+  // -> the donor view of that request.
+  // ========================================================
+
+  if (
+    notification.type ===
+    'report_reviewed'
+  ) {
+    if (
+      requestId &&
+      responseId
+    ) {
+      router.push(
+        `/blood-request/${requestId}/coordination/${responseId}` as any
+      );
+
+      return;
+    }
+
+    if (
+      requestId
+    ) {
+      router.push(
+        `/blood-request/donor/${requestId}` as any
+      );
+
+      return;
+    }
+  }
+
+  // ========================================================
+  // ADMIN WARNING (and a review with nothing to open)
+  //
+  // The whole message is the content, and the Notifications
+  // list shows it in full (a push cuts it short).
+  // ========================================================
+
+  if (
+    notification.type ===
+      'account_warning' ||
+    notification.type ===
+      'report_reviewed'
+  ) {
+    if (
+      !options.fromNotificationsScreen
+    ) {
+      router.push(
+        '/notifications' as any
+      );
+    }
 
     return;
   }

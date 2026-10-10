@@ -1,6 +1,6 @@
 # Hemo-Hero Database Structure
 
-Generated from the live Supabase database on 2026-10-05 by `npm run schema:doc` (server folder). Don't edit this file by hand; run the command again after a migration.
+Generated from the live Supabase database on 2026-10-10 by `npm run schema:doc` (server folder). Don't edit this file by hand; run the command again after a migration.
 
 The tables live in the `public` schema of Supabase (PostgreSQL). Sign-in accounts are Supabase Auth users, and `users.id` is the same id. The server reads and writes with the service role, so the apps never touch the tables directly.
 
@@ -22,7 +22,7 @@ Schema changes are in [migrations](migrations/), run in date order in the Supaba
 | [blood_request_trips](#blood_request_trips) | 21 | 3 | The donor's live trip to the meet-up location (shared location and arrival). |
 | [blood_donations](#blood_donations) | 23 | 5 | Donations recorded when a request is completed. Flagged ones wait for admin review. |
 | [donation_feedback](#donation_feedback) | 10 | 4 | Ratings and comments both sides leave after a donation. |
-| [user_reports](#user_reports) | 16 | 5 | Problems reported by users (no-shows, false requests and other issues) for admin review. |
+| [user_reports](#user_reports) | 17 | 5 | Problems reported by users (no-shows, false requests and other issues) for admin review. |
 | [notifications](#notifications) | 10 | 2 | In-app notifications for users and admins. |
 | [push_tokens](#push_tokens) | 6 | 1 | Expo push notification tokens, one per signed-in device. |
 | [activity_logs](#activity_logs) | 17 | 1 | The log trail: every user and admin action. Only admins and the super admin can view it. |
@@ -470,6 +470,7 @@ Problems reported by users (no-shows, false requests and other issues) for admin
 | reviewed_at | timestamptz | yes |  |  |
 | created_at | timestamptz | no | `now()` |  |
 | updated_at | timestamptz | no | `now()` |  |
+| action_taken | text | yes |  |  |
 
 ### notifications
 

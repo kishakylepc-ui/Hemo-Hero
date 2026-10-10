@@ -1356,19 +1356,24 @@ async function getAdminBloodRequestById(
 // REQUEST REPORTS (false request / asking for payment)
 //
 // Open reports made from the request page (no conversation).
-// Closed together when an admin removes or keeps the request.
+// Closed together when an admin removes or keeps the request,
+// with the decision saved as action_taken, and each reporter
+// is told the outcome (never the admin note).
 // ============================================================
 
-async function closeRequestReports(
-  requestId,
+async function closeRequestReports({
+  request,
   adminId,
   status,
-  note
-) {
+  actionTaken,
+  note,
+}) {
   const now =
     new Date().toISOString();
 
   const {
+    data:
+      closedReports,
     error,
   } =
     await supabaseAdmin
@@ -1377,6 +1382,8 @@ async function closeRequestReports(
       )
       .update({
         status,
+        action_taken:
+          actionTaken,
         admin_note:
           note ||
           null,
@@ -1389,7 +1396,7 @@ async function closeRequestReports(
       })
       .eq(
         'request_id',
-        requestId
+        request.id
       )
       .eq(
         'kind',
@@ -1405,6 +1412,9 @@ async function closeRequestReports(
           'open',
           'in_review',
         ]
+      )
+      .select(
+        'id, reporter_id'
       );
 
   if (error) {
@@ -1412,7 +1422,46 @@ async function closeRequestReports(
       'CLOSE REQUEST REPORTS ERROR:',
       error
     );
+
+    return;
   }
+
+  const removed =
+    actionTaken ===
+    'request_removed';
+
+  await createNotifications(
+    (closedReports || [])
+      .filter(
+        report =>
+          report.reporter_id
+      )
+      .map(
+        report => ({
+          userId:
+            report.reporter_id,
+          type:
+            'report_reviewed',
+          title:
+            'Report Reviewed',
+          message:
+            removed
+              ? `We reviewed the ${request.blood_type} request you reported and removed it. Thank you for helping keep Hemo-Hero safe.`
+              : `We reviewed the ${request.blood_type} request you reported and found it valid, so it stays up. Thank you for letting us know.`,
+          data: {
+            report_id:
+              report.id,
+            report_kind:
+              'report',
+            status,
+            request_id:
+              request.id,
+            response_id:
+              null,
+          },
+        })
+      )
+  );
 }
 
 async function loadRequestForReview(
@@ -1632,12 +1681,16 @@ async function removeAdminBloodRequest(
       requestId
     );
 
-    await closeRequestReports(
-      requestId,
-      req.dbUser.id,
-      'resolved',
-      note
-    );
+    await closeRequestReports({
+      request,
+      adminId:
+        req.dbUser.id,
+      status:
+        'resolved',
+      actionTaken:
+        'request_removed',
+      note,
+    });
 
     await createNotification({
       userId:
@@ -1834,13 +1887,18 @@ async function keepAdminBloodRequest(
       requestId
     );
 
-    await closeRequestReports(
-      requestId,
-      req.dbUser.id,
-      'dismissed',
-      note ||
-        'Reviewed: the request is valid.'
-    );
+    await closeRequestReports({
+      request,
+      adminId:
+        req.dbUser.id,
+      status:
+        'dismissed',
+      actionTaken:
+        'request_kept',
+      note:
+        note ||
+        'Reviewed: the request is valid.',
+    });
 
     return res
       .status(200)

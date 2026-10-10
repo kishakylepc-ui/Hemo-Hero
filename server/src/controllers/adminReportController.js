@@ -8,6 +8,13 @@ const {
   '../middleware/activityLogMiddleware'
 );
 
+const {
+  createNotification,
+  createNotifications
+} = require(
+  '../services/notificationService'
+);
+
 // ============================================================
 // ADMIN REPORT CONTROLLER
 //
@@ -15,6 +22,10 @@ const {
 //
 // Reviews feedback and reports submitted by users from a
 // donation coordination conversation (public.user_reports).
+//
+// Closing an issue tells the person who submitted it, and a
+// report about a person can end with a real action (warn or
+// deactivate), saved in user_reports.action_taken.
 //
 // Routes are protected by requireAuth + requireAdmin in
 // adminReportRoutes.js.
@@ -35,6 +46,21 @@ const REPORT_KINDS = [
   'feedback',
   'report'
 ];
+
+const OPEN_STATUSES = [
+  'open',
+  'in_review'
+];
+
+// Actions an admin can take on a report about a person.
+// Each one resolves the report.
+const REPORT_ACTIONS = {
+  warn:
+    'warned',
+
+  deactivate:
+    'deactivated'
+};
 
 const MAX_ADMIN_NOTE_LENGTH =
   2000;
@@ -122,6 +148,148 @@ function getUserFullName(
       ' '
     )
     .trim();
+}
+
+// Made from the request page (false request, asking for
+// payment), not from a conversation. These are decided with
+// Keep / Remove Request instead.
+function isRequestReport(
+  report
+) {
+  return (
+    report.kind ===
+      'report' &&
+    Boolean(
+      report.request_id
+    ) &&
+    !report.response_id
+  );
+}
+
+function asSentence(
+  text
+) {
+  const value =
+    cleanText(
+      text
+    );
+
+  return /[.!?]$/.test(
+    value
+  )
+    ? value
+    : `${value}.`;
+}
+
+// ============================================================
+// TELL REPORTERS THEIR ISSUE WAS CLOSED
+//
+// Never includes the admin note (it can name the other
+// person's penalty). One notification per reporter.
+// ============================================================
+
+function buildReviewedNotification(
+  report,
+  status
+) {
+  if (
+    !report.reporter_id
+  ) {
+    return null;
+  }
+
+  const isFeedback =
+    report.kind ===
+    'feedback';
+
+  let message =
+    'An administrator read your feedback. Thank you for helping us improve Hemo-Hero.';
+
+  if (!isFeedback) {
+    message =
+      status ===
+      'resolved'
+        ? 'We reviewed your report and took action. Thank you for helping keep Hemo-Hero safe.'
+        : 'We reviewed your report and found nothing that breaks Hemo-Hero rules, so no action was taken. Thank you for letting us know.';
+  }
+
+  return {
+    userId:
+      report.reporter_id,
+
+    type:
+      'report_reviewed',
+
+    title:
+      isFeedback
+        ? 'Feedback Reviewed'
+        : 'Report Reviewed',
+
+    message,
+
+    data: {
+      report_id:
+        report.id,
+
+      report_kind:
+        report.kind,
+
+      status,
+
+      request_id:
+        report.request_id ||
+        null,
+
+      response_id:
+        report.response_id ||
+        null
+    }
+  };
+}
+
+async function notifyReporters(
+  reports,
+  status
+) {
+  const seen =
+    new Set();
+
+  const rows =
+    (
+      reports ||
+      []
+    )
+      .filter(
+        report => {
+          if (
+            !report.reporter_id ||
+            seen.has(
+              report.reporter_id
+            )
+          ) {
+            return false;
+          }
+
+          seen.add(
+            report.reporter_id
+          );
+
+          return true;
+        }
+      )
+      .map(
+        report =>
+          buildReviewedNotification(
+            report,
+            status
+          )
+      )
+      .filter(Boolean);
+
+  // Never throws.
+  await createNotifications(
+    rows
+  );
 }
 
 // ============================================================
@@ -334,6 +502,7 @@ function reportMatchesSearch(
     report.reason,
     report.details,
     report.status,
+    report.action_taken,
     report.reporter_email,
     report.reported_user_email,
 
@@ -560,6 +729,61 @@ async function loadReportDetails(
       );
   }
 
+  // ----------------------------------------------------------
+  // WARNINGS ALREADY GIVEN TO THIS USER
+  //
+  // So the admin can decide between another warning and
+  // deactivating the account.
+  // ----------------------------------------------------------
+
+  let reportedUserWarningCount =
+    0;
+
+  if (
+    report.reported_user_id
+  ) {
+    const {
+      count,
+      error:
+        warningError
+    } =
+      await supabaseAdmin
+        .from(
+          'user_reports'
+        )
+        .select(
+          'id',
+          {
+            count:
+              'exact',
+
+            head:
+              true
+          }
+        )
+        .eq(
+          'action_taken',
+          'warned'
+        )
+        .eq(
+          'reported_user_id',
+          report.reported_user_id
+        );
+
+    if (warningError) {
+      console.error(
+        'ADMIN WARNING COUNT ERROR:',
+        warningError
+      );
+    }
+
+    reportedUserWarningCount =
+      Number(
+        count ||
+          0
+      );
+  }
+
   let requestReportCount =
     0;
 
@@ -630,6 +854,9 @@ async function loadReportDetails(
 
     reported_user_no_show_count:
       reportedUserNoShowCount,
+
+    reported_user_warning_count:
+      reportedUserWarningCount,
 
     // Open reports about the request itself (false request,
     // asking for payment). Only for request-level reports.
@@ -1036,6 +1263,8 @@ async function getAdminReportById(
 // }
 //
 // Changing the status records who reviewed it and when.
+// Closing an open issue (resolved / dismissed) notifies the
+// person who submitted it.
 // ============================================================
 
 async function updateAdminReport(
@@ -1104,7 +1333,7 @@ async function updateAdminReport(
           'user_reports'
         )
         .select(
-          'id, status'
+          'id, kind, status, reporter_id, request_id, response_id'
         )
         .eq(
           'id',
@@ -1244,6 +1473,25 @@ async function updateAdminReport(
       reportId
     );
 
+    if (
+      (
+        update.status ===
+          'resolved' ||
+        update.status ===
+          'dismissed'
+      ) &&
+      OPEN_STATUSES.includes(
+        existing.status
+      )
+    ) {
+      await notifyReporters(
+        [
+          existing
+        ],
+        update.status
+      );
+    }
+
     const report =
       await loadReportDetails(
         reportId
@@ -1275,6 +1523,683 @@ async function updateAdminReport(
 }
 
 // ============================================================
+// POST /api/admin/reports/:id/action
+//
+// Body:
+// {
+//   action:     'warn' | 'deactivate',
+//   admin_note: string (required)
+// }
+//
+// Only for an open report about a person (from a coordination
+// chat). Reports about a blood request use Keep / Remove
+// Request instead.
+//
+// warn       -> the reported user receives the admin note as a
+//               warning; this report is resolved.
+// deactivate -> the reported user's account is deactivated
+//               (they can no longer sign in); this report and
+//               every other open chat report about them are
+//               resolved.
+//
+// Either way the reporters are told their report was reviewed.
+// ============================================================
+
+async function takeAdminReportAction(
+  req,
+  res
+) {
+  try {
+    const reportId =
+      cleanText(
+        req.params.id
+      );
+
+    if (
+      !UUID_PATTERN.test(
+        reportId
+      )
+    ) {
+      return res
+        .status(404)
+        .json({
+          error:
+            'Issue not found.'
+        });
+    }
+
+    const action =
+      cleanText(
+        req.body?.action
+      ).toLowerCase();
+
+    if (
+      !Object.prototype.hasOwnProperty.call(
+        REPORT_ACTIONS,
+        action
+      )
+    ) {
+      return res
+        .status(400)
+        .json({
+          error:
+            'Invalid action.'
+        });
+    }
+
+    const actionTaken =
+      REPORT_ACTIONS[
+        action
+      ];
+
+    const note =
+      cleanText(
+        req.body?.admin_note
+      );
+
+    if (!note) {
+      return res
+        .status(400)
+        .json({
+          error:
+            action ===
+            'warn'
+              ? 'Write the warning in the admin note first. The user will see it.'
+              : 'Write the reason in the admin note first.'
+        });
+    }
+
+    if (
+      note.length >
+      MAX_ADMIN_NOTE_LENGTH
+    ) {
+      return res
+        .status(400)
+        .json({
+          error:
+            `Admin note must not exceed ${MAX_ADMIN_NOTE_LENGTH} characters.`
+        });
+    }
+
+    // --------------------------------------------------------
+    // REPORT
+    // --------------------------------------------------------
+
+    const {
+      data:
+        report,
+      error:
+        reportError
+    } =
+      await supabaseAdmin
+        .from(
+          'user_reports'
+        )
+        .select(
+          '*'
+        )
+        .eq(
+          'id',
+          reportId
+        )
+        .maybeSingle();
+
+    if (reportError) {
+      console.error(
+        'ADMIN REPORT ACTION LOOKUP ERROR:',
+        reportError
+      );
+
+      return res
+        .status(500)
+        .json({
+          error:
+            'Unable to load issue.'
+        });
+    }
+
+    if (!report) {
+      return res
+        .status(404)
+        .json({
+          error:
+            'Issue not found.'
+        });
+    }
+
+    if (
+      report.kind !==
+      'report'
+    ) {
+      return res
+        .status(400)
+        .json({
+          error:
+            'Only reports can end in a warning or deactivation. Resolve or dismiss feedback instead.'
+        });
+    }
+
+    if (
+      isRequestReport(
+        report
+      )
+    ) {
+      return res
+        .status(400)
+        .json({
+          error:
+            'This report is about a blood request. Use Keep Request or Remove Request.'
+        });
+    }
+
+    if (
+      !OPEN_STATUSES.includes(
+        report.status
+      )
+    ) {
+      return res
+        .status(409)
+        .json({
+          error:
+            'This issue is already closed. Reopen it first.'
+        });
+    }
+
+    // --------------------------------------------------------
+    // REPORTED USER
+    // --------------------------------------------------------
+
+    let target =
+      null;
+
+    if (
+      report.reported_user_id
+    ) {
+      const {
+        data:
+          targetRow,
+        error:
+          targetError
+      } =
+        await supabaseAdmin
+          .from(
+            'users'
+          )
+          .select(
+            'id, role, is_active'
+          )
+          .eq(
+            'id',
+            report.reported_user_id
+          )
+          .maybeSingle();
+
+      if (targetError) {
+        console.error(
+          'ADMIN REPORT ACTION USER ERROR:',
+          targetError
+        );
+
+        return res
+          .status(500)
+          .json({
+            error:
+              'Unable to load the reported user.'
+          });
+      }
+
+      target =
+        targetRow ||
+        null;
+    }
+
+    if (!target) {
+      return res
+        .status(409)
+        .json({
+          error:
+            'The reported account no longer exists.'
+        });
+    }
+
+    if (
+      target.role !==
+      'user'
+    ) {
+      return res
+        .status(403)
+        .json({
+          error:
+            'Administrator accounts cannot be warned or deactivated from an issue.'
+        });
+    }
+
+    if (
+      action ===
+        'warn' &&
+      target.is_active ===
+        false
+    ) {
+      return res
+        .status(409)
+        .json({
+          error:
+            'This account is already deactivated.'
+        });
+    }
+
+    setActivityEntity(
+      res,
+      'user_report',
+      reportId
+    );
+
+    // --------------------------------------------------------
+    // RESOLVE THIS REPORT
+    //
+    // Guarded on the status so two admins can't both act.
+    // --------------------------------------------------------
+
+    const now =
+      new Date().toISOString();
+
+    const {
+      data:
+        closedRows,
+      error:
+        closeError
+    } =
+      await supabaseAdmin
+        .from(
+          'user_reports'
+        )
+        .update({
+          status:
+            'resolved',
+
+          action_taken:
+            actionTaken,
+
+          admin_note:
+            note,
+
+          reviewed_by:
+            req.dbUser.id,
+
+          reviewed_at:
+            now,
+
+          updated_at:
+            now
+        })
+        .eq(
+          'id',
+          reportId
+        )
+        .in(
+          'status',
+          OPEN_STATUSES
+        )
+        .select(
+          'id'
+        );
+
+    if (closeError) {
+      console.error(
+        'ADMIN REPORT ACTION CLOSE ERROR:',
+        closeError
+      );
+
+      return res
+        .status(500)
+        .json({
+          error:
+            'Unable to update issue.'
+        });
+    }
+
+    if (
+      !closedRows?.length
+    ) {
+      return res
+        .status(409)
+        .json({
+          error:
+            'Another administrator already closed this issue.'
+        });
+    }
+
+    // Puts the report back if the action itself fails.
+    async function undoClose() {
+      const {
+        error:
+          undoError
+      } =
+        await supabaseAdmin
+          .from(
+            'user_reports'
+          )
+          .update({
+            status:
+              report.status,
+
+            action_taken:
+              report.action_taken,
+
+            admin_note:
+              report.admin_note,
+
+            reviewed_by:
+              report.reviewed_by,
+
+            reviewed_at:
+              report.reviewed_at,
+
+            updated_at:
+              report.updated_at
+          })
+          .eq(
+            'id',
+            reportId
+          );
+
+      if (undoError) {
+        console.error(
+          'ADMIN REPORT ACTION UNDO ERROR:',
+          undoError
+        );
+      }
+    }
+
+    // --------------------------------------------------------
+    // WARN
+    // --------------------------------------------------------
+
+    let reportsToClose = [
+      report
+    ];
+
+    if (
+      action ===
+      'warn'
+    ) {
+      const reasonText =
+        report.reason &&
+        report.reason !==
+          'Other'
+          ? ` (${report.reason})`
+          : '';
+
+      const warning =
+        await createNotification({
+          userId:
+            target.id,
+
+          type:
+            'account_warning',
+
+          title:
+            'Warning from Hemo-Hero',
+
+          message:
+            `An administrator reviewed a report about you${reasonText}. ${asSentence(note)} More reports can lead to your account being deactivated.`,
+
+          data: {
+            report_id:
+              reportId,
+
+            reason:
+              report.reason ||
+              null
+          }
+        });
+
+      if (!warning) {
+        await undoClose();
+
+        return res
+          .status(500)
+          .json({
+            error:
+              'Unable to send the warning. Please try again.'
+          });
+      }
+    }
+
+    // --------------------------------------------------------
+    // DEACTIVATE
+    // --------------------------------------------------------
+
+    if (
+      action ===
+      'deactivate'
+    ) {
+      if (
+        target.is_active !==
+        false
+      ) {
+        const {
+          error:
+            deactivateError
+        } =
+          await supabaseAdmin
+            .from(
+              'users'
+            )
+            .update({
+              is_active:
+                false,
+
+              deactivated_at:
+                now,
+
+              updated_at:
+                now
+            })
+            .eq(
+              'id',
+              target.id
+            )
+            .eq(
+              'role',
+              'user'
+            );
+
+        if (deactivateError) {
+          console.error(
+            'ADMIN REPORT ACTION DEACTIVATE ERROR:',
+            deactivateError
+          );
+
+          await undoClose();
+
+          return res
+            .status(500)
+            .json({
+              error:
+                'Unable to deactivate this account.'
+            });
+        }
+      }
+
+      // Every other open chat report about this person is
+      // answered by the same decision.
+      const {
+        data:
+          otherRows,
+        error:
+          otherError
+      } =
+        await supabaseAdmin
+          .from(
+            'user_reports'
+          )
+          .select(
+            'id, kind, reporter_id, request_id, response_id'
+          )
+          .eq(
+            'kind',
+            'report'
+          )
+          .eq(
+            'reported_user_id',
+            target.id
+          )
+          .neq(
+            'id',
+            reportId
+          )
+          .in(
+            'status',
+            OPEN_STATUSES
+          );
+
+      if (otherError) {
+        console.error(
+          'ADMIN REPORT ACTION OTHER REPORTS ERROR:',
+          otherError
+        );
+      }
+
+      const others =
+        (
+          otherRows ||
+          []
+        ).filter(
+          row =>
+            !isRequestReport(
+              row
+            )
+        );
+
+      if (
+        others.length >
+        0
+      ) {
+        const otherIds =
+          others.map(
+            row =>
+              row.id
+          );
+
+        const {
+          error:
+            closeOthersError
+        } =
+          await supabaseAdmin
+            .from(
+              'user_reports'
+            )
+            .update({
+              status:
+                'resolved',
+
+              action_taken:
+                actionTaken,
+
+              reviewed_by:
+                req.dbUser.id,
+
+              reviewed_at:
+                now,
+
+              updated_at:
+                now
+            })
+            .in(
+              'id',
+              otherIds
+            )
+            .in(
+              'status',
+              OPEN_STATUSES
+            );
+
+        if (closeOthersError) {
+          console.error(
+            'ADMIN REPORT ACTION CLOSE OTHERS ERROR:',
+            closeOthersError
+          );
+        } else {
+          // Keep any note an admin already wrote on them.
+          await supabaseAdmin
+            .from(
+              'user_reports'
+            )
+            .update({
+              admin_note:
+                note
+            })
+            .in(
+              'id',
+              otherIds
+            )
+            .is(
+              'admin_note',
+              null
+            );
+
+          reportsToClose = [
+            report,
+            ...others
+          ];
+        }
+      }
+    }
+
+    // --------------------------------------------------------
+    // TELL THE REPORTERS
+    // --------------------------------------------------------
+
+    await notifyReporters(
+      reportsToClose,
+      'resolved'
+    );
+
+    const updated =
+      await loadReportDetails(
+        reportId
+      );
+
+    const otherCount =
+      reportsToClose.length -
+      1;
+
+    return res
+      .status(200)
+      .json({
+        message:
+          action ===
+          'warn'
+            ? 'Warning sent. The report was resolved.'
+            : otherCount > 0
+              ? `Account deactivated. This report and ${otherCount} other open report${otherCount === 1 ? '' : 's'} about them were resolved.`
+              : 'Account deactivated. The report was resolved.',
+
+        closed_count:
+          reportsToClose.length,
+
+        report:
+          updated
+      });
+  } catch (
+    error
+  ) {
+    console.error(
+      'ADMIN REPORT ACTION ERROR:',
+      error
+    );
+
+    return res
+      .status(500)
+      .json({
+        error:
+          'Unable to update issue.'
+      });
+  }
+}
+
+// ============================================================
 // EXPORTS
 // ============================================================
 
@@ -1282,5 +2207,6 @@ module.exports = {
   getAdminReportSummary,
   getAdminReports,
   getAdminReportById,
-  updateAdminReport
+  updateAdminReport,
+  takeAdminReportAction
 };

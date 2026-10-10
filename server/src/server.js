@@ -241,6 +241,7 @@ app.use(
 // GET   /api/admin/reports/summary
 // GET   /api/admin/reports/:id
 // PATCH /api/admin/reports/:id
+// POST  /api/admin/reports/:id/action   (warn / deactivate)
 //
 // ADMIN ONLY
 // ============================================================

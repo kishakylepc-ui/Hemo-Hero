@@ -39,9 +39,12 @@ import {
   getAdminReportById,
   keepAdminBloodRequest,
   removeAdminBloodRequest,
+  takeAdminReportAction,
   updateAdminReport,
   type AdminProfile,
   type AdminReport,
+  type AdminReportAction,
+  type AdminReportActionTaken,
   type AdminReportStatus,
   type AdminReportUser,
 } from '../../lib/api';
@@ -154,23 +157,23 @@ const STATUS_ACTIONS: Record<
   resolved: {
     title: 'Resolve Issue',
     message:
-      'Mark this issue as resolved? Your admin note will be saved with the decision.',
+      'Mark this issue as resolved? The person who submitted it is told it was reviewed. Your admin note is saved but not shared.',
     confirmLabel: 'Resolve',
     variant: 'approve',
     successTitle: 'Issue Resolved',
     successMessage:
-      'This issue has been marked as resolved.',
+      'This issue has been marked as resolved and the person who submitted it was notified.',
   },
 
   dismissed: {
     title: 'Dismiss Issue',
     message:
-      'Dismiss this issue as not requiring action? Your admin note will be saved with the decision.',
+      'Dismiss this issue as not requiring action? The person who submitted it is told no action was needed. Your admin note is saved but not shared.',
     confirmLabel: 'Dismiss',
     variant: 'reject',
     successTitle: 'Issue Dismissed',
     successMessage:
-      'This issue has been dismissed.',
+      'This issue has been dismissed and the person who submitted it was notified.',
   },
 
   open: {
@@ -182,6 +185,43 @@ const STATUS_ACTIONS: Record<
     successTitle: 'Issue Reopened',
     successMessage:
       'This issue is open again.',
+  },
+};
+
+// ============================================================
+// ACTION TAKEN (what closing the issue actually did)
+// ============================================================
+
+const ACTION_TAKEN_LABELS: Record<
+  AdminReportActionTaken,
+  {
+    label: string;
+    icon: IconName;
+    color: string;
+  }
+> = {
+  warned: {
+    label: 'Warning sent',
+    icon: 'campaign',
+    color: COLORS.orange,
+  },
+
+  deactivated: {
+    label: 'Account deactivated',
+    icon: 'person-off',
+    color: COLORS.redBright,
+  },
+
+  request_removed: {
+    label: 'Request removed',
+    icon: 'block',
+    color: COLORS.redBright,
+  },
+
+  request_kept: {
+    label: 'Request kept up',
+    icon: 'visibility',
+    color: COLORS.green,
   },
 };
 
@@ -323,6 +363,38 @@ export default function IssueReviewScreen() {
     !isClosed &&
     report?.request?.status === 'active' &&
     !report?.request?.removed_at;
+
+  // A report about a person (from a coordination chat) can end
+  // in a warning or a deactivation. Admin accounts can't.
+  const reportedUser =
+    report?.reported_user || null;
+
+  const canActOnUser =
+    isReport &&
+    !isRequestReport &&
+    !isClosed &&
+    Boolean(reportedUser) &&
+    (reportedUser?.role || 'user') === 'user';
+
+  const reportedUserInactive =
+    reportedUser?.is_active === false;
+
+  const reportedName =
+    getPersonName(
+      reportedUser,
+      report?.reported_user_email
+    );
+
+  const reportedFirstName =
+    reportedUser?.first_name?.trim() ||
+    reportedName;
+
+  const actionTaken =
+    report?.action_taken
+      ? ACTION_TAKEN_LABELS[
+          report.action_taken
+        ]
+      : null;
 
   // ==========================================================
   // CUSTOM ACTION MODAL
@@ -483,9 +555,15 @@ export default function IssueReviewScreen() {
     const copy =
       STATUS_ACTIONS[nextStatus];
 
+    const message =
+      canActOnUser &&
+      nextStatus === 'resolved'
+        ? `Resolve this report without warning or deactivating ${reportedFirstName}? The reporter is told action was taken. Use Warn User or Deactivate above if you want ${reportedFirstName} to face a consequence.`
+        : copy.message;
+
     confirmAction(
       copy.title,
-      copy.message,
+      message,
       () =>
         saveChanges(
           {
@@ -648,6 +726,145 @@ export default function IssueReviewScreen() {
           ? decisionError.message
           : 'Please try again.',
 
+        'error'
+      );
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  // ==========================================================
+  // REPORTED PERSON: WARN OR DEACTIVATE
+  //
+  // Warn sends the admin note to the reported user. Deactivate
+  // blocks their account and resolves their other open chat
+  // reports too. Either way the report is resolved and the
+  // reporters are told action was taken.
+  // ==========================================================
+
+  function handleUserAction(
+    action: AdminReportAction
+  ) {
+    if (
+      !report ||
+      submitting
+    ) {
+      return;
+    }
+
+    const note =
+      adminNote.trim();
+
+    if (!note) {
+      showMessage(
+        'Admin Note Required',
+        action === 'warn'
+          ? `Write the warning in the admin note first. ${reportedFirstName} will see it exactly as written.`
+          : 'Write the reason for deactivating this account in the admin note first.',
+        'warning'
+      );
+
+      return;
+    }
+
+    if (action === 'warn') {
+      confirmAction(
+        'Warn User',
+        `Send ${reportedName} a warning? They receive your admin note exactly as written, and this report is resolved.`,
+        () =>
+          applyUserAction(
+            'warn',
+            note
+          ),
+        {
+          variant: 'warning',
+          confirmLabel: 'Send Warning',
+        }
+      );
+
+      return;
+    }
+
+    confirmAction(
+      reportedUserInactive
+        ? 'Resolve as Deactivated'
+        : 'Deactivate Account',
+
+      reportedUserInactive
+        ? `${reportedName}'s account is already deactivated. Resolve this report as deactivated, together with any other open chat reports about them?`
+        : `Deactivate ${reportedName}'s account? They can't use Hemo-Hero until an admin activates it again in Users. This report and any other open chat reports about them will be resolved.`,
+
+      () =>
+        applyUserAction(
+          'deactivate',
+          note
+        ),
+
+      {
+        variant: 'reject',
+        confirmLabel:
+          reportedUserInactive
+            ? 'Resolve'
+            : 'Deactivate',
+      }
+    );
+  }
+
+  async function applyUserAction(
+    action: AdminReportAction,
+    note: string
+  ) {
+    if (!report) {
+      return;
+    }
+
+    try {
+      setSubmitting(true);
+
+      const token =
+        await getAdminAccessToken();
+
+      if (!token) {
+        await clearAdminSession();
+
+        router.replace('/');
+
+        return;
+      }
+
+      const result =
+        await takeAdminReportAction(
+          token,
+          report.id,
+          action,
+          note
+        );
+
+      setReport(result.report);
+
+      setAdminNote(
+        result.report?.admin_note ||
+          ''
+      );
+
+      showMessage(
+        action === 'warn'
+          ? 'Warning Sent'
+          : 'Account Deactivated',
+        result.message,
+        'success'
+      );
+    } catch (actionError) {
+      console.log(
+        'ADMIN ISSUE ACTION ERROR:',
+        actionError
+      );
+
+      showMessage(
+        'Unable to Complete Action',
+        actionError instanceof Error
+          ? actionError.message
+          : 'Please try again.',
         'error'
       );
     } finally {
@@ -1200,6 +1417,9 @@ export default function IssueReviewScreen() {
                           reportCount={
                             report.reported_user_report_count
                           }
+                          warningCount={
+                            report.reported_user_warning_count
+                          }
                           onView={() =>
                             openUser(
                               report.reported_user?.id
@@ -1538,6 +1758,115 @@ export default function IssueReviewScreen() {
                         </View>
                       ) : null}
 
+                      {/* REPORTED PERSON: WARN OR DEACTIVATE */}
+
+                      {canActOnUser ? (
+                        <View
+                          style={[
+                            styles.userAction,
+
+                            {
+                              marginTop: 18 * s,
+                              padding: 14 * s,
+                              borderRadius: 10 * s,
+                            },
+                          ]}
+                        >
+                          <View
+                            style={[
+                              styles.row,
+
+                              {
+                                gap: 8 * s,
+                              },
+                            ]}
+                          >
+                            <MaterialIcons
+                              name="gavel"
+                              size={19 * s}
+                              color={COLORS.redBright}
+                            />
+
+                            <Text
+                              numberOfLines={1}
+                              style={[
+                                styles.reviewedTitle,
+                                styles.flexFill,
+
+                                {
+                                  fontSize: 13 * fs,
+                                },
+                              ]}
+                            >
+                              Action on {reportedFirstName}
+                            </Text>
+                          </View>
+
+                          <Text
+                            style={[
+                              styles.reviewedDate,
+
+                              {
+                                fontSize: 11.5 * fs,
+                                lineHeight: 17 * fs,
+                                marginTop: 6 * s,
+                              },
+                            ]}
+                          >
+                            {reportedUserInactive
+                              ? 'This account is already deactivated. Resolve the report as deactivated, or dismiss it below.'
+                              : 'Warn sends your admin note to them as a warning. Deactivate blocks their account and also resolves their other open chat reports.'}
+                          </Text>
+
+                          <View
+                            style={[
+                              styles.row,
+
+                              {
+                                gap: 10 * s,
+                                marginTop: 12 * s,
+                              },
+                            ]}
+                          >
+                            {!reportedUserInactive ? (
+                              <ActionButton
+                                label="Warn User"
+                                icon="campaign"
+                                tone="warning"
+                                scale={s}
+                                fontScale={fs}
+                                disabled={submitting}
+                                onPress={() =>
+                                  handleUserAction(
+                                    'warn'
+                                  )
+                                }
+                                style={styles.flexFill}
+                              />
+                            ) : null}
+
+                            <ActionButton
+                              label={
+                                reportedUserInactive
+                                  ? 'Resolve as Deactivated'
+                                  : 'Deactivate'
+                              }
+                              icon="person-off"
+                              tone="danger"
+                              scale={s}
+                              fontScale={fs}
+                              disabled={submitting}
+                              onPress={() =>
+                                handleUserAction(
+                                  'deactivate'
+                                )
+                              }
+                              style={styles.flexFill}
+                            />
+                          </View>
+                        </View>
+                      ) : null}
+
                       {/* STATUS ACTIONS */}
 
                       {isClosed ? (
@@ -1606,6 +1935,38 @@ export default function IssueReviewScreen() {
                                     )}`
                                   : ''}
                               </Text>
+
+                              {actionTaken ? (
+                                <View
+                                  style={[
+                                    styles.actionTakenRow,
+
+                                    {
+                                      gap: 5 * s,
+                                      marginTop: 6 * s,
+                                    },
+                                  ]}
+                                >
+                                  <MaterialIcons
+                                    name={actionTaken.icon}
+                                    size={14 * s}
+                                    color={actionTaken.color}
+                                  />
+
+                                  <Text
+                                    style={[
+                                      styles.actionTakenText,
+
+                                      {
+                                        fontSize: 11.5 * fs,
+                                        color: actionTaken.color,
+                                      },
+                                    ]}
+                                  >
+                                    {actionTaken.label}
+                                  </Text>
+                                </View>
+                              ) : null}
                             </View>
                           </View>
 
@@ -1739,6 +2100,23 @@ export default function IssueReviewScreen() {
                                 report.reviewer.email
                               )
                             : 'Not reviewed yet'
+                        }
+                      />
+
+                      <TimelineItem
+                        scale={s}
+                        fontScale={fs}
+                        icon={
+                          actionTaken?.icon ||
+                          'gavel'
+                        }
+                        label="Action taken"
+                        value={
+                          actionTaken
+                            ? actionTaken.label
+                            : isClosed
+                              ? 'None beyond the status'
+                              : 'Not decided yet'
                         }
                       />
 
@@ -1892,6 +2270,7 @@ function PersonPanel({
   scale,
   fontScale,
   reportCount,
+  warningCount,
   onView,
 }: {
   label: string;
@@ -1900,6 +2279,7 @@ function PersonPanel({
   scale: number;
   fontScale: number;
   reportCount?: number;
+  warningCount?: number;
   onView: () => void;
 }) {
   const name =
@@ -2091,6 +2471,44 @@ function PersonPanel({
             ]}
           >
             {reportCount} reports have been filed against this user
+          </Text>
+        </View>
+      ) : null}
+
+      {typeof warningCount === 'number' &&
+      warningCount > 0 ? (
+        <View
+          style={[
+            styles.repeatWarning,
+
+            {
+              marginTop:
+                ((reportCount || 0) > 1
+                  ? 8
+                  : 14) * scale,
+              paddingVertical: 8 * scale,
+              paddingHorizontal: 10 * scale,
+              borderRadius: 8 * scale,
+              gap: 6 * scale,
+            },
+          ]}
+        >
+          <MaterialIcons
+            name="campaign"
+            size={16 * scale}
+            color={COLORS.orange}
+          />
+
+          <Text
+            style={[
+              styles.repeatWarningText,
+
+              {
+                fontSize: 11.5 * fontScale,
+              },
+            ]}
+          >
+            Warned {warningCount} time{warningCount === 1 ? '' : 's'} by an admin
           </Text>
         </View>
       ) : null}
@@ -3321,6 +3739,21 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: 'rgba(243,163,74,0.35)',
     backgroundColor: 'rgba(243,163,74,0.08)',
+  },
+
+  userAction: {
+    borderWidth: 1,
+    borderColor: 'rgba(239,51,64,0.35)',
+    backgroundColor: 'rgba(239,51,64,0.06)',
+  },
+
+  actionTakenRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+
+  actionTakenText: {
+    fontFamily: 'Inter_600SemiBold',
   },
 
   reviewedTitle: {

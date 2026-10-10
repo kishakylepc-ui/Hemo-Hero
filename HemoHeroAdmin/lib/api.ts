@@ -762,6 +762,19 @@ export type AdminReportStatus =
   | 'resolved'
   | 'dismissed';
 
+// What was done when the issue was closed. null = nothing
+// beyond the status (plain Resolve / Dismiss, or still open).
+export type AdminReportActionTaken =
+  | 'warned'
+  | 'deactivated'
+  | 'request_removed'
+  | 'request_kept';
+
+// Actions on a report about a person.
+export type AdminReportAction =
+  | 'warn'
+  | 'deactivate';
+
 export type AdminReportUser = {
   id: string;
 
@@ -845,6 +858,9 @@ export type AdminReport = {
 
   admin_note?: string | null;
 
+  action_taken?:
+    AdminReportActionTaken | null;
+
   reviewed_by?: string | null;
 
   reviewed_at?: string | null;
@@ -871,6 +887,10 @@ export type AdminReport = {
 
   // 'No-show' reports against the reported person.
   reported_user_no_show_count?:
+    number;
+
+  // Earlier reports that ended in a warning for this person.
+  reported_user_warning_count?:
     number;
 
   // Open reports about the request itself (false request,
@@ -2504,6 +2524,62 @@ export async function updateAdminReport(
           JSON.stringify(
             input
           ),
+      }
+    );
+
+  return parseResponse(
+    response
+  );
+}
+
+// ============================================================
+// ACT ON A REPORT ABOUT A PERSON
+//
+// POST /api/admin/reports/:id/action
+//
+// warn       -> the user receives adminNote as a warning
+// deactivate -> the account is deactivated; this and their
+//               other open chat reports are resolved
+// ============================================================
+
+export async function takeAdminReportAction(
+  token: string,
+  reportId: string,
+  action:
+    AdminReportAction,
+  adminNote: string
+): Promise<{
+  message: string;
+
+  closed_count: number;
+
+  report:
+    AdminReport;
+}> {
+  const response =
+    await fetch(
+      `${API_URL}/api/admin/reports/${encodeURIComponent(
+        reportId
+      )}/action`,
+      {
+        method:
+          'POST',
+
+        headers: {
+          Authorization:
+            `Bearer ${token}`,
+
+          'Content-Type':
+            'application/json',
+        },
+
+        body:
+          JSON.stringify({
+            action,
+
+            admin_note:
+              adminNote,
+          }),
       }
     );
 

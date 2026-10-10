@@ -386,7 +386,11 @@ export default function NotificationsScreen() {
     }
 
     openNotificationDestination(
-      notification
+      notification,
+      {
+        fromNotificationsScreen:
+          true,
+      }
     );
   }
 
@@ -1365,6 +1369,32 @@ function getNotificationAppearance(
 
         background:
           COLORS.orangeLight,
+      };
+
+    // An admin closed the user's report or feedback.
+    case 'report_reviewed':
+      return {
+        icon:
+          'fact-check',
+
+        color:
+          COLORS.blue,
+
+        background:
+          COLORS.blueLight,
+      };
+
+    // An admin warned the user after a report about them.
+    case 'account_warning':
+      return {
+        icon:
+          'gpp-maybe',
+
+        color:
+          COLORS.redButton,
+
+        background:
+          COLORS.pinkLight,
       };
 
     case 'donor_application_approved':

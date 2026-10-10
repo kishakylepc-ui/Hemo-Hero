@@ -6,6 +6,7 @@ const {
   getAdminReports,
   getAdminReportById,
   updateAdminReport,
+  takeAdminReportAction,
 } =
   require(
     '../controllers/adminReportController'
@@ -113,6 +114,59 @@ router.patch(
   }),
 
   updateAdminReport
+);
+
+// ============================================================
+// ACT ON A REPORT (WARN / DEACTIVATE)
+//
+// POST /api/admin/reports/:id/action
+//
+// Body: { action: 'warn' | 'deactivate', admin_note }
+//
+// LOG:
+// ADMIN_REPORT_ACTION
+// ============================================================
+
+function describeReportAction(
+  req
+) {
+  return req.body?.action ===
+    'deactivate'
+    ? 'deactivate the reported user from an issue'
+    : 'warn the reported user from an issue';
+}
+
+router.post(
+  '/:id/action',
+
+  activityLog({
+    action:
+      'ADMIN_REPORT_ACTION',
+
+    module:
+      'Issues',
+
+    successDescription: ({ req }) =>
+      req.body?.action ===
+      'deactivate'
+        ? 'Administrator deactivated a reported user and resolved the issue.'
+        : 'Administrator warned a reported user and resolved the issue.',
+
+    failureDescription: ({ req }) =>
+      `Administrator attempt to ${describeReportAction(req)} failed.`,
+
+    entityType:
+      'user_report',
+
+    // Log the action only - never the admin note text.
+    metadata: ({ req }) => ({
+      action:
+        req.body?.action ||
+        null,
+    }),
+  }),
+
+  takeAdminReportAction
 );
 
 // ============================================================

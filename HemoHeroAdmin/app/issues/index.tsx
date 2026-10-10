@@ -33,6 +33,7 @@ import {
   getAdminReports,
   type AdminProfile,
   type AdminReport,
+  type AdminReportActionTaken,
   type AdminReportKind,
   type AdminReportPagination,
   type AdminReportStatus,
@@ -1348,6 +1349,14 @@ function IssueRow({
           scale={scale}
           fontScale={fontScale}
         />
+
+        {report.action_taken ? (
+          <ActionTakenLine
+            action={report.action_taken}
+            scale={scale}
+            fontScale={fontScale}
+          />
+        ) : null}
       </View>
 
       <View style={styles.colAction}>
@@ -1473,6 +1482,94 @@ function StatusPill({
         ]}
       >
         {palette.label}
+      </Text>
+    </View>
+  );
+}
+
+// ============================================================
+// ACTION TAKEN (under the status pill)
+// ============================================================
+
+const ACTION_TAKEN_LABELS: Record<
+  AdminReportActionTaken,
+  {
+    label: string;
+    icon: IconName;
+    color: string;
+  }
+> = {
+  warned: {
+    label: 'Warned',
+    icon: 'campaign',
+    color: COLORS.orange,
+  },
+
+  deactivated: {
+    label: 'Deactivated',
+    icon: 'person-off',
+    color: COLORS.redBright,
+  },
+
+  request_removed: {
+    label: 'Request removed',
+    icon: 'block',
+    color: COLORS.redBright,
+  },
+
+  request_kept: {
+    label: 'Request kept',
+    icon: 'visibility',
+    color: COLORS.green,
+  },
+};
+
+function ActionTakenLine({
+  action,
+  scale,
+  fontScale,
+}: {
+  action: AdminReportActionTaken;
+  scale: number;
+  fontScale: number;
+}) {
+  const item =
+    ACTION_TAKEN_LABELS[action];
+
+  if (!item) {
+    return null;
+  }
+
+  return (
+    <View
+      style={[
+        styles.actionTakenRow,
+
+        {
+          gap: 4 * scale,
+          marginTop: 6 * scale,
+          paddingRight: 6 * scale,
+        },
+      ]}
+    >
+      <MaterialIcons
+        name={item.icon}
+        size={13 * scale}
+        color={item.color}
+      />
+
+      <Text
+        numberOfLines={1}
+        style={[
+          styles.actionTakenText,
+
+          {
+            fontSize: 11 * fontScale,
+            color: item.color,
+          },
+        ]}
+      >
+        {item.label}
       </Text>
     </View>
   );
@@ -1825,6 +1922,16 @@ const styles = StyleSheet.create({
 
   colStatus: {
     width: '12%',
+  },
+
+  actionTakenRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+
+  actionTakenText: {
+    flexShrink: 1,
+    fontFamily: 'Inter_600SemiBold',
   },
 
   colAction: {

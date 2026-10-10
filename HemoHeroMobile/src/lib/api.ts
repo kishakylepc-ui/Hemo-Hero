@@ -259,6 +259,9 @@ export type NotificationType =
   | 'donation_rejected'
   | 'donation_disputed'
   | 'donation_feedback_received'
+  // Issues: an admin closed your report / warned you.
+  | 'report_reviewed'
+  | 'account_warning'
   | string;
 
 export type NotificationData = {
@@ -291,6 +294,16 @@ export type NotificationData = {
   recipient_role?:
     | 'donor'
     | 'requester'
+    | null;
+
+  // report_reviewed / account_warning
+  report_id?:
+    | string
+    | null;
+
+  report_kind?:
+    | 'feedback'
+    | 'report'
     | null;
 
   [key: string]:
