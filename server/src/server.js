@@ -82,6 +82,20 @@ const PORT =
   5000;
 
 // ============================================================
+// TUNNEL (ngrok)
+//
+// Requests through a tunnel arrive from this computer, with the
+// phone's real address in X-Forwarded-For. Trust that header
+// only from this computer, so the login limiter sees each phone
+// and devices on the Wi-Fi can't fake their address.
+// ============================================================
+
+app.set(
+  'trust proxy',
+  'loopback'
+);
+
+// ============================================================
 // CORS
 // ============================================================
 
