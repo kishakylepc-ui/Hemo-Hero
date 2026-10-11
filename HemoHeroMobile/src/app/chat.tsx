@@ -33,13 +33,14 @@ import {
 
 import {
   SafeAreaView,
+  useSafeAreaInsets,
 } from 'react-native-safe-area-context';
 
 import {
   LinearGradient,
 } from 'expo-linear-gradient';
 
-import MainBottomNav from '../components/MainBottomNav';
+import MainBottomNav, { useBottomNavSpace } from '../components/MainBottomNav';
 import PersonAvatar from '../components/PersonAvatar';
 
 import { formatEta } from '../lib/trips';
@@ -443,6 +444,15 @@ type Filter =
 // ============================================================
 
 export default function ChatScreen() {
+  // Full screen: the header grows by the status-bar height so
+  // its red reaches the top edge. The bottom bar floats over
+  // the content, so the list ends with the space it covers.
+  const insets =
+    useSafeAreaInsets();
+
+  const navSpace =
+    useBottomNavSpace();
+
   const [
     conversations,
     setConversations,
@@ -928,9 +938,9 @@ export default function ChatScreen() {
       <View style={styles.phone}>
         <SafeAreaView
           style={styles.safeArea}
+          // Top and bottom are drawn edge to edge by the header
+          // and MainBottomNav.
           edges={[
-            'top',
-            'bottom',
             'left',
             'right',
           ]}
@@ -944,11 +954,41 @@ export default function ChatScreen() {
               '#CF1115',
               COLORS.redDark,
             ]}
-            style={styles.header}
+            style={[
+              styles.header,
+              {
+                paddingTop:
+                  18 + insets.top,
+              },
+            ]}
           >
-            <View style={styles.headerCircleLeft} />
+            <View
+              style={[
+                styles.headerCircleLeft,
+                {
+                  transform: [
+                    {
+                      translateY:
+                        insets.top,
+                    },
+                  ],
+                },
+              ]}
+            />
 
-            <View style={styles.headerCircleRight} />
+            <View
+              style={[
+                styles.headerCircleRight,
+                {
+                  transform: [
+                    {
+                      translateY:
+                        insets.top,
+                    },
+                  ],
+                },
+              ]}
+            />
 
             <View style={styles.headerTop}>
               <View style={styles.headerText}>
@@ -1131,6 +1171,11 @@ export default function ChatScreen() {
                 contentContainerStyle={[
                   styles.listContent,
 
+                  {
+                    paddingBottom:
+                      20 + navSpace,
+                  },
+
                   !visible.length &&
                     styles.listEmpty,
                 ]}
@@ -1245,16 +1290,17 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.page,
   },
 
+  // Page color behind the bottom bar's rounded corners.
   safeArea: {
     flex: 1,
-    backgroundColor: COLORS.redDark,
+    backgroundColor: COLORS.page,
   },
 
-  // HEADER (same as the Requests tab)
+  // HEADER (same as the Requests tab; the top padding is set
+  // inline because it includes the status-bar height)
 
   header: {
     paddingHorizontal: 20,
-    paddingTop: 18,
     paddingBottom: 16,
     overflow: 'hidden',
   },
@@ -1448,10 +1494,11 @@ const styles = StyleSheet.create({
     flex: 1,
   },
 
+  // paddingBottom is set inline: it includes the space the
+  // floating bottom bar covers.
   listContent: {
     paddingHorizontal: 16,
     paddingTop: 12,
-    paddingBottom: 20,
   },
 
   listEmpty: {

@@ -41,6 +41,8 @@ import {
   useSafeAreaInsets,
 } from 'react-native-safe-area-context';
 
+import { shiftedDown, withStatusBar } from '../../../../lib/fullScreen';
+
 import {
   getCoordinationMessages,
   getCoordinationSession,
@@ -3525,8 +3527,8 @@ export default function DonationCoordinationScreen() {
       <View style={styles.phone}>
         <SafeAreaView
           style={styles.safeArea}
+          // The header is drawn behind the status bar.
           edges={[
-            'top',
             'left',
             'right',
           ]}
@@ -3542,10 +3544,10 @@ export default function DonationCoordinationScreen() {
               COLORS.headerTop,
               COLORS.redDark,
             ]}
-            style={styles.header}
+            style={withStatusBar(styles.header, insets.top)}
           >
-            <View style={styles.headerCircleLeft} />
-            <View style={styles.headerCircleRight} />
+            <View style={shiftedDown(styles.headerCircleLeft, insets.top)} />
+            <View style={shiftedDown(styles.headerCircleRight, insets.top)} />
 
             <View style={styles.headerRow}>
               <TouchableOpacity

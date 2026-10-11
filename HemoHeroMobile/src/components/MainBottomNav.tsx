@@ -1,3 +1,7 @@
+import type {
+  Ref,
+} from 'react';
+
 import {
   StyleSheet,
   Text,
@@ -11,7 +15,60 @@ import {
 
 import {
   router,
+  usePathname,
 } from 'expo-router';
+
+import {
+  useSafeAreaInsets,
+} from 'react-native-safe-area-context';
+
+// ============================================================
+// FLOATING PILL
+//
+// A rounded red bar floating over the bottom of the screen,
+// with content scrolling behind it. On newer iPhones it sits
+// just above the home bar.
+//
+// Screens add useBottomNavSpace() to the end padding of their
+// scroll content so the last item can scroll up above the pill.
+// ============================================================
+
+const PILL_HEIGHT =
+  64;
+
+const PILL_SIDE_MARGIN =
+  16;
+
+// The home-bar area is mostly empty space, so the pill tucks a
+// little into it; phones without one (and web) get a small gap.
+const HOME_BAR_TUCK =
+  8;
+
+const MIN_BOTTOM_GAP =
+  12;
+
+function getBottomGap(
+  insetBottom: number
+) {
+  return Math.max(
+    insetBottom -
+      HOME_BAR_TUCK,
+    MIN_BOTTOM_GAP
+  );
+}
+
+// How much of the bottom of the screen the pill covers.
+export function useBottomNavSpace() {
+  const insets =
+    useSafeAreaInsets();
+
+  return (
+    PILL_HEIGHT +
+    getBottomGap(
+      insets.bottom
+    )
+  );
+}
 
 // ============================================================
 // TYPES
@@ -24,10 +81,37 @@ export type MainNavTab =
   | 'requests'
   | 'profile';
 
+// Each tab's own screen.
+const TAB_ROUTES: Record<
+  MainNavTab,
+  string
+> = {
+  home:
+    '/dashboard',
+
+  search:
+    '/search',
+
+  chat:
+    '/chat',
+
+  requests:
+    '/requests',
+
+  profile:
+    '/profile',
+};
+
 type MainBottomNavProps = {
+  // Highlighted tab. Detail screens highlight the tab they
+  // belong to (e.g. a request page highlights Requests).
   activeTab?:
     | MainNavTab
     | null;
+
+  // The pill itself, e.g. for the Home tour to measure.
+  pillRef?:
+    Ref<View>;
 };
 
 // ============================================================
@@ -40,6 +124,9 @@ const COLORS = {
   white: '#FFFFFF',
 
   inactive: '#D99191',
+
+  activeBackground:
+    'rgba(255,255,255,0.16)',
 };
 
 // ============================================================
@@ -48,79 +135,39 @@ const COLORS = {
 
 export default function MainBottomNav({
   activeTab = null,
+  pillRef,
 }: MainBottomNavProps) {
+  const insets =
+    useSafeAreaInsets();
+
+  const pathname =
+    usePathname();
+
   // ==========================================================
   // NAVIGATION
+  //
+  // Already on the tab's screen: nothing to do. Otherwise go
+  // back to it if it's open underneath (e.g. Home under
+  // Notifications, Requests under a request page), or replace
+  // the current screen with it.
   // ==========================================================
 
   function navigate(
     tab: MainNavTab
   ) {
+    const route =
+      TAB_ROUTES[tab];
+
     if (
-      tab ===
-      activeTab
+      pathname ===
+      route
     ) {
       return;
     }
 
-    switch (
-      tab
-    ) {
-      // ------------------------------------------------------
-      // HOME
-      // ------------------------------------------------------
-
-      case 'home':
-        router.replace(
-          '/dashboard' as any
-        );
-
-        return;
-
-      // ------------------------------------------------------
-      // SEARCH
-      // ------------------------------------------------------
-
-      case 'search':
-        router.replace(
-          '/search' as any
-        );
-
-        return;
-
-      // ------------------------------------------------------
-      // CHAT
-      // ------------------------------------------------------
-
-      case 'chat':
-        router.replace(
-          '/chat' as any
-        );
-
-        return;
-
-      // ------------------------------------------------------
-      // REQUESTS
-      // ------------------------------------------------------
-
-      case 'requests':
-        router.replace(
-          '/requests' as any
-        );
-
-        return;
-
-      // ------------------------------------------------------
-      // PROFILE
-      // ------------------------------------------------------
-
-      case 'profile':
-        router.replace(
-          '/profile' as any
-        );
-
-        return;
-    }
+    router.dismissTo(
+      route as any
+    );
   }
 
   // ==========================================================
@@ -217,9 +264,18 @@ export default function MainBottomNav({
 
   return (
     <View
-      style={
-        styles.bottomNav
-      }
+      ref={pillRef}
+      collapsable={false}
+      style={[
+        styles.pill,
+
+        {
+          bottom:
+            getBottomGap(
+              insets.bottom
+            ),
+        },
+      ]}
     >
       {items.map(
         item => {
@@ -232,11 +288,15 @@ export default function MainBottomNav({
               key={
                 item.key
               }
-              style={
-                styles.navItem
-              }
+              style={[
+                styles.navItem,
+
+                active &&
+                  styles.navItemActive,
+              ]}
               activeOpacity={
-                active
+                pathname ===
+                TAB_ROUTES[item.key]
                   ? 1
                   : 0.75
               }
@@ -263,8 +323,8 @@ export default function MainBottomNav({
                 size={
                   item.key ===
                   'search'
-                    ? 27
-                    : 28
+                    ? 24
+                    : 25
                 }
                 color={
                   active
@@ -274,6 +334,7 @@ export default function MainBottomNav({
               />
 
               <Text
+                numberOfLines={1}
                 style={
                   active
                     ? styles.navTextActive
@@ -298,38 +359,66 @@ export default function MainBottomNav({
 
 const styles =
   StyleSheet.create({
-    bottomNav: {
+    pill: {
+      position:
+        'absolute',
+
+      left:
+        PILL_SIDE_MARGIN,
+
+      right:
+        PILL_SIDE_MARGIN,
+
       height:
-        76,
+        PILL_HEIGHT,
 
       flexDirection:
         'row',
 
       alignItems:
-        'center',
-
-      justifyContent:
-        'space-around',
+        'stretch',
 
       paddingHorizontal:
-        4,
+        6,
+
+      paddingVertical:
+        6,
+
+      borderRadius:
+        PILL_HEIGHT / 2,
+
+      borderWidth:
+        1,
+
+      borderColor:
+        'rgba(255,255,255,0.12)',
 
       backgroundColor:
         COLORS.redDark,
 
-      borderTopWidth:
-        StyleSheet.hairlineWidth,
+      // Floating shadow; elevation also keeps the pill above
+      // the content scrolling behind it on Android.
+      shadowColor:
+        '#5A0000',
 
-      borderTopColor:
-        'rgba(255,255,255,0.15)',
+      shadowOpacity:
+        0.3,
+
+      shadowRadius:
+        18,
+
+      shadowOffset: {
+        width: 0,
+        height: 8,
+      },
+
+      elevation:
+        14,
     },
 
     navItem: {
       flex:
         1,
-
-      height:
-        '100%',
 
       alignItems:
         'center',
@@ -338,7 +427,18 @@ const styles =
         'center',
 
       gap:
-        3,
+        2,
+
+      marginHorizontal:
+        2,
+
+      borderRadius:
+        (PILL_HEIGHT - 12) / 2,
+    },
+
+    navItemActive: {
+      backgroundColor:
+        COLORS.activeBackground,
     },
 
     navTextActive: {

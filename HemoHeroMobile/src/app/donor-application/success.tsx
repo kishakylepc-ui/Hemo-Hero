@@ -24,7 +24,9 @@ import {
 } from 'expo-router';
 
 import { StatusBar } from 'expo-status-bar';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+
+import { shiftedDown, withStatusBar } from '../../lib/fullScreen';
 
 import AppModal, {
   type AppModalVariant,
@@ -242,6 +244,10 @@ const NEXT_STEPS: Record<
 // ============================================================
 
 export default function DonorApplicationStatusScreen() {
+  // Full screen: the red header reaches the top edge, with
+  // its content kept below the clock.
+  const insets = useSafeAreaInsets();
+
   const params =
     useLocalSearchParams<{
       status?: string;
@@ -401,7 +407,7 @@ export default function DonorApplicationStatusScreen() {
       <View style={styles.phone}>
         <SafeAreaView
           style={styles.safeArea}
-          edges={['top']}
+          edges={['left', 'right']}
         >
           <StatusBar style="light" />
 
@@ -409,10 +415,10 @@ export default function DonorApplicationStatusScreen() {
 
           <LinearGradient
             colors={['#D2151A', COLORS.redDark]}
-            style={styles.header}
+            style={withStatusBar(styles.header, insets.top)}
           >
-            <View style={styles.headerCircleLeft} />
-            <View style={styles.headerCircleRight} />
+            <View style={shiftedDown(styles.headerCircleLeft, insets.top)} />
+            <View style={shiftedDown(styles.headerCircleRight, insets.top)} />
 
             <View style={styles.headerRow}>
               <Pressable

@@ -22,7 +22,10 @@ import {
 } from 'expo-router';
 
 import { StatusBar } from 'expo-status-bar';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+
+import MainBottomNav, { useBottomNavSpace } from '../../components/MainBottomNav';
+import { shiftedDown, withStatusBar } from '../../lib/fullScreen';
 
 import * as Location from 'expo-location';
 
@@ -152,6 +155,16 @@ function isCompatibleDonorForRequest(
 // ============================================================
 
 export default function DonorDetailsScreen() {
+  // Full screen: the red header reaches the top edge, with its
+  // content kept below the clock. The bottom bar floats over
+  // the content, so the scroll content ends with the space it
+  // covers.
+  const insets =
+    useSafeAreaInsets();
+
+  const navSpace =
+    useBottomNavSpace();
+
   // ==========================================================
   // ROUTE
   // ==========================================================
@@ -908,9 +921,11 @@ export default function DonorDetailsScreen() {
           style={
             styles.safeArea
           }
+          // Top and bottom are drawn edge to edge by the header
+          // and MainBottomNav.
           edges={[
-            'top',
-            'bottom',
+            'left',
+            'right',
           ]}
         >
           <StatusBar
@@ -926,20 +941,23 @@ export default function DonorDetailsScreen() {
               '#D2151A',
               COLORS.redDark,
             ]}
-            style={
-              styles.header
-            }
+            style={withStatusBar(
+              styles.header,
+              insets.top
+            )}
           >
             <View
-              style={
-                styles.headerCircleLeft
-              }
+              style={shiftedDown(
+                styles.headerCircleLeft,
+                insets.top
+              )}
             />
 
             <View
-              style={
-                styles.headerCircleRight
-              }
+              style={shiftedDown(
+                styles.headerCircleRight,
+                insets.top
+              )}
             />
 
             <View
@@ -1185,9 +1203,14 @@ export default function DonorDetailsScreen() {
             style={
               styles.content
             }
-            contentContainerStyle={
-              styles.contentContainer
-            }
+            contentContainerStyle={[
+              styles.contentContainer,
+
+              {
+                paddingBottom:
+                  32 + navSpace,
+              },
+            ]}
             showsVerticalScrollIndicator={
               false
             }
@@ -1490,6 +1513,9 @@ export default function DonorDetailsScreen() {
               </>
             ) : null}
           </ScrollView>
+
+          {/* Donors are found through Search */}
+          <MainBottomNav activeTab="search" />
 
           {/* ==================================================
               REQUEST HELP MODAL
@@ -2498,11 +2524,12 @@ const styles =
         COLORS.page,
     },
 
+    // Page color behind the floating bottom bar.
     safeArea: {
       flex: 1,
 
       backgroundColor:
-        COLORS.redDark,
+        COLORS.page,
     },
 
     header: {
@@ -2885,15 +2912,14 @@ const styles =
         COLORS.page,
     },
 
+    // paddingBottom is set inline: it includes the space the
+    // floating bottom bar covers.
     contentContainer: {
       paddingHorizontal:
         16,
 
       paddingTop:
         12,
-
-      paddingBottom:
-        32,
     },
 
     sectionTitle: {

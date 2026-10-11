@@ -38,7 +38,10 @@ import {
 
 import {
   SafeAreaView,
+  useSafeAreaInsets,
 } from 'react-native-safe-area-context';
+
+import MainBottomNav, { useBottomNavSpace } from '../../components/MainBottomNav';
 
 import AppModal from '../../components/AppModal';
 
@@ -151,6 +154,12 @@ type PhonePermission =
 // ============================================================
 
 export default function NotificationSettingsScreen() {
+  // Full screen: the red header reaches the top edge, with its
+  // content kept below the clock. The bottom bar floats over the
+  // content, so the scroll content ends with the space it covers.
+  const insets = useSafeAreaInsets();
+  const navSpace = useBottomNavSpace();
+
   const [
     preferences,
     setPreferences,
@@ -413,9 +422,11 @@ export default function NotificationSettingsScreen() {
       <View style={styles.phone}>
         <SafeAreaView
           style={styles.safeArea}
+          // Top and bottom are drawn edge to edge by the header
+          // and MainBottomNav.
           edges={[
-            'top',
-            'bottom',
+            'left',
+            'right',
           ]}
         >
           <StatusBar style="light" />
@@ -427,8 +438,22 @@ export default function NotificationSettingsScreen() {
             ]}
             style={styles.header}
           >
-            <View style={styles.headerCircleLeft} />
-            <View style={styles.headerCircleRight} />
+            <View
+              style={[
+                styles.headerCircleLeft,
+                { transform: [{ translateY: insets.top }] },
+              ]}
+            />
+
+            <View
+              style={[
+                styles.headerCircleRight,
+                { transform: [{ translateY: insets.top }] },
+              ]}
+            />
+
+            {/* Status-bar height: keeps the content below the clock */}
+            <View style={{ height: insets.top }} />
 
             <View style={styles.headerRow}>
               <TouchableOpacity
@@ -509,7 +534,10 @@ export default function NotificationSettingsScreen() {
             ) : (
               <ScrollView
                 style={styles.flex}
-                contentContainerStyle={styles.scrollContent}
+                contentContainerStyle={[
+                  styles.scrollContent,
+                  { paddingBottom: 24 + navSpace },
+                ]}
                 showsVerticalScrollIndicator={false}
               >
                 {/* THIS PHONE */}
@@ -659,6 +687,8 @@ export default function NotificationSettingsScreen() {
               </ScrollView>
             )}
           </View>
+
+          <MainBottomNav activeTab="profile" />
         </SafeAreaView>
       </View>
 
@@ -946,10 +976,11 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.page,
   },
 
+  // paddingBottom is set inline: it includes the space the
+  // floating bottom bar covers.
   scrollContent: {
     paddingHorizontal: 16,
     paddingTop: 20,
-    paddingBottom: 24,
   },
 
   center: {

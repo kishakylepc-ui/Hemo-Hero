@@ -17,7 +17,10 @@ import { MaterialIcons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import {
+  SafeAreaView,
+  useSafeAreaInsets,
+} from 'react-native-safe-area-context';
 
 import PhotoSourceSheet from '../../components/PhotoSourceSheet';
 
@@ -85,6 +88,10 @@ type ActionPopupState = {
 };
 
 export default function PersonalInformationScreen() {
+  // The page runs to the bottom edge; its content ends above
+  // the home bar.
+  const insets = useSafeAreaInsets();
+
   // ==========================================================
   // PERSONAL INFORMATION
   // ==========================================================
@@ -677,9 +684,10 @@ export default function PersonalInformationScreen() {
           style={
             styles.safeArea
           }
+          // The header scrolls with the page, so the top keeps its
+          // padding; the bottom is drawn edge to edge.
           edges={[
             'top',
-            'bottom',
           ]}
         >
           <StatusBar
@@ -698,9 +706,13 @@ export default function PersonalInformationScreen() {
             }
           >
             <ScrollView
-              contentContainerStyle={
-                styles.scroll
-              }
+              contentContainerStyle={[
+                styles.scroll,
+                {
+                  paddingBottom:
+                    insets.bottom,
+                },
+              ]}
               keyboardShouldPersistTaps="handled"
               showsVerticalScrollIndicator={
                 false

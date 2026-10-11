@@ -46,6 +46,8 @@ import {
   useSafeAreaInsets,
 } from 'react-native-safe-area-context';
 
+import { shiftedDown, withStatusBar } from '../../../lib/fullScreen';
+
 import {
   getDonorViewBloodRequest,
   getMyDonorResponse,
@@ -2589,8 +2591,11 @@ export default function DonorBloodRequestScreen() {
           style={
             styles.safeArea
           }
+          // The header is drawn behind the status bar; the footer
+          // already keeps its button above the home bar.
           edges={[
-            'top',
+            'left',
+            'right',
           ]}
         >
           <StatusBar
@@ -2606,20 +2611,23 @@ export default function DonorBloodRequestScreen() {
               COLORS.headerTop,
               COLORS.redDark,
             ]}
-            style={
-              styles.header
-            }
+            style={withStatusBar(
+              styles.header,
+              insets.top
+            )}
           >
             <View
-              style={
-                styles.headerCircleLeft
-              }
+              style={shiftedDown(
+                styles.headerCircleLeft,
+                insets.top
+              )}
             />
 
             <View
-              style={
-                styles.headerCircleRight
-              }
+              style={shiftedDown(
+                styles.headerCircleRight,
+                insets.top
+              )}
             />
 
             <View

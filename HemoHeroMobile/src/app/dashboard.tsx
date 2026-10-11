@@ -38,11 +38,12 @@ import {
 
 import {
   SafeAreaView,
+  useSafeAreaInsets,
 } from 'react-native-safe-area-context';
 
 import * as Location from 'expo-location';
 
-import MainBottomNav from '../components/MainBottomNav';
+import MainBottomNav, { useBottomNavSpace } from '../components/MainBottomNav';
 import SpotlightTour, {
   measureView,
   type SpotlightStep,
@@ -184,6 +185,27 @@ export default function DashboardScreen() {
   const isSmallPhone =
     Platform.OS !== 'web' &&
     height <= 844;
+
+  // Full screen: the header grows by the status-bar height so
+  // its red reaches the top edge, and its content stays below
+  // the clock. The bottom bar floats over the content, so the
+  // scroll content ends with the space it covers.
+  const insets =
+    useSafeAreaInsets();
+
+  const navSpace =
+    useBottomNavSpace();
+
+  const headerSize =
+    isSmallPhone
+      ? {
+          height: 124,
+          paddingTop: 14,
+        }
+      : {
+          height: 132,
+          paddingTop: 18,
+        };
 
   // ==========================================================
   // PROFILE
@@ -1911,9 +1933,11 @@ function showMessage(
           style={
             styles.safeArea
           }
+          // Top and bottom are drawn edge to edge by the header
+          // and MainBottomNav.
           edges={[
-            'top',
-            'bottom',
+            'left',
+            'right',
           ]}
         >
           <StatusBar
@@ -1932,20 +1956,45 @@ function showMessage(
             style={[
               styles.header,
 
-              isSmallPhone &&
-                styles.headerSmall,
+              {
+                height:
+                  headerSize.height +
+                  insets.top,
+
+                paddingTop:
+                  headerSize.paddingTop +
+                  insets.top,
+              },
             ]}
           >
             <View
-              style={
-                styles.headerCircleLeft
-              }
+              style={[
+                styles.headerCircleLeft,
+
+                {
+                  transform: [
+                    {
+                      translateY:
+                        insets.top,
+                    },
+                  ],
+                },
+              ]}
             />
 
             <View
-              style={
-                styles.headerCircleRight
-              }
+              style={[
+                styles.headerCircleRight,
+
+                {
+                  transform: [
+                    {
+                      translateY:
+                        insets.top,
+                    },
+                  ],
+                },
+              ]}
             />
 
             <View
@@ -2290,9 +2339,14 @@ function showMessage(
             style={
               styles.content
             }
-            contentContainerStyle={
-              styles.contentContainer
-            }
+            contentContainerStyle={[
+              styles.contentContainer,
+
+              {
+                paddingBottom:
+                  28 + navSpace,
+              },
+            ]}
             showsVerticalScrollIndicator={
               false
             }
@@ -4099,14 +4153,10 @@ function showMessage(
               SHARED BOTTOM NAVIGATION
           ================================================== */}
 
-          <View
-            ref={navRef}
-            collapsable={false}
-          >
-            <MainBottomNav
-              activeTab="home"
-            />
-          </View>
+          <MainBottomNav
+            activeTab="home"
+            pillRef={navRef}
+          />
 
 {/* ==================================================
     HEMO-HERO ACTION POPUP
@@ -4448,29 +4498,24 @@ const styles =
         COLORS.page,
     },
 
+    // Page color behind the bottom bar's rounded corners.
     safeArea: {
       flex: 1,
 
       backgroundColor:
-        COLORS.redDark,
+        COLORS.page,
     },
 
     // ========================================================
     // HEADER
+    // (height and top padding are set inline: they include
+    // the status-bar height)
     // ========================================================
 
     header: {
-      height: 132,
-
       paddingHorizontal: 24,
-      paddingTop: 18,
 
       overflow: 'hidden',
-    },
-
-    headerSmall: {
-      height: 124,
-      paddingTop: 14,
     },
 
     headerCircleLeft: {
@@ -4844,10 +4889,11 @@ const styles =
         COLORS.page,
     },
 
+    // paddingBottom is set inline: it includes the space the
+    // floating bottom bar covers.
     contentContainer: {
       paddingHorizontal: 18,
       paddingTop: 18,
-      paddingBottom: 28,
     },
 
     sectionHeader: {

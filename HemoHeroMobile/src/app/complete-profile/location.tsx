@@ -21,7 +21,10 @@ import {
 } from 'expo-router';
 
 import { StatusBar } from 'expo-status-bar';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import {
+  SafeAreaView,
+  useSafeAreaInsets,
+} from 'react-native-safe-area-context';
 
 import * as Location from 'expo-location';
 
@@ -73,6 +76,10 @@ type ActionPopupState = {
 };
 
 export default function LocationScreen() {
+  // The page runs to the bottom edge; its content ends above
+  // the home bar.
+  const insets = useSafeAreaInsets();
+
   const params =
     useLocalSearchParams<{
       first_name?: string;
@@ -595,9 +602,10 @@ export default function LocationScreen() {
           style={
             styles.safeArea
           }
+          // The header scrolls with the page, so the top keeps its
+          // padding; the bottom is drawn edge to edge.
           edges={[
             'top',
-            'bottom',
           ]}
         >
           <StatusBar
@@ -616,9 +624,13 @@ export default function LocationScreen() {
             }
           >
             <ScrollView
-              contentContainerStyle={
-                styles.scroll
-              }
+              contentContainerStyle={[
+                styles.scroll,
+                {
+                  paddingBottom:
+                    insets.bottom,
+                },
+              ]}
               keyboardShouldPersistTaps="handled"
               showsVerticalScrollIndicator={
                 false

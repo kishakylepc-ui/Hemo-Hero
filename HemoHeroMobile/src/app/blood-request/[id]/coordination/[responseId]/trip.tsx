@@ -32,6 +32,8 @@ import {
   useSafeAreaInsets,
 } from 'react-native-safe-area-context';
 
+import { shiftedDown, withStatusBar } from '../../../../../lib/fullScreen';
+
 import * as Location from 'expo-location';
 
 import {
@@ -1414,7 +1416,7 @@ export default function DonorTripScreen() {
           style={
             styles.safeArea
           }
-          edges={['top']}
+          edges={['left', 'right']}
         >
           <StatusBar style="light" />
 
@@ -1427,20 +1429,23 @@ export default function DonorTripScreen() {
               COLORS.headerTop,
               COLORS.redDark,
             ]}
-            style={
-              styles.header
-            }
+            style={withStatusBar(
+              styles.header,
+              insets.top
+            )}
           >
             <View
-              style={
-                styles.headerCircleLeft
-              }
+              style={shiftedDown(
+                styles.headerCircleLeft,
+                insets.top
+              )}
             />
 
             <View
-              style={
-                styles.headerCircleRight
-              }
+              style={shiftedDown(
+                styles.headerCircleRight,
+                insets.top
+              )}
             />
 
             <View

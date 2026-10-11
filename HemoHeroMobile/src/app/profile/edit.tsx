@@ -20,7 +20,9 @@ import type { PickedImage } from '../../lib/imageUpload';
 import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+
+import { shiftedDown, withStatusBar } from '../../lib/fullScreen';
 
 import {
   deleteProfilePhoto,
@@ -181,6 +183,10 @@ type ActionPopupState = {
 // ============================================================
 
 export default function EditProfileScreen() {
+  // Full screen: the red header reaches the top edge, with
+  // its content kept below the clock.
+  const insets = useSafeAreaInsets();
+
   // ==========================================================
   // DATA
   // ==========================================================
@@ -1919,9 +1925,10 @@ export default function EditProfileScreen() {
           style={
             styles.safeArea
           }
+          // The header is drawn behind the status bar.
           edges={[
-            'top',
-            'bottom',
+            'left',
+            'right',
           ]}
         >
           <StatusBar
@@ -1948,20 +1955,23 @@ export default function EditProfileScreen() {
                 '#D2151A',
                 COLORS.redDark,
               ]}
-              style={
-                styles.header
-              }
+              style={withStatusBar(
+                styles.header,
+                insets.top
+              )}
             >
               <View
-                style={
-                  styles.headerCircleLeft
-                }
+                style={shiftedDown(
+                  styles.headerCircleLeft,
+                  insets.top
+                )}
               />
 
               <View
-                style={
-                  styles.headerCircleRight
-                }
+                style={shiftedDown(
+                  styles.headerCircleRight,
+                  insets.top
+                )}
               />
 
               <TouchableOpacity
@@ -2021,9 +2031,15 @@ export default function EditProfileScreen() {
               style={
                 styles.content
               }
-              contentContainerStyle={
-                styles.contentContainer
-              }
+              contentContainerStyle={[
+                styles.contentContainer,
+
+                {
+                  // Ends above the home bar.
+                  paddingBottom:
+                    36 + insets.bottom,
+                },
+              ]}
               keyboardShouldPersistTaps="handled"
               showsVerticalScrollIndicator={
                 false
@@ -3992,15 +4008,13 @@ const styles =
         COLORS.page,
     },
 
+    // paddingBottom is set inline: it includes the home bar.
     contentContainer: {
       paddingHorizontal:
         18,
 
       paddingTop:
         20,
-
-      paddingBottom:
-        36,
     },
 
     // ========================================================

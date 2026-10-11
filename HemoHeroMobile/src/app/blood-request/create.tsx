@@ -46,6 +46,8 @@ import {
   useSafeAreaInsets,
 } from 'react-native-safe-area-context';
 
+import { shiftedDown, withStatusBar } from '../../lib/fullScreen';
+
 import * as Location from 'expo-location';
 
 import {
@@ -1815,7 +1817,8 @@ export default function CreateBloodRequestScreen() {
       <View style={styles.phone}>
         <SafeAreaView
           style={styles.safeArea}
-          edges={['top']}
+          // The header is drawn behind the status bar.
+          edges={['left', 'right']}
         >
           <StatusBar style="light" />
 
@@ -1836,15 +1839,18 @@ export default function CreateBloodRequestScreen() {
                 '#D2151A',
                 COLORS.redDark,
               ]}
-              style={[
-                styles.header,
+              style={withStatusBar(
+                [
+                  styles.header,
 
-                isSmallPhone &&
-                  styles.headerSmall,
-              ]}
+                  isSmallPhone &&
+                    styles.headerSmall,
+                ],
+                insets.top
+              )}
             >
-              <View style={styles.headerCircleLeft} />
-              <View style={styles.headerCircleRight} />
+              <View style={shiftedDown(styles.headerCircleLeft, insets.top)} />
+              <View style={shiftedDown(styles.headerCircleRight, insets.top)} />
 
               <View style={styles.headerRow}>
                 <TouchableOpacity

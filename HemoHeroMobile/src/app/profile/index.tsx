@@ -4,8 +4,8 @@ import { MaterialIcons, } from '@expo/vector-icons';
 import { LinearGradient, } from 'expo-linear-gradient';
 import { router, useFocusEffect, } from 'expo-router';
 import { StatusBar, } from 'expo-status-bar';
-import { SafeAreaView, } from 'react-native-safe-area-context';
-import MainBottomNav from '../../components/MainBottomNav';
+import { SafeAreaView, useSafeAreaInsets, } from 'react-native-safe-area-context';
+import MainBottomNav, { useBottomNavSpace } from '../../components/MainBottomNav';
 import { deleteProfilePhoto, getCurrentUser, logoutUser, uploadProfilePhoto, } from '../../lib/api';
 import AppModal from '../../components/AppModal';
 import PhotoSourceSheet from '../../components/PhotoSourceSheet';
@@ -57,6 +57,16 @@ type ActionPopupState = {
 };
 
 export default function ProfileScreen() {
+    // Full screen: the red hero grows by the status-bar height
+    // so it reaches the top edge, and its content stays below the
+    // clock. The bottom bar floats over the content, so the
+    // scroll content ends with the space it covers.
+    const insets =
+        useSafeAreaInsets();
+
+    const navSpace =
+        useBottomNavSpace();
+
     const [
         profile,
         setProfile,
@@ -903,9 +913,11 @@ export default function ProfileScreen() {
                     style={
                         styles.safeArea
                     }
+                    // Top and bottom are drawn edge to edge by the
+                    // hero and MainBottomNav.
                     edges={[
-                        'top',
-                        'bottom',
+                        'left',
+                        'right',
                     ]}
                 >
                     <StatusBar
@@ -913,29 +925,62 @@ export default function ProfileScreen() {
                     />
 
                     <View
-                        style={
-                            styles.headerArea
-                        }
+                        style={[
+                            styles.headerArea,
+
+                            {
+                                height:
+                                    248 +
+                                    insets.top,
+                            },
+                        ]}
                     >
                         <LinearGradient
                             colors={[
                                 '#D2151A',
                                 COLORS.redDark,
                             ]}
-                            style={
-                                styles.hero
-                            }
+                            style={[
+                                styles.hero,
+
+                                {
+                                    height:
+                                        210 +
+                                        insets.top,
+
+                                    paddingTop:
+                                        insets.top,
+                                },
+                            ]}
                         >
                             <View
-                                style={
-                                    styles.heroCircleLeft
-                                }
+                                style={[
+                                    styles.heroCircleLeft,
+
+                                    {
+                                        transform: [
+                                            {
+                                                translateY:
+                                                    insets.top,
+                                            },
+                                        ],
+                                    },
+                                ]}
                             />
 
                             <View
-                                style={
-                                    styles.heroCircleRight
-                                }
+                                style={[
+                                    styles.heroCircleRight,
+
+                                    {
+                                        transform: [
+                                            {
+                                                translateY:
+                                                    insets.top,
+                                            },
+                                        ],
+                                    },
+                                ]}
                             />
 
                             <View
@@ -1272,9 +1317,14 @@ export default function ProfileScreen() {
                         style={
                             styles.content
                         }
-                        contentContainerStyle={
-                            styles.contentContainer
-                        }
+                        contentContainerStyle={[
+                            styles.contentContainer,
+
+                            {
+                                paddingBottom:
+                                    32 + navSpace,
+                            },
+                        ]}
                         showsVerticalScrollIndicator={
                             false
                         }
@@ -2588,19 +2638,19 @@ const styles =
                 COLORS.page,
         },
 
+        // Page color behind the floating bottom bar.
         safeArea: {
             flex: 1,
 
             backgroundColor:
-                COLORS.redDark,
+                COLORS.page,
         },
 
+        // headerArea and hero heights are set inline: they
+        // include the status-bar height.
         headerArea: {
             position:
                 'relative',
-
-            height:
-                248,
 
             zIndex:
                 10,
@@ -2613,9 +2663,6 @@ const styles =
         },
 
         hero: {
-            height:
-                210,
-
             paddingHorizontal:
                 18,
 
@@ -3083,15 +3130,14 @@ const styles =
                 COLORS.page,
         },
 
+        // paddingBottom is set inline: it includes the space the
+        // floating bottom bar covers.
         contentContainer: {
             paddingHorizontal:
                 18,
 
             paddingTop:
                 18,
-
-            paddingBottom:
-                32,
         },
 
         sectionTitle: {

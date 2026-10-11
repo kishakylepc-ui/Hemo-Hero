@@ -15,7 +15,9 @@ import { MaterialIcons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { router, useLocalSearchParams } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+
+import { shiftedDown, withStatusBar } from '../../lib/fullScreen';
 import { pickImage } from '../../lib/imageUpload';
 
 import {
@@ -82,6 +84,10 @@ type ActionPopupState = {
 // ============================================================
 
 export default function DonorVerificationScreen() {
+  // Full screen: the red header reaches the top edge, with
+  // its content kept below the clock.
+  const insets = useSafeAreaInsets();
+
   const params =
     useLocalSearchParams<{
       blood_type?: string;
@@ -492,8 +498,10 @@ export default function DonorVerificationScreen() {
           style={
             styles.safeArea
           }
+          // The header is drawn behind the status bar.
           edges={[
-            'top',
+            'left',
+            'right',
           ]}
         >
           <StatusBar
@@ -509,20 +517,23 @@ export default function DonorVerificationScreen() {
               '#D2151A',
               COLORS.redDark,
             ]}
-            style={
-              styles.header
-            }
+            style={withStatusBar(
+              styles.header,
+              insets.top
+            )}
           >
             <View
-              style={
-                styles.headerCircleLeft
-              }
+              style={shiftedDown(
+                styles.headerCircleLeft,
+                insets.top
+              )}
             />
 
             <View
-              style={
-                styles.headerCircleRight
-              }
+              style={shiftedDown(
+                styles.headerCircleRight,
+                insets.top
+              )}
             />
 
             <View

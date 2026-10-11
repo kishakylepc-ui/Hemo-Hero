@@ -5,9 +5,9 @@ import { LinearGradient, } from 'expo-linear-gradient';
 import Slider from '@react-native-community/slider';
 import { router, useFocusEffect, useLocalSearchParams, } from 'expo-router';
 import { StatusBar, } from 'expo-status-bar';
-import { SafeAreaView, } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets, } from 'react-native-safe-area-context';
 import * as Location from 'expo-location';
-import MainBottomNav from '../components/MainBottomNav';
+import MainBottomNav, { useBottomNavSpace } from '../components/MainBottomNav';
 import DonorTrust from '../components/DonorTrust';
 import { FadeInView, } from '../components/Motion';
 import { getNearbyBloodRequests, } from '../lib/nearbyRequests';
@@ -85,6 +85,12 @@ function getSingleParam(value?: string | string[]) {
 // SEARCH SCREEN
 // ============================================================
 export default function SearchScreen() {
+    // Full screen: the header grows by the status-bar height so
+    // its red reaches the top edge. The bottom bar floats over
+    // the content, so the scroll content ends with the space it
+    // covers.
+    const insets = useSafeAreaInsets();
+    const navSpace = useBottomNavSpace();
     const params = useLocalSearchParams<{
         mode?: string | string[];
         bloodType?: string | string[];
@@ -610,9 +616,11 @@ export default function SearchScreen() {
     // ==========================================================
     return (<View style={styles.desktopBackground}>
       <View style={styles.phone}>
+        {/* Top and bottom are drawn edge to edge by the header
+            and MainBottomNav. */}
         <SafeAreaView style={styles.safeArea} edges={[
-            'top',
-            'bottom',
+            'left',
+            'right',
         ]}>
           <StatusBar style="light"/>
 
@@ -623,10 +631,22 @@ export default function SearchScreen() {
           <LinearGradient colors={[
             COLORS.headerTop,
             COLORS.redDark,
-        ]} style={styles.header}>
-            <View style={styles.headerCircleLeft}/>
+        ]} style={[
+            styles.header,
+            {
+                minHeight: 158 + insets.top,
+                paddingTop: 16 + insets.top,
+            },
+        ]}>
+            <View style={[
+                styles.headerCircleLeft,
+                { transform: [{ translateY: insets.top }] },
+            ]}/>
 
-            <View style={styles.headerCircleRight}/>
+            <View style={[
+                styles.headerCircleRight,
+                { transform: [{ translateY: insets.top }] },
+            ]}/>
 
             <View style={styles.headerTitleRow}>
               <View style={styles.headerTitleContent}>
@@ -665,7 +685,10 @@ export default function SearchScreen() {
             CONTENT
         ================================================== */}
 
-          <ScrollView style={styles.content} contentContainerStyle={styles.contentContainer} showsVerticalScrollIndicator={false} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor={COLORS.redButton}/>}>
+          <ScrollView style={styles.content} contentContainerStyle={[
+            styles.contentContainer,
+            { paddingBottom: 22 + navSpace },
+        ]} showsVerticalScrollIndicator={false} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor={COLORS.redButton}/>}>
             {/* ==================================================
             DONORS / REQUESTS
         ================================================== */}
@@ -1451,17 +1474,18 @@ const styles = StyleSheet.create({
         overflow: 'hidden',
         backgroundColor: COLORS.page,
     },
+    // Page color behind the bottom bar's rounded corners.
     safeArea: {
         flex: 1,
-        backgroundColor: COLORS.redDark,
+        backgroundColor: COLORS.page,
     },
     // ========================================================
     // HEADER
+    // (minHeight and top padding are set inline: they include
+    // the status-bar height)
     // ========================================================
     header: {
-        minHeight: 158,
         paddingHorizontal: 18,
-        paddingTop: 16,
         paddingBottom: 10,
         overflow: 'hidden',
     },
@@ -1541,10 +1565,11 @@ const styles = StyleSheet.create({
         flex: 1,
         backgroundColor: COLORS.page,
     },
+    // paddingBottom is set inline: it includes the space the
+    // floating bottom bar covers.
     contentContainer: {
         paddingHorizontal: 18,
         paddingTop: 10,
-        paddingBottom: 22,
     },
     // ========================================================
     // MODE

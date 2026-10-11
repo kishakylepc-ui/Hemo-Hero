@@ -15,7 +15,9 @@ import { MaterialCommunityIcons, MaterialIcons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { router, useLocalSearchParams } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+
+import { shiftedDown, withStatusBar } from '../../lib/fullScreen';
 import * as Location from 'expo-location';
 
 import { getNearbyFacilities } from '../../lib/api';
@@ -105,6 +107,10 @@ function FacilityIcon({
 }
 
 export default function DonorHistoryScreen() {
+  // Full screen: the red header reaches the top edge, with
+  // its content kept below the clock.
+  const insets = useSafeAreaInsets();
+
   const params = useLocalSearchParams<{ blood_type?: string }>();
 
   const [donatedBefore, setDonatedBefore] = useState<'' | 'yes' | 'no'>('');
@@ -614,15 +620,15 @@ export default function DonorHistoryScreen() {
   return (
     <View style={styles.desktopBackground}>
       <View style={styles.phone}>
-        <SafeAreaView style={styles.safeArea} edges={['top']}>
+        <SafeAreaView style={styles.safeArea} edges={['left', 'right']}>
           <StatusBar style="light" />
 
           <LinearGradient
             colors={['#D2151A', COLORS.redDark]}
-            style={styles.header}
+            style={withStatusBar(styles.header, insets.top)}
           >
-            <View style={styles.headerCircleLeft} />
-            <View style={styles.headerCircleRight} />
+            <View style={shiftedDown(styles.headerCircleLeft, insets.top)} />
+            <View style={shiftedDown(styles.headerCircleRight, insets.top)} />
 
             <View style={styles.headerRow}>
               <TouchableOpacity

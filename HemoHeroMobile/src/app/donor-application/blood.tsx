@@ -29,7 +29,10 @@ import {
 
 import {
   SafeAreaView,
+  useSafeAreaInsets,
 } from 'react-native-safe-area-context';
+
+import { shiftedDown, withStatusBar } from '../../lib/fullScreen';
 
 import {
   getCurrentUser,
@@ -92,6 +95,10 @@ const STEPS = [
 // ============================================================
 
 export default function DonorBloodInformationScreen() {
+  // Full screen: the red header reaches the top edge, with
+  // its content kept below the clock.
+  const insets = useSafeAreaInsets();
+
   // The application uses the blood type proven on the profile.
   const [
     bloodType,
@@ -395,8 +402,10 @@ export default function DonorBloodInformationScreen() {
           style={
             styles.safeArea
           }
+          // The header is drawn behind the status bar.
           edges={[
-            'top',
+            'left',
+            'right',
           ]}
         >
           <StatusBar
@@ -413,20 +422,23 @@ export default function DonorBloodInformationScreen() {
               '#D2151A',
               COLORS.redDark,
             ]}
-            style={
-              styles.header
-            }
+            style={withStatusBar(
+              styles.header,
+              insets.top
+            )}
           >
             <View
-              style={
-                styles.headerCircleLeft
-              }
+              style={shiftedDown(
+                styles.headerCircleLeft,
+                insets.top
+              )}
             />
 
             <View
-              style={
-                styles.headerCircleRight
-              }
+              style={shiftedDown(
+                styles.headerCircleRight,
+                insets.top
+              )}
             />
 
             <View

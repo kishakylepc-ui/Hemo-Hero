@@ -26,6 +26,7 @@ import {
 
 import {
   SafeAreaView,
+  useSafeAreaInsets,
 } from 'react-native-safe-area-context';
 
 const COLORS = {
@@ -47,6 +48,10 @@ const COLORS = {
 };
 
 export default function ProfileSuccessScreen() {
+  // The page runs to the bottom edge; its content ends above
+  // the home bar.
+  const insets = useSafeAreaInsets();
+
   // ==========================================================
   // PROFILE DATA
   // ==========================================================
@@ -136,9 +141,10 @@ export default function ProfileSuccessScreen() {
           style={
             styles.safeArea
           }
+          // The header scrolls with the page, so the top keeps its
+          // padding; the bottom is drawn edge to edge.
           edges={[
             'top',
-            'bottom',
           ]}
         >
           <StatusBar
@@ -146,9 +152,13 @@ export default function ProfileSuccessScreen() {
           />
 
           <ScrollView
-            contentContainerStyle={
-              styles.scroll
-            }
+            contentContainerStyle={[
+              styles.scroll,
+              {
+                paddingBottom:
+                  insets.bottom,
+              },
+            ]}
             showsVerticalScrollIndicator={
               false
             }

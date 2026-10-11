@@ -33,9 +33,10 @@ import {
 
 import {
   SafeAreaView,
+  useSafeAreaInsets,
 } from 'react-native-safe-area-context';
 
-import MainBottomNav from '../../components/MainBottomNav';
+import MainBottomNav, { useBottomNavSpace } from '../../components/MainBottomNav';
 
 import {
   FadeInView,
@@ -98,6 +99,16 @@ type FilterType =
 // ============================================================
 
 export default function NotificationsScreen() {
+  // Full screen: the header grows by the status-bar height so
+  // its red reaches the top edge. The bottom bar floats over
+  // the content, so the scroll content ends with the space it
+  // covers.
+  const insets =
+    useSafeAreaInsets();
+
+  const navSpace =
+    useBottomNavSpace();
+
   const [
     notifications,
     setNotifications,
@@ -496,9 +507,11 @@ export default function NotificationsScreen() {
           style={
             styles.safeArea
           }
+          // Top and bottom are drawn edge to edge by the header
+          // and MainBottomNav.
           edges={[
-            'top',
-            'bottom',
+            'left',
+            'right',
           ]}
         >
           <StatusBar
@@ -514,20 +527,47 @@ export default function NotificationsScreen() {
               '#D2151A',
               COLORS.redDark,
             ]}
-            style={
-              styles.header
-            }
+            style={[
+              styles.header,
+
+              {
+                height:
+                  88 +
+                  insets.top,
+
+                paddingTop:
+                  insets.top,
+              },
+            ]}
           >
             <View
-              style={
-                styles.headerCircleLeft
-              }
+              style={[
+                styles.headerCircleLeft,
+
+                {
+                  transform: [
+                    {
+                      translateY:
+                        insets.top,
+                    },
+                  ],
+                },
+              ]}
             />
 
             <View
-              style={
-                styles.headerCircleRight
-              }
+              style={[
+                styles.headerCircleRight,
+
+                {
+                  transform: [
+                    {
+                      translateY:
+                        insets.top,
+                    },
+                  ],
+                },
+              ]}
             />
 
             {/* BACK */}
@@ -622,9 +662,14 @@ export default function NotificationsScreen() {
             style={
               styles.content
             }
-            contentContainerStyle={
-              styles.contentContainer
-            }
+            contentContainerStyle={[
+              styles.contentContainer,
+
+              {
+                paddingBottom:
+                  25 + navSpace,
+              },
+            ]}
             showsVerticalScrollIndicator={
               false
             }
@@ -1704,22 +1749,22 @@ const styles =
         COLORS.page,
     },
 
+    // Page color behind the floating bottom bar.
     safeArea: {
       flex:
         1,
 
       backgroundColor:
-        COLORS.redDark,
+        COLORS.page,
     },
 
     // ========================================================
     // HEADER
+    // (height and top padding are set inline: they include the
+    // status-bar height)
     // ========================================================
 
     header: {
-      height:
-        88,
-
       paddingHorizontal:
         14,
 
@@ -1838,15 +1883,14 @@ const styles =
         COLORS.page,
     },
 
+    // paddingBottom is set inline: it includes the space the
+    // floating bottom bar covers.
     contentContainer: {
       paddingHorizontal:
         18,
 
       paddingTop:
         18,
-
-      paddingBottom:
-        25,
     },
 
     // ========================================================

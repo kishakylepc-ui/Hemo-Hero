@@ -34,9 +34,10 @@ import {
 
 import {
   SafeAreaView,
+  useSafeAreaInsets,
 } from 'react-native-safe-area-context';
 
-import MainBottomNav from '../../components/MainBottomNav';
+import MainBottomNav, { useBottomNavSpace } from '../../components/MainBottomNav';
 
 import {
   FadeInView,
@@ -337,6 +338,16 @@ function getInvitationStatusAppearance(
 // ============================================================
 
 export default function RequestsScreen() {
+  // Full screen: the header grows by the status-bar height so
+  // its red reaches the top edge. The bottom bar floats over
+  // the content, so the scroll content ends with the space it
+  // covers.
+  const insets =
+    useSafeAreaInsets();
+
+  const navSpace =
+    useBottomNavSpace();
+
   const [
     tab,
     setTab,
@@ -873,9 +884,11 @@ export default function RequestsScreen() {
           style={
             styles.safeArea
           }
+          // Top and bottom are drawn edge to edge by the header
+          // and MainBottomNav.
           edges={[
-            'top',
-            'bottom',
+            'left',
+            'right',
           ]}
         >
           <StatusBar
@@ -891,20 +904,48 @@ export default function RequestsScreen() {
               '#CF1115',
               COLORS.redDark,
             ]}
-            style={
-              styles.header
-            }
+            style={[
+              styles.header,
+
+              {
+                minHeight:
+                  118 +
+                  insets.top,
+
+                paddingTop:
+                  18 +
+                  insets.top,
+              },
+            ]}
           >
             <View
-              style={
-                styles.headerCircleLeft
-              }
+              style={[
+                styles.headerCircleLeft,
+
+                {
+                  transform: [
+                    {
+                      translateY:
+                        insets.top,
+                    },
+                  ],
+                },
+              ]}
             />
 
             <View
-              style={
-                styles.headerCircleRight
-              }
+              style={[
+                styles.headerCircleRight,
+
+                {
+                  transform: [
+                    {
+                      translateY:
+                        insets.top,
+                    },
+                  ],
+                },
+              ]}
             />
 
             <View>
@@ -1146,9 +1187,14 @@ export default function RequestsScreen() {
               style={
                 styles.scroll
               }
-              contentContainerStyle={
-                styles.scrollContent
-              }
+              contentContainerStyle={[
+                styles.scrollContent,
+
+                {
+                  paddingBottom:
+                    20 + navSpace,
+                },
+              ]}
               showsVerticalScrollIndicator={
                 false
               }
@@ -2554,27 +2600,24 @@ const styles =
         COLORS.page,
     },
 
+    // Page color behind the floating bottom bar.
     safeArea: {
       flex:
         1,
 
       backgroundColor:
-        COLORS.redDark,
+        COLORS.page,
     },
 
     // ========================================================
     // HEADER
+    // (minHeight and top padding are set inline: they include
+    // the status-bar height)
     // ========================================================
 
     header: {
-      minHeight:
-        118,
-
       paddingHorizontal:
         22,
-
-      paddingTop:
-        18,
 
       paddingBottom:
         18,
@@ -2833,15 +2876,14 @@ const styles =
         1,
     },
 
+    // paddingBottom is set inline: it includes the space the
+    // floating bottom bar covers.
     scrollContent: {
       paddingHorizontal:
         16,
 
       paddingTop:
         16,
-
-      paddingBottom:
-        20,
     },
 
     sectionLabel: {
