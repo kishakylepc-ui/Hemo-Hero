@@ -932,6 +932,96 @@ async function verifyEmail(
       data.user.id
     );
 
+    // --------------------------------------------------------
+    // SIGN IN RIGHT AWAY
+    //
+    // Verifying the code also gives a session. It is returned
+    // the same way as from /login, so the app goes straight to
+    // completing the profile instead of the sign-in screen.
+    // Without a usable profile the person just signs in.
+    // --------------------------------------------------------
+
+    let profile =
+      null;
+
+    if (
+      data.session
+        ?.access_token
+    ) {
+      const {
+        data:
+          dbUser,
+
+        error:
+          dbError,
+      } =
+        await supabaseAdmin
+          .from(
+            'users'
+          )
+          .select(
+            '*'
+          )
+          .eq(
+            'id',
+            data.user.id
+          )
+          .maybeSingle();
+
+      if (dbError) {
+        console.error(
+          'VERIFY EMAIL PROFILE LOOKUP ERROR:',
+          dbError
+        );
+      }
+
+      if (
+        dbUser &&
+        dbUser.is_active !==
+          false
+      ) {
+        profile =
+          dbUser;
+
+        setActivityUser(
+          res,
+          {
+            id:
+              dbUser.id,
+
+            email:
+              dbUser.email,
+
+            role:
+              dbUser.role,
+          }
+        );
+      }
+    }
+
+    if (profile) {
+      // For the activity log description.
+      res.locals.signedIn =
+        true;
+
+      return res
+        .status(
+          200
+        )
+        .json({
+          message:
+            'Email verified. You are now signed in.',
+
+          session:
+            data.session,
+
+          user:
+            data.user,
+
+          profile,
+        });
+    }
+
     return res
       .status(
         200

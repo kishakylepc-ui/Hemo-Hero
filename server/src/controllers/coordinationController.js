@@ -1081,6 +1081,9 @@ async function sendCoordinationMessage(
           message
         );
 
+      // Every message alerts the other person (in-app and
+      // push), shown like a chat app: sender as the title, the
+      // message underneath.
       await createNotification({
         userId:
           recipientId,
@@ -1089,10 +1092,10 @@ async function sendCoordinationMessage(
           'coordination_message',
 
         title:
-          'New Coordination Message',
+          senderName,
 
         message:
-          `${senderName}: ${preview}`,
+          preview,
 
         data: {
           request_id:

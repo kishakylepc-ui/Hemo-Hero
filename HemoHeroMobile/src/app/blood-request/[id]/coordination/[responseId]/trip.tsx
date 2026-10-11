@@ -50,6 +50,7 @@ import {
   markTripArrived,
   navigationUrl,
   placeSearchUrl,
+  reportNotHere,
   sendTripLocation,
   startTrip,
   type TripPayload,
@@ -120,6 +121,11 @@ const FOLLOW_INTERVAL_MS =
 // Donor sends their position at most this often.
 const SEND_INTERVAL_MS =
   10000;
+
+// How long the "can't see you yet" note shows after the
+// requester disputes an arrival.
+const DISPUTE_NOTICE_MS =
+  10 * 60 * 1000;
 
 const KEEP_AWAKE_TAG =
   'hemo-hero-trip';
@@ -252,7 +258,7 @@ export default function DonorTripScreen() {
     setBusy,
   ] =
     useState<
-      'start' | 'arrive' | 'end' | null
+      'start' | 'arrive' | 'not-here' | 'end' | null
     >(null);
 
   const [
@@ -439,6 +445,39 @@ export default function DonorTripScreen() {
     focused,
     payload,
     isDonor,
+    loadTrip,
+  ]);
+
+  // ==========================================================
+  // DONOR: WATCH FOR "NOT HERE YET" AFTER ARRIVING
+  //
+  // If the requester says they can't see the donor, the trip
+  // goes back to "on the way" and sharing starts again.
+  // ==========================================================
+
+  useEffect(() => {
+    if (
+      !focused ||
+      !isDonor ||
+      tripStatus !==
+        'arrived'
+    ) {
+      return;
+    }
+
+    const timer =
+      setInterval(
+        () =>
+          loadTrip(true),
+        FOLLOW_INTERVAL_MS
+      );
+
+    return () =>
+      clearInterval(timer);
+  }, [
+    focused,
+    isDonor,
+    tripStatus,
     loadTrip,
   ]);
 
@@ -760,6 +799,85 @@ export default function DonorTripScreen() {
     }
   }
 
+  // ==========================================================
+  // CAN'T FIND EACH OTHER (once the donor is "arrived")
+  //
+  // Requester: the donor isn't actually there, so the trip goes
+  // back to "on the way" and their live location shows again.
+  // Donor: they're there but can't find the requester.
+  // Either way a chat message goes to the other person.
+  // ==========================================================
+
+  function confirmNotHere() {
+    setPopup({
+      visible: true,
+      variant: 'warning',
+      title: isDonor
+        ? `Can’t Find ${otherFirst}?`
+        : `${donorFirst} Not Here Yet?`,
+      message: isDonor
+        ? `We’ll message ${otherFirst} that you’re at ${facility} and can’t find them.`
+        : `We’ll tell ${donorFirst} you can’t see them yet and show their live location again, so you can find each other.`,
+      confirmLabel: isDonor
+        ? 'Send Message'
+        : 'Not Here Yet',
+      cancelLabel: 'Cancel',
+      onConfirm: () => {
+        setPopup(CLOSED_POPUP);
+
+        performNotHere();
+      },
+    });
+  }
+
+  async function performNotHere() {
+    if (
+      !requestId ||
+      !responseId ||
+      busy
+    ) {
+      return;
+    }
+
+    try {
+      setBusy('not-here');
+
+      const token =
+        await getAccessToken();
+
+      if (!token) {
+        router.replace('/');
+
+        return;
+      }
+
+      setPayload(
+        await reportNotHere(
+          token,
+          requestId,
+          responseId
+        )
+      );
+
+      setPopup({
+        visible: true,
+        variant: 'success',
+        title: 'Message Sent',
+        message: isDonor
+          ? `${otherFirst} knows you’re at ${facility}. Check the chat for their reply.`
+          : `${donorFirst} was told you can’t see them yet. Their live location shows again on the map.`,
+      });
+    } catch (error) {
+      showError(
+        'Unable to Send',
+        error,
+        'Please try again.'
+      );
+    } finally {
+      setBusy(null);
+    }
+  }
+
   function confirmEnd() {
     setPopup({
       visible: true,
@@ -1036,6 +1154,23 @@ export default function DonorTripScreen() {
     payload?.destination?.name ||
     'the facility';
 
+  // The requester recently said the donor isn't there yet (the
+  // trip is back to "on the way").
+  const disputedAt =
+    Date.parse(
+      trip?.arrival_disputed_at ||
+        ''
+    );
+
+  const recentlyDisputed =
+    tripStatus ===
+      'on_the_way' &&
+    Number.isFinite(
+      disputedAt
+    ) &&
+    now - disputedAt <
+      DISPUTE_NOTICE_MS;
+
   // In-app directions for the donor: their next turn.
   const guidance =
     isDonor &&
@@ -1223,51 +1358,80 @@ export default function DonorTripScreen() {
       return null;
     }
 
-    // Requester: directions for themselves + back to the chat.
+    // Requester: directions for themselves + back to the chat,
+    // and "not here yet" once the donor is marked arrived.
     if (!isDonor) {
       return (
-        <View
-          style={
-            styles.actionRow
-          }
-        >
-          {payload.destination ? (
-            <TouchableOpacity
-              style={[
-                styles.outlineButton,
-                styles.flexFill,
-              ]}
-              activeOpacity={0.85}
-              onPress={
-                openNavigation
-              }
-            >
-              <MaterialIcons
-                name="directions"
-                size={19}
-                color={
-                  COLORS.redButton
-                }
-              />
-
-              <Text
-                style={
-                  styles.outlineButtonText
+        <>
+          <View
+            style={
+              styles.actionRow
+            }
+          >
+            {payload.destination ? (
+              <TouchableOpacity
+                style={[
+                  styles.outlineButton,
+                  styles.flexFill,
+                ]}
+                activeOpacity={0.85}
+                onPress={
+                  openNavigation
                 }
               >
-                Directions
+                <MaterialIcons
+                  name="directions"
+                  size={19}
+                  color={
+                    COLORS.redButton
+                  }
+                />
+
+                <Text
+                  style={
+                    styles.outlineButtonText
+                  }
+                >
+                  Directions
+                </Text>
+              </TouchableOpacity>
+            ) : null}
+
+            <PrimaryButton
+              icon="forum"
+              label={`Message ${otherFirst}`}
+              onPress={
+                openChat
+              }
+            />
+          </View>
+
+          {tripStatus ===
+          'arrived' ? (
+            <TouchableOpacity
+              style={
+                styles.textLink
+              }
+              activeOpacity={0.7}
+              disabled={Boolean(
+                busy
+              )}
+              onPress={
+                confirmNotHere
+              }
+            >
+              <Text
+                style={
+                  styles.textLinkText
+                }
+              >
+                {busy === 'not-here'
+                  ? 'Sending...'
+                  : `${donorFirst} not here yet?`}
               </Text>
             </TouchableOpacity>
           ) : null}
-
-          <PrimaryButton
-            icon="forum"
-            label={`Message ${otherFirst}`}
-            onPress={
-              openChat
-            }
-          />
-        </View>
+        </>
       );
     }
 
@@ -1329,19 +1493,45 @@ export default function DonorTripScreen() {
       'arrived'
     ) {
       return (
-        <View
-          style={
-            styles.actionRow
-          }
-        >
-          <PrimaryButton
-            icon="forum"
-            label="Back to Chat"
-            onPress={
-              openChat
+        <>
+          <View
+            style={
+              styles.actionRow
             }
-          />
-        </View>
+          >
+            <PrimaryButton
+              icon="forum"
+              label="Back to Chat"
+              onPress={
+                openChat
+              }
+            />
+          </View>
+
+          {/* At the place, but the requester isn't. */}
+          <TouchableOpacity
+            style={
+              styles.textLink
+            }
+            activeOpacity={0.7}
+            disabled={Boolean(
+              busy
+            )}
+            onPress={
+              confirmNotHere
+            }
+          >
+            <Text
+              style={
+                styles.textLinkText
+              }
+            >
+              {busy === 'not-here'
+                ? 'Sending...'
+                : `Can’t find ${otherFirst}?`}
+            </Text>
+          </TouchableOpacity>
+        </>
       );
     }
 
@@ -1871,6 +2061,33 @@ export default function DonorTripScreen() {
                       />
                     </TouchableOpacity>
                   </View>
+
+                  {/* The requester said the donor isn't there yet. */}
+                  {recentlyDisputed ? (
+                    <View
+                      style={
+                        styles.issueRow
+                      }
+                    >
+                      <MaterialIcons
+                        name="person-search"
+                        size={15}
+                        color={
+                          COLORS.orange
+                        }
+                      />
+
+                      <Text
+                        style={
+                          styles.issueText
+                        }
+                      >
+                        {isDonor
+                          ? `${otherFirst} can’t see you at ${facility} yet. Check you’re at the right entrance, or message them.`
+                          : `You told ${donorFirst} you can’t see them yet. Follow their live location to find each other.`}
+                      </Text>
+                    </View>
+                  ) : null}
 
                   {trackingIssue &&
                   isDonor &&

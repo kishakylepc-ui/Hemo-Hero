@@ -61,6 +61,7 @@ const {
   startTrip,
   updateTripLocation,
   arriveTrip,
+  reportNotHere,
   endTrip,
 } =
   require(
@@ -555,6 +556,7 @@ router.put(
 // POST /api/requests/:id/responses/:responseId/trip/start
 // POST /api/requests/:id/responses/:responseId/trip/location
 // POST /api/requests/:id/responses/:responseId/trip/arrive
+// POST /api/requests/:id/responses/:responseId/trip/not-here
 // POST /api/requests/:id/responses/:responseId/trip/end
 //
 // Request owner and accepted donor only; only the donor can
@@ -616,6 +618,31 @@ router.post(
   }),
 
   arriveTrip
+);
+
+// Either side, once the donor is "arrived": they can't find
+// each other (requester: the donor isn't actually there).
+router.post(
+  '/:id/responses/:responseId/trip/not-here',
+
+  activityLog({
+    action:
+      'TRIP_NOT_HERE',
+
+    module:
+      'Coordination',
+
+    successDescription:
+      'User reported they can’t find the other person at the meeting point.',
+
+    failureDescription:
+      'Report that the other person isn’t at the meeting point failed.',
+
+    entityType:
+      'donor_trip',
+  }),
+
+  reportNotHere
 );
 
 router.post(

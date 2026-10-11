@@ -1403,8 +1403,11 @@ const styles =
     // BODY
     // ========================================================
 
+    // flexGrow (not flex: 1): fills the screen when the form is
+    // short but grows with it, so the page stays scrollable when
+    // the keyboard is open.
     bodyBackground: {
-      flex:
+      flexGrow:
         1,
 
       minHeight:

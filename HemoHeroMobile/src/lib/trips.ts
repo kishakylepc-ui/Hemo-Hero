@@ -58,6 +58,8 @@ export type DonorTrip = {
   location_updated_at: string | null;
   near_notified_at: string | null;
   arrived_at: string | null;
+  // The requester said the donor isn't there yet.
+  arrival_disputed_at?: string | null;
   ended_at: string | null;
 
   // On the way, but no update for a few minutes.
@@ -135,7 +137,7 @@ async function postTrip(
   token: string,
   requestId: string,
   responseId: string,
-  action: 'start' | 'location' | 'arrive' | 'end',
+  action: 'start' | 'location' | 'arrive' | 'not-here' | 'end',
   position?: TripPosition
 ) {
   const response = await authorizedFetch(
@@ -208,6 +210,17 @@ export function markTripArrived(
   responseId: string
 ) {
   return postTrip(token, requestId, responseId, 'arrive');
+}
+
+// Once the donor is "arrived", either side says they can't find
+// the other (requester: the donor isn't actually there, so the
+// trip goes back to "on the way"). Also posts a chat message.
+export function reportNotHere(
+  token: string,
+  requestId: string,
+  responseId: string
+) {
+  return postTrip(token, requestId, responseId, 'not-here');
 }
 
 export function endTrip(

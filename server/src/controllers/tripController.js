@@ -44,19 +44,32 @@ const {
 // POST /api/requests/:id/responses/:responseId/trip/start
 // POST /api/requests/:id/responses/:responseId/trip/location
 // POST /api/requests/:id/responses/:responseId/trip/arrive
+// POST /api/requests/:id/responses/:responseId/trip/not-here
 // POST /api/requests/:id/responses/:responseId/trip/end
 //
 // Only the request owner and that donor can see the trip; only
-// the donor can change it. Only the latest point is stored and
-// it is cleared when the trip ends.
+// the donor can change it, except that the requester can say an
+// "arrived" donor isn't there yet. Only the latest point is
+// stored and it is cleared when the trip ends.
 // ============================================================
 
 const TRIP_FIELDS =
-  'id,request_id,response_id,donor_id,status,latitude,longitude,accuracy_m,heading,distance_m,eta_seconds,start_distance_m,route_geometry,route_updated_at,started_at,location_updated_at,near_notified_at,arrived_at,ended_at,updated_at';
+  'id,request_id,response_id,donor_id,status,latitude,longitude,accuracy_m,heading,distance_m,eta_seconds,start_distance_m,route_geometry,route_updated_at,started_at,location_updated_at,near_notified_at,arrived_at,arrival_disputed_at,ended_at,updated_at';
 
 // Location updates closer together than this are ignored.
 const MIN_UPDATE_MS =
   4000;
+
+// After the requester says "not here yet", GPS doesn't mark the
+// donor as arrived again on its own for this long (the donor
+// can still tap "I've arrived").
+const DISPUTE_QUIET_MS =
+  5 * 60 * 1000;
+
+// Pressing "can't find you" twice this close together posts one
+// chat message.
+const NOT_HERE_REPEAT_MS =
+  60 * 1000;
 
 // ============================================================
 // HELPERS
@@ -526,6 +539,11 @@ function serializeTrip(
     arrived_at:
       trip.arrived_at,
 
+    // The requester said the donor isn't there yet.
+    arrival_disputed_at:
+      trip.arrival_disputed_at ||
+      null,
+
     ended_at:
       trip.ended_at,
 
@@ -742,11 +760,22 @@ async function checkTripAlerts(
 
   // ----------------------------------------------------------
   // ARRIVED
+  //
+  // Not on its own right after the requester said the donor
+  // isn't there yet.
   // ----------------------------------------------------------
+
+  const recentlyDisputed =
+    Date.now() -
+      timeOf(
+        trip.arrival_disputed_at
+      ) <
+    DISPUTE_QUIET_MS;
 
   if (
     straightMeters <=
-    arrivedRadius
+      arrivedRadius &&
+    !recentlyDisputed
   ) {
     const {
       data:
@@ -1573,6 +1602,10 @@ async function arriveTrip(
           arrived_at:
             now,
 
+          // The donor says they're here (again).
+          arrival_disputed_at:
+            null,
+
           near_notified_at:
             trip.near_notified_at ||
             now,
@@ -1640,6 +1673,329 @@ async function arriveTrip(
       res,
       500,
       'Unable to update your trip.'
+    );
+  }
+}
+
+// ============================================================
+// CAN'T FIND YOU (either side, once the donor is "arrived")
+//
+// POST /api/requests/:id/responses/:responseId/trip/not-here
+//
+// Requester: the donor says they've arrived but isn't there.
+//   The trip goes back to "on the way" so the live location
+//   shows again, and GPS won't mark them arrived on its own
+//   for a few minutes.
+// Donor: they're at the place but can't find the requester.
+//   The trip stays "arrived".
+//
+// Either way a chat message is posted from the person who
+// pressed it, and the other person gets a notification.
+// ============================================================
+
+async function reportNotHere(
+  req,
+  res
+) {
+  try {
+    const tripContext =
+      await loadTripContext(
+        req,
+        res
+      );
+
+    if (!tripContext) {
+      return;
+    }
+
+    const {
+      trip,
+      context,
+      requestId,
+      responseId,
+      isDonor,
+      userId
+    } =
+      tripContext;
+
+    if (!tripContext.canTrack) {
+      return sendError(
+        res,
+        409,
+        closedMessage(
+          tripContext
+        )
+      );
+    }
+
+    if (
+      !trip ||
+      trip.status !==
+        'arrived'
+    ) {
+      return sendError(
+        res,
+        409,
+        isDonor
+          ? 'Tap “I’ve arrived” first.'
+          : 'The donor isn’t marked as arrived.'
+      );
+    }
+
+    setActivityEntity(
+      res,
+      'donor_trip',
+      trip.id
+    );
+
+    const facility =
+      context.request
+        .facility_name;
+
+    const senderName =
+      isDonor
+        ? context.donor
+            ?.full_name ||
+          'Your donor'
+        : context.requester
+            ?.full_name ||
+          'The requester';
+
+    const recipientId =
+      isDonor
+        ? context.requester_user_id
+        : context.donor_user_id;
+
+    const text =
+      isDonor
+        ? `I'm here at ${facility}, but I can't find you. Where are you?`
+        : `I'm at ${facility}, but I can't see you yet. Where are you?`;
+
+    const now =
+      new Date()
+        .toISOString();
+
+    // --------------------------------------------------------
+    // REQUESTER: BACK TO "ON THE WAY"
+    // --------------------------------------------------------
+
+    let currentTrip =
+      trip;
+
+    if (!isDonor) {
+      const {
+        data:
+          updatedRows,
+        error:
+          updateError
+      } =
+        await supabaseAdmin
+          .from(
+            'blood_request_trips'
+          )
+          .update({
+            status:
+              'on_the_way',
+
+            arrived_at:
+              null,
+
+            arrival_disputed_at:
+              now,
+
+            updated_at:
+              now
+          })
+          .eq(
+            'id',
+            trip.id
+          )
+          .eq(
+            'status',
+            'arrived'
+          )
+          .select(
+            TRIP_FIELDS
+          );
+
+      if (updateError) {
+        console.error(
+          'TRIP NOT HERE UPDATE ERROR:',
+          updateError
+        );
+
+        return sendError(
+          res,
+          500,
+          'Unable to update the trip.'
+        );
+      }
+
+      currentTrip =
+        updatedRows?.[0] ||
+        trip;
+    }
+
+    // --------------------------------------------------------
+    // CHAT MESSAGE (once per minute)
+    // --------------------------------------------------------
+
+    const {
+      data:
+        lastRows,
+      error:
+        lastError
+    } =
+      await supabaseAdmin
+        .from(
+          'blood_request_coordination_messages'
+        )
+        .select(
+          'id, message, created_at'
+        )
+        .eq(
+          'response_id',
+          responseId
+        )
+        .eq(
+          'sender_id',
+          userId
+        )
+        .order(
+          'created_at',
+          {
+            ascending:
+              false
+          }
+        )
+        .limit(1);
+
+    if (lastError) {
+      console.error(
+        'TRIP NOT HERE LAST MESSAGE ERROR:',
+        lastError
+      );
+    }
+
+    const last =
+      lastRows?.[0];
+
+    const repeated =
+      last &&
+      last.message ===
+        text &&
+      Date.now() -
+        timeOf(
+          last.created_at
+        ) <
+        NOT_HERE_REPEAT_MS;
+
+    if (!repeated) {
+      const {
+        data:
+          createdMessage,
+        error:
+          messageError
+      } =
+        await supabaseAdmin
+          .from(
+            'blood_request_coordination_messages'
+          )
+          .insert({
+            request_id:
+              requestId,
+
+            response_id:
+              responseId,
+
+            sender_id:
+              userId,
+
+            message:
+              text
+          })
+          .select(
+            'id'
+          )
+          .single();
+
+      if (messageError) {
+        console.error(
+          'TRIP NOT HERE MESSAGE ERROR:',
+          messageError
+        );
+      }
+
+      if (recipientId) {
+        await createNotification({
+          userId:
+            recipientId,
+
+          type:
+            'coordination_message',
+
+          title:
+            `${senderName} Can't Find You`,
+
+          message:
+            text,
+
+          data: {
+            request_id:
+              requestId,
+
+            response_id:
+              responseId,
+
+            message_id:
+              createdMessage?.id ||
+              null,
+
+            trip_id:
+              trip.id,
+
+            sender_id:
+              userId,
+
+            sender_role:
+              isDonor
+                ? 'donor'
+                : 'requester',
+
+            recipient_role:
+              isDonor
+                ? 'requester'
+                : 'donor',
+
+            blood_type:
+              context.request
+                .blood_type,
+
+            facility_name:
+              facility
+          }
+        });
+      }
+    }
+
+    return res
+      .status(200)
+      .json(
+        buildPayload(
+          tripContext,
+          currentTrip
+        )
+      );
+  } catch (error) {
+    console.error(
+      'TRIP NOT HERE ERROR:',
+      error
+    );
+
+    return sendError(
+      res,
+      500,
+      'Unable to update the trip.'
     );
   }
 }
@@ -1758,5 +2114,6 @@ module.exports = {
   startTrip,
   updateTripLocation,
   arriveTrip,
+  reportNotHere,
   endTrip
 };

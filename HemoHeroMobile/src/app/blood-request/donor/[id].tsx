@@ -20,6 +20,7 @@ import {
 
 import {
   ActivityIndicator,
+  KeyboardAvoidingView,
   Linking,
   Platform,
   ScrollView,
@@ -2716,11 +2717,19 @@ export default function DonorBloodRequestScreen() {
 
           {/* ==================================================
               BODY (rounded sheet over the header)
+
+              Keyboard-aware: typing the note to the requester
+              lifts the page and its footer above the keyboard.
           ================================================== */}
 
-          <View
+          <KeyboardAvoidingView
             style={
               styles.body
+            }
+            behavior={
+              Platform.OS === 'ios'
+                ? 'padding'
+                : undefined
             }
           >
             <ScrollView
@@ -4148,7 +4157,7 @@ export default function DonorBloodRequestScreen() {
                 )}
               </View>
             ) : null}
-          </View>
+          </KeyboardAvoidingView>
         </SafeAreaView>
 
         {/* ====================================================

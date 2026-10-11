@@ -45,6 +45,8 @@ export type SpotlightStep = {
   target: RefObject<View | null>;
   title: string;
   text: string;
+  // Corner roundness of the highlight (e.g. larger for a pill).
+  radius?: number;
 };
 
 type Rect = {
@@ -60,6 +62,11 @@ const USE_NATIVE_DRIVER =
 // Space around the target, and between it and the card.
 const HOLE_PADDING = 8;
 const CARD_GAP = 14;
+
+// Default corner roundness of the highlight.
+const HOLE_RADIUS = 18;
+
+const SHADE_COLOR = 'rgba(23,8,8,0.66)';
 
 // Position of a view on screen, or null when it isn't laid out
 // (a zero-height marker still counts).
@@ -233,6 +240,22 @@ export default function SpotlightTour({
       ? height - area.bottom >= area.top
       : true;
 
+  // Rounded highlight: never more than half the target's size.
+  const radius =
+    area
+      ? Math.min(
+          step.radius ?? HOLE_RADIUS,
+          (area.right - area.left) / 2,
+          (area.bottom - area.top) / 2
+        )
+      : HOLE_RADIUS;
+
+  // The dimmed layer is one view with a very thick border around
+  // the target. Its inner edge (border radius minus border width)
+  // is the rounded hole. Thick enough to cover the whole screen.
+  const cover =
+    Math.max(width, height);
+
   return (
     <View
       ref={rootRef}
@@ -259,30 +282,17 @@ export default function SpotlightTour({
         {area ? (
           <>
             <View
+              pointerEvents="none"
               style={[
-                styles.shade,
-                { left: 0, top: 0, width, height: area.top },
-              ]}
-            />
-
-            <View
-              style={[
-                styles.shade,
-                { left: 0, top: area.bottom, width, height: height - area.bottom },
-              ]}
-            />
-
-            <View
-              style={[
-                styles.shade,
-                { left: 0, top: area.top, width: area.left, height: area.bottom - area.top },
-              ]}
-            />
-
-            <View
-              style={[
-                styles.shade,
-                { left: area.right, top: area.top, width: width - area.right, height: area.bottom - area.top },
+                styles.shadeFrame,
+                {
+                  left: area.left - cover,
+                  top: area.top - cover,
+                  width: area.right - area.left + cover * 2,
+                  height: area.bottom - area.top + cover * 2,
+                  borderWidth: cover,
+                  borderRadius: radius + cover,
+                },
               ]}
             />
 
@@ -297,12 +307,20 @@ export default function SpotlightTour({
                   top: area.top,
                   width: area.right - area.left,
                   height: area.bottom - area.top,
+                  borderRadius: radius,
                 },
               ]}
             >
               {/* Red inner line: the white one alone vanishes on
                   light cards. */}
-              <View style={styles.ringInner} />
+              <View
+                style={[
+                  styles.ringInner,
+                  {
+                    borderRadius: Math.max(radius - 2.5, 0),
+                  },
+                ]}
+              />
             </View>
 
             <Animated.View
@@ -315,6 +333,7 @@ export default function SpotlightTour({
                   top: area.top,
                   width: area.right - area.left,
                   height: area.bottom - area.top,
+                  borderRadius: radius,
 
                   opacity:
                     pulse.interpolate({
@@ -430,21 +449,27 @@ export default function SpotlightTour({
 }
 
 const styles = StyleSheet.create({
+  // Full-screen dim before the target is measured.
   shade: {
     position: 'absolute',
-    backgroundColor: 'rgba(23,8,8,0.66)',
+    backgroundColor: SHADE_COLOR,
   },
 
+  // Dim with a rounded hole (size and border set inline).
+  shadeFrame: {
+    position: 'absolute',
+    borderColor: SHADE_COLOR,
+  },
+
+  // Border radius set inline to match the hole.
   ring: {
     position: 'absolute',
-    borderRadius: 16,
     borderWidth: 2.5,
     borderColor: COLORS.white,
   },
 
   ringInner: {
     flex: 1,
-    borderRadius: 13,
     borderWidth: 2,
     borderColor: COLORS.redButton,
   },

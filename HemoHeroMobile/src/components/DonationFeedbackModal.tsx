@@ -7,6 +7,7 @@ import {
 import {
   ActivityIndicator,
   Animated,
+  KeyboardAvoidingView,
   Modal,
   Platform,
   StyleSheet,
@@ -236,7 +237,15 @@ export default function DonationFeedbackModal({
       statusBarTranslucent
       onRequestClose={handleClose}
     >
-      <View style={styles.overlay}>
+      {/* Lifts the card above the keyboard while writing. */}
+      <KeyboardAvoidingView
+        style={styles.overlay}
+        behavior={
+          Platform.OS === 'ios'
+            ? 'padding'
+            : undefined
+        }
+      >
         <View style={styles.card}>
           <View
             style={[
@@ -475,7 +484,7 @@ export default function DonationFeedbackModal({
             </TouchableOpacity>
           </View>
         </View>
-      </View>
+      </KeyboardAvoidingView>
     </Modal>
   );
 }

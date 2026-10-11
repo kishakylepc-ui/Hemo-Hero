@@ -43,6 +43,10 @@ import {
   verifyEmail,
 } from '../lib/api';
 
+import {
+  saveSession,
+} from '../lib/session';
+
 // ============================================================
 // CONSTANTS
 // ============================================================
@@ -373,16 +377,54 @@ function showMessage(
         ''
       );
 
+      // ------------------------------------------------------
+      // SIGNED IN RIGHT AWAY
+      //
+      // The server returns a session with the verification,
+      // so the person goes straight on to their profile.
+      // ------------------------------------------------------
+
+      if (
+        data?.session?.access_token &&
+        data?.profile
+      ) {
+        await saveSession(
+          data.session
+        );
+
+        const finished =
+          data.profile
+            .onboarding_complete ===
+          true;
+
+        showMessage(
+          'Email Verified',
+          finished
+            ? 'Your email is verified and you’re signed in.'
+            : 'Your email is verified and you’re signed in. Next, set up your profile.',
+          () => {
+            router.replace(
+              finished
+                ? '/dashboard'
+                : '/complete-profile/personal'
+            );
+          }
+        );
+
+        return;
+      }
+
+      // Older server or no profile yet: sign in as before.
       showMessage(
-  'Email Verified',
-  data?.message ||
-    'Your email has been verified successfully. You can now sign in.',
-  () => {
-    router.replace(
-      '/'
-    );
-  }
-);
+        'Email Verified',
+        data?.message ||
+          'Your email has been verified successfully. You can now sign in.',
+        () => {
+          router.replace(
+            '/'
+          );
+        }
+      );
     } catch (error) {
       console.log(
         'VERIFY EMAIL ERROR:',

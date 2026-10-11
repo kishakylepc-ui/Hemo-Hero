@@ -1907,6 +1907,8 @@ function showMessage(
     {
       key: 'tabs',
       target: navRef,
+      // Fully round, like the pill itself.
+      radius: 999,
       title: 'Get around',
       text: 'Search finds donors and requests, Chat holds your conversations, Requests tracks your requests and offers, and Profile has your settings and Help.',
     },

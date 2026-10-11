@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   FlatList,
+  KeyboardAvoidingView,
   Modal,
   Platform,
   ScrollView,
@@ -1128,7 +1129,12 @@ export default function DonorHistoryScreen() {
             animationType="fade"
             onRequestClose={() => setFacilityModalVisible(false)}
           >
-            <View style={styles.modalBackdrop}>
+            {/* Lifts the card above the keyboard when typing a
+                facility name. */}
+            <KeyboardAvoidingView
+              style={styles.modalBackdrop}
+              behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+            >
               <View style={styles.facilityModal}>
                 <View style={styles.modalHeader}>
                   <View style={styles.facilityHeaderText}>
@@ -1363,7 +1369,7 @@ export default function DonorHistoryScreen() {
                   </View>
                 ) : null}
               </View>
-            </View>
+            </KeyboardAvoidingView>
           </Modal>
         </SafeAreaView>
       </View>

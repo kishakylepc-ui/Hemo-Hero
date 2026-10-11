@@ -290,8 +290,12 @@ router.post(
     module:
       'Authentication',
 
-    successDescription:
-      'User verified their email address.',
+    // Verifying also signs the person in when their profile is
+    // ready (res.locals.signedIn, set by verifyEmail).
+    successDescription: ({ res }) =>
+      res.locals?.signedIn
+        ? 'User verified their email address and was signed in.'
+        : 'User verified their email address.',
 
     failureDescription:
       'Email verification attempt failed.',
