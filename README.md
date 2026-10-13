@@ -66,3 +66,33 @@ Run these inside each folder:
 |---|---|
 | `server` | `npm test` |
 | `HemoHeroMobile`, `HemoHeroAdmin` | `npx tsc --noEmit` and `npx expo-doctor` |
+
+## Versions
+
+The server, the mobile app and the admin portal share one version number. [CHANGELOG.md](CHANGELOG.md) lists what changed in each version.
+
+Where to see it:
+
+- **Mobile app:** Profile → About. An installed APK also shows its build number.
+- **Admin portal:** Settings → Version shows the admin portal and server versions, with a warning if they differ.
+- **Server:** `/health` returns it as `version`, and the start-up message prints it.
+
+To release a new version:
+
+1. As you work, write each change under **Unreleased** in `CHANGELOG.md`.
+2. From the project folder, run one of these:
+   ```bash
+   node scripts/version.js patch   # fixes only        1.0.0 -> 1.0.1
+   node scripts/version.js minor   # new features      1.0.0 -> 1.1.0
+   node scripts/version.js major   # breaking changes  1.0.0 -> 2.0.0
+   ```
+   This updates `package.json`, `package-lock.json` and `app.json` in all three folders, and moves the Unreleased notes under the new version.
+3. Commit and tag the release:
+   ```bash
+   git commit -am "Release v1.1.0"
+   git tag v1.1.0
+   ```
+
+Run `node scripts/version.js` on its own to print the current version, or to list any files that disagree.
+
+The Android build number (`versionCode`) is kept by EAS. It goes up by one on every APK build (`eas build --profile preview`), so two APKs of the same version can still be told apart.

@@ -81,6 +81,14 @@ const PORT =
   process.env.PORT ||
   5000;
 
+// Shared with the mobile app and admin portal
+// (see scripts/version.js in the project folder).
+const {
+  version: SERVER_VERSION
+} = require(
+  '../package.json'
+);
+
 // ============================================================
 // TUNNEL (ngrok)
 //
@@ -151,6 +159,9 @@ app.get(
 
       service:
         'hemo-hero-server',
+
+      version:
+        SERVER_VERSION,
     });
   }
 );
@@ -402,7 +413,7 @@ app.listen(
     );
 
     console.log(
-      `Hemo-Hero server running on port ${PORT}`
+      `Hemo-Hero server ${SERVER_VERSION} running on port ${PORT}`
     );
 
     console.log(

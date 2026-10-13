@@ -19,6 +19,7 @@ import {
 } from 'react-native';
 
 import { MaterialIcons } from '@expo/vector-icons';
+import Constants from 'expo-constants';
 import { LinearGradient } from 'expo-linear-gradient';
 import { router, useFocusEffect } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
@@ -36,6 +37,7 @@ import {
   changeAdminEmail,
   changeAdminPassword,
   getAdminAccount,
+  getServerVersion,
   logoutAdmin,
   updateAdminAccount,
   type AdminManagedUser,
@@ -64,7 +66,13 @@ import { isAdminRole, isSuperAdmin } from '../../lib/roles';
 //   PATCH /api/auth/me/password   change password
 //   PATCH /api/auth/me/email      change email
 //   POST  /api/auth/logout        sign out
+//   GET   /health                 server version
 // ============================================================
+
+// From app.json. The server and mobile app share it
+// (see scripts/version.js in the project folder).
+const ADMIN_VERSION =
+  Constants.expoConfig?.version || '';
 
 const COLORS = {
   outer: '#02040A',
@@ -200,6 +208,13 @@ export default function AdminSettingsScreen() {
 
   const [signingOut, setSigningOut] = useState(false);
 
+  // null while checking, '' when the server reports none.
+  const [serverVersion, setServerVersion] =
+    useState<string | null>(null);
+
+  const [serverVersionError, setServerVersionError] =
+    useState(false);
+
   // PROFILE FORM
 
   const [firstName, setFirstName] = useState('');
@@ -271,10 +286,30 @@ export default function AdminSettingsScreen() {
     }
   }, []);
 
+  // Separate from the account, so an old server without a
+  // version never blocks the rest of the screen.
+  const loadServerVersion = useCallback(async () => {
+    try {
+      setServerVersionError(false);
+
+      setServerVersion(
+        await getServerVersion()
+      );
+    } catch (error) {
+      console.log(
+        'SERVER VERSION LOAD ERROR:',
+        error
+      );
+
+      setServerVersionError(true);
+    }
+  }, []);
+
   useFocusEffect(
     useCallback(() => {
       loadSettings();
-    }, [loadSettings])
+      loadServerVersion();
+    }, [loadSettings, loadServerVersion])
   );
 
   // ==========================================================
@@ -312,6 +347,21 @@ export default function AdminSettingsScreen() {
       )
       .join('') ||
     'A';
+
+  const serverVersionLabel =
+    serverVersionError
+      ? 'Not reachable'
+      : serverVersion === null
+        ? 'Checking…'
+        : serverVersion
+          ? `Version ${serverVersion}`
+          : 'Not reported';
+
+  // Both come from the same release, so they should match.
+  const versionsDiffer =
+    !!ADMIN_VERSION &&
+    !!serverVersion &&
+    serverVersion !== ADMIN_VERSION;
 
   // ==========================================================
   // MESSAGE MODAL
@@ -1213,6 +1263,66 @@ export default function AdminSettingsScreen() {
                         value={API_URL}
                         last
                       />
+                    </SectionCard>
+
+                    <SectionCard
+                      scale={s}
+                      fontScale={fs}
+                      icon="info-outline"
+                      title="Version"
+                    >
+                      <DeviceRow
+                        scale={s}
+                        fontScale={fs}
+                        label="Admin portal"
+                        value={
+                          ADMIN_VERSION
+                            ? `Version ${ADMIN_VERSION}`
+                            : '—'
+                        }
+                      />
+
+                      <DeviceRow
+                        scale={s}
+                        fontScale={fs}
+                        label="Server"
+                        value={serverVersionLabel}
+                        last
+                      />
+
+                      {versionsDiffer ? (
+                        <View
+                          style={[
+                            styles.versionWarning,
+
+                            {
+                              padding: 12 * s,
+                              borderRadius: 10 * s,
+                              marginTop: 12 * s,
+                              gap: 9 * s,
+                            },
+                          ]}
+                        >
+                          <MaterialIcons
+                            name="warning-amber"
+                            size={19 * s}
+                            color={COLORS.orange}
+                          />
+
+                          <Text
+                            style={[
+                              styles.versionWarningText,
+
+                              {
+                                fontSize: 12 * fs,
+                                lineHeight: 18 * fs,
+                              },
+                            ]}
+                          >
+                            The admin portal and the server are on different versions. Run both from the same release.
+                          </Text>
+                        </View>
+                      ) : null}
                     </SectionCard>
 
                     {isSuperAdmin(source?.role) ? (
@@ -2885,6 +2995,20 @@ const styles = StyleSheet.create({
 
   noBorder: {
     borderBottomWidth: 0,
+  },
+
+  versionWarning: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    borderWidth: 1,
+    borderColor: 'rgba(243,163,74,0.45)',
+    backgroundColor: 'rgba(243,163,74,0.12)',
+  },
+
+  versionWarningText: {
+    flex: 1,
+    color: '#FFD9AD',
+    fontFamily: 'Inter_500Medium',
   },
 
   signOutButton: {

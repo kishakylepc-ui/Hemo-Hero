@@ -10,6 +10,7 @@
     "@react-native-community/datetimepicker": "9.1.0",
     "@react-native-community/slider": "5.2.0",
     "expo": "~57.0.26",
+    "expo-application": "~57.0.3",
     "expo-constants": "~57.0.18",
     "expo-dev-client": "~57.0.19",
     "expo-file-system": "~57.0.7",

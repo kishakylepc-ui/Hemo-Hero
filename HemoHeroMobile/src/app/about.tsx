@@ -12,7 +12,11 @@ import {
   MaterialIcons,
 } from '@expo/vector-icons';
 
-import Constants from 'expo-constants';
+import * as Application from 'expo-application';
+
+import Constants, {
+  ExecutionEnvironment,
+} from 'expo-constants';
 
 import {
   LinearGradient,
@@ -69,9 +73,25 @@ const COLORS = {
 // Describes the app as it works today.
 // ============================================================
 
+// From app.json. The server and admin portal share it
+// (see scripts/version.js in the project folder).
 const APP_VERSION =
   Constants.expoConfig?.version ||
   '1.0.0';
+
+// The build number EAS raises on every APK build. Expo Go
+// reports its own build, so it only shows in an installed app.
+const BUILD_NUMBER =
+  Platform.OS === 'web' ||
+  Constants.executionEnvironment ===
+    ExecutionEnvironment.StoreClient
+    ? null
+    : Application.nativeBuildVersion;
+
+const VERSION_LABEL =
+  BUILD_NUMBER
+    ? `${APP_VERSION} (build ${BUILD_NUMBER})`
+    : APP_VERSION;
 
 const FEATURES: {
   icon: keyof typeof MaterialIcons.glyphMap;
@@ -236,7 +256,7 @@ export default function AboutScreen() {
 
                 <View style={styles.versionPill}>
                   <Text style={styles.versionText}>
-                    Version {APP_VERSION}
+                    Version {VERSION_LABEL}
                   </Text>
                 </View>
               </FadeInView>
@@ -384,7 +404,7 @@ export default function AboutScreen() {
               </View>
 
               <Text style={styles.footer}>
-                Hemo-Hero · Version {APP_VERSION}
+                Hemo-Hero · Version {VERSION_LABEL}
               </Text>
             </ScrollView>
           </View>

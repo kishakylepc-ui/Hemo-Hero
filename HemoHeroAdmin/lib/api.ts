@@ -1162,6 +1162,29 @@ export async function requestAdminPasswordReset(
 }
 
 // ============================================================
+// SERVER VERSION
+//
+// GET /health needs no sign-in. Servers from before versioning
+// don't report a version, which comes back as ''.
+// ============================================================
+
+export async function getServerVersion(): Promise<string> {
+  const response =
+    await fetch(
+      `${API_URL}/health`
+    );
+
+  const data =
+    await parseResponse(
+      response
+    );
+
+  return String(
+    data?.version || ''
+  );
+}
+
+// ============================================================
 // ADMIN OWN ACCOUNT (SETTINGS)
 //
 // Uses the shared /api/auth/me account routes.
