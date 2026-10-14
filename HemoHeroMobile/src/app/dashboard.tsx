@@ -65,6 +65,7 @@ import { getMyDonorInvitations } from '../lib/donorInvitations';
 
 import {
   getCoordinationInbox,
+  isScheduleAgreed,
   type CoordinationInboxItem,
 } from '../lib/coordination';
 
@@ -1403,8 +1404,10 @@ function showMessage(
     switch (
       donorApplication.status
     ) {
+      // The subtitle and the Pending badge already say it's
+      // under review; the button opens the application.
       case 'pending':
-        return 'Application Under Review';
+        return 'View Application';
 
       case 'approved':
         return 'Verified Donor';
@@ -1519,10 +1522,13 @@ function showMessage(
     )?.donation ||
     null;
 
+  // Only a time both sides agreed to.
   const activeScheduled =
     activeAccepted.find(
       item =>
-        item.schedule
+        isScheduleAgreed(
+          item.schedule
+        )
     ) ||
     null;
 
@@ -4101,6 +4107,10 @@ function showMessage(
                     'approved' &&
                     styles.applyButtonApproved,
 
+                  donorApplication?.status ===
+                    'pending' &&
+                    styles.applyButtonPending,
+
                   loadingDonorApplication &&
                     styles.applyButtonDisabled,
                 ]}
@@ -4121,6 +4131,10 @@ function showMessage(
                     donorApplication?.status ===
                       'approved' &&
                       styles.applyButtonApprovedText,
+
+                    donorApplication?.status ===
+                      'pending' &&
+                      styles.applyButtonPendingText,
                   ]}
                 >
                   {getDonorButtonText()}
@@ -4133,7 +4147,10 @@ function showMessage(
                     name="arrow-forward"
                     size={17}
                     color={
-                      COLORS.white
+                      donorApplication?.status ===
+                      'pending'
+                        ? COLORS.orange
+                        : COLORS.white
                     }
                   />
                 ) : donorApplication?.status ===
@@ -6540,10 +6557,13 @@ const styles =
       fontSize: 11.5,
     },
 
+    // At least 200 wide, and wider when the label needs it.
     applyButton: {
-      width: 200,
+      minWidth: 200,
 
       height: 42,
+
+      paddingHorizontal: 18,
 
       alignSelf: 'center',
 
@@ -6590,6 +6610,23 @@ const styles =
     applyButtonApprovedText: {
       color:
         COLORS.green,
+    },
+
+    // Same orange as the Pending badge: nothing to do yet,
+    // just a way to look at the application.
+    applyButtonPending: {
+      borderWidth: 1,
+
+      borderColor:
+        '#F2C9A2',
+
+      backgroundColor:
+        '#FFF5E8',
+    },
+
+    applyButtonPendingText: {
+      color:
+        COLORS.orange,
     },
   
   // ========================================================

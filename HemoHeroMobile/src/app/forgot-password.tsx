@@ -33,7 +33,10 @@ import {
 
 import {
   SafeAreaView,
+  useSafeAreaInsets,
 } from 'react-native-safe-area-context';
+
+import { shiftedDown, withStatusBar } from '../lib/fullScreen';
 
 import {
   forgotPassword,
@@ -69,6 +72,11 @@ const COLORS = {
 // ============================================================
 
 export default function ForgotPasswordScreen() {
+  // The header is drawn behind the status bar (full screen,
+  // like the Home screen).
+  const insets =
+    useSafeAreaInsets();
+
   // ==========================================================
   // EMAIL PASSED FROM SIGN IN
   // ==========================================================
@@ -240,8 +248,10 @@ export default function ForgotPasswordScreen() {
           style={
             styles.safeArea
           }
+          // The header is drawn behind the status bar.
           edges={[
-            'top',
+            'left',
+            'right',
           ]}
         >
           <StatusBar
@@ -292,20 +302,23 @@ export default function ForgotPasswordScreen() {
                       COLORS.red,
                       COLORS.redDark,
                     ]}
-                    style={
-                      styles.header
-                    }
+                    style={withStatusBar(
+                      styles.header,
+                      insets.top
+                    )}
                   >
                     <View
-                      style={
-                        styles.headerCircleLeft
-                      }
+                      style={shiftedDown(
+                        styles.headerCircleLeft,
+                        insets.top
+                      )}
                     />
 
                     <View
-                      style={
-                        styles.headerCircleRight
-                      }
+                      style={shiftedDown(
+                        styles.headerCircleRight,
+                        insets.top
+                      )}
                     />
 
                     <Text
@@ -331,9 +344,15 @@ export default function ForgotPasswordScreen() {
                 ============================================ */}
 
                 <View
-                  style={
-                    styles.logoCircle
-                  }
+                  style={[
+                    styles.logoCircle,
+
+                    // Moves down with the header.
+                    {
+                      marginTop:
+                        insets.top,
+                    },
+                  ]}
                 >
                   <Image
                     source={require(

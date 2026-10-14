@@ -33,6 +33,13 @@ const {
     '../services/tripService'
   );
 
+const {
+  isScheduleAgreed
+} =
+  require(
+    '../services/scheduleAgreementService'
+  );
+
 // ============================================================
 // BLOOD DONATIONS (TRANSACTION RECORD)
 //
@@ -2960,8 +2967,11 @@ function buildTimeline({
         schedule?.scheduled_at ||
         null,
 
+      // A suggested time counts once both agreed.
       done:
-        Boolean(schedule)
+        isScheduleAgreed(
+          schedule
+        )
     },
     {
       key:
@@ -3203,8 +3213,10 @@ async function getAdminDonationById(
               .from(
                 'blood_request_coordination_schedules'
               )
+              // Every column, so the agreement status is read
+              // without failing before 20261014 runs.
               .select(
-                'id,scheduled_at,note,updated_at'
+                '*'
               )
               .eq(
                 'response_id',

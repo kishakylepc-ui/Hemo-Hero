@@ -21,6 +21,12 @@ const {
   '../services/tripService'
 );
 
+const {
+  isScheduleAgreed
+} = require(
+  '../services/scheduleAgreementService'
+);
+
 // ============================================================
 // USER REPORT CONTROLLER
 //
@@ -755,7 +761,7 @@ async function submitNoShowReport(
           'blood_request_coordination_schedules'
         )
         .select(
-          'scheduled_at'
+          '*'
         )
         .eq(
           'request_id',
@@ -787,6 +793,20 @@ async function submitNoShowReport(
         .json({
           error:
             'Set a meeting time first. A no-show can be reported after the agreed time passes.'
+        });
+    }
+
+    // A suggested time doesn't count until both agreed.
+    if (
+      !isScheduleAgreed(
+        schedule
+      )
+    ) {
+      return res
+        .status(409)
+        .json({
+          error:
+            'The meeting time hasn’t been agreed yet. A no-show can be reported after an agreed time passes.'
         });
     }
 

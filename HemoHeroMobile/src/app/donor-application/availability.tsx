@@ -18,6 +18,7 @@ import * as Location from 'expo-location';
 
 import { getCurrentUser } from '../../lib/api';
 import { getAccessToken } from '../../lib/session';
+import { ProgressFill } from '../../components/Motion';
 
 const COLORS = {
   red: '#DB0A0A',
@@ -162,20 +163,26 @@ export default function DonorAvailabilityScreen() {
             </View>
           </LinearGradient>
 
-          <LinearGradient
-            colors={[COLORS.backgroundTop, COLORS.backgroundBottom]}
-            style={styles.body}
-          >
+          <View style={styles.body}>
             <View style={styles.card}>
               <ScrollView
                 keyboardShouldPersistTaps="handled"
-                contentContainerStyle={styles.scrollContent}
+                contentContainerStyle={[
+                  styles.scrollContent,
+                  // Clears the home indicator.
+                  { paddingBottom: 30 + insets.bottom },
+                ]}
                 showsVerticalScrollIndicator={false}
               >
                 <View style={styles.progressRow} accessibilityLabel="Step 3 of 4">
                   {['Blood', 'History', 'Availability', 'Verify'].map((step, index) => (
                     <View key={step} style={styles.progressStep}>
-                      <View style={[styles.progressLine, index < 3 && styles.progressActive]} />
+                      <ProgressFill
+                        filled={index < 3}
+                        animate={index === 2}
+                        style={styles.progressLine}
+                        fillStyle={styles.progressActive}
+                      />
                       <Text
                         style={[
                           styles.progressLabel,
@@ -343,7 +350,7 @@ export default function DonorAvailabilityScreen() {
                 </View>
               </ScrollView>
             </View>
-          </LinearGradient>
+          </View>
         </SafeAreaView>
       </View>
     </View>
@@ -389,13 +396,15 @@ const styles = StyleSheet.create({
     marginTop: 1, color: 'rgba(255,255,255,0.82)',
     fontFamily: 'Inter_400Regular', fontSize: 12.5, lineHeight: 18,
   },
-  body: { flex: 1, paddingHorizontal: 18, paddingBottom: 16 },
-  card: {
-    flex: 1, marginTop: -14, borderRadius: 27, overflow: 'hidden',
+  // Rounded sheet over the header, as on Request Blood. A plain
+  // View: inside a gradient, the card pulled over the header was
+  // clipped on iPhone (its top was hidden behind the header).
+  body: {
+    flex: 1, marginTop: -22, overflow: 'hidden',
+    borderTopLeftRadius: 22, borderTopRightRadius: 22,
     backgroundColor: '#FAFAFA',
-    shadowColor: '#000000', shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.16, shadowRadius: 7, elevation: 6,
   },
+  card: { flex: 1 },
   scrollContent: { flexGrow: 1, paddingHorizontal: 21, paddingTop: 22, paddingBottom: 30 },
   progressRow: { flexDirection: 'row', gap: 7, marginBottom: 24 },
   progressStep: { flex: 1, minWidth: 0 },

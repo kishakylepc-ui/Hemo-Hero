@@ -18,6 +18,13 @@ const {
   '../services/requestExpiryService'
 );
 
+const {
+  isScheduleAgreed,
+  getScheduleSaveAgreement
+} = require(
+  '../services/scheduleAgreementService'
+);
+
 // ============================================================
 // HELPERS
 // ============================================================
@@ -38,6 +45,27 @@ function formatManilaDateTime(
         timeZone: 'Asia/Manila'
       }
     );
+}
+
+// The agreement columns (status, proposed_by, agreed_at) come
+// from 20261014_schedule_agreement.sql.
+const AGREEMENT_MIGRATION_ERROR =
+  'Agreeing on a meeting time needs the latest database update (20261014_schedule_agreement.sql).';
+
+function isMissingAgreementColumn(
+  error
+) {
+  const message =
+    error?.message ||
+    '';
+
+  return (
+    (error?.code === '42703' ||
+      error?.code === 'PGRST204') &&
+    /status|proposed_by|agreed_at/i.test(
+      message
+    )
+  );
 }
 
 // ISO time of the latest allowed meeting, or null.
@@ -1363,7 +1391,7 @@ async function setCoordinationSchedule(
           'blood_request_coordination_schedules'
         )
         .select(
-          'id'
+          '*'
         )
         .eq(
           'response_id',
@@ -1405,6 +1433,25 @@ async function setCoordinationSchedule(
       );
     }
 
+    // --------------------------------------------------------
+    // AGREEMENT
+    //
+    // A saved time is a suggestion until the other side agrees
+    // (see scheduleAgreementService).
+    // --------------------------------------------------------
+
+    const {
+      agreesWithTheirTime,
+      fields:
+        agreement
+    } =
+      getScheduleSaveAgreement(
+        existingSchedule,
+        userId,
+        scheduledAt.getTime(),
+        now
+      );
+
     let schedule;
     let scheduleError;
 
@@ -1423,6 +1470,8 @@ async function setCoordinationSchedule(
             note:
               note ||
               null,
+
+            ...agreement,
 
             updated_by:
               userId,
@@ -1462,6 +1511,8 @@ async function setCoordinationSchedule(
               note ||
               null,
 
+            ...agreement,
+
             created_by:
               userId,
 
@@ -1487,10 +1538,20 @@ async function setCoordinationSchedule(
       );
 
       return res
-        .status(500)
+        .status(
+          isMissingAgreementColumn(
+            scheduleError
+          )
+            ? 503
+            : 500
+        )
         .json({
           error:
-            'Unable to save donation schedule.'
+            isMissingAgreementColumn(
+              scheduleError
+            )
+              ? AGREEMENT_MIGRATION_ERROR
+              : 'Unable to save donation schedule.'
         });
     }
 
@@ -1537,6 +1598,11 @@ async function setCoordinationSchedule(
           recipientId
         );
 
+      const timeText =
+        formatManilaDateTime(
+          scheduledAt.getTime()
+        );
+
       await createNotification({
         userId:
           recipientId,
@@ -1545,14 +1611,23 @@ async function setCoordinationSchedule(
           'coordination_schedule',
 
         title:
-          existingSchedule
-            ? 'Donation Schedule Updated'
-            : 'Donation Schedule Set',
+          agreesWithTheirTime
+            ? 'Meeting Time Agreed'
+            : existingSchedule
+              ? 'New Meeting Time Suggested'
+              : 'Meeting Time Suggested',
 
         message:
-          existingSchedule
-            ? `${senderName} updated the donation schedule. Open the coordination chat to review the latest details.`
-            : `${senderName} set a donation schedule. Open the coordination chat to review the details.`,
+          agreesWithTheirTime
+            ? `${senderName} agreed to meet on ${timeText}.`
+            : existingSchedule &&
+                isScheduleAgreed(
+                  existingSchedule
+                )
+              ? `${senderName} wants to change the meeting time to ${timeText}. Agree or suggest another time in the chat.`
+              : existingSchedule
+                ? `${senderName} suggested ${timeText} instead. Agree or suggest another time in the chat.`
+                : `${senderName} suggested meeting on ${timeText}. Agree or suggest another time in the chat.`,
 
         data: {
           request_id:
@@ -1566,6 +1641,9 @@ async function setCoordinationSchedule(
 
           scheduled_at:
             schedule.scheduled_at,
+
+          schedule_status:
+            schedule.status,
 
           note:
             schedule.note ||
@@ -1595,15 +1673,396 @@ async function setCoordinationSchedule(
       .status(200)
       .json({
         message:
-          existingSchedule
-            ? 'Donation schedule updated successfully.'
-            : 'Donation schedule created successfully.',
+          agreesWithTheirTime
+            ? 'Meeting time agreed.'
+            : 'Meeting time suggested. Waiting for the other side to agree.',
 
         schedule
       });
   } catch (error) {
     console.error(
       'SET COORDINATION SCHEDULE ERROR:',
+      error
+    );
+
+    return res
+      .status(500)
+      .json({
+        error:
+          error.message ||
+          'Internal server error'
+      });
+  }
+}
+
+// ============================================================
+// AGREE TO THE SUGGESTED MEETING TIME
+// POST /api/requests/:id/responses/:responseId/schedule/agree
+//
+// Only the side that didn't suggest the time can agree. The
+// app sends the time it showed (scheduled_at), so a time that
+// was changed a moment ago isn't agreed to by mistake.
+// ============================================================
+
+async function agreeCoordinationSchedule(
+  req,
+  res
+) {
+  try {
+    const userId =
+      getAuthenticatedUserId(
+        req
+      );
+
+    if (!userId) {
+      return res
+        .status(401)
+        .json({
+          error:
+            'Unauthorized'
+        });
+    }
+
+    const requestId =
+      getRequestId(
+        req
+      );
+
+    const responseId =
+      getResponseId(
+        req
+      );
+
+    const shownTimeText =
+      cleanText(
+        req.body
+          ?.scheduled_at
+      );
+
+    const context =
+      await getCoordinationContext(
+        requestId,
+        responseId,
+        userId
+      );
+
+    if (
+      context.error
+    ) {
+      return res
+        .status(
+          context.status ||
+          400
+        )
+        .json({
+          error:
+            context.error
+        });
+    }
+
+    if (
+      context.request.status !==
+      'active'
+    ) {
+      return res
+        .status(409)
+        .json({
+          error:
+            'The meeting time cannot be changed because this blood request is closed.'
+        });
+    }
+
+    if (
+      context.response.status ===
+      'no_show'
+    ) {
+      return res
+        .status(409)
+        .json({
+          error:
+            'This donor was marked as a no-show, so the meeting time can’t be changed.'
+        });
+    }
+
+    const {
+      data:
+        schedule,
+      error:
+        scheduleError
+    } =
+      await supabaseAdmin
+        .from(
+          'blood_request_coordination_schedules'
+        )
+        .select(
+          '*'
+        )
+        .eq(
+          'response_id',
+          responseId
+        )
+        .maybeSingle();
+
+    if (
+      scheduleError
+    ) {
+      console.error(
+        'AGREE SCHEDULE LOOKUP ERROR:',
+        scheduleError
+      );
+
+      return res
+        .status(500)
+        .json({
+          error:
+            'Unable to check the meeting time.'
+        });
+    }
+
+    if (!schedule) {
+      return res
+        .status(404)
+        .json({
+          error:
+            'No meeting time has been suggested yet.'
+        });
+    }
+
+    setActivityEntity(
+      res,
+      'coordination_schedule',
+      schedule.id
+    );
+
+    if (
+      !('status' in schedule)
+    ) {
+      return res
+        .status(503)
+        .json({
+          error:
+            AGREEMENT_MIGRATION_ERROR
+        });
+    }
+
+    if (
+      isScheduleAgreed(
+        schedule
+      )
+    ) {
+      return res
+        .status(409)
+        .json({
+          error:
+            'This meeting time is already agreed.'
+        });
+    }
+
+    if (
+      schedule.proposed_by ===
+      userId
+    ) {
+      return res
+        .status(409)
+        .json({
+          error:
+            'You suggested this time. Wait for the other side to agree.'
+        });
+    }
+
+    const scheduledMs =
+      new Date(
+        schedule.scheduled_at
+      ).getTime();
+
+    if (
+      shownTimeText &&
+      new Date(
+        shownTimeText
+      ).getTime() !==
+        scheduledMs
+    ) {
+      return res
+        .status(409)
+        .json({
+          error:
+            'The suggested time was just changed. Check the new time before agreeing.'
+        });
+    }
+
+    if (
+      scheduledMs <=
+      Date.now()
+    ) {
+      return res
+        .status(409)
+        .json({
+          error:
+            'That time has already passed. Suggest a new one.'
+        });
+    }
+
+    const scheduleLimit =
+      getScheduleLimit(
+        context.request
+      );
+
+    if (
+      scheduledMs >
+      scheduleLimit
+    ) {
+      return res
+        .status(409)
+        .json({
+          error:
+            `That time is after this request's deadline (${formatManilaDateTime(scheduleLimit)}). Suggest an earlier one.`
+        });
+    }
+
+    const now =
+      new Date()
+        .toISOString();
+
+    // Only a still-pending suggestion is agreed to.
+    const {
+      data:
+        agreed,
+      error:
+        agreeError
+    } =
+      await supabaseAdmin
+        .from(
+          'blood_request_coordination_schedules'
+        )
+        .update({
+          status:
+            'agreed',
+
+          agreed_at:
+            now,
+
+          updated_by:
+            userId,
+
+          updated_at:
+            now
+        })
+        .eq(
+          'id',
+          schedule.id
+        )
+        .eq(
+          'status',
+          'proposed'
+        )
+        .select()
+        .maybeSingle();
+
+    if (
+      agreeError
+    ) {
+      console.error(
+        'AGREE SCHEDULE ERROR:',
+        agreeError
+      );
+
+      return res
+        .status(500)
+        .json({
+          error:
+            'Unable to agree to the meeting time.'
+        });
+    }
+
+    if (!agreed) {
+      return res
+        .status(409)
+        .json({
+          error:
+            'The suggested time was just changed. Check the new time before agreeing.'
+        });
+    }
+
+    // --------------------------------------------------------
+    // NOTIFY WHOEVER SUGGESTED IT
+    // --------------------------------------------------------
+
+    const recipientId =
+      getOtherParticipantId(
+        context,
+        userId
+      );
+
+    if (
+      recipientId
+    ) {
+      await createNotification({
+        userId:
+          recipientId,
+
+        type:
+          'coordination_schedule',
+
+        title:
+          'Meeting Time Agreed',
+
+        message:
+          `${getParticipantName(context, userId)} agreed to meet on ${formatManilaDateTime(scheduledMs)}.`,
+
+        data: {
+          request_id:
+            requestId,
+
+          response_id:
+            responseId,
+
+          schedule_id:
+            agreed.id,
+
+          scheduled_at:
+            agreed.scheduled_at,
+
+          schedule_status:
+            agreed.status,
+
+          updated_by:
+            userId,
+
+          sender_role:
+            getParticipantRole(
+              context,
+              userId
+            ),
+
+          recipient_role:
+            getParticipantRole(
+              context,
+              recipientId
+            ),
+
+          blood_type:
+            context.request
+              .blood_type,
+
+          facility_name:
+            context.request
+              .facility_name
+        }
+      });
+    }
+
+    return res
+      .status(200)
+      .json({
+        message:
+          'Meeting time agreed.',
+
+        schedule:
+          agreed
+      });
+  } catch (error) {
+    console.error(
+      'AGREE COORDINATION SCHEDULE ERROR:',
       error
     );
 
@@ -1634,8 +2093,11 @@ const INBOX_REQUEST_FIELDS =
 const INBOX_PERSON_FIELDS =
   'id,first_name,middle_name,last_name,suffix,city,province,profile_photo_url';
 
+// Every column: the table holds no private data, and the
+// agreement columns (20261014_schedule_agreement.sql) are
+// included without breaking the inbox before that update runs.
 const INBOX_SCHEDULE_FIELDS =
-  'id,request_id,response_id,scheduled_at,note,created_by,updated_by,created_at,updated_at';
+  '*';
 
 const INBOX_DONATION_FIELDS =
   'id,response_id,status,units_donated,donated_at,created_at';
@@ -2925,5 +3387,7 @@ module.exports = {
 
   sendCoordinationMessage,
 
-  setCoordinationSchedule
+  setCoordinationSchedule,
+
+  agreeCoordinationSchedule
 };

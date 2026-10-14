@@ -5,7 +5,11 @@ export default function CompleteProfileLayout() {
     <Stack
       screenOptions={{
         headerShown: false,
-        animation: 'slide_from_right',
+        // Steps fade (same as the rest of the app) instead of
+        // sliding like a slideshow: the header stays put and the
+        // progress bar shows the move to the next step.
+        animation: 'fade',
+        animationDuration: 200,
       }}
     >
       <Stack.Screen name="personal" />

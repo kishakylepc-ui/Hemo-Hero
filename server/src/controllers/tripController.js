@@ -224,18 +224,52 @@ function sendError(
     });
 }
 
-// The trips table comes from 20261003_donor_trips.sql.
-function isMissingTable(
+// The trips table comes from 20261003_donor_trips.sql, and
+// arrival_disputed_at from 20261011_trip_arrival_check.sql.
+// A missing column is checked first: its message also names
+// blood_request_trips.
+function missingMigration(
   error
 ) {
-  return (
+  const message =
+    error?.message ||
+    '';
+
+  if (
+    error?.code ===
+      '42703' ||
+    /column .* does not exist/i.test(
+      message
+    )
+  ) {
+    return /arrival_disputed_at/i.test(
+      message
+    )
+      ? '20261011_trip_arrival_check.sql'
+      : null;
+  }
+
+  if (
     error?.code ===
       '42P01' ||
     error?.code ===
       'PGRST205' ||
     /blood_request_trips/i.test(
-      error?.message ||
-      ''
+      message
+    )
+  ) {
+    return '20261003_donor_trips.sql';
+  }
+
+  return null;
+}
+
+function isMissingTable(
+  error
+) {
+  return Boolean(
+    missingMigration(
+      error
     )
   );
 }
@@ -243,10 +277,13 @@ function isMissingTable(
 function tableErrorMessage(
   error
 ) {
-  return isMissingTable(
-    error
-  )
-    ? 'Live trip sharing needs the latest database update (20261003_donor_trips.sql).'
+  const migration =
+    missingMigration(
+      error
+    );
+
+  return migration
+    ? `Live trip sharing needs the latest database update (${migration}).`
     : 'Unable to load the trip.';
 }
 

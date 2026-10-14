@@ -55,6 +55,7 @@ import type {
 import {
   CoordinationInboxError,
   getCoordinationInbox,
+  isScheduleAgreed,
 } from '../../lib/coordination';
 
 import type {
@@ -2440,10 +2441,17 @@ function DonationCard({
             }
           >
             {item.schedule
-              ? `Scheduled ${formatDate(
+              ? isScheduleAgreed(
                   item.schedule
-                    .scheduled_at
-                )}`
+                )
+                ? `Scheduled ${formatDate(
+                    item.schedule
+                      .scheduled_at
+                  )}`
+                : `Suggested ${formatDate(
+                    item.schedule
+                      .scheduled_at
+                  )} · not agreed yet`
               : item.latest_message
                 ? item.latest_message
                     .message

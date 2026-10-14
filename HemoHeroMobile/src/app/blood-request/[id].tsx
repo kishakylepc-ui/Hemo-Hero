@@ -71,6 +71,7 @@ import ConfirmDonationSheet from '../../components/ConfirmDonationSheet';
 
 import {
   getCoordinationInbox,
+  isScheduleAgreed,
   type CoordinationInboxItem,
 } from '../../lib/coordination';
 
@@ -1867,7 +1868,7 @@ export default function BloodRequestDetailsScreen() {
     )}`;
   }
 
-  // Earliest meeting set with an accepted donor who has not
+  // Earliest meeting agreed with an accepted donor who has not
   // donated yet.
   const nextMeeting =
     conversations
@@ -1875,7 +1876,9 @@ export default function BloodRequestDetailsScreen() {
         item =>
           item.response_status ===
             'accepted' &&
-          item.schedule &&
+          isScheduleAgreed(
+            item.schedule
+          ) &&
           (!item.donation ||
             item.donation.status ===
               'rejected')
@@ -3046,11 +3049,17 @@ export default function BloodRequestDetailsScreen() {
                           !donationActive &&
                           conversation
                             ?.schedule
-                            ? formatMeeting(
+                            ? `${formatMeeting(
                                 conversation
                                   .schedule
                                   .scheduled_at
-                              )
+                              )}${
+                                isScheduleAgreed(
+                                  conversation.schedule
+                                )
+                                  ? ''
+                                  : ' · not agreed yet'
+                              }`
                             : '';
 
                         const place =

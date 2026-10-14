@@ -57,6 +57,7 @@ import {
 import {
   CoordinationInboxError,
   getCoordinationInbox,
+  isScheduleAgreed,
 } from '../lib/coordination';
 
 import type {
@@ -395,7 +396,12 @@ function getStatus(
     };
   }
 
-  if (item.schedule) {
+  if (
+    item.schedule &&
+    isScheduleAgreed(
+      item.schedule
+    )
+  ) {
     return {
       icon: 'event',
       label: scheduleLabel(
@@ -403,6 +409,22 @@ function getStatus(
       ),
       tone: 'blue',
     };
+  }
+
+  // A suggested time waits for the other side to agree.
+  if (item.schedule) {
+    return item.schedule.proposed_by ===
+      item.other_participant.id
+      ? {
+          icon: 'event',
+          label: `${firstName(item)} suggested ${scheduleLabel(item.schedule.scheduled_at)}`,
+          tone: 'orange',
+        }
+      : {
+          icon: 'hourglass-top',
+          label: `Waiting for ${firstName(item)} to agree`,
+          tone: 'muted',
+        };
   }
 
   return {

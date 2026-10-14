@@ -32,6 +32,7 @@ import type {
 import {
   getAccessToken,
 } from '../../lib/session';
+import { ProgressFill } from '../../components/Motion';
 
 // ============================================================
 // COLORS
@@ -596,11 +597,7 @@ export default function DonorVerificationScreen() {
               BODY
           ================================================== */}
 
-          <LinearGradient
-            colors={[
-              COLORS.backgroundTop,
-              COLORS.backgroundBottom,
-            ]}
+          <View
             style={
               styles.body
             }
@@ -612,9 +609,16 @@ export default function DonorVerificationScreen() {
             >
               <ScrollView
                 keyboardShouldPersistTaps="handled"
-                contentContainerStyle={
-                  styles.scrollContent
-                }
+                contentContainerStyle={[
+                  styles.scrollContent,
+
+                  // Clears the home indicator.
+                  {
+                    paddingBottom:
+                      30 +
+                      insets.bottom,
+                  },
+                ]}
                 showsVerticalScrollIndicator={
                   false
                 }
@@ -647,14 +651,19 @@ export default function DonorVerificationScreen() {
                           styles.progressStep
                         }
                       >
-                        <View
-                          style={[
-                            styles.progressLine,
-
-                            index <
-                              4 &&
-                              styles.progressActive,
-                          ]}
+                        <ProgressFill
+                          filled={
+                            index < 4
+                          }
+                          animate={
+                            index === 3
+                          }
+                          style={
+                            styles.progressLine
+                          }
+                          fillStyle={
+                            styles.progressActive
+                          }
                         />
 
                         <Text
@@ -919,7 +928,7 @@ export default function DonorVerificationScreen() {
                 </View>
               </ScrollView>
             </View>
-          </LinearGradient>
+          </View>
         </SafeAreaView>
       </View>
 
@@ -1240,52 +1249,30 @@ const styles =
     // BODY
     // ========================================================
 
+    // Rounded sheet over the header, as on Request Blood. A plain
+    // View: inside a gradient, the card pulled over the header was
+    // clipped on iPhone (its top was hidden behind the header).
     body: {
-      flex:
-        1,
-
-      paddingHorizontal:
-        18,
-
-      paddingBottom:
-        16,
-    },
-
-    card: {
-      flex:
-        1,
+      flex: 1,
 
       marginTop:
-        -14,
+        -22,
 
-      borderRadius:
-        27,
+      borderTopLeftRadius:
+        22,
+
+      borderTopRightRadius:
+        22,
 
       overflow:
         'hidden',
 
       backgroundColor:
         '#FAFAFA',
+    },
 
-      shadowColor:
-        '#000000',
-
-      shadowOffset: {
-        width:
-          0,
-
-        height:
-          3,
-      },
-
-      shadowOpacity:
-        0.16,
-
-      shadowRadius:
-        7,
-
-      elevation:
-        6,
+    card: {
+      flex: 1,
     },
 
     scrollContent: {

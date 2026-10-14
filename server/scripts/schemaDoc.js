@@ -45,7 +45,7 @@ const TABLE_PURPOSES = {
   blood_request_coordination_messages:
     'Chat messages between the requester and a donor about a request.',
   blood_request_coordination_schedules:
-    'The meet-up time agreed between the requester and a donor.',
+    'The meet-up time for a requester and donor: suggested by one side (status proposed) until the other agrees (agreed).',
   blood_request_trips:
     'The donor\'s live trip to the meet-up location (shared location and arrival).',
   blood_donations:

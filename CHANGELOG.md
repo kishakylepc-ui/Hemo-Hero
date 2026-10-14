@@ -10,6 +10,17 @@ Write each change under **Unreleased** as you make it. `node scripts/version.js 
 
 ## Unreleased
 
+- Chat: a meeting time is now a suggestion until the other person agrees. They can tap Agree or suggest another time, back and forth, until one side agrees. Changing an agreed time asks the other person again. Only an agreed time counts for the Scheduled step and for no-show reports. Needs migration `20261014_schedule_agreement.sql`.
+- Chat: when the donor is marked as arrived, the requester's top card has **Not here yet** next to Confirm. It works like the trip map: the trip goes back to "on the way" and the donor gets a message. If the donor is still "on the way" after the agreed time, the card has **Didn't show up** next to Track.
+- Admin donation details show when a meeting time was suggested but never agreed.
+- Database: removed five empty, unused `blood_requests` columns left over from the original dashboard table (`patient_name`, `hospital`, `location_lat`, `location_lng`, `needed_by`) and the unused `haversine_km` function. Needs migration `20261014_remove_unused_columns.sql`.
+- Sign in, Sign up, Forgot password, Reset password and Verify email are full screen like Home. The red header and its circles now run behind the clock instead of starting below a flat red strip, and the logo moves down with the header.
+- Home: a pending donor application's button is now an orange **View Application** that matches the Pending badge. It used to be a red "Application Under Review →" action that repeated the card's subtitle. The button also widens to fit its label instead of squeezing it into a fixed 200 width.
+- Complete your Profile and Apply as a Donor: steps now fade into each other instead of sliding in like a slideshow, so the header stays still. The progress bar keeps finished steps filled, and the new step's segment fills in from the left. Complete your Profile used to light up only the current step.
+- Complete your Profile and Apply as a Donor: on iPhone, the top of the form card was hidden behind the header (cutting off the progress bar, the step title and the photo or map picture), and pink-red gaps showed at the sides and bottom. These screens now use the same frame as Request Blood: a compact header with a full-width rounded sheet over it.
+- Request Blood and the chat: on phones, the Pick a Time wheels stretched across the whole sheet and pushed the AM/PM buttons off the edge. They now keep their size and sit centered.
+- Live trips: when the database is missing an update, the error now names the right migration (it pointed to `20261003_donor_trips.sql` even when only `20261011_trip_arrival_check.sql` was missing).
+
 ## 1.0.0 - 2026-10-13
 
 The first numbered release. It covers all the work from 2026-08-28 to 2026-10-11.

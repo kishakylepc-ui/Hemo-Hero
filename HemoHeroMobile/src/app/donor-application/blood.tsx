@@ -45,6 +45,7 @@ import {
 import {
   getMyDonorApplication,
 } from '../../lib/donorApplication';
+import { ProgressFill } from '../../components/Motion';
 
 
 // ============================================================
@@ -499,11 +500,7 @@ export default function DonorBloodInformationScreen() {
               BODY
           ================================================== */}
 
-          <LinearGradient
-            colors={[
-              COLORS.pageTop,
-              COLORS.pageBottom,
-            ]}
+          <View
             style={
               styles.body
             }
@@ -517,9 +514,16 @@ export default function DonorBloodInformationScreen() {
                 style={
                   styles.formScroll
                 }
-                contentContainerStyle={
-                  styles.formScrollContent
-                }
+                contentContainerStyle={[
+                  styles.formScrollContent,
+
+                  // Clears the home indicator.
+                  {
+                    paddingBottom:
+                      30 +
+                      insets.bottom,
+                  },
+                ]}
                 showsVerticalScrollIndicator={
                   false
                 }
@@ -556,13 +560,19 @@ export default function DonorBloodInformationScreen() {
                             styles.progressItem
                           }
                         >
-                          <View
-                            style={[
-                              styles.progressBar,
-
-                              active &&
-                                styles.progressBarActive,
-                            ]}
+                          <ProgressFill
+                            filled={
+                              active
+                            }
+                            animate={
+                              active
+                            }
+                            style={
+                              styles.progressBar
+                            }
+                            fillStyle={
+                              styles.progressBarActive
+                            }
                           />
 
                           <Text
@@ -917,7 +927,7 @@ export default function DonorBloodInformationScreen() {
                 )}
               </ScrollView>
             </View>
-          </LinearGradient>
+          </View>
         </SafeAreaView>
       </View>
     </View>
@@ -1125,48 +1135,31 @@ const styles =
     // BODY
     // ========================================================
 
+    // Rounded sheet over the header, as on Request Blood. A plain
+    // View: inside a gradient, the card pulled over the header was
+    // clipped on iPhone (its top was hidden behind the header).
     body: {
       flex: 1,
 
-      paddingHorizontal:
-        18,
+      marginTop:
+        -22,
 
-      paddingBottom:
-        16,
+      borderTopLeftRadius:
+        22,
+
+      borderTopRightRadius:
+        22,
+
+      overflow:
+        'hidden',
+
+      backgroundColor:
+        COLORS.card,
     },
 
 
     formCard: {
       flex: 1,
-
-      marginTop:
-        -14,
-
-      borderRadius:
-        27,
-
-      backgroundColor:
-        COLORS.card,
-
-      overflow:
-        'hidden',
-
-      shadowColor:
-        '#000000',
-
-      shadowOffset: {
-        width: 0,
-        height: 3,
-      },
-
-      shadowOpacity:
-        0.16,
-
-      shadowRadius:
-        7,
-
-      elevation:
-        6,
     },
 
 

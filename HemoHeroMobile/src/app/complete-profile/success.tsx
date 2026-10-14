@@ -222,11 +222,7 @@ export default function ProfileSuccessScreen() {
                 BODY
             ================================================== */}
 
-            <LinearGradient
-              colors={[
-                COLORS.backgroundTop,
-                COLORS.backgroundBottom,
-              ]}
+            <View
               style={
                 styles.bodyBackground
               }
@@ -550,7 +546,7 @@ export default function ProfileSuccessScreen() {
                   />
                 </TouchableOpacity>
               </View>
-            </LinearGradient>
+            </View>
           </ScrollView>
         </SafeAreaView>
       </View>
@@ -604,23 +600,33 @@ const styles =
     },
 
     scroll: {
-      flexGrow: 1,
+      flexGrow:
+        1,
 
+      // Same as the sheet, so the space under the form (home
+      // indicator) matches it.
       backgroundColor:
-        COLORS.backgroundBottom,
+        '#FAFAFA',
     },
 
     // ========================================================
     // HEADER
     // ========================================================
 
+    // Bottom padding leaves room for the sheet, which overlaps
+    // the header by 22.
     header: {
-      height: 205,
+      paddingHorizontal:
+        27,
 
-      paddingHorizontal: 27,
-      paddingTop: 52,
+      paddingTop:
+        14,
 
-      overflow: 'hidden',
+      paddingBottom:
+        40,
+
+      overflow:
+        'hidden',
     },
 
     headerDecoration: {
@@ -676,13 +682,24 @@ const styles =
     // BODY
     // ========================================================
 
+    // Rounded sheet over the header, as on Request Blood. A plain
+    // View: inside a gradient, the card pulled over the header was
+    // clipped on iPhone (its top was hidden behind the header).
     bodyBackground: {
-      flex: 1,
+      flexGrow:
+        1,
 
-      minHeight: 669,
+      marginTop:
+        -22,
 
-      paddingHorizontal: 28,
-      paddingBottom: 30,
+      borderTopLeftRadius:
+        22,
+
+      borderTopRightRadius:
+        22,
+
+      backgroundColor:
+        '#FAFAFA',
     },
 
     // ========================================================
@@ -690,32 +707,17 @@ const styles =
     // ========================================================
 
     card: {
-      marginTop: -72,
+      flexGrow:
+        1,
 
-      minHeight: 640,
+      paddingHorizontal:
+        24,
 
-      paddingHorizontal: 24,
-      paddingTop: 32,
-      paddingBottom: 24,
+      paddingTop:
+        36,
 
-      backgroundColor:
-        '#FAFAFA',
-
-      borderRadius: 27,
-
-      shadowColor:
-        '#000000',
-
-      shadowOffset: {
-        width: 0,
-        height: 3,
-      },
-
-      shadowOpacity: 0.15,
-
-      shadowRadius: 5,
-
-      elevation: 5,
+      paddingBottom:
+        24,
     },
 
     // ========================================================

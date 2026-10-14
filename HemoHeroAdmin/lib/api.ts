@@ -2884,6 +2884,10 @@ export type AdminDonationDetail = {
     scheduled_at: string;
 
     note?: string | null;
+
+    // 'proposed' until the other side agrees; null means it was
+    // set before agreement existed (counts as agreed).
+    status?: 'proposed' | 'agreed' | null;
   } | null;
 
   donor:

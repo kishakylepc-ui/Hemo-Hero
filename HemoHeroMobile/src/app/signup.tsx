@@ -39,7 +39,10 @@ import {
 
 import {
   SafeAreaView,
+  useSafeAreaInsets,
 } from 'react-native-safe-area-context';
+
+import { shiftedDown, withStatusBar } from '../lib/fullScreen';
 
 import {
   ApiError,
@@ -93,6 +96,11 @@ const COLORS = {
 // ============================================================
 
 export default function SignUpScreen() {
+  // The header is drawn behind the status bar (full screen,
+  // like the Home screen).
+  const insets =
+    useSafeAreaInsets();
+
   const {
     height,
   } =
@@ -965,8 +973,10 @@ export default function SignUpScreen() {
           style={
             styles.safeArea
           }
+          // The header is drawn behind the status bar.
           edges={[
-            'top',
+            'left',
+            'right',
           ]}
         >
           <StatusBar
@@ -1018,23 +1028,28 @@ export default function SignUpScreen() {
                       COLORS.red,
                       COLORS.redDark,
                     ]}
-                    style={[
-                      styles.header,
+                    style={withStatusBar(
+                      [
+                        styles.header,
 
-                      isSmallPhone &&
-                        styles.headerSmall,
-                    ]}
+                        isSmallPhone &&
+                          styles.headerSmall,
+                      ],
+                      insets.top
+                    )}
                   >
                     <View
-                      style={
-                        styles.headerCircleLeft
-                      }
+                      style={shiftedDown(
+                        styles.headerCircleLeft,
+                        insets.top
+                      )}
                     />
 
                     <View
-                      style={
-                        styles.headerCircleRight
-                      }
+                      style={shiftedDown(
+                        styles.headerCircleRight,
+                        insets.top
+                      )}
                     />
 
                     <Animated.View
@@ -1085,6 +1100,12 @@ export default function SignUpScreen() {
 
                     isSmallPhone &&
                       styles.logoCircleSmall,
+
+                    // Moves down with the header.
+                    {
+                      marginTop:
+                        insets.top,
+                    },
 
                     {
                       opacity:

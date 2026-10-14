@@ -51,6 +51,7 @@ const {
   getCoordinationMessages,
   sendCoordinationMessage,
   setCoordinationSchedule,
+  agreeCoordinationSchedule,
 } =
   require(
     '../controllers/coordinationController'
@@ -547,6 +548,35 @@ router.put(
   }),
 
   setCoordinationSchedule
+);
+
+// ============================================================
+// AGREE TO THE SUGGESTED MEETING TIME
+//
+// POST /api/requests/:id/responses/:responseId/schedule/agree
+// ============================================================
+
+router.post(
+  '/:id/responses/:responseId/schedule/agree',
+
+  activityLog({
+    action:
+      'AGREE_COORDINATION_SCHEDULE',
+
+    module:
+      'Coordination',
+
+    successDescription:
+      'User agreed to the suggested meeting time.',
+
+    failureDescription:
+      'Meeting time agreement attempt failed.',
+
+    entityType:
+      'coordination_schedule',
+  }),
+
+  agreeCoordinationSchedule
 );
 
 // ============================================================

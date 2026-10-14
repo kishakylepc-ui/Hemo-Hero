@@ -44,8 +44,10 @@ import {
 import { shiftedDown, withStatusBar } from '../../../../lib/fullScreen';
 
 import {
+  agreeCoordinationSchedule,
   getCoordinationMessages,
   getCoordinationSession,
+  isScheduleAgreed,
   markCoordinationRead,
   reportNoShow,
   saveCoordinationSchedule,
@@ -79,6 +81,7 @@ import {
   formatDistance,
   formatEta,
   getTrip,
+  reportNotHere,
   type TripPayload,
 } from '../../../../lib/trips';
 
@@ -572,6 +575,22 @@ export default function DonationCoordinationScreen() {
     );
 
   const [
+    agreeingSchedule,
+    setAgreeingSchedule,
+  ] =
+    useState(
+      false
+    );
+
+  const [
+    sendingNotHere,
+    setSendingNotHere,
+  ] =
+    useState(
+      false
+    );
+
+  const [
     datePickerVisible,
     setDatePickerVisible,
   ] =
@@ -665,6 +684,53 @@ export default function DonationCoordinationScreen() {
       ? request.status !==
         'active'
       : false;
+
+  // ----------------------------------------------------------
+  // MEETING TIME AGREEMENT
+  //
+  // A time is a suggestion until the other side agrees. Either
+  // side can suggest another time instead; the rest of the chat
+  // (progress, no-show) only counts an agreed time.
+  // ----------------------------------------------------------
+
+  const myUserId =
+    viewerRole ===
+    'requester'
+      ? coordination
+          ?.requester
+          ?.id
+      : coordination
+          ?.donor
+          ?.id;
+
+  const scheduleAgreed =
+    isScheduleAgreed(
+      schedule
+    );
+
+  const agreedSchedule =
+    scheduleAgreed
+      ? schedule
+      : null;
+
+  const suggestedByMe =
+    Boolean(
+      schedule &&
+        !scheduleAgreed &&
+        myUserId &&
+        schedule.proposed_by ===
+          myUserId
+    );
+
+  const suggestionPassed =
+    Boolean(
+      schedule &&
+        !scheduleAgreed &&
+        new Date(
+          schedule.scheduled_at
+        ).getTime() <=
+          Date.now()
+    );
 
   // The requester reported this donor as a no-show: the chat
   // stays open for messages, but this donor can no longer
@@ -1120,6 +1186,55 @@ export default function DonationCoordinationScreen() {
   );
 
   // ==========================================================
+  // SESSION REFRESH
+  //
+  // The other side may suggest, change or agree to the meeting
+  // time while this chat is open. Quiet: a failure waits for the
+  // next check.
+  // ==========================================================
+
+  const loadSession =
+    useCallback(
+      async () => {
+        if (
+          !requestId ||
+          !responseId
+        ) {
+          return;
+        }
+
+        try {
+          const token =
+            await getAccessToken();
+
+          if (!token) {
+            return;
+          }
+
+          const result =
+            await getCoordinationSession(
+              token,
+              requestId,
+              responseId
+            );
+
+          setCoordination(
+            result.coordination
+          );
+        } catch (sessionError) {
+          console.log(
+            'CHAT SESSION REFRESH ERROR:',
+            sessionError
+          );
+        }
+      },
+      [
+        requestId,
+        responseId,
+      ]
+    );
+
+  // ==========================================================
   // POLLING
   // ==========================================================
 
@@ -1159,6 +1274,15 @@ export default function DonationCoordinationScreen() {
           10000
         );
 
+      // Meeting time suggestions and agreement.
+      const sessionTimer =
+        setInterval(
+          () => {
+            loadSession();
+          },
+          8000
+        );
+
       return () => {
         clearInterval(
           timer
@@ -1171,6 +1295,10 @@ export default function DonationCoordinationScreen() {
         clearInterval(
           tripTimer
         );
+
+        clearInterval(
+          sessionTimer
+        );
       };
     },
     [
@@ -1179,6 +1307,7 @@ export default function DonationCoordinationScreen() {
       loadMessages,
       loadDonation,
       loadTrip,
+      loadSession,
     ]
   );
 
@@ -2495,15 +2624,86 @@ export default function DonationCoordinationScreen() {
       );
 
       showMessage(
-        'Unable to Save Schedule',
+        'Unable to Suggest Time',
 
         scheduleError instanceof
           Error
           ? scheduleError.message
-          : 'Unable to save the donation schedule.'
+          : 'Unable to send the meeting time.'
       );
     } finally {
       setSavingSchedule(
+        false
+      );
+    }
+  }
+
+  // Agree to the time the other side suggested. The time on
+  // screen is sent so a change made a moment ago isn't agreed
+  // to by mistake.
+  async function handleAgreeSchedule() {
+    if (
+      !requestId ||
+      !responseId ||
+      !schedule ||
+      agreeingSchedule
+    ) {
+      return;
+    }
+
+    try {
+      setAgreeingSchedule(
+        true
+      );
+
+      const token =
+        await getAccessToken();
+
+      if (!token) {
+        router.replace(
+          '/'
+        );
+
+        return;
+      }
+
+      const result =
+        await agreeCoordinationSchedule(
+          token,
+          requestId,
+          responseId,
+          schedule.scheduled_at
+        );
+
+      setCoordination(
+        current =>
+          current
+            ? {
+                ...current,
+                schedule:
+                  result.schedule,
+              }
+            : current
+      );
+    } catch (agreeError) {
+      console.log(
+        'AGREE SCHEDULE ERROR:',
+        agreeError
+      );
+
+      showMessage(
+        'Unable to Agree',
+
+        agreeError instanceof
+          Error
+          ? agreeError.message
+          : 'Unable to agree to the meeting time.'
+      );
+
+      // The time may have just changed: show the latest.
+      loadSession();
+    } finally {
+      setAgreeingSchedule(
         false
       );
     }
@@ -2728,6 +2928,95 @@ export default function DonationCoordinationScreen() {
       );
     } finally {
       setFulfilling(
+        false
+      );
+    }
+  }
+
+  // ==========================================================
+  // DONOR MARKED ARRIVED BUT NOT THERE
+  //
+  // Same as "Not here yet" on the trip map: the trip goes back
+  // to "on the way" (live location again) and the donor gets a
+  // chat message.
+  // ==========================================================
+
+  function confirmNotHere() {
+    const first =
+      getOtherFirstName();
+
+    setActionPopup({
+      visible:
+        true,
+
+      title:
+        `${first} Not Here Yet?`,
+
+      message:
+        `We’ll tell ${first} you can’t see them yet and show their live location again, so you can find each other.`,
+
+      variant:
+        'warning',
+
+      confirmText:
+        'Not Here Yet',
+
+      cancelText:
+        'Cancel',
+
+      showCancel:
+        true,
+
+      onConfirm: () => {
+        void performNotHere();
+      },
+    });
+  }
+
+  async function performNotHere() {
+    if (
+      !requestId ||
+      !responseId ||
+      sendingNotHere
+    ) {
+      return;
+    }
+
+    try {
+      setSendingNotHere(
+        true
+      );
+
+      const token =
+        await getAccessToken();
+
+      if (!token) {
+        router.replace('/');
+
+        return;
+      }
+
+      setTripInfo(
+        await reportNotHere(
+          token,
+          requestId,
+          responseId
+        )
+      );
+
+      // Shows the chat message it posted.
+      loadMessages();
+    } catch (notHereError) {
+      showMessage(
+        'Unable to Send',
+
+        notHereError instanceof
+          Error
+          ? notHereError.message
+          : 'Please try again.'
+      );
+    } finally {
+      setSendingNotHere(
         false
       );
     }
@@ -3005,11 +3294,11 @@ export default function DonationCoordinationScreen() {
           'rejected'
     );
 
-  // A donation can be confirmed without a saved meeting time;
+  // A donation can be confirmed without an agreed meeting time;
   // it still counts as past the scheduling step.
   const stepsDone = [
     true,
-    Boolean(schedule) ||
+    Boolean(agreedSchedule) ||
       donationActive,
     donationActive,
     Boolean(myRating),
@@ -3018,16 +3307,16 @@ export default function DonationCoordinationScreen() {
   const canRate =
     donationActive;
 
-  // The meeting time passed and nothing was recorded: either
-  // side can report that the other didn't come.
+  // The agreed meeting time passed and nothing was recorded:
+  // either side can report that the other didn't come.
   const canReportNoShow =
     !isClosed &&
     !isReleased &&
     !donationActive &&
     Boolean(
-      schedule &&
+      agreedSchedule &&
         new Date(
-          schedule.scheduled_at
+          agreedSchedule.scheduled_at
         ).getTime() <=
           Date.now()
     );
@@ -3057,6 +3346,20 @@ export default function DonationCoordinationScreen() {
       label: string;
       onPress: () => void;
       busy?: boolean;
+    };
+    // Two full-width buttons under the card, used to answer a
+    // suggested meeting time.
+    choices?: {
+      primary: {
+        label: string;
+        onPress: () => void;
+        busy?: boolean;
+      };
+      secondary: {
+        label: string;
+        onPress: () => void;
+        busy?: boolean;
+      };
     };
   } {
     const first =
@@ -3129,16 +3432,25 @@ export default function DonationCoordinationScreen() {
         trip?.status ===
         'arrived'
       ) {
+        // Requester: can't see them? "Not here yet" puts the
+        // trip back to "on the way".
         return myRole ===
           'requester'
           ? {
               icon: 'where-to-vote',
               tone: 'green',
               title: `${first} has arrived`,
-              detail: 'After they donate, confirm it here.',
-              action: {
-                label: 'Confirm',
-                onPress: handleConfirmDonation,
+              detail: 'Can’t see them? Tap Not here yet.',
+              choices: {
+                primary: {
+                  label: 'Confirm',
+                  onPress: handleConfirmDonation,
+                },
+                secondary: {
+                  label: 'Not here yet',
+                  onPress: confirmNotHere,
+                  busy: sendingNotHere,
+                },
               },
             }
           : {
@@ -3166,6 +3478,8 @@ export default function DonationCoordinationScreen() {
             .filter(Boolean)
             .join(' · ');
 
+        // Requester: once the agreed time has passed, "on the
+        // way" alone doesn't stop a no-show report.
         return myRole ===
           'requester'
           ? {
@@ -3173,7 +3487,8 @@ export default function DonationCoordinationScreen() {
                 ? 'location-disabled'
                 : 'directions-car',
               tone: trip.stale ||
-                trip.near_notified_at
+                trip.near_notified_at ||
+                canReportNoShow
                 ? 'orange'
                 : 'accent',
               title: trip.stale
@@ -3181,13 +3496,30 @@ export default function DonationCoordinationScreen() {
                 : trip.near_notified_at
                   ? `${first} is almost there`
                   : `${first} is on the way`,
-              detail: trip.stale
-                ? 'Last known position on the map.'
-                : `${away} away`,
-              action: {
-                label: 'Track',
-                onPress: openTrip,
-              },
+              detail: canReportNoShow
+                ? 'The meeting time has passed.'
+                : trip.stale
+                  ? 'Last known position on the map.'
+                  : `${away} away`,
+              ...(canReportNoShow
+                ? {
+                    choices: {
+                      primary: {
+                        label: 'Track',
+                        onPress: openTrip,
+                      },
+                      secondary: {
+                        label: 'Didn’t show up',
+                        onPress: openNoShow,
+                      },
+                    },
+                  }
+                : {
+                    action: {
+                      label: 'Track',
+                      onPress: openTrip,
+                    },
+                  }),
             }
           : {
               icon: 'directions-car',
@@ -3206,10 +3538,58 @@ export default function DonationCoordinationScreen() {
           icon: 'event',
           tone: 'accent',
           title: 'Agree on a time',
-          detail: `Set when you'll meet at ${request?.facility_name || 'the facility'}.`,
+          detail: `Suggest when you'll meet at ${request?.facility_name || 'the facility'}.`,
           action: {
-            label: 'Set time',
+            label: 'Suggest',
             onPress: handleOpenSchedule,
+          },
+        };
+      }
+
+      if (suggestionPassed) {
+        return {
+          icon: 'event-busy',
+          tone: 'orange',
+          title: 'The suggested time passed',
+          detail: 'Suggest a new meeting time.',
+          action: {
+            label: 'Suggest',
+            onPress: handleOpenSchedule,
+          },
+        };
+      }
+
+      if (suggestedByMe) {
+        return {
+          icon: 'hourglass-top',
+          tone: 'orange',
+          title: `Waiting for ${first} to agree`,
+          detail: `You suggested ${formatSchedule(schedule.scheduled_at)}.`,
+          action: {
+            label: 'Change',
+            onPress: handleOpenSchedule,
+          },
+        };
+      }
+
+      if (!scheduleAgreed) {
+        return {
+          icon: 'event',
+          tone: 'accent',
+          title: `${first} suggested a time`,
+          detail: formatSchedule(
+            schedule.scheduled_at
+          ),
+          choices: {
+            primary: {
+              label: 'Agree',
+              onPress: handleAgreeSchedule,
+              busy: agreeingSchedule,
+            },
+            secondary: {
+              label: 'Suggest another time',
+              onPress: handleOpenSchedule,
+            },
           },
         };
       }
@@ -3326,7 +3706,7 @@ export default function DonationCoordinationScreen() {
               'Glad I could help!',
               'Thank you!',
             ]
-          : schedule
+          : agreedSchedule
             ? [
                 'I’m on my way.',
                 'I’ve arrived.',
@@ -3342,7 +3722,7 @@ export default function DonationCoordinationScreen() {
               'Thank you so much!',
               'You saved a life today.',
             ]
-          : schedule
+          : agreedSchedule
             ? [
                 'See you there!',
                 'I’m at the lobby.',
@@ -3788,6 +4168,81 @@ export default function DonationCoordinationScreen() {
                       </TouchableOpacity>
                     </View>
 
+                    {nextStep.choices ? (
+                      <FadeInView
+                        key={`choices-${schedule?.scheduled_at || ''}`}
+                        offset={4}
+                        style={styles.stepChoices}
+                      >
+                        <TouchableOpacity
+                          accessibilityRole="button"
+                          activeOpacity={0.8}
+                          disabled={
+                            nextStep.choices
+                              .primary.busy ||
+                            nextStep.choices
+                              .secondary.busy
+                          }
+                          style={styles.stepChoiceSecondary}
+                          onPress={
+                            nextStep.choices
+                              .secondary.onPress
+                          }
+                        >
+                          {nextStep.choices
+                            .secondary.busy ? (
+                            <ActivityIndicator
+                              size="small"
+                              color={COLORS.redButton}
+                            />
+                          ) : (
+                            <Text
+                              numberOfLines={1}
+                              style={styles.stepChoiceSecondaryText}
+                            >
+                              {
+                                nextStep.choices
+                                  .secondary.label
+                              }
+                            </Text>
+                          )}
+                        </TouchableOpacity>
+
+                        <PressableScale
+                          containerStyle={
+                            styles.stepChoicePrimaryWrap
+                          }
+                          style={styles.stepChoicePrimary}
+                          disabled={
+                            nextStep.choices
+                              .primary.busy ||
+                            nextStep.choices
+                              .secondary.busy
+                          }
+                          accessibilityRole="button"
+                          onPress={
+                            nextStep.choices
+                              .primary.onPress
+                          }
+                        >
+                          {nextStep.choices
+                            .primary.busy ? (
+                            <ActivityIndicator
+                              size="small"
+                              color={COLORS.white}
+                            />
+                          ) : (
+                            <Text style={styles.stepActionText}>
+                              {
+                                nextStep.choices
+                                  .primary.label
+                              }
+                            </Text>
+                          )}
+                        </PressableScale>
+                      </FadeInView>
+                    ) : null}
+
                     <ProgressSteps
                       done={stepsDone}
                     />
@@ -3827,6 +4282,14 @@ export default function DonationCoordinationScreen() {
                           }
                           detail={
                             [
+                              !schedule
+                                ? ''
+                                : scheduleAgreed
+                                  ? 'Agreed by both of you'
+                                  : suggestedByMe
+                                    ? `Suggested by you · waiting for ${getOtherFirstName()}`
+                                    : `Suggested by ${getOtherFirstName()} · waiting for you`,
+
                               schedule?.note,
 
                               !isClosed &&
@@ -3844,8 +4307,8 @@ export default function DonationCoordinationScreen() {
                             scheduleLimitPassed
                               ? undefined
                               : schedule
-                                ? 'Edit'
-                                : 'Set'
+                                ? 'Change'
+                                : 'Suggest'
                           }
                           onAction={
                             handleOpenSchedule
@@ -4702,8 +5165,8 @@ export default function DonationCoordinationScreen() {
                   />
 
                   <Text style={styles.noShowCardText}>
-                    {schedule
-                      ? `You agreed to meet ${formatSchedule(schedule.scheduled_at)} at ${request?.facility_name || 'the donation place'}.`
+                    {agreedSchedule
+                      ? `You agreed to meet ${formatSchedule(agreedSchedule.scheduled_at)} at ${request?.facility_name || 'the donation place'}.`
                       : 'The agreed meeting time has passed.'}
                   </Text>
                 </View>
@@ -5315,7 +5778,7 @@ export default function DonationCoordinationScreen() {
                 </View>
 
                 <Text style={styles.sheetIntro}>
-                  Both of you will see this time in the chat.
+                  {getOtherFirstName()} can agree to this time or suggest another. It's set once you both agree.
                 </Text>
 
                 {scheduleLimitText ? (
@@ -5444,7 +5907,7 @@ export default function DonationCoordinationScreen() {
                     />
                   ) : (
                     <Text style={styles.primaryButtonText}>
-                      Save Time
+                      Suggest This Time
                     </Text>
                   )}
                 </TouchableOpacity>
@@ -6301,6 +6764,45 @@ const styles = StyleSheet.create({
     color: COLORS.white,
     fontFamily: 'Poppins_600SemiBold',
     fontSize: 12.5,
+  },
+
+  // Agree / Suggest another time, under the card.
+  stepChoices: {
+    marginTop: 10,
+    flexDirection: 'row',
+    gap: 8,
+  },
+
+  stepChoiceSecondary: {
+    flex: 1.4,
+    minWidth: 0,
+    height: 38,
+    paddingHorizontal: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 19,
+    borderWidth: 1,
+    borderColor: COLORS.cardBorder,
+    backgroundColor: COLORS.white,
+  },
+
+  stepChoiceSecondaryText: {
+    color: COLORS.black,
+    fontFamily: 'Poppins_600SemiBold',
+    fontSize: 12.5,
+  },
+
+  stepChoicePrimaryWrap: {
+    flex: 1,
+    minWidth: 0,
+  },
+
+  stepChoicePrimary: {
+    height: 38,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 19,
+    backgroundColor: COLORS.redButton,
   },
 
   progress: {

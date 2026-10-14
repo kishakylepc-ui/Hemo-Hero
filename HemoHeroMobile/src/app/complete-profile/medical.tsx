@@ -37,6 +37,7 @@ import type { PickedImage } from '../../lib/imageUpload';
 import {
   getAccessToken,
 } from '../../lib/session';
+import { ProgressFill } from '../../components/Motion';
 
 const COLORS = {
   red: '#DB0A0A',
@@ -619,11 +620,7 @@ export default function MedicalInformationScreen() {
                 BODY
             ================================================== */}
 
-            <LinearGradient
-              colors={[
-                COLORS.backgroundTop,
-                COLORS.backgroundBottom,
-              ]}
+            <View
               style={
                 styles.bodyBackground
               }
@@ -642,24 +639,26 @@ export default function MedicalInformationScreen() {
                     styles.progressRow
                   }
                 >
-                  <View
-                    style={
-                      styles.progressLine
-                    }
-                  />
-
-                  <View
-                    style={
-                      styles.progressLine
-                    }
-                  />
-
-                  <View
-                    style={[
-                      styles.progressLine,
-                      styles.progressActive,
-                    ]}
-                  />
+                  {/* Finished steps stay filled; this step fills in. */}
+                  {[0, 1, 2].map(
+                    index => (
+                      <ProgressFill
+                        key={index}
+                        filled={
+                          index <= 2
+                        }
+                        animate={
+                          index === 2
+                        }
+                        style={
+                          styles.progressLine
+                        }
+                        fillStyle={
+                          styles.progressActive
+                        }
+                      />
+                    )
+                  )}
                 </View>
 
                 {/* ==============================================
@@ -1010,7 +1009,7 @@ export default function MedicalInformationScreen() {
                   </TouchableOpacity>
                 </View>
               </View>
-            </LinearGradient>
+            </View>
           </ScrollView>
         </SafeAreaView>
       </View>
@@ -1174,23 +1173,33 @@ const styles =
     },
 
     scroll: {
-      flexGrow: 1,
+      flexGrow:
+        1,
 
+      // Same as the sheet, so the space under the form (home
+      // indicator) matches it.
       backgroundColor:
-        COLORS.backgroundBottom,
+        '#FAFAFA',
     },
 
     // ========================================================
     // HEADER
     // ========================================================
 
+    // Bottom padding leaves room for the sheet, which overlaps
+    // the header by 22.
     header: {
-      height: 205,
+      paddingHorizontal:
+        27,
 
-      paddingHorizontal: 27,
-      paddingTop: 52,
+      paddingTop:
+        14,
 
-      overflow: 'hidden',
+      paddingBottom:
+        40,
+
+      overflow:
+        'hidden',
     },
 
     headerDecoration: {
@@ -1246,13 +1255,24 @@ const styles =
     // BODY
     // ========================================================
 
+    // Rounded sheet over the header, as on Request Blood. A plain
+    // View: inside a gradient, the card pulled over the header was
+    // clipped on iPhone (its top was hidden behind the header).
     bodyBackground: {
-      flex: 1,
+      flexGrow:
+        1,
 
-      minHeight: 669,
+      marginTop:
+        -22,
 
-      paddingHorizontal: 20,
-      paddingBottom: 30,
+      borderTopLeftRadius:
+        22,
+
+      borderTopRightRadius:
+        22,
+
+      backgroundColor:
+        '#FAFAFA',
     },
 
     // ========================================================
@@ -1260,32 +1280,17 @@ const styles =
     // ========================================================
 
     card: {
-      marginTop: -72,
+      flexGrow:
+        1,
 
-      minHeight: 640,
+      paddingHorizontal:
+        20,
 
-      paddingHorizontal: 20,
-      paddingTop: 16,
-      paddingBottom: 24,
+      paddingTop:
+        20,
 
-      backgroundColor:
-        '#FAFAFA',
-
-      borderRadius: 27,
-
-      shadowColor:
-        '#000000',
-
-      shadowOffset: {
-        width: 0,
-        height: 3,
-      },
-
-      shadowOpacity: 0.15,
-
-      shadowRadius: 5,
-
-      elevation: 5,
+      paddingBottom:
+        24,
     },
 
     // ========================================================

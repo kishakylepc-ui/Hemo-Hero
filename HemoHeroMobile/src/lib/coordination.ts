@@ -59,7 +59,27 @@ export type CoordinationSchedule = {
   updated_by: string;
   created_at: string;
   updated_at: string;
+
+  // A time is a suggestion ('proposed') until the other side
+  // agrees. Missing or null: set before agreement existed, so it
+  // counts as agreed.
+  status?: 'proposed' | 'agreed' | null;
+  proposed_by?: string | null;
+  agreed_at?: string | null;
 };
+
+export function isScheduleAgreed(
+  schedule:
+    | Pick<CoordinationSchedule, 'status'>
+    | null
+    | undefined
+) {
+  return Boolean(
+    schedule &&
+      (schedule.status || 'agreed') ===
+        'agreed'
+  );
+}
 
 export type CoordinationSession = {
   request: CoordinationRequest;
@@ -249,7 +269,10 @@ export async function markCoordinationRead(
 }
 
 // ============================================================
-// SET / UPDATE SCHEDULE
+// SUGGEST A MEETING TIME
+//
+// Saved as a suggestion for the other side to agree to.
+// Sending the exact time they suggested agrees to it.
 // ============================================================
 
 export async function saveCoordinationSchedule(
@@ -273,6 +296,39 @@ export async function saveCoordinationSchedule(
       body: JSON.stringify({
         scheduled_at: scheduledAt,
         note: note?.trim() || null,
+      }),
+    }
+  );
+
+  return parseResponse(response);
+}
+
+// ============================================================
+// AGREE TO THE SUGGESTED MEETING TIME
+//
+// Sends the time on screen, so a time the other side changed a
+// moment ago isn't agreed to by mistake.
+// ============================================================
+
+export async function agreeCoordinationSchedule(
+  token: string,
+  requestId: string,
+  responseId: string,
+  scheduledAt: string
+): Promise<{
+  message: string;
+  schedule: CoordinationSchedule;
+}> {
+  const response = await authorizedFetch(
+    `${API_URL}/api/requests/${requestId}/responses/${responseId}/schedule/agree`,
+    {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${token}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        scheduled_at: scheduledAt,
       }),
     }
   );

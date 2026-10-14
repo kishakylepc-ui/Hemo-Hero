@@ -11,6 +11,7 @@ import {
   Pressable,
   type PressableProps,
   type StyleProp,
+  View,
   type ViewStyle,
 } from 'react-native';
 
@@ -175,6 +176,103 @@ export function PulseRing({
         ],
       }}
     />
+  );
+}
+
+// ------------------------------------------------------------
+// PROGRESS FILL
+//
+// One segment of a step progress bar. `style` is the empty
+// track; `fillStyle` gives the fill its color. With `animate`
+// (the step that just opened) the fill grows in from the left,
+// so moving to the next step reads as progress.
+// ------------------------------------------------------------
+
+export function ProgressFill({
+  filled,
+  animate = false,
+  style,
+  fillStyle,
+}: {
+  filled: boolean;
+  animate?: boolean;
+  style?: StyleProp<ViewStyle>;
+  fillStyle?: StyleProp<ViewStyle>;
+}) {
+  const progress =
+    useRef(
+      new Animated.Value(
+        filled && !animate
+          ? 1
+          : 0
+      )
+    ).current;
+
+  useEffect(() => {
+    if (
+      !filled ||
+      !animate
+    ) {
+      progress.setValue(
+        filled ? 1 : 0
+      );
+
+      return;
+    }
+
+    // Starts once the screen has faded in.
+    const animation =
+      Animated.timing(progress, {
+        toValue: 1,
+        duration: 480,
+        delay: 160,
+        easing: Easing.out(
+          Easing.cubic
+        ),
+        useNativeDriver:
+          USE_NATIVE_DRIVER,
+      });
+
+    animation.start();
+
+    return () =>
+      animation.stop();
+  }, [filled, animate]);
+
+  return (
+    <View
+      style={[
+        style,
+
+        {
+          overflow: 'hidden',
+        },
+      ]}
+    >
+      <Animated.View
+        style={[
+          {
+            position: 'absolute',
+            top: 0,
+            right: 0,
+            bottom: 0,
+            left: 0,
+          },
+
+          fillStyle,
+
+          {
+            transformOrigin: 'left',
+
+            transform: [
+              {
+                scaleX: progress,
+              },
+            ],
+          },
+        ]}
+      />
+    </View>
   );
 }
 

@@ -36,7 +36,10 @@ import {
 
 import {
   SafeAreaView,
+  useSafeAreaInsets,
 } from 'react-native-safe-area-context';
+
+import { shiftedDown, withStatusBar } from '../lib/fullScreen';
 
 import {
   resendVerification,
@@ -114,6 +117,11 @@ type ActionPopupState = {
 // ============================================================
 
 export default function VerifyEmailScreen() {
+  // The header is drawn behind the status bar (full screen,
+  // like the Home screen).
+  const insets =
+    useSafeAreaInsets();
+
   const params =
     useLocalSearchParams<{
       email?:
@@ -559,8 +567,10 @@ function showMessage(
           style={
             styles.safeArea
           }
+          // The header is drawn behind the status bar.
           edges={[
-            'top',
+            'left',
+            'right',
           ]}
         >
           <StatusBar
@@ -612,20 +622,23 @@ function showMessage(
                       COLORS.red,
                       COLORS.redDark,
                     ]}
-                    style={
-                      styles.header
-                    }
+                    style={withStatusBar(
+                      styles.header,
+                      insets.top
+                    )}
                   >
                     <View
-                      style={
-                        styles.headerCircleLeft
-                      }
+                      style={shiftedDown(
+                        styles.headerCircleLeft,
+                        insets.top
+                      )}
                     />
 
                     <View
-                      style={
-                        styles.headerCircleRight
-                      }
+                      style={shiftedDown(
+                        styles.headerCircleRight,
+                        insets.top
+                      )}
                     />
 
                     <Text
@@ -651,9 +664,15 @@ function showMessage(
                 ============================================ */}
 
                 <View
-                  style={
-                    styles.logoCircle
-                  }
+                  style={[
+                    styles.logoCircle,
+
+                    // Moves down with the header.
+                    {
+                      marginTop:
+                        insets.top,
+                    },
+                  ]}
                 >
                   <Image
                     source={require(

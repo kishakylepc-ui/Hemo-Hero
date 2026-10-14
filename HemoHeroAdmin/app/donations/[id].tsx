@@ -345,8 +345,18 @@ export default function DonationReviewScreen() {
     detail?.response?.status ===
     'accepted';
 
+  // Only a time both sides agreed to counts.
   const scheduled =
-    Boolean(detail?.schedule);
+    Boolean(
+      detail?.schedule &&
+        (detail.schedule.status ||
+          'agreed') ===
+          'agreed'
+    );
+
+  const scheduleOnlySuggested =
+    Boolean(detail?.schedule) &&
+    !scheduled;
 
   // Warn when the donor's recorded last donation is less than
   // 90 days before this one (skipped when it IS this one).
@@ -995,9 +1005,13 @@ export default function DonationReviewScreen() {
                           label="Coordination Schedule"
                           value={
                             detail.schedule
-                              ? formatDateTime(
+                              ? `${formatDateTime(
                                   detail.schedule.scheduled_at
-                                )
+                                )}${
+                                  scheduleOnlySuggested
+                                    ? ' (suggested, not agreed)'
+                                    : ''
+                                }`
                               : 'Not set in chat'
                           }
                         />
@@ -1389,7 +1403,9 @@ export default function DonationReviewScreen() {
                         label={
                           scheduled
                             ? 'Donation was scheduled in chat'
-                            : 'No schedule set in chat (optional)'
+                            : scheduleOnlySuggested
+                              ? 'A time was suggested in chat but not agreed (optional)'
+                              : 'No schedule set in chat (optional)'
                         }
                       />
 

@@ -252,98 +252,100 @@ function WheelColumn({
   }
 
   return (
-    <Animated.ScrollView
-      ref={scrollRef}
-      style={styles.column}
-      contentContainerStyle={{
-        paddingVertical: PADDING,
-      }}
-      contentOffset={{
-        x: 0,
-        y: selectedIndex * ITEM_HEIGHT,
-      }}
-      showsVerticalScrollIndicator={false}
-      snapToInterval={ITEM_HEIGHT}
-      decelerationRate="fast"
-      scrollEventThrottle={16}
-      nestedScrollEnabled
-      accessibilityLabel={`${label}, ${values[selectedIndex]}`}
-      onLayout={() =>
-        scrollToIndex(
-          reportedIndex.current,
-          false
-        )
-      }
-      onScroll={Animated.event(
-        [
-          {
-            nativeEvent: {
-              contentOffset: {
-                y: scrollY,
+    <View style={styles.columnFrame}>
+      <Animated.ScrollView
+        ref={scrollRef}
+        style={styles.column}
+        contentContainerStyle={{
+          paddingVertical: PADDING,
+        }}
+        contentOffset={{
+          x: 0,
+          y: selectedIndex * ITEM_HEIGHT,
+        }}
+        showsVerticalScrollIndicator={false}
+        snapToInterval={ITEM_HEIGHT}
+        decelerationRate="fast"
+        scrollEventThrottle={16}
+        nestedScrollEnabled
+        accessibilityLabel={`${label}, ${values[selectedIndex]}`}
+        onLayout={() =>
+          scrollToIndex(
+            reportedIndex.current,
+            false
+          )
+        }
+        onScroll={Animated.event(
+          [
+            {
+              nativeEvent: {
+                contentOffset: {
+                  y: scrollY,
+                },
               },
             },
-          },
-        ],
-        {
-          useNativeDriver:
-            Platform.OS !== 'web',
-          listener: handleScroll,
-        }
-      )}
-    >
-      {values.map((value, index) => {
-        // Rows fade and shrink the further they are from the
-        // middle, like a wheel.
-        const inputRange = [
-          (index - 2) * ITEM_HEIGHT,
-          (index - 1) * ITEM_HEIGHT,
-          index * ITEM_HEIGHT,
-          (index + 1) * ITEM_HEIGHT,
-          (index + 2) * ITEM_HEIGHT,
-        ];
+          ],
+          {
+            useNativeDriver:
+              Platform.OS !== 'web',
+            listener: handleScroll,
+          }
+        )}
+      >
+        {values.map((value, index) => {
+          // Rows fade and shrink the further they are from the
+          // middle, like a wheel.
+          const inputRange = [
+            (index - 2) * ITEM_HEIGHT,
+            (index - 1) * ITEM_HEIGHT,
+            index * ITEM_HEIGHT,
+            (index + 1) * ITEM_HEIGHT,
+            (index + 2) * ITEM_HEIGHT,
+          ];
 
-        const opacity =
-          scrollY.interpolate({
-            inputRange,
-            outputRange: [0.2, 0.45, 1, 0.45, 0.2],
-            extrapolate: 'clamp',
-          });
+          const opacity =
+            scrollY.interpolate({
+              inputRange,
+              outputRange: [0.2, 0.45, 1, 0.45, 0.2],
+              extrapolate: 'clamp',
+            });
 
-        const scale =
-          scrollY.interpolate({
-            inputRange,
-            outputRange: [0.82, 0.9, 1.12, 0.9, 0.82],
-            extrapolate: 'clamp',
-          });
+          const scale =
+            scrollY.interpolate({
+              inputRange,
+              outputRange: [0.82, 0.9, 1.12, 0.9, 0.82],
+              extrapolate: 'clamp',
+            });
 
-        return (
-          <TouchableOpacity
-            key={value}
-            style={styles.item}
-            activeOpacity={0.6}
-            accessibilityLabel={`${label} ${value}`}
-            onPress={() => {
-              report(index);
-              scrollToIndex(index, true);
-            }}
-          >
-            <Animated.Text
-              maxFontSizeMultiplier={MAX_TEXT_SCALE}
-              style={[
-                styles.itemText,
-
-                {
-                  opacity,
-                  transform: [{ scale }],
-                },
-              ]}
+          return (
+            <TouchableOpacity
+              key={value}
+              style={styles.item}
+              activeOpacity={0.6}
+              accessibilityLabel={`${label} ${value}`}
+              onPress={() => {
+                report(index);
+                scrollToIndex(index, true);
+              }}
             >
-              {value}
-            </Animated.Text>
-          </TouchableOpacity>
-        );
-      })}
-    </Animated.ScrollView>
+              <Animated.Text
+                maxFontSizeMultiplier={MAX_TEXT_SCALE}
+                style={[
+                  styles.itemText,
+
+                  {
+                    opacity,
+                    transform: [{ scale }],
+                  },
+                ]}
+              >
+                {value}
+              </Animated.Text>
+            </TouchableOpacity>
+          );
+        })}
+      </Animated.ScrollView>
+    </View>
   );
 }
 
@@ -377,11 +379,24 @@ const styles = StyleSheet.create({
     pointerEvents: 'none',
   },
 
-  column: {
+  // A ScrollView grows by default (flexGrow: 1). Straight in this
+  // row, that stretched each wheel across the sheet on phones and
+  // pushed AM/PM off the edge, so each wheel sits in a plain
+  // fixed-size frame.
+  columnFrame: {
     width: 72,
     height:
       ITEM_HEIGHT *
       VISIBLE_ITEMS,
+    flexGrow: 0,
+    flexShrink: 0,
+  },
+
+  column: {
+    width: '100%',
+    height: '100%',
+    flexGrow: 0,
+    flexShrink: 0,
     // Browser scroll snapping (web ignores snapToInterval).
     scrollSnapType:
       Platform.OS === 'web'
@@ -420,6 +435,7 @@ const styles = StyleSheet.create({
   },
 
   periodColumn: {
+    flexShrink: 0,
     marginLeft: 16,
     gap: 8,
   },

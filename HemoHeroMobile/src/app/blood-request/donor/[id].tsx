@@ -104,6 +104,7 @@ import AppModal from '../../../components/AppModal';
 
 import {
   getCoordinationInbox,
+  isScheduleAgreed,
   type CoordinationInboxItem,
 } from '../../../lib/coordination';
 
@@ -2497,10 +2498,16 @@ export default function DonorBloodRequestScreen() {
       'accepted' &&
     !donationActive &&
     conversation?.schedule
-      ? formatMeeting(
+      ? `${formatMeeting(
           conversation.schedule
             .scheduled_at
-        )
+        )}${
+          isScheduleAgreed(
+            conversation.schedule
+          )
+            ? ''
+            : ' · not agreed yet'
+        }`
       : '';
 
   const requesterName =
@@ -2541,7 +2548,7 @@ export default function DonorBloodRequestScreen() {
           {
             label: 'Scheduled',
             done:
-              Boolean(
+              isScheduleAgreed(
                 conversation?.schedule
               ) ||
               donationActive,

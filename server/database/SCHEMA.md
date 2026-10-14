@@ -1,6 +1,6 @@
 # Hemo-Hero Database Structure
 
-Generated from the live Supabase database on 2026-10-10 by `npm run schema:doc` (server folder). Don't edit this file by hand; run the command again after a migration.
+Generated from the live Supabase database on 2026-10-14 by `npm run schema:doc` (server folder). Don't edit this file by hand; run the command again after a migration.
 
 The tables live in the `public` schema of Supabase (PostgreSQL). Sign-in accounts are Supabase Auth users, and `users.id` is the same id. The server reads and writes with the service role, so the apps never touch the tables directly.
 
@@ -8,18 +8,18 @@ Schema changes are in [migrations](migrations/), run in date order in the Supaba
 
 ## Summary
 
-18 tables, 40 foreign keys.
+18 tables, 41 foreign keys.
 
 | Table | Columns | Foreign keys | Purpose |
 | --- | --- | --- | --- |
 | [users](#users) | 22 | 0 | Every account: donors, requesters and admins. The id is the Supabase Auth user id. role is user, admin or super_admin. |
 | [donor_applications](#donor_applications) | 22 | 2 | A user's application to become a donor: eligibility answers, blood type, availability and the admin's review. |
-| [blood_requests](#blood_requests) | 30 | 2 | Blood requests posted by requesters: blood type, bags needed, urgency, schedule, meet-up location and status. |
+| [blood_requests](#blood_requests) | 25 | 2 | Blood requests posted by requesters: blood type, bags needed, urgency, schedule, meet-up location and status. |
 | [blood_request_responses](#blood_request_responses) | 7 | 2 | A donor's offer to help with a request (pending, accepted, rejected, no-show and so on). |
 | [blood_request_invitations](#blood_request_invitations) | 9 | 3 | A requester's invitation to a specific donor to help with a request. |
 | [blood_request_coordination_messages](#blood_request_coordination_messages) | 6 | 3 | Chat messages between the requester and a donor about a request. |
-| [blood_request_coordination_schedules](#blood_request_coordination_schedules) | 9 | 4 | The meet-up time agreed between the requester and a donor. |
-| [blood_request_trips](#blood_request_trips) | 21 | 3 | The donor's live trip to the meet-up location (shared location and arrival). |
+| [blood_request_coordination_schedules](#blood_request_coordination_schedules) | 12 | 5 | The meet-up time for a requester and donor: suggested by one side (status proposed) until the other agrees (agreed). |
+| [blood_request_trips](#blood_request_trips) | 22 | 3 | The donor's live trip to the meet-up location (shared location and arrival). |
 | [blood_donations](#blood_donations) | 23 | 5 | Donations recorded when a request is completed. Flagged ones wait for admin review. |
 | [donation_feedback](#donation_feedback) | 10 | 4 | Ratings and comments both sides leave after a donation. |
 | [user_reports](#user_reports) | 17 | 5 | Problems reported by users (no-shows, false requests and other issues) for admin review. |
@@ -73,6 +73,7 @@ erDiagram
     uuid response_id FK
     uuid created_by FK
     uuid updated_by FK
+    uuid proposed_by FK
   }
   blood_request_trips {
     uuid id PK
@@ -146,6 +147,7 @@ erDiagram
   blood_request_responses ||--o{ blood_request_coordination_schedules : "response_id"
   users o|--o{ blood_request_coordination_schedules : "created_by"
   users o|--o{ blood_request_coordination_schedules : "updated_by"
+  users o|--o{ blood_request_coordination_schedules : "proposed_by"
   blood_requests ||--o{ blood_request_trips : "request_id"
   blood_request_responses ||--o{ blood_request_trips : "response_id"
   users ||--o{ blood_request_trips : "donor_id"
@@ -190,6 +192,7 @@ erDiagram
 | blood_request_coordination_schedules.response_id | blood_request_responses.id |
 | blood_request_coordination_schedules.created_by | users.id |
 | blood_request_coordination_schedules.updated_by | users.id |
+| blood_request_coordination_schedules.proposed_by | users.id |
 | blood_request_trips.request_id | blood_requests.id |
 | blood_request_trips.response_id | blood_request_responses.id |
 | blood_request_trips.donor_id | users.id |
@@ -285,14 +288,9 @@ Blood requests posted by requesters: blood type, bags needed, urgency, schedule,
 | --- | --- | --- | --- | --- |
 | id | uuid | no | `gen_random_uuid()` | PK |
 | requester_id | uuid | no |  | FK → users.id |
-| patient_name | text | yes |  |  |
 | blood_type | text | no |  |  |
 | units_needed | integer | no | `1` |  |
-| hospital | text | yes |  |  |
-| location_lat | numeric | yes |  |  |
-| location_lng | numeric | yes |  |  |
 | urgency | text | no | `normal` |  |
-| needed_by | timestamptz | yes |  |  |
 | status | text | no | `active` |  |
 | created_at | timestamptz | no | `now()` |  |
 | updated_at | timestamptz | no | `now()` |  |
@@ -359,7 +357,7 @@ Chat messages between the requester and a donor about a request.
 
 ### blood_request_coordination_schedules
 
-The meet-up time agreed between the requester and a donor.
+The meet-up time for a requester and donor: suggested by one side (status proposed) until the other agrees (agreed).
 
 | Column | Type | Null | Default | Key |
 | --- | --- | --- | --- | --- |
@@ -372,6 +370,9 @@ The meet-up time agreed between the requester and a donor.
 | updated_by | uuid | yes |  | FK → users.id |
 | created_at | timestamptz | no | `now()` |  |
 | updated_at | timestamptz | no | `now()` |  |
+| status | text | yes |  |  |
+| proposed_by | uuid | yes |  | FK → users.id |
+| agreed_at | timestamptz | yes |  |  |
 
 ### blood_request_trips
 
@@ -400,6 +401,7 @@ The donor's live trip to the meet-up location (shared location and arrival).
 | ended_at | timestamptz | yes |  |  |
 | created_at | timestamptz | no | `now()` |  |
 | updated_at | timestamptz | no | `now()` |  |
+| arrival_disputed_at | timestamptz | yes |  |  |
 
 ### blood_donations
 
@@ -592,5 +594,4 @@ The list of database backups. The backup files are in the private backups storag
 
 ## Database functions
 
-- `haversine_km`
 - `restore_backup`

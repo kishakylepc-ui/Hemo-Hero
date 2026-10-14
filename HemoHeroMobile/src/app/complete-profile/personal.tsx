@@ -28,6 +28,7 @@ import {
   normalizePhone,
   PHONE_ERROR,
 } from '../../lib/phone';
+import { ProgressFill } from '../../components/Motion';
 
 const COLORS = {
   red: '#DB0A0A',
@@ -781,11 +782,7 @@ export default function PersonalInformationScreen() {
                   BODY
               ================================================== */}
 
-              <LinearGradient
-                colors={[
-                  COLORS.backgroundTop,
-                  COLORS.backgroundBottom,
-                ]}
+              <View
                 style={
                   styles.bodyBackground
                 }
@@ -804,24 +801,26 @@ export default function PersonalInformationScreen() {
                       styles.progressRow
                     }
                   >
-                    <View
-                      style={[
-                        styles.progressLine,
-                        styles.progressActive,
-                      ]}
-                    />
-
-                    <View
-                      style={
-                        styles.progressLine
-                      }
-                    />
-
-                    <View
-                      style={
-                        styles.progressLine
-                      }
-                    />
+                    {/* Finished steps stay filled; this step fills in. */}
+                    {[0, 1, 2].map(
+                      index => (
+                        <ProgressFill
+                          key={index}
+                          filled={
+                            index <= 0
+                          }
+                          animate={
+                            index === 0
+                          }
+                          style={
+                            styles.progressLine
+                          }
+                          fillStyle={
+                            styles.progressActive
+                          }
+                        />
+                      )
+                    )}
                   </View>
 
                   {/* ==============================================
@@ -1331,7 +1330,7 @@ export default function PersonalInformationScreen() {
                     </Text>
                   </TouchableOpacity>
                 </View>
-              </LinearGradient>
+              </View>
             </ScrollView>
           </KeyboardAvoidingView>
         </SafeAreaView>
@@ -1889,23 +1888,27 @@ const styles =
       flexGrow:
         1,
 
+      // Same as the sheet, so the space under the form (home
+      // indicator) matches it.
       backgroundColor:
-        COLORS.backgroundBottom,
+        '#FAFAFA',
     },
 
     // ==========================================================
     // HEADER
     // ==========================================================
 
+    // Bottom padding leaves room for the sheet, which overlaps
+    // the header by 22.
     header: {
-      height:
-        205,
-
       paddingHorizontal:
         27,
 
       paddingTop:
-        52,
+        14,
+
+      paddingBottom:
+        40,
 
       overflow:
         'hidden',
@@ -1983,6 +1986,9 @@ const styles =
     // BODY
     // ==========================================================
 
+    // Rounded sheet over the header, as on Request Blood. A plain
+    // View: inside a gradient, the card pulled over the header was
+    // clipped on iPhone (its top was hidden behind the header).
     // flexGrow (not flex: 1): fills the screen when the form is
     // short but grows with it, so the page stays scrollable when
     // the keyboard is open.
@@ -1990,14 +1996,17 @@ const styles =
       flexGrow:
         1,
 
-      minHeight:
-        669,
+      marginTop:
+        -22,
 
-      paddingHorizontal:
-        20,
+      borderTopLeftRadius:
+        22,
 
-      paddingBottom:
-        30,
+      borderTopRightRadius:
+        22,
+
+      backgroundColor:
+        '#FAFAFA',
     },
 
     // ==========================================================
@@ -2005,46 +2014,17 @@ const styles =
     // ==========================================================
 
     card: {
-      marginTop:
-        -72,
-
-      minHeight:
-        640,
+      flexGrow:
+        1,
 
       paddingHorizontal:
         20,
 
       paddingTop:
-        16,
+        20,
 
       paddingBottom:
         24,
-
-      backgroundColor:
-        '#FAFAFA',
-
-      borderRadius:
-        27,
-
-      shadowColor:
-        '#000000',
-
-      shadowOffset: {
-        width:
-          0,
-
-        height:
-          3,
-      },
-
-      shadowOpacity:
-        0.15,
-
-      shadowRadius:
-        5,
-
-      elevation:
-        5,
     },
 
     // ==========================================================
