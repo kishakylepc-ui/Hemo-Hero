@@ -10,6 +10,8 @@ Write each change under **Unreleased** as you make it. `node scripts/version.js 
 
 ## Unreleased
 
+## 1.1.0 - 2026-10-14
+
 - Chat: a meeting time is now a suggestion until the other person agrees. They can tap Agree or suggest another time, back and forth, until one side agrees. Changing an agreed time asks the other person again. Only an agreed time counts for the Scheduled step and for no-show reports. Needs migration `20261014_schedule_agreement.sql`.
 - Chat: when the donor is marked as arrived, the requester's top card has **Not here yet** next to Confirm. It works like the trip map: the trip goes back to "on the way" and the donor gets a message. If the donor is still "on the way" after the agreed time, the card has **Didn't show up** next to Track.
 - Admin donation details show when a meeting time was suggested but never agreed.
