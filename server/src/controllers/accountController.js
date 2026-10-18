@@ -1309,6 +1309,19 @@ async function deleteAccountPermanently(
       req.dbUser.role;
 
     // --------------------------------------------------------
+    // RELEASE OPEN OFFERS AND REQUESTS
+    //
+    // Same as deactivating: donors and requesters waiting on
+    // this person are told before the delete removes their
+    // requests, offers and chats. Runs first because it reads
+    // the account (the notifications use their name).
+    // --------------------------------------------------------
+
+    await releaseDeactivatedAccount(
+      userId
+    );
+
+    // --------------------------------------------------------
     // DELETE PUBLIC USER
     //
     // Database foreign keys handle:

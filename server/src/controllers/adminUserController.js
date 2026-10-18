@@ -3069,6 +3069,24 @@ async function deleteAdminUser(
       }
 
     // --------------------------------------------------------
+    // RELEASE OPEN OFFERS AND REQUESTS
+    //
+    // Same as deactivating: donors and requesters waiting on
+    // this person are told before the delete removes their
+    // requests, offers and chats. Runs first because it reads
+    // the account (the notifications use their name). Only
+    // user accounts are deleted below.
+    // --------------------------------------------------------
+
+    const released =
+      targetUser.role ===
+      'user'
+        ? await releaseDeactivatedAccount(
+            targetUserId
+          )
+        : null;
+
+    // --------------------------------------------------------
     // DELETE PUBLIC USER FIRST
     //
     // Existing foreign-key rules handle related Hemo-Hero data.
@@ -3178,11 +3196,20 @@ async function deleteAdminUser(
         });
     }
 
+    const releaseSummary =
+      describeRelease(
+        released
+      );
+
     return res
       .status(200)
       .json({
         message:
-          'User account permanently deleted successfully.',
+          releaseSummary
+            ? `User account permanently deleted successfully. ${releaseSummary}`
+            : 'User account permanently deleted successfully.',
+
+        released,
 
         deleted:
           true,

@@ -27,8 +27,10 @@ const {
 //
 // A deactivated person can't sign in, so nothing they're part
 // of should keep waiting on them. Runs after any deactivation
-// (Users module, an Issue, or the person deleting their own
-// account).
+// (Users module, an Issue, or the person deactivating their own
+// account), and before a permanent delete (by an admin or the
+// person), since the delete removes their requests and offers
+// without telling anyone.
 //
 // As a donor (only on requests that are still active):
 //   - pending offers                       -> 'withdrawn'
