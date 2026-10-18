@@ -2,7 +2,7 @@
   "expo": {
     "name": "Hemo-Hero Admin",
     "slug": "HemoHeroAdmin",
-    "version": "1.1.0",
+    "version": "1.1.1",
     "orientation": "default",
     "icon": "./assets/images/icon.png",
     "scheme": "hemoheroadmin",

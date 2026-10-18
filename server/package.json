@@ -1,6 +1,6 @@
 {
   "name": "hemo-hero-server",
-  "version": "1.1.0",
+  "version": "1.1.1",
   "private": true,
   "description": "Hemo-Hero backend - Express + Supabase",
   "main": "src/server.js",

@@ -10,6 +10,8 @@ Write each change under **Unreleased** as you make it. `node scripts/version.js 
 
 ## Unreleased
 
+## 1.1.1 - 2026-10-18
+
 - Permanently deleting an account, by an admin or by the person, now first does what deactivating does: their open offers are withdrawn, invitations to them are cancelled, their active requests close, and everyone affected is notified. Before, the delete removed their requests, offers and chats without telling anyone. Donation records, ratings and reports were already kept.
 
 ## 1.1.0 - 2026-10-14
