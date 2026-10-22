@@ -18,6 +18,7 @@ import {
 
 import AppIntro from '../components/AppIntro';
 import PushNotificationsBridge from '../components/PushNotificationsBridge';
+import SessionTimeout from '../components/SessionTimeout';
 
 SplashScreen.preventAutoHideAsync();
 
@@ -71,8 +72,10 @@ export default function RootLayout() {
     return null;
   }
 
+  // SessionTimeout: 15-minute inactivity sign-out (and, on the
+  // web, signing out every tab together).
   return (
-    <>
+    <SessionTimeout>
       <Stack
         screenOptions={{
           headerShown: false,
@@ -129,6 +132,6 @@ export default function RootLayout() {
 
       {/* Opening animation, once per launch, over the first screen */}
       <AppIntro />
-    </>
+    </SessionTimeout>
   );
 }

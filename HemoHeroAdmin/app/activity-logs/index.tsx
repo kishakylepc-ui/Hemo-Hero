@@ -1806,7 +1806,13 @@ function getActionIcon(
   const normalized =
     String(action || '').toUpperCase();
 
+  if (normalized.includes('LOCKOUT')) return 'lock-clock';
+  if (normalized.includes('CAPTCHA')) return 'security';
+  if (normalized.includes('UNLOCK')) return 'lock-open';
+  if (normalized.includes('LOCK_USER')) return 'lock';
+  if (normalized.includes('ROLE')) return 'admin-panel-settings';
   if (normalized.includes('LOGIN')) return 'login';
+  if (normalized.includes('AUTO_LOGOUT')) return 'timer-off';
   if (normalized.includes('LOGOUT')) return 'logout';
 
   if (

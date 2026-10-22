@@ -1,5 +1,6 @@
 import {
   useCallback,
+  useEffect,
   useState,
 } from 'react';
 
@@ -40,17 +41,23 @@ import {
 import { shiftedDown, withStatusBar } from '../../lib/fullScreen';
 
 import {
-  changeEmail,
+  ApiError,
   changePassword,
   deactivateAccount,
   deleteAccountPermanently,
   getCurrentUser,
+  requestEmailChange,
+  resendEmailChange,
+  verifyEmailChange,
+  type EmailChangeTarget,
 } from '../../lib/api';
 
 import {
   clearSession,
   getAccessToken,
 } from '../../lib/session';
+
+import { goToSignIn } from '../../lib/signInRoute';
 
 import AuthField from '../../components/AuthField';
 
@@ -168,6 +175,76 @@ export default function AccountSecurityScreen() {
   ] = useState(
     false
   );
+
+  // 'form': new email + password. 'code': the code emailed to
+  // the new address (and, if asked, the current one).
+  const [
+    emailStep,
+    setEmailStep,
+  ] = useState<
+    'form' | 'code'
+  >('form');
+
+  const [
+    pendingEmail,
+    setPendingEmail,
+  ] = useState('');
+
+  const [
+    codeTarget,
+    setCodeTarget,
+  ] = useState<EmailChangeTarget>(
+    'new'
+  );
+
+  const [
+    emailCode,
+    setEmailCode,
+  ] = useState('');
+
+  // "We sent a 6-digit code to ..."
+  const [
+    emailNotice,
+    setEmailNotice,
+  ] = useState('');
+
+  const [
+    resendSeconds,
+    setResendSeconds,
+  ] = useState(0);
+
+  const [
+    resendingCode,
+    setResendingCode,
+  ] = useState(false);
+
+  // Counts down to when a new code may be sent.
+  useEffect(() => {
+    if (
+      resendSeconds <=
+      0
+    ) {
+      return;
+    }
+
+    const timer =
+      setTimeout(
+        () =>
+          setResendSeconds(
+            current =>
+              Math.max(
+                0,
+                current - 1
+              )
+          ),
+        1000
+      );
+
+    return () =>
+      clearTimeout(timer);
+  }, [
+    resendSeconds,
+  ]);
 
   // ==========================================================
   // CHANGE PASSWORD
@@ -489,9 +566,29 @@ export default function AccountSecurityScreen() {
       false
     );
 
+    setEmailStep('form');
+    setPendingEmail('');
+    setCodeTarget('new');
+    setEmailCode('');
+    setEmailNotice('');
+
     setEmailModalVisible(
       true
     );
+  }
+
+  // Back from the code to the form (e.g. to fix a typo).
+  function backToEmailForm() {
+    if (
+      changingEmail
+    ) {
+      return;
+    }
+
+    setEmailStep('form');
+    setEmailCode('');
+    setEmailNotice('');
+    setEmailModalError('');
   }
 
   function closeChangeEmail() {
@@ -608,13 +705,121 @@ export default function AccountSecurityScreen() {
         return;
       }
 
-      await changeEmail(
-        token,
-        emailCurrentPassword,
-        cleanNewEmail,
-        cleanConfirmEmail
+      // Nothing changes yet: the new address gets a code.
+      const result =
+        await requestEmailChange(
+          token,
+          emailCurrentPassword,
+          cleanNewEmail,
+          cleanConfirmEmail
+        );
+
+      setPendingEmail(
+        result.new_email ||
+          cleanNewEmail
       );
 
+      setCodeTarget('new');
+      setEmailCode('');
+      setEmailNotice(
+        result.message
+      );
+
+      setResendSeconds(
+        result.resend_after_seconds ||
+          60
+      );
+
+      setEmailStep('code');
+    } catch (error) {
+      console.log(
+        'CHANGE EMAIL ERROR:',
+        error
+      );
+
+      setEmailModalError(
+        error instanceof Error
+          ? error.message
+          : 'Unable to change your email address.'
+      );
+    } finally {
+      setChangingEmail(
+        false
+      );
+    }
+  }
+
+  // ----------------------------------------------------------
+  // THE CODE
+  // ----------------------------------------------------------
+
+  async function performVerifyEmailCode() {
+    if (
+      changingEmail
+    ) {
+      return;
+    }
+
+    const code =
+      emailCode.trim();
+
+    setEmailModalError('');
+
+    if (
+      !/^\d{6}$/.test(
+        code
+      )
+    ) {
+      setEmailModalError(
+        'Enter the 6-digit code from the email.'
+      );
+
+      return;
+    }
+
+    try {
+      setChangingEmail(
+        true
+      );
+
+      const token =
+        await getAccessToken();
+
+      if (!token) {
+        await clearSession();
+
+        goToSignIn();
+
+        return;
+      }
+
+      const result =
+        await verifyEmailChange(
+          token,
+          pendingEmail,
+          code,
+          codeTarget
+        );
+
+      // Secure email change: the other address got a code too.
+      if (
+        result.status ===
+        'confirm_other'
+      ) {
+        setCodeTarget(
+          result.next_target
+        );
+
+        setEmailCode('');
+
+        setEmailNotice(
+          result.message
+        );
+
+        return;
+      }
+
+      // Changed: every session ended on the server.
       await clearSession();
 
       setEmailModalVisible(
@@ -634,17 +839,123 @@ export default function AccountSecurityScreen() {
       );
     } catch (error) {
       console.log(
-        'CHANGE EMAIL ERROR:',
+        'VERIFY EMAIL CHANGE ERROR:',
         error
       );
+
+      const code =
+        error instanceof ApiError
+          ? error.data?.code
+          : null;
+
+      // Too many tries or too old: a new code is needed.
+      if (
+        code ===
+          'OTP_TOO_MANY_ATTEMPTS' ||
+        code ===
+          'OTP_EXPIRED'
+      ) {
+        setEmailCode('');
+      }
+
+      // The change was cancelled or replaced: start again.
+      if (
+        code ===
+        'EMAIL_CHANGE_NOT_PENDING'
+      ) {
+        setEmailStep('form');
+      }
 
       setEmailModalError(
         error instanceof Error
           ? error.message
-          : 'Unable to change your email address.'
+          : 'Unable to verify the code.'
       );
     } finally {
       setChangingEmail(
+        false
+      );
+    }
+  }
+
+  async function handleResendEmailCode() {
+    if (
+      resendSeconds > 0 ||
+      resendingCode ||
+      changingEmail
+    ) {
+      return;
+    }
+
+    setEmailModalError('');
+
+    try {
+      setResendingCode(
+        true
+      );
+
+      const token =
+        await getAccessToken();
+
+      if (!token) {
+        await clearSession();
+
+        goToSignIn();
+
+        return;
+      }
+
+      const result =
+        await resendEmailChange(
+          token,
+          pendingEmail
+        );
+
+      // New codes go to every address again; start with the
+      // new one.
+      setCodeTarget('new');
+      setEmailCode('');
+
+      setEmailNotice(
+        result.message
+      );
+
+      setResendSeconds(
+        result.resend_after_seconds ||
+          60
+      );
+    } catch (error) {
+      console.log(
+        'RESEND EMAIL CHANGE ERROR:',
+        error
+      );
+
+      const waitSeconds =
+        error instanceof ApiError
+          ? Number(
+              error.data
+                ?.retry_after_seconds
+            )
+          : NaN;
+
+      if (
+        Number.isFinite(
+          waitSeconds
+        ) &&
+        waitSeconds > 0
+      ) {
+        setResendSeconds(
+          waitSeconds
+        );
+      }
+
+      setEmailModalError(
+        error instanceof Error
+          ? error.message
+          : 'Unable to send a new code.'
+      );
+    } finally {
+      setResendingCode(
         false
       );
     }
@@ -1063,9 +1374,8 @@ export default function AccountSecurityScreen() {
       false
     );
 
-    router.replace(
-      '/'
-    );
+    // Closes every screen, so Back can't return.
+    goToSignIn();
   }
 
   // ==========================================================
@@ -1545,7 +1855,10 @@ export default function AccountSecurityScreen() {
                         styles.modalSubtitle
                       }
                     >
-                      Enter a new email address for your Hemo-Hero account.
+                      {emailStep ===
+                      'form'
+                        ? 'Enter a new email address for your Hemo-Hero account. We will send a code to confirm it.'
+                        : 'Enter the 6-digit code to confirm the change. Your email stays the same until then.'}
                     </Text>
                   </View>
 
@@ -1580,7 +1893,13 @@ export default function AccountSecurityScreen() {
                       styles.currentAccountLabel
                     }
                   >
-                    Current email
+                    {emailStep ===
+                    'form'
+                      ? 'Current email'
+                      : codeTarget ===
+                          'new'
+                        ? 'Code sent to your new email'
+                        : 'Code sent to your current email'}
                   </Text>
 
                   <Text
@@ -1588,7 +1907,12 @@ export default function AccountSecurityScreen() {
                       styles.currentAccountValue
                     }
                   >
-                    {email}
+                    {emailStep ===
+                      'code' &&
+                    codeTarget ===
+                      'new'
+                      ? pendingEmail
+                      : email}
                   </Text>
                 </View>
 
@@ -1600,6 +1924,154 @@ export default function AccountSecurityScreen() {
                   />
                 ) : null}
 
+                {emailStep ===
+                'code' ? (
+                  <>
+                    {emailNotice ? (
+                      <View
+                        style={
+                          styles.codeNotice
+                        }
+                      >
+                        <MaterialIcons
+                          name="mark-email-read"
+                          size={17}
+                          color={
+                            COLORS.green
+                          }
+                        />
+
+                        <Text
+                          style={
+                            styles.codeNoticeText
+                          }
+                        >
+                          {emailNotice}
+                        </Text>
+                      </View>
+                    ) : null}
+
+                    <AuthField
+                      label="Verification Code"
+                      icon="pin"
+                      value={
+                        emailCode
+                      }
+                      placeholder="6-digit code"
+                      keyboardType="number-pad"
+                      maxLength={6}
+                      autoComplete="one-time-code"
+                      textContentType="oneTimeCode"
+                      editable={
+                        !changingEmail
+                      }
+                      onChangeText={value =>
+                        setEmailCode(
+                          value.replace(
+                            /\D/g,
+                            ''
+                          )
+                        )
+                      }
+                      onSubmitEditing={
+                        performVerifyEmailCode
+                      }
+                    />
+
+                    <View
+                      style={
+                        styles.resendRow
+                      }
+                    >
+                      <Text
+                        style={
+                          styles.resendLabel
+                        }
+                      >
+                        Didn't get it?
+                      </Text>
+
+                      <TouchableOpacity
+                        disabled={
+                          resendSeconds > 0 ||
+                          resendingCode ||
+                          changingEmail
+                        }
+                        onPress={
+                          handleResendEmailCode
+                        }
+                      >
+                        <Text
+                          style={[
+                            styles.resendLink,
+
+                            (resendSeconds > 0 ||
+                              resendingCode) &&
+                              styles.resendLinkDisabled,
+                          ]}
+                        >
+                          {resendingCode
+                            ? 'Sending...'
+                            : resendSeconds > 0
+                              ? `Resend in ${Math.floor(resendSeconds / 60)}:${String(resendSeconds % 60).padStart(2, '0')}`
+                              : 'Resend Code'}
+                        </Text>
+                      </TouchableOpacity>
+                    </View>
+
+                    <View
+                      style={
+                        styles.modalActions
+                      }
+                    >
+                      <TouchableOpacity
+                        style={
+                          styles.cancelButton
+                        }
+                        disabled={
+                          changingEmail
+                        }
+                        onPress={
+                          backToEmailForm
+                        }
+                      >
+                        <Text
+                          style={
+                            styles.cancelButtonText
+                          }
+                        >
+                          Back
+                        </Text>
+                      </TouchableOpacity>
+
+                      <TouchableOpacity
+                        style={[
+                          styles.primaryButton,
+
+                          changingEmail &&
+                            styles.buttonDisabled,
+                        ]}
+                        disabled={
+                          changingEmail
+                        }
+                        onPress={
+                          performVerifyEmailCode
+                        }
+                      >
+                        <Text
+                          style={
+                            styles.primaryButtonText
+                          }
+                        >
+                          {changingEmail
+                            ? 'Verifying...'
+                            : 'Verify Code'}
+                        </Text>
+                      </TouchableOpacity>
+                    </View>
+                  </>
+                ) : (
+                  <>
                 <ModalField
                   label="New Email"
                   value={
@@ -1691,11 +2163,13 @@ export default function AccountSecurityScreen() {
                       }
                     >
                       {changingEmail
-                        ? 'Updating...'
-                        : 'Update Email'}
+                        ? 'Sending...'
+                        : 'Send Code'}
                     </Text>
                   </TouchableOpacity>
                 </View>
+                  </>
+                )}
               </View>
             </KeyboardAvoidingView>
           </Modal>
@@ -3545,6 +4019,59 @@ const styles =
         'Inter_600SemiBold',
 
       fontSize: 13,
+    },
+
+    // ========================================================
+    // CHANGE EMAIL CODE
+    // ========================================================
+
+    codeNotice: {
+      marginBottom: 14,
+      paddingHorizontal: 12,
+      paddingVertical: 10,
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 8,
+      borderRadius: 12,
+      backgroundColor:
+        COLORS.greenSoft,
+    },
+
+    codeNoticeText: {
+      flex: 1,
+      color: COLORS.green,
+      fontFamily:
+        'Inter_500Medium',
+      fontSize: 12,
+      lineHeight: 17,
+    },
+
+    resendRow: {
+      marginTop: -4,
+      marginBottom: 6,
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: 6,
+    },
+
+    resendLabel: {
+      color: COLORS.muted,
+      fontFamily:
+        'Inter_400Regular',
+      fontSize: 12,
+    },
+
+    resendLink: {
+      color: COLORS.redButton,
+      fontFamily:
+        'Inter_600SemiBold',
+      fontSize: 12,
+    },
+
+    resendLinkDisabled: {
+      color:
+        COLORS.lightMuted,
     },
 
     // ========================================================

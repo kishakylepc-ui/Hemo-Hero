@@ -18,8 +18,22 @@ const {
 const {
   setActivityUser,
   setActivityEntity,
+  setActivityOutcome,
 } = require(
   '../middleware/activityLogMiddleware'
+);
+
+// 10-minute codes, 5 wrong tries, 60 s between codes.
+const {
+  OTP_TTL_MS,
+  OTP_RESEND_WAIT_MS,
+  getResendBlock,
+  recordCodeSent,
+  getVerifyBlock,
+  recordWrongCode,
+  recordCodeUsed,
+} = require(
+  '../services/otpGuardService'
 );
 
 const {
@@ -484,19 +498,238 @@ async function changePassword(
 }
 
 // ============================================================
-// PATCH /api/auth/me/email
+// CHANGE EMAIL (verified with a code)
 //
-// CHANGE EMAIL
+// 1. POST /api/auth/me/email/request
+//    { current_password, new_email, confirm_email }
+//    Supabase emails a 6-digit code to the new address, and
+//    another to the current address when its "Secure email
+//    change" setting is on. Nothing changes yet.
+//
+// 2. POST /api/auth/me/email/verify
+//    { new_email, code, target: 'new' | 'current' }
+//    Once every code is confirmed the email changes, every
+//    session ends, and the person signs in with the new email.
+//
+// 3. POST /api/auth/me/email/resend { new_email }
+//    New codes, at most one a minute.
+//
+// Codes follow otpGuardService.js (10 minutes, 5 tries, one
+// use). Supabase's "Change Email Address" template must show
+// {{ .Token }} (see server/README.md).
 // ============================================================
 
-async function changeEmail(
+// Starts a Supabase email change for the signed-in user, which
+// emails the codes. Returns { ok } or { ok: false, status, body }.
+async function startAuthEmailChange(
+  accessToken,
+  newEmail
+) {
+  const failed = {
+    ok: false,
+
+    status:
+      502,
+
+    body: {
+      error:
+        'Unable to send the verification code. Please try again.',
+
+      code:
+        'EMAIL_CODE_SEND_FAILED',
+    },
+  };
+
+  try {
+    const response =
+      await fetch(
+        `${process.env.SUPABASE_URL}/auth/v1/user`,
+        {
+          method:
+            'PUT',
+
+          headers: {
+            apikey:
+              process.env
+                .SUPABASE_ANON_KEY,
+
+            Authorization:
+              `Bearer ${accessToken}`,
+
+            'Content-Type':
+              'application/json',
+          },
+
+          body:
+            JSON.stringify({
+              email:
+                newEmail,
+            }),
+        }
+      );
+
+    if (response.ok) {
+      return {
+        ok: true,
+      };
+    }
+
+    const data =
+      await response
+        .json()
+        .catch(() => null);
+
+    const message =
+      String(
+        data?.msg ||
+          data?.message ||
+          data?.error_description ||
+          ''
+      );
+
+    console.error(
+      'EMAIL CHANGE SUPABASE ERROR:',
+      response.status,
+      data?.error_code,
+      message
+    );
+
+    if (
+      data?.error_code ===
+        'email_exists' ||
+      /already/i.test(
+        message
+      )
+    ) {
+      return {
+        ok: false,
+
+        status:
+          409,
+
+        body: {
+          error:
+            'An account with this email already exists.',
+
+          code:
+            'EMAIL_ALREADY_EXISTS',
+        },
+      };
+    }
+
+    // Supabase's own limit on how often it sends emails.
+    if (
+      response.status ===
+      429
+    ) {
+      const seconds =
+        Number(
+          (message.match(
+            /after (\d+) seconds?/i
+          ) || [])[1]
+        ) || 60;
+
+      return {
+        ok: false,
+
+        status:
+          429,
+
+        body: {
+          error:
+            `Please wait ${seconds} seconds before requesting another code.`,
+
+          code:
+            'OTP_RESEND_COOLDOWN',
+
+          retry_after_seconds:
+            seconds,
+        },
+      };
+    }
+
+    return failed;
+  } catch (error) {
+    console.error(
+      'EMAIL CHANGE REQUEST ERROR:',
+      error
+    );
+
+    return failed;
+  }
+}
+
+// The Supabase account, for the pending change (new_email).
+async function getAuthAccount(
+  userId
+) {
+  const {
+    data,
+    error,
+  } =
+    await supabaseAdmin
+      .auth
+      .admin
+      .getUserById(
+        userId
+      );
+
+  if (error) {
+    console.error(
+      'AUTH ACCOUNT LOOKUP ERROR:',
+      error.message
+    );
+
+    return null;
+  }
+
+  return data?.user ||
+    null;
+}
+
+function sendReply(
+  res,
+  reply
+) {
+  return res
+    .status(
+      reply.status
+    )
+    .json(
+      reply.body
+    );
+}
+
+// Codes are on their way to both addresses (the current one
+// only gets one when Supabase's secure email change is on).
+async function recordEmailChangeCodesSent(
+  newEmail,
+  currentEmail
+) {
+  await recordCodeSent(
+    'email_change',
+    newEmail
+  );
+
+  await recordCodeSent(
+    'email_change',
+    currentEmail
+  );
+}
+
+// ------------------------------------------------------------
+// POST /api/auth/me/email/request
+// ------------------------------------------------------------
+
+async function requestEmailChange(
   req,
   res
 ) {
   try {
     if (
       !req.dbUser?.id ||
-      !req.dbUser?.email
+      !req.dbUser?.email ||
+      !req.authToken
     ) {
       return res
         .status(401)
@@ -508,10 +741,6 @@ async function changeEmail(
             'AUTH_REQUIRED',
         });
     }
-
-    // --------------------------------------------------------
-    // ACTIVITY IDENTITY
-    // --------------------------------------------------------
 
     setCurrentAccountActivity(
       req,
@@ -571,18 +800,11 @@ async function changeEmail(
     const cleanEmail =
       validation.value;
 
-    const cleanConfirmEmail =
-      cleanText(
-        confirm_email
-      ).toLowerCase();
-
-    // --------------------------------------------------------
-    // CONFIRM EMAIL
-    // --------------------------------------------------------
-
     if (
       cleanEmail !==
-      cleanConfirmEmail
+      cleanText(
+        confirm_email
+      ).toLowerCase()
     ) {
       return res
         .status(400)
@@ -594,10 +816,6 @@ async function changeEmail(
             'EMAILS_DO_NOT_MATCH',
         });
     }
-
-    // --------------------------------------------------------
-    // EMAIL MUST CHANGE
-    // --------------------------------------------------------
 
     const currentEmail =
       String(
@@ -646,7 +864,7 @@ async function changeEmail(
     }
 
     // --------------------------------------------------------
-    // CHECK DUPLICATE EMAIL
+    // EMAIL MUST BE FREE
     // --------------------------------------------------------
 
     const {
@@ -707,73 +925,473 @@ async function changeEmail(
     }
 
     // --------------------------------------------------------
-    // UPDATE SUPABASE AUTH EMAIL
+    // SEND THE CODES (60 seconds between)
     // --------------------------------------------------------
 
-    const {
-      error:
-        authEmailError,
-    } =
-      await supabaseAdmin
-        .auth
-        .admin
-        .updateUserById(
-          req.dbUser.id,
-          {
-            email:
-              cleanEmail,
-
-            email_confirm:
-              true,
-          }
-        );
-
-    if (
-      authEmailError
-    ) {
-      console.error(
-        'CHANGE AUTH EMAIL ERROR:',
-        authEmailError
+    const wait =
+      await getResendBlock(
+        'email_change',
+        cleanEmail
       );
 
-      const message =
-        String(
-          authEmailError.message ||
-            ''
-        ).toLowerCase();
+    if (wait) {
+      return sendReply(
+        res,
+        wait
+      );
+    }
 
-      if (
-        message.includes(
-          'already'
-        ) ||
-        message.includes(
-          'registered'
-        )
-      ) {
-        return res
-          .status(409)
-          .json({
-            error:
-              'An account with this email already exists.',
+    const started =
+      await startAuthEmailChange(
+        req.authToken,
+        cleanEmail
+      );
 
-            code:
-              'EMAIL_ALREADY_EXISTS',
-          });
+    if (
+      !started.ok
+    ) {
+      return sendReply(
+        res,
+        started
+      );
+    }
+
+    await recordEmailChangeCodesSent(
+      cleanEmail,
+      currentEmail
+    );
+
+    setActivityOutcome(
+      res,
+      {
+        description:
+          'User asked to change their email address; a code was sent to the new address.',
       }
+    );
 
+    return res
+      .status(200)
+      .json({
+        message:
+          `We sent a 6-digit code to ${cleanEmail}.`,
+
+        new_email:
+          cleanEmail,
+
+        resend_after_seconds:
+          OTP_RESEND_WAIT_MS /
+          1000,
+
+        expires_in_seconds:
+          OTP_TTL_MS /
+          1000,
+      });
+  } catch (
+    error
+  ) {
+    console.error(
+      'REQUEST EMAIL CHANGE ERROR:',
+      error
+    );
+
+    return res
+      .status(500)
+      .json({
+        error:
+          'Unable to start the email change.',
+
+        code:
+          'EMAIL_UPDATE_FAILED',
+      });
+  }
+}
+
+// ------------------------------------------------------------
+// POST /api/auth/me/email/resend
+// ------------------------------------------------------------
+
+async function resendEmailChange(
+  req,
+  res
+) {
+  try {
+    if (
+      !req.dbUser?.id ||
+      !req.authToken
+    ) {
       return res
-        .status(500)
+        .status(401)
         .json({
           error:
-            'Unable to change your email address.',
+            'Authentication required.',
 
           code:
-            'AUTH_EMAIL_UPDATE_FAILED',
+            'AUTH_REQUIRED',
+        });
+    }
+
+    setCurrentAccountActivity(
+      req,
+      res
+    );
+
+    const validation =
+      validateEmail(
+        req.body
+          ?.new_email
+      );
+
+    if (
+      !validation.valid
+    ) {
+      return res
+        .status(400)
+        .json({
+          error:
+            validation.error,
+
+          code:
+            'INVALID_EMAIL',
+        });
+    }
+
+    const cleanEmail =
+      validation.value;
+
+    // Only a change this account already started (with its
+    // password).
+    const account =
+      await getAuthAccount(
+        req.dbUser.id
+      );
+
+    if (
+      String(
+        account?.new_email ||
+          ''
+      ).toLowerCase() !==
+      cleanEmail
+    ) {
+      return res
+        .status(400)
+        .json({
+          error:
+            'This email change is no longer waiting for a code. Please start again.',
+
+          code:
+            'EMAIL_CHANGE_NOT_PENDING',
+        });
+    }
+
+    const wait =
+      await getResendBlock(
+        'email_change',
+        cleanEmail
+      );
+
+    if (wait) {
+      return sendReply(
+        res,
+        wait
+      );
+    }
+
+    const started =
+      await startAuthEmailChange(
+        req.authToken,
+        cleanEmail
+      );
+
+    if (
+      !started.ok
+    ) {
+      return sendReply(
+        res,
+        started
+      );
+    }
+
+    await recordEmailChangeCodesSent(
+      cleanEmail,
+      String(
+        req.dbUser.email
+      ).toLowerCase()
+    );
+
+    return res
+      .status(200)
+      .json({
+        message:
+          `We sent a new code to ${cleanEmail}. Codes sent earlier no longer work.`,
+
+        resend_after_seconds:
+          OTP_RESEND_WAIT_MS /
+          1000,
+      });
+  } catch (
+    error
+  ) {
+    console.error(
+      'RESEND EMAIL CHANGE ERROR:',
+      error
+    );
+
+    return res
+      .status(500)
+      .json({
+        error:
+          'Unable to send a new code.',
+      });
+  }
+}
+
+// ------------------------------------------------------------
+// POST /api/auth/me/email/verify
+// ------------------------------------------------------------
+
+async function verifyEmailChange(
+  req,
+  res
+) {
+  try {
+    if (
+      !req.dbUser?.id ||
+      !req.dbUser?.email
+    ) {
+      return res
+        .status(401)
+        .json({
+          error:
+            'Authentication required.',
+
+          code:
+            'AUTH_REQUIRED',
+        });
+    }
+
+    setCurrentAccountActivity(
+      req,
+      res
+    );
+
+    const validation =
+      validateEmail(
+        req.body
+          ?.new_email
+      );
+
+    if (
+      !validation.valid
+    ) {
+      return res
+        .status(400)
+        .json({
+          error:
+            validation.error,
+
+          code:
+            'INVALID_EMAIL',
+        });
+    }
+
+    const newEmail =
+      validation.value;
+
+    const code =
+      cleanText(
+        req.body?.code
+      );
+
+    if (
+      !/^\d{6}$/.test(
+        code
+      )
+    ) {
+      return res
+        .status(400)
+        .json({
+          error:
+            'Enter the 6-digit code from the email.',
+
+          code:
+            'OTP_FORMAT',
+        });
+    }
+
+    const target =
+      req.body?.target ===
+      'current'
+        ? 'current'
+        : 'new';
+
+    const currentEmail =
+      String(
+        req.dbUser.email
+      )
+        .trim()
+        .toLowerCase();
+
+    const targetEmail =
+      target ===
+      'current'
+        ? currentEmail
+        : newEmail;
+
+    // --------------------------------------------------------
+    // THE CHANGE MUST STILL BE WAITING
+    // --------------------------------------------------------
+
+    const before =
+      await getAuthAccount(
+        req.dbUser.id
+      );
+
+    if (
+      String(
+        before?.new_email ||
+          ''
+      ).toLowerCase() !==
+      newEmail
+    ) {
+      return res
+        .status(400)
+        .json({
+          error:
+            'This email change is no longer waiting for a code. Please start again.',
+
+          code:
+            'EMAIL_CHANGE_NOT_PENDING',
         });
     }
 
     // --------------------------------------------------------
-    // UPDATE PUBLIC USERS EMAIL
+    // CHECK THE CODE
+    // --------------------------------------------------------
+
+    const blocked =
+      await getVerifyBlock(
+        'email_change',
+        targetEmail
+      );
+
+    if (blocked) {
+      setActivityOutcome(
+        res,
+        {
+          description:
+            `Email change code blocked: ${blocked.body.error}`,
+        }
+      );
+
+      return sendReply(
+        res,
+        blocked
+      );
+    }
+
+    const {
+      error:
+        verifyError,
+    } =
+      await supabaseAnon
+        .auth
+        .verifyOtp({
+          email:
+            targetEmail,
+
+          token:
+            code,
+
+          type:
+            'email_change',
+        });
+
+    if (
+      verifyError
+    ) {
+      console.error(
+        'VERIFY EMAIL CHANGE ERROR:',
+        verifyError.message
+      );
+
+      const wrong =
+        await recordWrongCode(
+          'email_change',
+          targetEmail
+        );
+
+      setActivityOutcome(
+        res,
+        {
+          description:
+            `Email change code failed: ${wrong.body.error}`,
+        }
+      );
+
+      return sendReply(
+        res,
+        wrong
+      );
+    }
+
+    // Each code works once.
+    await recordCodeUsed(
+      'email_change',
+      targetEmail
+    );
+
+    const after =
+      await getAuthAccount(
+        req.dbUser.id
+      );
+
+    // --------------------------------------------------------
+    // ONE OF TWO CODES (secure email change)
+    // --------------------------------------------------------
+
+    if (
+      String(
+        after?.email ||
+          ''
+      ).toLowerCase() !==
+      newEmail
+    ) {
+      const nextTarget =
+        target ===
+        'new'
+          ? 'current'
+          : 'new';
+
+      setActivityOutcome(
+        res,
+        {
+          action:
+            'VERIFY_EMAIL_CHANGE_CODE',
+
+          description:
+            `User confirmed the email change code sent to their ${target} address; the ${nextTarget} address must confirm too.`,
+        }
+      );
+
+      return res
+        .status(200)
+        .json({
+          status:
+            'confirm_other',
+
+          next_target:
+            nextTarget,
+
+          message:
+            nextTarget ===
+            'current'
+              ? `Code confirmed. Now enter the code we sent to your current email, ${currentEmail}.`
+              : `Code confirmed. Now enter the code we sent to ${newEmail}.`,
+        });
+    }
+
+    // --------------------------------------------------------
+    // CHANGED: COPY TO PUBLIC USERS
     // --------------------------------------------------------
 
     const {
@@ -786,7 +1404,7 @@ async function changeEmail(
         )
         .update({
           email:
-            cleanEmail,
+            newEmail,
 
           updated_at:
             new Date()
@@ -797,10 +1415,6 @@ async function changeEmail(
           req.dbUser.id
         );
 
-    // --------------------------------------------------------
-    // ROLLBACK AUTH EMAIL IF PUBLIC UPDATE FAILS
-    // --------------------------------------------------------
-
     if (
       profileEmailError
     ) {
@@ -809,6 +1423,7 @@ async function changeEmail(
         profileEmailError
       );
 
+      // Keep sign-in and profile on the same email.
       try {
         await supabaseAdmin
           .auth
@@ -843,13 +1458,6 @@ async function changeEmail(
         });
     }
 
-    // --------------------------------------------------------
-    // UPDATE ACTIVITY SNAPSHOT
-    //
-    // The account still has the same ID, but its email has
-    // changed. Store the new email in the successful log.
-    // --------------------------------------------------------
-
     setActivityUser(
       res,
       {
@@ -857,7 +1465,7 @@ async function changeEmail(
           req.dbUser.id,
 
         email:
-          cleanEmail,
+          newEmail,
 
         role:
           req.dbUser.role,
@@ -870,8 +1478,16 @@ async function changeEmail(
       req.dbUser.id
     );
 
+    setActivityOutcome(
+      res,
+      {
+        description:
+          `User changed their email address from ${currentEmail} after confirming the code sent to the new address. Every session was signed out.`,
+      }
+    );
+
     // --------------------------------------------------------
-    // REVOKE SESSION
+    // END EVERY SESSION
     // --------------------------------------------------------
 
     if (
@@ -882,7 +1498,8 @@ async function changeEmail(
           .auth
           .admin
           .signOut(
-            req.authToken
+            req.authToken,
+            'global'
           );
       } catch (
         signOutError
@@ -897,11 +1514,14 @@ async function changeEmail(
     return res
       .status(200)
       .json({
+        status:
+          'changed',
+
         message:
-          'Email address changed successfully. Please sign in again using your new email.',
+          'Email address changed. Please sign in again using your new email.',
 
         email:
-          cleanEmail,
+          newEmail,
 
         requires_relogin:
           true,
@@ -910,7 +1530,7 @@ async function changeEmail(
     error
   ) {
     console.error(
-      'CHANGE EMAIL CONTROLLER ERROR:',
+      'VERIFY EMAIL CHANGE CONTROLLER ERROR:',
       error
     );
 
@@ -1511,7 +2131,9 @@ async function deleteAccountPermanently(
 
 module.exports = {
   changePassword,
-  changeEmail,
+  requestEmailChange,
+  resendEmailChange,
+  verifyEmailChange,
   deactivateAccount,
   deleteAccountPermanently,
 };

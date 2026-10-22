@@ -13,7 +13,8 @@ import type { PickedImage } from '../../lib/imageUpload';
 import { unregisterPushNotifications } from '../../lib/pushNotifications';
 import { getMyDonorApplication, TRAVEL_RADIUS_OPTIONS, updateDonorPreferences, } from '../../lib/donorApplication';
 import type { DonorApplication, DonorPreferences, } from '../../lib/donorApplication';
-import { clearSession, getAccessToken, } from '../../lib/session';
+import { clearSession, getAccessToken, setLogoutReason, } from '../../lib/session';
+import { goToSignIn } from '../../lib/signInRoute';
 import { formatPhone } from '../../lib/phone';
 
 const COLORS = {
@@ -844,15 +845,19 @@ export default function ProfileScreen() {
                 }
             }
 
+            // Other browser tabs follow and say why.
+            await setLogoutReason(
+                'signed_out'
+            );
+
             await clearSession();
 
             setLogoutModalVisible(
                 false
             );
 
-            router.replace(
-                '/'
-            );
+            // Closes every screen, so Back can't return.
+            goToSignIn();
         } catch (error) {
             console.log(
                 'PROFILE LOGOUT ERROR:',

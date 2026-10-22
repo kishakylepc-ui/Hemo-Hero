@@ -6,6 +6,8 @@ import { Stack } from 'expo-router';
 
 import * as SplashScreen from 'expo-splash-screen';
 
+import SessionGuard from '../components/SessionGuard';
+
 import {
   useFonts,
   Poppins_500Medium,
@@ -73,20 +75,24 @@ export default function RootLayout() {
     return null;
   }
 
+  // SessionGuard: protected pages, 15-minute inactivity
+  // sign-out, and signing out every tab together.
   return (
-    <Stack
-      screenOptions={{
-        headerShown: false,
-        animation: 'fade',
+    <SessionGuard>
+      <Stack
+        screenOptions={{
+          headerShown: false,
+          animation: 'fade',
 
-        contentStyle: {
-          backgroundColor: '#050812',
-        },
-      }}
-    >
-      <Stack.Screen name="index" />
+          contentStyle: {
+            backgroundColor: '#050812',
+          },
+        }}
+      >
+        <Stack.Screen name="index" />
 
-      <Stack.Screen name="dashboard" />
-    </Stack>
+        <Stack.Screen name="dashboard" />
+      </Stack>
+    </SessionGuard>
   );
 }

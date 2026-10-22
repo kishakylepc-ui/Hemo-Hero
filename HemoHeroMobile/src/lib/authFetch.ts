@@ -15,13 +15,12 @@
 // is returned to sign in.
 // ============================================================
 
-import { router } from 'expo-router';
-
 import {
   clearSession,
   getRefreshToken,
   saveSession,
 } from './session';
+import { goToSignIn } from './signInRoute';
 import { API_URL } from './apiUrl';
 
 // Requests that must never trigger a refresh.
@@ -114,7 +113,7 @@ async function endSession() {
   redirectingToSignIn = true;
 
   try {
-    router.replace('/');
+    goToSignIn();
   } catch (error) {
     console.log(
       'SESSION END REDIRECT ERROR:',
@@ -224,7 +223,7 @@ export async function authorizedFetch(
     return response;
   }
 
-  // Deactivated while signed in.
+  // Deactivated or locked by an admin while signed in.
   if (response.status === 403) {
     const data =
       await response
@@ -234,7 +233,9 @@ export async function authorizedFetch(
 
     if (
       data?.code ===
-      'ACCOUNT_DEACTIVATED'
+        'ACCOUNT_DEACTIVATED' ||
+      data?.code ===
+        'ACCOUNT_LOCKED'
     ) {
       await endSession();
     }

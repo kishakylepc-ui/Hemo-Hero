@@ -320,9 +320,16 @@ function activityLog({
 
           // --------------------------------------------------
           // DESCRIPTION
+          //
+          // A controller can name what really happened (see
+          // setActivityOutcome), e.g. a lockout on LOGIN.
           // --------------------------------------------------
 
           const description =
+            cleanText(
+              res?.locals
+                ?.activityDescription
+            ) ||
             buildDescription(
               success
                 ? successDescription
@@ -334,6 +341,13 @@ function activityLog({
                 statusCode,
               }
             );
+
+          const finalAction =
+            cleanText(
+              res?.locals
+                ?.activityAction
+            ) ||
+            action;
 
           // --------------------------------------------------
           // METADATA
@@ -389,7 +403,8 @@ function activityLog({
 
             user,
 
-            action,
+            action:
+              finalAction,
 
             module,
 
@@ -489,6 +504,48 @@ function setActivityEntity(
 }
 
 // ============================================================
+// SET ACTIVITY OUTCOME
+//
+// Replaces the route's action and/or description for this one
+// entry, when the result is more specific than "failed":
+//
+// setActivityOutcome(res, {
+//   action: 'ACCOUNT_LOCKOUT',
+//   description: 'Account locked for 1 minute.',
+// });
+// ============================================================
+
+function setActivityOutcome(
+  res,
+  {
+    action = null,
+    description = null,
+  } = {}
+) {
+  if (
+    !res?.locals
+  ) {
+    return;
+  }
+
+  if (action) {
+    res.locals
+      .activityAction =
+      cleanText(
+        action
+      );
+  }
+
+  if (description) {
+    res.locals
+      .activityDescription =
+      cleanText(
+        description
+      );
+  }
+}
+
+// ============================================================
 // EXPORTS
 // ============================================================
 
@@ -496,4 +553,5 @@ module.exports = {
   activityLog,
   setActivityUser,
   setActivityEntity,
+  setActivityOutcome,
 };

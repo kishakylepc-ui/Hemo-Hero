@@ -37,10 +37,14 @@ import { FadeInView } from '../../components/AdminMotion';
 
 import {
   activateAdminUser,
+  changeAdminUserRole,
   deactivateAdminUser,
   deleteAdminUser,
   getAdminReports,
   getAdminUserById,
+  isUserLocked,
+  lockAdminUser,
+  unlockAdminUser,
   type AdminManagedUser,
   type AdminProfile,
   type AdminReport,
@@ -53,7 +57,7 @@ import {
   getAdminProfile,
 } from '../../lib/session';
 
-import { isAdminRole } from '../../lib/roles';
+import { isAdminRole, isSuperAdmin } from '../../lib/roles';
 
 // ============================================================
 // DESIGN
@@ -139,6 +143,27 @@ export default function AdminUserDetailsScreen() {
     useState(false);
 
   const [processingAction, setProcessingAction] =
+    useState(false);
+
+  // LOCK / UNLOCK
+
+  const [lockModalVisible, setLockModalVisible] =
+    useState(false);
+
+  const [lockReason, setLockReason] = useState('');
+
+  const [processingLock, setProcessingLock] =
+    useState(false);
+
+  // ROLE (super admin)
+
+  const [roleModalVisible, setRoleModalVisible] =
+    useState(false);
+
+  const [selectedRole, setSelectedRole] =
+    useState<'user' | 'admin'>('user');
+
+  const [processingRole, setProcessingRole] =
     useState(false);
 
   // DELETE
@@ -277,7 +302,26 @@ export default function AdminUserDetailsScreen() {
 
   const busy =
     processingAction ||
+    processingLock ||
+    processingRole ||
     processingDelete;
+
+  // Locked by an admin, or locked now after wrong passwords.
+  const locked =
+    isUserLocked(user);
+
+  const signInLockout =
+    user?.login_lockout ||
+    null;
+
+  // Only the super admin, and never for their own account or
+  // a super admin account.
+  const canChangeRole =
+    isSuperAdmin(profile?.role) &&
+    Boolean(user) &&
+    user?.id !== profile?.id &&
+    (user?.role === 'user' ||
+      user?.role === 'admin');
 
   // ==========================================================
   // ACTIVATE / DEACTIVATE
@@ -350,6 +394,147 @@ export default function AdminUserDetailsScreen() {
     } finally {
       setActionModalVisible(false);
       setProcessingAction(false);
+    }
+  }
+
+  // ==========================================================
+  // LOCK / UNLOCK
+  // ==========================================================
+
+  function openLockModal() {
+    if (!user || busy) {
+      return;
+    }
+
+    setLockReason('');
+    setErrorMessage('');
+    setSuccessMessage('');
+    setLockModalVisible(true);
+  }
+
+  function closeLockModal() {
+    if (processingLock) {
+      return;
+    }
+
+    setLockModalVisible(false);
+  }
+
+  async function confirmLockAction() {
+    if (!user || processingLock) {
+      return;
+    }
+
+    try {
+      setProcessingLock(true);
+      setErrorMessage('');
+      setSuccessMessage('');
+
+      const token =
+        await getAdminAccessToken();
+
+      if (!token) {
+        await clearAdminSession();
+
+        router.replace('/');
+
+        return;
+      }
+
+      const result = locked
+        ? await unlockAdminUser(token, user.id)
+        : await lockAdminUser(
+            token,
+            user.id,
+            lockReason
+          );
+
+      setUser(result.user);
+      setSuccessMessage(result.message);
+    } catch (error) {
+      setErrorMessage(
+        error instanceof Error
+          ? error.message
+          : 'Unable to update the account.'
+      );
+    } finally {
+      setLockModalVisible(false);
+      setProcessingLock(false);
+    }
+  }
+
+  // ==========================================================
+  // ROLE
+  // ==========================================================
+
+  function openRoleModal() {
+    if (!user || busy || !canChangeRole) {
+      return;
+    }
+
+    // Starts on the other role.
+    setSelectedRole(
+      user.role === 'admin'
+        ? 'user'
+        : 'admin'
+    );
+
+    setErrorMessage('');
+    setSuccessMessage('');
+    setRoleModalVisible(true);
+  }
+
+  function closeRoleModal() {
+    if (processingRole) {
+      return;
+    }
+
+    setRoleModalVisible(false);
+  }
+
+  async function confirmRoleChange() {
+    if (
+      !user ||
+      processingRole ||
+      selectedRole === user.role
+    ) {
+      return;
+    }
+
+    try {
+      setProcessingRole(true);
+      setErrorMessage('');
+      setSuccessMessage('');
+
+      const token =
+        await getAdminAccessToken();
+
+      if (!token) {
+        await clearAdminSession();
+
+        router.replace('/');
+
+        return;
+      }
+
+      const result =
+        await changeAdminUserRole(
+          token,
+          user.id,
+          selectedRole
+        );
+
+      setUser(result.user);
+      setSuccessMessage(result.message);
+    } catch (error) {
+      setErrorMessage(
+        error instanceof Error
+          ? error.message
+          : 'Unable to change the role.'
+      );
+    } finally {
+      setRoleModalVisible(false);
+      setProcessingRole(false);
     }
   }
 
@@ -705,6 +890,15 @@ export default function AdminUserDetailsScreen() {
                             scale={s}
                             fontScale={fs}
                           />
+
+                          {locked ? (
+                            <StatusPill
+                              active={false}
+                              locked
+                              scale={s}
+                              fontScale={fs}
+                            />
+                          ) : null}
                         </View>
 
                         <Text
@@ -785,6 +979,40 @@ export default function AdminUserDetailsScreen() {
                         disabled={busy}
                         onPress={openActionModal}
                       />
+
+                      <ActionButton
+                        label={
+                          locked
+                            ? 'Unlock'
+                            : 'Lock'
+                        }
+                        icon={
+                          locked
+                            ? 'lock-open'
+                            : 'lock'
+                        }
+                        tone={
+                          locked
+                            ? 'success'
+                            : 'warning'
+                        }
+                        scale={s}
+                        fontScale={fs}
+                        disabled={busy}
+                        onPress={openLockModal}
+                      />
+
+                      {canChangeRole ? (
+                        <ActionButton
+                          label="Change Role"
+                          icon="admin-panel-settings"
+                          tone="outline"
+                          scale={s}
+                          fontScale={fs}
+                          disabled={busy}
+                          onPress={openRoleModal}
+                        />
+                      ) : null}
                     </View>
                   </View>
                 </FadeInView>
@@ -866,6 +1094,34 @@ export default function AdminUserDetailsScreen() {
                             label="Deactivated"
                             value={formatDateTime(user.deactivated_at)}
                             color={COLORS.redBright}
+                          />
+                        ) : null}
+                        <InfoItem
+                          fontScale={fs}
+                          label="Sign-in"
+                          value={describeSignIn(user)}
+                          color={
+                            locked
+                              ? COLORS.orange
+                              : signInLockout
+                                ? COLORS.soft
+                                : COLORS.green
+                          }
+                        />
+                        {user.is_locked && user.locked_at ? (
+                          <InfoItem
+                            fontScale={fs}
+                            label="Locked"
+                            value={formatDateTime(user.locked_at)}
+                            color={COLORS.orange}
+                          />
+                        ) : null}
+                        {user.is_locked ? (
+                          <InfoItem
+                            fontScale={fs}
+                            label="Lock Reason"
+                            value={user.locked_reason || 'No reason given'}
+                            wide
                           />
                         ) : null}
                         <InfoItem fontScale={fs} label="User ID" value={user.id} wide />
@@ -1191,6 +1447,137 @@ export default function AdminUserDetailsScreen() {
       />
 
       {/* ========================================================
+          LOCK / UNLOCK MODAL
+      ======================================================== */}
+
+      <ConfirmModal
+        visible={lockModalVisible}
+        scale={s}
+        fontScale={fs}
+        tone={
+          locked
+            ? 'success'
+            : 'warning'
+        }
+        icon={
+          locked
+            ? 'lock-open'
+            : 'lock'
+        }
+        title={
+          locked
+            ? 'Unlock Account?'
+            : 'Lock Account?'
+        }
+        message={
+          locked
+            ? user?.is_locked
+              ? 'The user can sign in again. Any lockout from wrong passwords is cleared too.'
+              : 'This account is locked after too many wrong passwords. Unlocking lets the user try again now, without waiting or a CAPTCHA.'
+            : 'The user is signed out everywhere and can\'t sign in until an admin unlocks the account. Their requests, offers and donor status stay as they are (unlike deactivating).'
+        }
+        userName={userName}
+        userEmail={user?.email || ''}
+        confirmLabel={
+          locked
+            ? 'Unlock'
+            : 'Lock Account'
+        }
+        processing={processingLock}
+        onClose={closeLockModal}
+        onConfirm={confirmLockAction}
+      >
+        {!locked ? (
+          <TextInput
+            value={lockReason}
+            onChangeText={setLockReason}
+            editable={!processingLock}
+            maxLength={300}
+            placeholder="Reason (optional, for admins)"
+            placeholderTextColor={COLORS.muted}
+            style={[
+              styles.reasonInput,
+
+              {
+                height: 46 * s,
+                borderRadius: 10 * s,
+                paddingHorizontal: 14 * s,
+                marginTop: 16 * s,
+                fontSize: 13.5 * fs,
+              },
+            ]}
+          />
+        ) : null}
+      </ConfirmModal>
+
+      {/* ========================================================
+          CHANGE ROLE MODAL (super admin)
+      ======================================================== */}
+
+      <ConfirmModal
+        visible={roleModalVisible}
+        scale={s}
+        fontScale={fs}
+        tone="warning"
+        icon="admin-panel-settings"
+        title="Change Role?"
+        message={
+          selectedRole === 'admin'
+            ? 'An admin can sign in to the Admin Portal and manage users, applications, requests, donations and issues.'
+            : 'A user can no longer use the Admin Portal. They keep their Hemo-Hero app account.'
+        }
+        userName={userName}
+        userEmail={user?.email || ''}
+        confirmLabel={
+          selectedRole === 'admin'
+            ? 'Make Admin'
+            : 'Make User'
+        }
+        processing={processingRole}
+        confirmDisabled={
+          selectedRole === user?.role
+        }
+        onClose={closeRoleModal}
+        onConfirm={confirmRoleChange}
+      >
+        <View
+          style={[
+            styles.row,
+
+            {
+              width: '100%',
+              gap: 10 * s,
+              marginTop: 16 * s,
+            },
+          ]}
+        >
+          <RoleOption
+            label="User"
+            detail="Hemo-Hero app"
+            icon="person"
+            selected={selectedRole === 'user'}
+            current={user?.role === 'user'}
+            disabled={processingRole}
+            scale={s}
+            fontScale={fs}
+            onPress={() => setSelectedRole('user')}
+          />
+
+          <RoleOption
+            label="Admin"
+            detail="Admin Portal"
+            icon="admin-panel-settings"
+            selected={selectedRole === 'admin'}
+            current={user?.role === 'admin'}
+            disabled={processingRole}
+            scale={s}
+            fontScale={fs}
+            onPress={() => setSelectedRole('admin')}
+          />
+        </View>
+      </ConfirmModal>
+
+      {/* ========================================================
           DELETE MODAL
       ======================================================== */}
 
@@ -1254,7 +1641,7 @@ function ActionButton({
 }: {
   label: string;
   icon: IconName;
-  tone: 'primary' | 'danger' | 'success' | 'outline';
+  tone: 'primary' | 'danger' | 'success' | 'warning' | 'outline';
   scale: number;
   fontScale: number;
   disabled?: boolean;
@@ -1273,6 +1660,10 @@ function ActionButton({
     success: {
       color: COLORS.green,
       style: styles.successAction,
+    },
+    warning: {
+      color: COLORS.orange,
+      style: styles.warningAction,
     },
     outline: {
       color: COLORS.soft,
@@ -1351,7 +1742,7 @@ function ConfirmModal({
   visible: boolean;
   scale: number;
   fontScale: number;
-  tone: 'danger' | 'success';
+  tone: 'danger' | 'success' | 'warning';
   icon: IconName;
   title: string;
   message: string;
@@ -1367,7 +1758,23 @@ function ConfirmModal({
   const accent =
     tone === 'danger'
       ? COLORS.redBright
-      : COLORS.green;
+      : tone === 'warning'
+        ? COLORS.orange
+        : COLORS.green;
+
+  const tint =
+    tone === 'danger'
+      ? 'rgba(239,51,64,0.12)'
+      : tone === 'warning'
+        ? 'rgba(243,163,74,0.12)'
+        : 'rgba(53,201,130,0.12)';
+
+  const confirmColor =
+    tone === 'danger'
+      ? COLORS.redDark
+      : tone === 'warning'
+        ? '#B8711F'
+        : COLORS.green;
 
   return (
     <Modal
@@ -1405,10 +1812,7 @@ function ConfirmModal({
                 width: 56 * scale,
                 height: 56 * scale,
                 borderRadius: 28 * scale,
-                backgroundColor:
-                  tone === 'danger'
-                    ? 'rgba(239,51,64,0.12)'
-                    : 'rgba(53,201,130,0.12)',
+                backgroundColor: tint,
               },
             ]}
           >
@@ -1536,10 +1940,7 @@ function ConfirmModal({
                 {
                   height: 48 * scale,
                   borderRadius: 10 * scale,
-                  backgroundColor:
-                    tone === 'danger'
-                      ? COLORS.redDark
-                      : COLORS.green,
+                  backgroundColor: confirmColor,
                 },
 
                 (processing ||
@@ -1655,13 +2056,53 @@ function Banner({
 
 function StatusPill({
   active,
+  locked = false,
   scale,
   fontScale,
 }: {
   active: boolean;
+  // "Locked" instead of Active/Inactive.
+  locked?: boolean;
   scale: number;
   fontScale: number;
 }) {
+  if (locked) {
+    return (
+      <View
+        style={[
+          styles.pill,
+          styles.lockedPill,
+
+          {
+            height: 28 * scale,
+            paddingHorizontal: 10 * scale,
+            borderRadius: 14 * scale,
+            gap: 5 * scale,
+          },
+        ]}
+      >
+        <MaterialIcons
+          name="lock"
+          size={13 * scale}
+          color={COLORS.orange}
+        />
+
+        <Text
+          style={[
+            styles.pillText,
+
+            {
+              fontSize: 12 * fontScale,
+              color: COLORS.orange,
+            },
+          ]}
+        >
+          Locked
+        </Text>
+      </View>
+    );
+  }
+
   return (
     <View
       style={[
@@ -1707,6 +2148,88 @@ function StatusPill({
           : 'Inactive'}
       </Text>
     </View>
+  );
+}
+
+// A choice in the Change Role modal.
+function RoleOption({
+  label,
+  detail,
+  icon,
+  selected,
+  current,
+  disabled,
+  scale,
+  fontScale,
+  onPress,
+}: {
+  label: string;
+  detail: string;
+  icon: IconName;
+  selected: boolean;
+  current: boolean;
+  disabled: boolean;
+  scale: number;
+  fontScale: number;
+  onPress: () => void;
+}) {
+  return (
+    <Pressable
+      disabled={disabled}
+      onPress={onPress}
+      style={({ pressed }) => [
+        styles.roleOption,
+
+        {
+          padding: 13 * scale,
+          borderRadius: 11 * scale,
+          gap: 4 * scale,
+        },
+
+        selected &&
+          styles.roleOptionSelected,
+
+        pressed &&
+          styles.pressed,
+      ]}
+    >
+      <MaterialIcons
+        name={icon}
+        size={22 * scale}
+        color={
+          selected
+            ? COLORS.orange
+            : COLORS.muted
+        }
+      />
+
+      <Text
+        style={[
+          styles.modalUserName,
+
+          {
+            fontSize: 13.5 * fontScale,
+          },
+        ]}
+      >
+        {label}
+      </Text>
+
+      <Text
+        style={[
+          styles.mutedText,
+          styles.centerText,
+
+          {
+            fontSize: 11.5 * fontScale,
+          },
+        ]}
+      >
+        {current
+          ? `${detail} (now)`
+          : detail}
+      </Text>
+    </Pressable>
   );
 }
 
@@ -2036,6 +2559,35 @@ function IssueRow({
 // ============================================================
 // HELPERS
 // ============================================================
+
+// The Sign-in row in Account Information.
+function describeSignIn(
+  user: AdminManagedUser
+) {
+  if (user.is_locked) {
+    return 'Locked by an admin';
+  }
+
+  const lockout = user.login_lockout;
+
+  if (lockout?.locked) {
+    return `Locked until ${formatDateTime(
+      lockout.locked_until
+    )} (wrong passwords)`;
+  }
+
+  if (lockout?.captcha_required) {
+    return 'Allowed (CAPTCHA required after a recent lockout)';
+  }
+
+  if (lockout?.failed_attempts) {
+    return `Allowed (${lockout.failed_attempts} recent wrong password${
+      lockout.failed_attempts === 1 ? '' : 's'
+    })`;
+  }
+
+  return 'Allowed';
+}
 
 function getUserDisplayName(
   user: AdminManagedUser
@@ -2393,6 +2945,12 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(239,51,64,0.10)',
   },
 
+  lockedPill: {
+    alignSelf: 'center',
+    borderColor: 'rgba(243,163,74,0.45)',
+    backgroundColor: 'rgba(243,163,74,0.10)',
+  },
+
   // BUTTONS
 
   actionButton: {
@@ -2415,6 +2973,12 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: 'rgba(53,201,130,0.55)',
     backgroundColor: 'rgba(53,201,130,0.08)',
+  },
+
+  warningAction: {
+    borderWidth: 1,
+    borderColor: 'rgba(243,163,74,0.55)',
+    backgroundColor: 'rgba(243,163,74,0.08)',
   },
 
   outlineAction: {
@@ -2600,6 +3164,30 @@ const styles = StyleSheet.create({
 
   deleteInputReady: {
     borderColor: COLORS.redBright,
+  },
+
+  // Lock reason (optional).
+  reasonInput: {
+    width: '100%',
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    backgroundColor: COLORS.cardLight,
+    color: COLORS.white,
+    fontFamily: 'Inter_400Regular',
+    outlineStyle: 'none',
+  } as any,
+
+  roleOption: {
+    flex: 1,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    backgroundColor: COLORS.cardLight,
+  },
+
+  roleOptionSelected: {
+    borderColor: COLORS.orange,
+    backgroundColor: 'rgba(243,163,74,0.08)',
   },
 
   modalButtons: {

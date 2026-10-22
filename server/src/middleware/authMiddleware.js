@@ -241,6 +241,22 @@ async function requireAuth(
         });
     }
 
+    // Locked by an admin: current sessions stop working too.
+    if (
+      dbUser.is_locked ===
+      true
+    ) {
+      return res
+        .status(403)
+        .json({
+          error:
+            'Your account has been locked by an administrator. Please contact support.',
+
+          code:
+            'ACCOUNT_LOCKED',
+        });
+    }
+
     // --------------------------------------------------------
     // ATTACH DATABASE USER
     // --------------------------------------------------------

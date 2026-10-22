@@ -58,25 +58,39 @@ function fakeDatabase({ missing = false } = {}) {
   };
 }
 
+// Puts a stand-in module in place of a real one.
+function fakeModule(path, exports) {
+  const module = new Module(path);
+  module.filename = path;
+  module.loaded = true;
+  module.exports = exports;
+
+  require.cache[path] = module;
+}
+
+// The answer every test CAPTCHA accepts.
+const RIGHT_CAPTCHA = { captcha_id: 'test', captcha_answer: 'right' };
+
 // Loads a fresh copy of the limiter (like a server restart) that
 // uses the given database.
 function loadLimiter(database) {
-  const configPath = require.resolve('../src/config/supabase');
   const limiterPath = require.resolve('../src/middleware/loginRateLimiter');
 
-  const config = new Module(configPath);
-  config.filename = configPath;
-  config.loaded = true;
-  config.exports = { supabaseAdmin: database };
+  fakeModule(require.resolve('../src/config/supabase'), {
+    supabaseAdmin: database,
+  });
 
-  require.cache[configPath] = config;
+  fakeModule(require.resolve('../src/services/captchaService'), {
+    verifyCaptcha: (id, answer) => answer === 'right',
+  });
+
   delete require.cache[limiterPath];
 
   return require(limiterPath).loginLimiter[0];
 }
 
-async function signInAttempt(limiter, email) {
-  const req = { body: { email } };
+async function signInAttempt(limiter, email, extra = {}) {
+  const req = { body: { email, ...extra } };
   const outcome = { req, status: null, body: null, passed: false };
 
   const res = {
@@ -100,11 +114,13 @@ async function signInAttempt(limiter, email) {
 // Saves are sent in the background; let them finish.
 const settle = () => new Promise(resolve => setImmediate(resolve));
 
+// Wrong passwords, each with a solved CAPTCHA (ignored until
+// one is needed).
 async function wrongPasswords(limiter, email, times) {
   let last = null;
 
   for (let i = 0; i < times; i += 1) {
-    const attempt = await signInAttempt(limiter, email);
+    const attempt = await signInAttempt(limiter, email, RIGHT_CAPTCHA);
     assert.equal(attempt.passed, true);
     last = attempt.req.recordFailedLogin();
   }
@@ -129,6 +145,12 @@ test('three wrong passwords lock the account for 1 minute', async () => {
   assert.equal(blocked.passed, false);
   assert.equal(blocked.status, 429);
   assert.equal(blocked.body.code, 'LOGIN_ACCOUNT_RATE_LIMIT');
+
+  // Exact time left, for the apps' countdown.
+  assert.ok(blocked.body.retry_after_seconds > 55);
+  assert.ok(blocked.body.retry_after_seconds <= 60);
+  assert.equal(blocked.body.retry_after_minutes, 1);
+  assert.ok(blocked.body.locked_until);
 });
 
 test('a lockout is saved and survives a server restart', async () => {
@@ -147,7 +169,7 @@ test('a lockout is saved and survives a server restart', async () => {
   assert.equal(afterRestart.status, 429);
 });
 
-test('each lockout lasts longer (1, 3, 5, then 10 minutes)', async () => {
+test('each lockout lasts longer (1, 5, then 15 minutes)', async () => {
   const database = fakeDatabase();
   const email = 'repeat@example.com';
   const minutes = [];
@@ -162,7 +184,87 @@ test('each lockout lasts longer (1, 3, 5, then 10 minutes)', async () => {
       new Date(Date.now() - 1000).toISOString();
   }
 
-  assert.deepEqual(minutes, [1, 3, 5, 10, 10]);
+  assert.deepEqual(minutes, [1, 5, 15, 15, 15]);
+});
+
+// Moves a saved record's times into the past, as if that much
+// time had gone by.
+function timePasses(database, email, ms) {
+  const row = database.rows.get(email);
+
+  for (const key of ['first_failed_at', 'last_failed_at', 'locked_until']) {
+    if (row[key]) {
+      row[key] = new Date(Date.parse(row[key]) - ms).toISOString();
+    }
+  }
+}
+
+test('after a lockout, signing in needs a CAPTCHA', async () => {
+  const database = fakeDatabase();
+  const email = 'captcha@example.com';
+
+  const locked = await wrongPasswords(loadLimiter(database), email, 3);
+  assert.equal(locked.captcha_required, true);
+
+  timePasses(database, email, 2 * 60 * 1000);
+  const limiter = loadLimiter(database);
+
+  const without = await signInAttempt(limiter, email);
+  assert.equal(without.passed, false);
+  assert.equal(without.status, 428);
+  assert.equal(without.body.code, 'CAPTCHA_REQUIRED');
+
+  const wrong = await signInAttempt(limiter, email, {
+    captcha_id: 'test',
+    captcha_answer: 'wrong',
+  });
+  assert.equal(wrong.status, 428);
+  assert.equal(wrong.body.code, 'CAPTCHA_INCORRECT');
+
+  const solved = await signInAttempt(limiter, email, RIGHT_CAPTCHA);
+  assert.equal(solved.passed, true);
+});
+
+test('no CAPTCHA before the first lockout', async () => {
+  const limiter = loadLimiter(fakeDatabase());
+  const email = 'fresh@example.com';
+
+  const second = await wrongPasswords(limiter, email, 2);
+  assert.equal(second.captcha_required, false);
+
+  const attempt = await signInAttempt(limiter, email);
+  assert.equal(attempt.passed, true);
+});
+
+test('a 15-minute lockout keeps the account at that level after it ends', async () => {
+  const database = fakeDatabase();
+  const email = 'longlock@example.com';
+  const minutes = [];
+
+  for (const _ of [1, 2, 3, 4]) {
+    const result = await wrongPasswords(loadLimiter(database), email, 3);
+    minutes.push(result.retry_after_minutes);
+
+    // The lockout ended 20 minutes ago.
+    timePasses(database, email, 35 * 60 * 1000);
+  }
+
+  assert.deepEqual(minutes, [1, 5, 15, 15]);
+});
+
+test('a day without wrong passwords starts over', async () => {
+  const database = fakeDatabase();
+  const email = 'nextday@example.com';
+
+  await wrongPasswords(loadLimiter(database), email, 3);
+  timePasses(database, email, 25 * 60 * 60 * 1000);
+
+  const limiter = loadLimiter(database);
+  const attempt = await signInAttempt(limiter, email);
+  assert.equal(attempt.passed, true);
+
+  const result = await wrongPasswords(limiter, email, 3);
+  assert.equal(result.retry_after_minutes, 1);
 });
 
 test('a successful sign-in clears the saved record', async () => {

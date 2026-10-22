@@ -35,6 +35,7 @@ import {
   deactivateAdminUser,
   getAdminUsers,
   getAdminUserSummary,
+  isUserLocked,
   type AdminManagedUser,
   type AdminProfile,
   type AdminUserPagination,
@@ -641,6 +642,19 @@ export default function AdminUsersScreen() {
                     }
                   />
 
+                  {/* Locked by an admin or after wrong passwords */}
+                  <FilterButton
+                    scale={s}
+                    fontScale={fs}
+                    label="Locked"
+                    count={summary.locked ?? 0}
+                    active={!showAdmins && statusFilter === 'locked'}
+                    warning
+                    onPress={() =>
+                      changeStatusFilter('locked')
+                    }
+                  />
+
                   {isSuperAdmin(profile?.role) ? (
                     <FilterButton
                       scale={s}
@@ -1204,6 +1218,7 @@ function FilterButton({
   active,
   alert = false,
   positive = false,
+  warning = false,
   onPress,
 }: {
   scale: number;
@@ -1213,6 +1228,8 @@ function FilterButton({
   active: boolean;
   alert?: boolean;
   positive?: boolean;
+  // Orange count (locked accounts).
+  warning?: boolean;
   onPress: () => void;
 }) {
   return (
@@ -1264,6 +1281,10 @@ function FilterButton({
           alert &&
             count > 0 &&
             styles.filterCountAlert,
+
+          warning &&
+            count > 0 &&
+            styles.filterCountWarning,
 
           positive &&
             styles.filterCountPositive,
@@ -1802,6 +1823,28 @@ function UserRow({
               : 'Inactive'}
           </Text>
         </View>
+
+        {isUserLocked(user) ? (
+          <View
+            accessibilityLabel="Locked"
+            style={[
+              styles.lockedBadge,
+
+              {
+                width: 30 * scale,
+                height: 30 * scale,
+                borderRadius: 15 * scale,
+                marginLeft: 6 * scale,
+              },
+            ]}
+          >
+            <MaterialIcons
+              name="lock"
+              size={15 * scale}
+              color={COLORS.orange}
+            />
+          </View>
+        ) : null}
       </View>
 
       {/* ACTION */}
@@ -2135,6 +2178,10 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(239,51,64,0.22)',
   },
 
+  filterCountWarning: {
+    backgroundColor: 'rgba(243,163,74,0.24)',
+  },
+
   filterCountPositive: {
     backgroundColor: 'rgba(53,201,130,0.18)',
   },
@@ -2248,6 +2295,10 @@ const styles = StyleSheet.create({
 
   colStatus: {
     width: '11%',
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    alignItems: 'center',
+    rowGap: 4,
   },
 
   colAction: {
@@ -2310,6 +2361,15 @@ const styles = StyleSheet.create({
   inactivePill: {
     borderColor: 'rgba(239,51,64,0.45)',
     backgroundColor: 'rgba(239,51,64,0.10)',
+  },
+
+  // Small lock beside Active/Inactive.
+  lockedBadge: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(243,163,74,0.45)',
+    backgroundColor: 'rgba(243,163,74,0.10)',
   },
 
   actionButton: {

@@ -10,6 +10,31 @@ Write each change under **Unreleased** as you make it. `node scripts/version.js 
 
 ## Unreleased
 
+- Sign-in lockouts now last 1, 5, then 15 minutes (they were 1, 3, 5 and 10). Both apps count down to the second, and the countdown comes back after a refresh or after reopening the app. The admin portal used to show only a message, with no timer.
+- After an account has been locked once, signing in to it needs a CAPTCHA until a sign-in succeeds or a day passes without a wrong password. The server makes the picture (`svg-captcha`), and each one works once and expires after 5 minutes. The admin portal now uses `react-native-svg` to show it.
+- A lockout that ended more than 15 minutes earlier used to reset the account to a 1-minute lockout. The account now keeps its lockout level.
+- The log trail records lockouts as **Account Lockout** and wrong CAPTCHAs as **Captcha Failed**. A wrong password entry now says how many attempts were left.
+- Both apps sign out after 15 minutes without activity. A warning ("Are you still there?") counts down for the last minute, and Sign In then explains what happened. The log trail records **Auto Logout**. `EXPO_PUBLIC_IDLE_TIMEOUT_MINUTES` sets a shorter time for demos.
+- Coming back after 15 minutes counts as inactivity too: reopening the mobile app, or reopening the admin portal with **Remember me** checked, signs out instead of continuing the session.
+- Admin portal: activity in any tab keeps every tab signed in, and signing out in one tab sends every open tab to sign-in. Pages other than sign-in are covered until the session is checked, so a typed address or Back after signing out can't show them.
+- After signing out, Back (Android, the browser, or the iPad back swipe) no longer returns to signed-in screens.
+- Change Email now sends a 6-digit code to the new address, and the email changes only after the code is entered. Before, the new email was saved straight away without being checked.
+  - With Supabase's secure email change on, the current address gets a code too.
+  - Both apps have the code step, with Resend.
+  - The old `PATCH /api/auth/me/email` is gone, replaced by `/me/email/request`, `/me/email/verify` and `/me/email/resend`.
+  - The Supabase "Change Email Address" template must show `{{ .Token }}` (see the server README).
+- One-time codes (account verification, Forgot Password, Change Email) now expire after 10 minutes and allow 5 wrong tries. Each wrong try says how many are left. A new code can be sent once a minute, and the apps count down to it, including the Reset Password screen, which had no wait before. Needs migration `20261022_otp_attempts.sql`.
+- Resetting a password now signs the account out everywhere and clears any sign-in lockout.
+- Admin portal, user page: **Lock / Unlock**.
+  - A locked account can't sign in, its current sessions stop working in both apps, and Supabase bans the sign-in until it's unlocked. Nothing else about the account changes.
+  - The admin can give a reason, which is shown on the user page and in the log trail.
+  - Unlock also clears a lockout from wrong passwords.
+  - The Users list has a **Locked** filter and a lock icon on locked rows.
+  - The user page's Account Information shows sign-in status: locked, locked until a time, or recent wrong passwords.
+  - Needs migration `20261022_account_lock.sql`.
+- Admin portal, user page: **Change Role** (super admin only) switches an account between User and Admin. It's logged as **Admin Change Role**.
+- Fixed: the super admin's edit, deactivate, activate and delete actions on admin accounts failed with "Unable to …", because the server only updated accounts with the User role.
+
 ## 1.1.1 - 2026-10-18
 
 - Permanently deleting an account, by an admin or by the person, now first does what deactivating does: their open offers are withdrawn, invitations to them are cancelled, their active requests close, and everyone affected is notified. Before, the delete removed their requests, offers and chats without telling anyone. Donation records, ratings and reports were already kept.

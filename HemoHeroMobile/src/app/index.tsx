@@ -47,7 +47,9 @@ import {
 import {
   ApiError,
   getCurrentUser,
+  getLoginCaptcha,
   loginUser,
+  type LoginCaptcha,
 } from '../lib/api';
 
 import {
@@ -56,12 +58,64 @@ import {
 } from '../lib/session';
 
 import {
+  clearLoginLock,
+  getLoginLock,
+  saveLoginLock,
+} from '../lib/loginLock';
+
+import {
+  IDLE_TIMEOUT_MINUTES,
+  isSessionIdle,
+} from '../lib/sessionTimeout';
+
+import {
   holdIntro,
   whenIntroDone,
 } from '../lib/appIntro';
 
 import AuthField from '../components/AuthField';
 import AuthTabs from '../components/AuthTabs';
+import CaptchaField from '../components/CaptchaField';
+
+// A lockout or CAPTCHA the server asked for. email null means
+// the whole network is limited, not one account.
+type SignInLock = {
+  email: string | null;
+  until: number | null;
+  captcha: boolean;
+};
+
+type SignInField =
+  | 'email'
+  | 'password'
+  | 'captcha';
+
+// Seconds left on a lockout, from the server's reply.
+function getRetrySeconds(
+  apiData: any
+) {
+  const seconds =
+    Number(
+      apiData?.retry_after_seconds
+    );
+
+  if (
+    Number.isFinite(seconds) &&
+    seconds > 0
+  ) {
+    return seconds;
+  }
+
+  const minutes =
+    Number(
+      apiData?.retry_after_minutes
+    );
+
+  return Number.isFinite(minutes) &&
+    minutes > 0
+    ? minutes * 60
+    : 60;
+}
 
 // ============================================================
 // COLORS
@@ -81,6 +135,10 @@ const COLORS = {
   inputBorder: '#D8D8D8',
   placeholder: '#A3A3A3',
   muted: '#555555',
+
+  noticeText: '#9A5B0C',
+  noticeBorder: '#F3D3A8',
+  noticeBackground: '#FFF6EA',
 };
 
 // ============================================================
@@ -111,11 +169,22 @@ export default function SignInScreen() {
     height <=
       844;
 
-  // Email carried over from Sign Up ("Sign in instead").
+  // Email carried over from Sign Up ("Sign in instead"), and
+  // why the last session ended (SessionTimeout).
   const params =
     useLocalSearchParams<{
       email?: string | string[];
+      signedOut?: string | string[];
     }>();
+
+  const signedOutNotice =
+    params.signedOut ===
+    'inactivity'
+      ? `You were signed out after ${IDLE_TIMEOUT_MINUTES} minute${IDLE_TIMEOUT_MINUTES === 1 ? '' : 's'} of inactivity.`
+      : params.signedOut ===
+          'signed_out'
+        ? 'You signed out in another tab.'
+        : '';
 
   // ==========================================================
   // FORM STATE
@@ -155,19 +224,20 @@ export default function SignInScreen() {
     fieldErrors,
     setFieldErrors,
   ] =
-    useState<{
-      email?: string;
-      password?: string;
-    }>({});
+    useState<
+      Partial<
+        Record<SignInField, string>
+      >
+    >({});
 
   // Field the banner's problem belongs to (red outline).
   const [
     invalidField,
     setInvalidField,
   ] =
-    useState<
-      'email' | 'password' | null
-    >(null);
+    useState<SignInField | null>(
+      null
+    );
 
   // Next step offered with the error (verify email, sign up).
   const [
@@ -179,12 +249,13 @@ export default function SignInScreen() {
       onPress: () => void;
     } | null>(null);
 
-  // Too many attempts: signing in is locked until then.
+  // Too many attempts: signing in is locked until lock.until,
+  // and after a lockout every attempt needs a CAPTCHA.
   const [
-    cooldownUntil,
-    setCooldownUntil,
+    lock,
+    setLock,
   ] =
-    useState<number | null>(
+    useState<SignInLock | null>(
       null
     );
 
@@ -194,6 +265,34 @@ export default function SignInScreen() {
   ] =
     useState(
       Date.now()
+    );
+
+  const [
+    captcha,
+    setCaptcha,
+  ] =
+    useState<LoginCaptcha | null>(
+      null
+    );
+
+  const [
+    captchaAnswer,
+    setCaptchaAnswer,
+  ] =
+    useState('');
+
+  const [
+    captchaLoading,
+    setCaptchaLoading,
+  ] =
+    useState(false);
+
+  const [
+    captchaLoadError,
+    setCaptchaLoadError,
+  ] =
+    useState<string | null>(
+      null
     );
 
   const passwordRef =
@@ -417,6 +516,14 @@ export default function SignInScreen() {
             return;
           }
 
+          // Unused too long: SessionTimeout signs out and says
+          // why, so stay here.
+          if (
+            await isSessionIdle()
+          ) {
+            return;
+          }
+
           const data =
             await getCurrentUser(
               token
@@ -456,12 +563,125 @@ export default function SignInScreen() {
   );
 
   // ==========================================================
-  // COOLDOWN COUNTDOWN
+  // LOCKOUT + CAPTCHA
+  //
+  // The server decides; this only shows it. A lock is saved on
+  // the phone so reopening the app shows the countdown (and the
+  // CAPTCHA) again before the next attempt.
   // ==========================================================
 
+  function applyLock(
+    next: SignInLock | null
+  ) {
+    setNow(Date.now());
+    setLock(next);
+
+    if (!next) {
+      void clearLoginLock();
+
+      return;
+    }
+
+    // A network limit isn't about one account; not saved.
+    if (next.email) {
+      void saveLoginLock({
+        email:
+          next.email,
+
+        lockedUntil:
+          next.until,
+
+        captchaRequired:
+          next.captcha,
+      });
+    }
+  }
+
+  // Saved lock from before the app was closed.
   useEffect(
     () => {
-      if (!cooldownUntil) {
+      let active = true;
+
+      (async () => {
+        const saved =
+          await getLoginLock();
+
+        if (
+          !active ||
+          !saved
+        ) {
+          return;
+        }
+
+        const until =
+          saved.lockedUntil &&
+          saved.lockedUntil >
+            Date.now()
+            ? saved.lockedUntil
+            : null;
+
+        if (
+          !until &&
+          !saved.captchaRequired
+        ) {
+          void clearLoginLock();
+
+          return;
+        }
+
+        setNow(Date.now());
+
+        setLock({
+          email:
+            saved.email,
+
+          until,
+
+          captcha:
+            saved.captchaRequired,
+        });
+
+        // The locked account, unless Sign Up passed another.
+        const passedEmail =
+          typeof params.email ===
+          'string'
+            ? params.email
+                .trim()
+                .toLowerCase()
+            : '';
+
+        if (!passedEmail) {
+          setEmail(
+            saved.email
+          );
+        }
+
+        if (
+          until &&
+          (!passedEmail ||
+            passedEmail ===
+              saved.email)
+        ) {
+          setErrorMessage(
+            'Too many incorrect password attempts.'
+          );
+        }
+      })();
+
+      return () => {
+        active = false;
+      };
+    },
+    []
+  );
+
+  // Countdown; when it ends, the CAPTCHA (if needed) remains.
+  useEffect(
+    () => {
+      const until =
+        lock?.until;
+
+      if (!until) {
         return;
       }
 
@@ -475,13 +695,20 @@ export default function SignInScreen() {
 
             if (
               current >=
-              cooldownUntil
+              until
             ) {
-              setCooldownUntil(
-                null
-              );
-
               setErrorMessage('');
+              setErrorAction(null);
+
+              applyLock(
+                lock.captcha
+                  ? {
+                      ...lock,
+                      until:
+                        null,
+                    }
+                  : null
+              );
             }
           },
           1000
@@ -491,20 +718,109 @@ export default function SignInScreen() {
         clearInterval(timer);
     },
     [
-      cooldownUntil,
+      lock,
     ]
   );
 
+  // A lock applies to the account it came from (or to every
+  // account, for a network limit).
+  const currentEmail =
+    email
+      .trim()
+      .toLowerCase();
+
+  const lockApplies =
+    Boolean(lock) &&
+    (lock?.email === null ||
+      lock?.email ===
+        currentEmail);
+
   const cooldownSeconds =
-    cooldownUntil
+    lockApplies &&
+    lock?.until
       ? Math.max(
           0,
           Math.ceil(
-            (cooldownUntil - now) /
+            (lock.until - now) /
               1000
           )
         )
       : 0;
+
+  const showCaptcha =
+    lockApplies &&
+    lock?.captcha === true &&
+    cooldownSeconds === 0;
+
+  async function loadCaptcha() {
+    setCaptchaLoading(true);
+    setCaptchaLoadError(null);
+    setCaptchaAnswer('');
+
+    try {
+      setCaptcha(
+        await getLoginCaptcha()
+      );
+    } catch (error) {
+      setCaptcha(null);
+
+      setCaptchaLoadError(
+        error instanceof Error
+          ? error.message
+          : 'Unable to load the picture.'
+      );
+    } finally {
+      setCaptchaLoading(false);
+    }
+  }
+
+  // A picture whenever one is needed and there isn't one (also
+  // after each attempt, since a CAPTCHA works only once).
+  useEffect(
+    () => {
+      if (
+        showCaptcha &&
+        !captcha &&
+        !captchaLoading &&
+        !captchaLoadError
+      ) {
+        void loadCaptcha();
+      }
+    },
+    [
+      showCaptcha,
+      captcha,
+      captchaLoading,
+      captchaLoadError,
+    ]
+  );
+
+  // The server forgets a CAPTCHA after 5 minutes; swap it for a
+  // new one just before.
+  useEffect(
+    () => {
+      if (!captcha) {
+        return;
+      }
+
+      const timer =
+        setTimeout(
+          () =>
+            setCaptcha(null),
+          Math.max(
+            30,
+            captcha.expires_in_seconds -
+              10
+          ) * 1000
+        );
+
+      return () =>
+        clearTimeout(timer);
+    },
+    [
+      captcha,
+    ]
+  );
 
   const cooldownText =
     `${Math.floor(
@@ -530,7 +846,7 @@ export default function SignInScreen() {
   function triggerError(
     message: string,
     options: {
-      field?: 'email' | 'password';
+      field?: SignInField;
       action?: {
         label: string;
         onPress: () => void;
@@ -753,10 +1069,9 @@ export default function SignInScreen() {
     const emailPattern =
       /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
-    const errors: {
-      email?: string;
-      password?: string;
-    } = {};
+    const errors: Partial<
+      Record<SignInField, string>
+    > = {};
 
     if (!cleanEmail) {
       errors.email =
@@ -775,9 +1090,22 @@ export default function SignInScreen() {
         'Enter your password.';
     }
 
+    if (showCaptcha) {
+      if (!captcha) {
+        errors.captcha =
+          'Wait for the picture to load.';
+      } else if (
+        !captchaAnswer.trim()
+      ) {
+        errors.captcha =
+          'Type the characters in the picture.';
+      }
+    }
+
     if (
       errors.email ||
-      errors.password
+      errors.password ||
+      errors.captcha
     ) {
       setFieldErrors(errors);
 
@@ -785,6 +1113,19 @@ export default function SignInScreen() {
 
       return;
     }
+
+    // A CAPTCHA works for one attempt only.
+    const captchaSent =
+      showCaptcha &&
+      captcha
+        ? {
+            captcha_id:
+              captcha.captcha_id,
+
+            captcha_answer:
+              captchaAnswer.trim(),
+          }
+        : null;
 
     try {
       setLoading(
@@ -798,8 +1139,12 @@ export default function SignInScreen() {
       const data =
         await loginUser(
           cleanEmail,
-          password
+          password,
+          captchaSent
         );
+
+      // Signed in: no lockout or CAPTCHA anymore.
+      applyLock(null);
 
       // ------------------------------------------------------
       // VERIFY SESSION
@@ -876,8 +1221,7 @@ export default function SignInScreen() {
         'Unable to sign in. Please try again.';
 
       let field:
-        | 'email'
-        | 'password'
+        | SignInField
         | undefined;
 
       let action:
@@ -887,7 +1231,11 @@ export default function SignInScreen() {
           }
         | undefined;
 
-      let lockMinutes = 0;
+      // The CAPTCHA just sent is used up; a new one loads.
+      if (captchaSent) {
+        setCaptcha(null);
+        setCaptchaAnswer('');
+      }
 
       // ------------------------------------------------------
       // STRUCTURED API ERRORS
@@ -944,6 +1292,52 @@ export default function SignInScreen() {
             'Incorrect password.';
 
           field = 'password';
+
+          if (
+            apiData.captcha_required ===
+            true
+          ) {
+            applyLock({
+              email:
+                cleanEmail,
+
+              until:
+                null,
+
+              captcha:
+                true,
+            });
+          }
+        }
+
+        // ----------------------------------------------------
+        // CAPTCHA NEEDED (after a lockout) OR WRONG
+        // ----------------------------------------------------
+
+        else if (
+          apiData.code ===
+            'CAPTCHA_REQUIRED' ||
+          apiData.code ===
+            'CAPTCHA_INCORRECT'
+        ) {
+          message =
+            apiData.code ===
+            'CAPTCHA_INCORRECT'
+              ? "The characters didn't match. Try the new picture."
+              : 'This account was locked recently. Complete the security check to sign in.';
+
+          field = 'captcha';
+
+          applyLock({
+            email:
+              cleanEmail,
+
+            until:
+              null,
+
+            captcha:
+              true,
+          });
         }
 
         // ----------------------------------------------------
@@ -968,7 +1362,7 @@ export default function SignInScreen() {
             const attemptText =
               remaining ===
               1
-                ? '1 attempt remaining before a 3-minute cooldown.'
+                ? '1 attempt remaining before a temporary lockout.'
                 : `${remaining} attempts remaining.`;
 
             message =
@@ -1019,21 +1413,24 @@ export default function SignInScreen() {
           apiData.code ===
           'LOGIN_ACCOUNT_RATE_LIMIT'
         ) {
-          const retryMinutes =
-            Number(
-              apiData
-                .retry_after_minutes
-            );
-
           message =
             'Too many incorrect password attempts.';
 
-          lockMinutes =
-            Number.isFinite(
-              retryMinutes
-            )
-              ? retryMinutes
-              : 3;
+          applyLock({
+            email:
+              cleanEmail,
+
+            until:
+              Date.now() +
+              getRetrySeconds(
+                apiData
+              ) *
+                1000,
+
+            captcha:
+              apiData.captcha_required ===
+              true,
+          });
         }
 
         // ----------------------------------------------------
@@ -1044,21 +1441,23 @@ export default function SignInScreen() {
           apiData.code ===
           'LOGIN_IP_RATE_LIMIT'
         ) {
-          const retryMinutes =
-            Number(
-              apiData
-                .retry_after_minutes
-            );
-
           message =
             'Too many login attempts from this network.';
 
-          lockMinutes =
-            Number.isFinite(
-              retryMinutes
-            )
-              ? retryMinutes
-              : 3;
+          applyLock({
+            email:
+              null,
+
+            until:
+              Date.now() +
+              getRetrySeconds(
+                apiData
+              ) *
+                1000,
+
+            captcha:
+              false,
+          });
         }
 
         // ----------------------------------------------------
@@ -1128,15 +1527,6 @@ export default function SignInScreen() {
       // ------------------------------------------------------
       // ERROR STAYS INSIDE APP + SHAKE
       // ------------------------------------------------------
-
-      if (lockMinutes > 0) {
-        setNow(Date.now());
-
-        setCooldownUntil(
-          Date.now() +
-            lockMinutes * 60000
-        );
-      }
 
       triggerError(
         message,
@@ -1396,6 +1786,38 @@ export default function SignInScreen() {
                     />
 
                     {/* ==============================================
+                        WHY THE LAST SESSION ENDED
+                    ============================================== */}
+
+                    {signedOutNotice &&
+                    !errorMessage ? (
+                      <View
+                        style={
+                          styles.noticeContainer
+                        }
+                        accessibilityLiveRegion="polite"
+                      >
+                        <MaterialIcons
+                          name="info-outline"
+                          size={17}
+                          color={
+                            COLORS.noticeText
+                          }
+                        />
+
+                        <Text
+                          style={
+                            styles.noticeText
+                          }
+                        >
+                          {
+                            signedOutNotice
+                          }
+                        </Text>
+                      </View>
+                    ) : null}
+
+                    {/* ==============================================
                         ERROR (+ next step)
                     ============================================== */}
 
@@ -1618,6 +2040,65 @@ export default function SignInScreen() {
                           handleSignIn
                         }
                       />
+
+                      {/* After a lockout: CAPTCHA before signing in */}
+
+                      {showCaptcha ? (
+                        <CaptchaField
+                          captcha={
+                            captcha
+                          }
+                          loading={
+                            captchaLoading
+                          }
+                          loadError={
+                            captchaLoadError
+                          }
+                          value={
+                            captchaAnswer
+                          }
+                          editable={
+                            !loading
+                          }
+                          error={
+                            fieldErrors.captcha
+                          }
+                          invalid={
+                            invalidField ===
+                            'captcha'
+                          }
+                          onRefresh={() => {
+                            setCaptcha(null);
+                            setCaptchaLoadError(null);
+                          }}
+                          onChangeText={value => {
+                            setCaptchaAnswer(
+                              value
+                            );
+
+                            if (
+                              fieldErrors.captcha ||
+                              invalidField ===
+                                'captcha'
+                            ) {
+                              setFieldErrors(
+                                current => ({
+                                  ...current,
+                                  captcha:
+                                    undefined,
+                                })
+                              );
+
+                              setInvalidField(
+                                null
+                              );
+                            }
+                          }}
+                          onSubmitEditing={
+                            handleSignIn
+                          }
+                        />
+                      ) : null}
                     </Animated.View>
 
                     {/* ==============================================
@@ -2126,6 +2607,28 @@ const styles =
 
       backgroundColor:
         '#FDECEC',
+    },
+
+    // "You were signed out after 15 minutes of inactivity."
+    noticeContainer: {
+      marginBottom: 18,
+      paddingHorizontal: 12,
+      paddingVertical: 10,
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 8,
+      borderWidth: 1,
+      borderColor: COLORS.noticeBorder,
+      borderRadius: 8,
+      backgroundColor: COLORS.noticeBackground,
+    },
+
+    noticeText: {
+      flex: 1,
+      color: COLORS.noticeText,
+      fontFamily: 'Inter_500Medium',
+      fontSize: 12,
+      lineHeight: 17,
     },
 
     // "Verify email" / "Create an account" under the message.

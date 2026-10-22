@@ -16,6 +16,7 @@ const {
   verifyEmail,
   resendVerification,
   login,
+  getLoginCaptcha,
   refreshSession,
   logout,
   forgotPassword,
@@ -33,7 +34,9 @@ const {
 
 const {
   changePassword,
-  changeEmail,
+  requestEmailChange,
+  resendEmailChange,
+  verifyEmailChange,
   deactivateAccount,
   deleteAccountPermanently,
 } = require(
@@ -76,6 +79,37 @@ const {
 } = require(
   '../middleware/loginRateLimiter'
 );
+
+const {
+  rateLimit,
+} = require(
+  'express-rate-limit'
+);
+
+// New CAPTCHAs per network: 20 a minute is plenty for people
+// and stops a script from filling the server's memory.
+const captchaLimiter =
+  rateLimit({
+    windowMs:
+      60 * 1000,
+
+    limit:
+      20,
+
+    standardHeaders:
+      false,
+
+    legacyHeaders:
+      false,
+
+    message: {
+      error:
+        'Too many CAPTCHA requests. Please wait a minute.',
+
+      code:
+        'CAPTCHA_RATE_LIMIT',
+    },
+  });
 
 // ============================================================
 // ACTIVITY LOG MIDDLEWARE
@@ -367,6 +401,21 @@ router.post(
 );
 
 // ------------------------------------------------------------
+// SIGN-IN CAPTCHA
+//
+// GET /api/auth/captcha
+//
+// Needed for sign-in after an account has been locked. Not
+// logged: the attempt that uses it is.
+// ------------------------------------------------------------
+
+router.get(
+  '/captcha',
+  captchaLimiter,
+  getLoginCaptcha
+);
+
+// ------------------------------------------------------------
 // REFRESH SESSION
 //
 // POST /api/auth/refresh
@@ -591,10 +640,68 @@ router.patch(
 
 // ------------------------------------------------------------
 // CHANGE EMAIL
+//
+// The new address must be confirmed with a code first (see
+// accountController.js):
+//
+// POST /me/email/request  current password + new email; sends
+//                         the code
+// POST /me/email/resend   a new code (60 s apart)
+// POST /me/email/verify   the code; changes the email
 // ------------------------------------------------------------
 
-router.patch(
-  '/me/email',
+router.post(
+  '/me/email/request',
+
+  activityLog({
+    action:
+      'REQUEST_EMAIL_CHANGE',
+
+    module:
+      'Account Security',
+
+    successDescription:
+      'User asked to change their email address; a code was sent to the new address.',
+
+    failureDescription:
+      'Email change request failed.',
+
+    entityType:
+      'user_account',
+  }),
+
+  requireAuth,
+
+  requestEmailChange
+);
+
+router.post(
+  '/me/email/resend',
+
+  activityLog({
+    action:
+      'RESEND_EMAIL_CHANGE_CODE',
+
+    module:
+      'Account Security',
+
+    successDescription:
+      'User requested a new email change code.',
+
+    failureDescription:
+      'Email change code resend failed.',
+
+    entityType:
+      'user_account',
+  }),
+
+  requireAuth,
+
+  resendEmailChange
+);
+
+router.post(
+  '/me/email/verify',
 
   activityLog({
     action:
@@ -604,10 +711,10 @@ router.patch(
       'Account Security',
 
     successDescription:
-      'User changed their account email address.',
+      'User changed their account email address after confirming the code.',
 
     failureDescription:
-      'Email change attempt failed.',
+      'Email change verification failed.',
 
     entityType:
       'user_account',
@@ -615,7 +722,7 @@ router.patch(
 
   requireAuth,
 
-  changeEmail
+  verifyEmailChange
 );
 
 // ------------------------------------------------------------

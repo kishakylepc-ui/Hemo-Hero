@@ -42,6 +42,7 @@ import {
 import { shiftedDown, withStatusBar } from '../lib/fullScreen';
 
 import {
+  ApiError,
   resendVerification,
   verifyEmail,
 } from '../lib/api';
@@ -450,6 +451,20 @@ function showMessage(
           error.message;
       }
 
+      // Used up (5 wrong tries) or too old: a new code is
+      // needed, so empty the boxes.
+      if (
+        error instanceof ApiError &&
+        [
+          'OTP_TOO_MANY_ATTEMPTS',
+          'OTP_EXPIRED',
+        ].includes(
+          error.data?.code
+        )
+      ) {
+        setCode('');
+      }
+
       setErrorMessage(
         message
       );
@@ -531,6 +546,26 @@ function showMessage(
       ) {
         message =
           error.message;
+      }
+
+      // Too soon: count down the time the server gave.
+      const waitSeconds =
+        error instanceof ApiError
+          ? Number(
+              error.data
+                ?.retry_after_seconds
+            )
+          : NaN;
+
+      if (
+        Number.isFinite(
+          waitSeconds
+        ) &&
+        waitSeconds > 0
+      ) {
+        setResendSeconds(
+          waitSeconds
+        );
       }
 
       setErrorMessage(

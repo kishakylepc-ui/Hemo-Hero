@@ -19,13 +19,19 @@ Built with Expo SDK 57 and Expo Router. It runs in a web browser and on iPad (Ex
 
 Only admin and super admin accounts can sign in. The [server README](../server/README.md#admin-accounts) explains the roles and how to create the first admin.
 
+**Sessions:**
+- After 15 minutes without a click, key press, scroll or touch, the portal signs out. A warning with a countdown shows 1 minute before.
+- Activity in any open tab counts for all of them, and signing out in one tab signs out every tab.
+- Pages other than sign-in open only when signed in, so a typed address or the Back button after signing out returns to sign-in.
+- For a demo, set `EXPO_PUBLIC_IDLE_TIMEOUT_MINUTES` in `.env` to a shorter time (see `.env.example`).
+
 ## Modules
 
 | Tab | What it does |
 |---|---|
 | Dashboard | What needs attention now, totals, blood type demand, recent activity |
 | Applications | Review donor applications and government IDs; approve or reject |
-| Users | Search, create, edit, deactivate or delete user accounts. The super admin also manages admin accounts. |
+| Users | Search, create, edit, deactivate, lock or unlock, or delete user accounts. **Locked** lists accounts locked by an admin or after wrong passwords. The super admin also manages admin accounts and changes roles (User or Admin). |
 | Requests | Every blood request, with filters and full details |
 | Donations | Every donation record; mark flagged records valid or reject them |
 | Analytics | Applications, accounts, request outcomes, donations, issues and activity |

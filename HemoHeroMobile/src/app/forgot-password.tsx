@@ -39,6 +39,7 @@ import {
 import { shiftedDown, withStatusBar } from '../lib/fullScreen';
 
 import {
+  ApiError,
   forgotPassword,
 } from '../lib/api';
 
@@ -207,6 +208,33 @@ export default function ForgotPasswordScreen() {
         'FORGOT PASSWORD ERROR:',
         error
       );
+
+      // A code went out less than a minute ago and still works:
+      // go enter it (Resend waits out the rest of the minute).
+      if (
+        error instanceof ApiError &&
+        error.data?.code ===
+          'OTP_RESEND_COOLDOWN'
+      ) {
+        router.push({
+          pathname:
+            '/reset-password',
+
+          params: {
+            email:
+              cleanEmail,
+
+            wait:
+              String(
+                error.data
+                  .retry_after_seconds ||
+                  60
+              ),
+          },
+        });
+
+        return;
+      }
 
       let message =
         'Unable to send the reset code. Please try again.';

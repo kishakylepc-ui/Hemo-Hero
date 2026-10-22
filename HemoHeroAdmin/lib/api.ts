@@ -3,9 +3,9 @@
 // API CLIENT
 // ============================================================
 
-import { router } from 'expo-router';
-
 import { clearAdminSession } from './session';
+
+import { goToAdminSignIn } from './signInRoute';
 
 import { isAdminRole } from './roles';
 
@@ -522,6 +522,9 @@ export type AdminUserSummary = {
   active: number;
 
   inactive: number;
+
+  // Locked by an admin or after wrong passwords.
+  locked?: number;
 };
 
 export type AdminManagedUserDonor = {
@@ -573,6 +576,22 @@ export type AdminManagedUser = {
 
   deactivated_at?: string | null;
 
+  // Locked by an admin (can't sign in until unlocked).
+  is_locked?: boolean;
+
+  locked_at?: string | null;
+
+  locked_reason?: string | null;
+
+  // Wrong-password lockout, while it matters.
+  login_lockout?: {
+    locked: boolean;
+    locked_until: string | null;
+    failed_attempts: number;
+    lockouts: number;
+    captcha_required: boolean;
+  } | null;
+
   created_at?: string | null;
 
   updated_at?: string | null;
@@ -580,6 +599,22 @@ export type AdminManagedUser = {
   donor?:
     AdminManagedUserDonor | null;
 };
+
+// Locked by an admin, or locked now after wrong passwords.
+export function isUserLocked(
+  user:
+    | Pick<
+        AdminManagedUser,
+        'is_locked' | 'login_lockout'
+      >
+    | null
+    | undefined
+) {
+  return Boolean(
+    user?.is_locked ||
+      user?.login_lockout?.locked
+  );
+}
 
 export type AdminUserPagination = {
   page: number;
@@ -594,7 +629,8 @@ export type AdminUserPagination = {
 export type AdminUserStatusFilter =
   | 'all'
   | 'active'
-  | 'inactive';
+  | 'inactive'
+  | 'locked';
 
 export type AdminUserFilters = {
   page?: number;
@@ -989,6 +1025,7 @@ const SESSION_ENDED_CODES = [
   'AUTH_REQUIRED',
   'USER_PROFILE_NOT_FOUND',
   'ACCOUNT_DEACTIVATED',
+  'ACCOUNT_LOCKED',
   'ADMIN_REQUIRED',
 ];
 
@@ -1005,7 +1042,7 @@ async function handleSessionEnded() {
   try {
     await clearAdminSession();
 
-    router.replace('/');
+    goToAdminSignIn();
   } catch (error) {
     console.log(
       'SESSION END REDIRECT ERROR:',
@@ -1016,6 +1053,49 @@ async function handleSessionEnded() {
     setTimeout(() => {
       handlingSessionEnd = false;
     }, 1500);
+  }
+}
+
+// ============================================================
+// API ERROR
+//
+// Keeps the server's reply, so a screen can act on its code
+// (e.g. the sign-in lockout timer and CAPTCHA).
+// ============================================================
+
+export class AdminApiError extends Error {
+  status: number;
+
+  code: string | null;
+
+  data: any;
+
+  constructor(
+    message: string,
+    status: number,
+    data: any
+  ) {
+    super(message);
+
+    this.name =
+      'AdminApiError';
+
+    this.status =
+      status;
+
+    this.code =
+      typeof data?.code ===
+      'string'
+        ? data.code
+        : null;
+
+    this.data =
+      data;
+
+    Object.setPrototypeOf(
+      this,
+      AdminApiError.prototype
+    );
   }
 }
 
@@ -1037,18 +1117,25 @@ async function parseResponse(
       null;
   }
 
-  // The login request is excluded: a failed sign-in must show
-  // its own message, not redirect.
+  // Login and logout are excluded: a failed sign-in must show
+  // its own message, and a sign-out already goes to sign-in
+  // (with its own reason).
+  const url =
+    String(
+      response.url || ''
+    );
+
   if (
     (response.status === 401 ||
       response.status === 403) &&
     SESSION_ENDED_CODES.includes(
       data?.code
     ) &&
-    !String(
-      response.url || ''
-    ).includes(
+    !url.includes(
       '/api/auth/login'
+    ) &&
+    !url.includes(
+      '/api/auth/logout'
     )
   ) {
     void handleSessionEnded();
@@ -1061,10 +1148,14 @@ async function parseResponse(
   if (
     !response.ok
   ) {
-    throw new Error(
+    throw new AdminApiError(
       data?.error ||
         data?.message ||
-        `Request failed with status ${response.status}.`
+        `Request failed with status ${response.status}.`,
+
+      response.status,
+
+      data
     );
   }
 
@@ -1075,9 +1166,16 @@ async function parseResponse(
 // ADMIN LOGIN
 // ============================================================
 
+// A solved sign-in CAPTCHA, needed after a lockout.
+export type CaptchaAnswer = {
+  captcha_id: string;
+  captcha_answer: string;
+};
+
 export async function loginAdmin(
   email: string,
-  password: string
+  password: string,
+  captcha?: CaptchaAnswer | null
 ): Promise<AdminLoginResponse> {
   const response =
     await fetch(
@@ -1097,6 +1195,9 @@ export async function loginAdmin(
               email.trim(),
 
             password,
+
+            ...(captcha ||
+              {}),
           }),
       }
     );
@@ -1127,6 +1228,29 @@ export async function loginAdmin(
   }
 
   return data;
+}
+
+// ============================================================
+// SIGN-IN CAPTCHA
+//
+// A new picture to solve; the answer stays on the server.
+// ============================================================
+
+export type LoginCaptcha = {
+  captcha_id: string;
+  svg: string;
+  expires_in_seconds: number;
+};
+
+export async function getLoginCaptcha(): Promise<LoginCaptcha> {
+  const response =
+    await fetch(
+      `${API_URL}/api/auth/captcha`
+    );
+
+  return parseResponse(
+    response
+  );
 }
 
 // ============================================================
@@ -1316,7 +1440,9 @@ export async function changeAdminPassword(
 
 // PATCH /api/auth/me/email
 
-export async function changeAdminEmail(
+// Change email, step 1: the server emails a 6-digit code to the
+// new address. Nothing changes yet.
+export async function requestAdminEmailChange(
   token: string,
   input: {
     current_password: string;
@@ -1325,13 +1451,18 @@ export async function changeAdminEmail(
 
     confirm_email: string;
   }
-): Promise<AdminReloginResponse> {
+): Promise<{
+  message: string;
+  new_email: string;
+  resend_after_seconds: number;
+  expires_in_seconds: number;
+}> {
   const response =
     await fetch(
-      `${API_URL}/api/auth/me/email`,
+      `${API_URL}/api/auth/me/email/request`,
       {
         method:
-          'PATCH',
+          'POST',
 
         headers: {
           Authorization:
@@ -1364,12 +1495,106 @@ export async function changeAdminEmail(
   );
 }
 
+// A new code (at most one a minute).
+export async function resendAdminEmailChange(
+  token: string,
+  newEmail: string
+): Promise<{
+  message: string;
+  resend_after_seconds: number;
+}> {
+  const response =
+    await fetch(
+      `${API_URL}/api/auth/me/email/resend`,
+      {
+        method:
+          'POST',
+
+        headers: {
+          Authorization:
+            `Bearer ${token}`,
+
+          'Content-Type':
+            'application/json',
+        },
+
+        body:
+          JSON.stringify({
+            new_email:
+              newEmail,
+          }),
+      }
+    );
+
+  return parseResponse(
+    response
+  );
+}
+
+// Change email, step 2. 'changed': done, sign in again with the
+// new email. 'confirm_other': Supabase also sent a code to the
+// other address (next_target), which must be entered too.
+export type EmailChangeTarget =
+  | 'new'
+  | 'current';
+
+export async function verifyAdminEmailChange(
+  token: string,
+  input: {
+    new_email: string;
+    code: string;
+    target: EmailChangeTarget;
+  }
+): Promise<
+  | {
+      status: 'changed';
+      message: string;
+      email: string;
+    }
+  | {
+      status: 'confirm_other';
+      next_target: EmailChangeTarget;
+      message: string;
+    }
+> {
+  const response =
+    await fetch(
+      `${API_URL}/api/auth/me/email/verify`,
+      {
+        method:
+          'POST',
+
+        headers: {
+          Authorization:
+            `Bearer ${token}`,
+
+          'Content-Type':
+            'application/json',
+        },
+
+        body:
+          JSON.stringify(
+            input
+          ),
+      }
+    );
+
+  return parseResponse(
+    response
+  );
+}
+
 // POST /api/auth/logout
 //
 // Revokes the Supabase session on the server.
 
 export async function logoutAdmin(
-  token: string
+  token: string,
+  options: {
+    // Signed out automatically (logged as AUTO_LOGOUT).
+    reason?: 'inactivity';
+    idleMinutes?: number;
+  } = {}
 ): Promise<{
   message: string;
 }> {
@@ -1383,7 +1608,19 @@ export async function logoutAdmin(
         headers: {
           Authorization:
             `Bearer ${token}`,
+
+          'Content-Type':
+            'application/json',
         },
+
+        body:
+          JSON.stringify({
+            reason:
+              options.reason,
+
+            idle_minutes:
+              options.idleMinutes,
+          }),
       }
     );
 
@@ -2204,6 +2441,91 @@ export async function activateAdminUser(
 
   return parseResponse(
     response
+  );
+}
+
+// ============================================================
+// LOCK / UNLOCK / ROLE
+//
+// Locked accounts can't sign in until unlocked; Unlock also
+// clears a lockout from wrong passwords. Role changes are for
+// the super admin only.
+// ============================================================
+
+async function patchAdminUser(
+  token: string,
+  userId: string,
+  action: 'lock' | 'unlock' | 'role',
+  body: object = {}
+): Promise<AdminUserActionResponse> {
+  const response =
+    await fetch(
+      `${API_URL}/api/admin/users/${encodeURIComponent(
+        userId
+      )}/${action}`,
+      {
+        method:
+          'PATCH',
+
+        headers: {
+          Authorization:
+            `Bearer ${token}`,
+
+          'Content-Type':
+            'application/json',
+        },
+
+        body:
+          JSON.stringify(
+            body
+          ),
+      }
+    );
+
+  return parseResponse(
+    response
+  );
+}
+
+export function lockAdminUser(
+  token: string,
+  userId: string,
+  reason: string
+) {
+  return patchAdminUser(
+    token,
+    userId,
+    'lock',
+    {
+      reason:
+        reason.trim(),
+    }
+  );
+}
+
+export function unlockAdminUser(
+  token: string,
+  userId: string
+) {
+  return patchAdminUser(
+    token,
+    userId,
+    'unlock'
+  );
+}
+
+export function changeAdminUserRole(
+  token: string,
+  userId: string,
+  role: 'user' | 'admin'
+) {
+  return patchAdminUser(
+    token,
+    userId,
+    'role',
+    {
+      role,
+    }
   );
 }
 

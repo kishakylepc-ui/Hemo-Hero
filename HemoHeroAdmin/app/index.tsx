@@ -28,6 +28,7 @@ import {
 
 import {
   router,
+  useLocalSearchParams,
 } from 'expo-router';
 
 import {
@@ -38,22 +39,88 @@ import {
   SafeAreaView,
 } from 'react-native-safe-area-context';
 
+import {
+  SvgXml,
+} from 'react-native-svg';
+
 import { useAdminCanvas } from '../components/AdminCanvas';
 
 import {
+  AdminApiError,
+  getLoginCaptcha,
   loginAdmin,
   requestAdminPasswordReset,
+  type LoginCaptcha,
 } from '../lib/api';
 
 import {
+  clearAdminLoginLock,
   clearAdminSession,
   getAdminAccessToken,
+  getAdminLoginLock,
   getAdminProfile,
   getRememberAdmin,
+  saveAdminLoginLock,
   saveAdminSession,
 } from '../lib/session';
 
 import { isAdminRole } from '../lib/roles';
+
+import {
+  endIdleAdminSession,
+  IDLE_TIMEOUT_MINUTES,
+  isAdminSessionIdle,
+} from '../lib/sessionTimeout';
+
+// Why the last session ended (see SessionGuard).
+function describeSignOut(
+  reason: unknown
+) {
+  if (reason === 'inactivity') {
+    return `You were signed out after ${IDLE_TIMEOUT_MINUTES} minute${IDLE_TIMEOUT_MINUTES === 1 ? '' : 's'} of inactivity.`;
+  }
+
+  if (reason === 'signed_out') {
+    return 'You signed out in another tab.';
+  }
+
+  return '';
+}
+
+// A lockout or CAPTCHA the server asked for. email null means
+// the whole network is limited, not one account.
+type SignInLock = {
+  email: string | null;
+  until: number | null;
+  captcha: boolean;
+};
+
+// Seconds left on a lockout, from the server's reply.
+function getRetrySeconds(
+  data: any
+) {
+  const seconds =
+    Number(
+      data?.retry_after_seconds
+    );
+
+  if (
+    Number.isFinite(seconds) &&
+    seconds > 0
+  ) {
+    return seconds;
+  }
+
+  const minutes =
+    Number(
+      data?.retry_after_minutes
+    );
+
+  return Number.isFinite(minutes) &&
+    minutes > 0
+    ? minutes * 60
+    : 60;
+}
 
 // ============================================================
 // COLORS
@@ -107,6 +174,9 @@ const COLORS = {
 
   successBackground:
     'rgba(89, 217, 142, 0.10)',
+
+  notice:
+    '#F3A34A',
 };
 
 // ============================================================
@@ -185,6 +255,86 @@ export default function AdminLoginScreen() {
     setSuccessMessage,
   ] =
     useState('');
+
+  // Why the last session ended (inactivity, another tab).
+  const {
+    signedOut,
+  } =
+    useLocalSearchParams<{
+      signedOut?: string;
+    }>();
+
+  const [
+    notice,
+    setNotice,
+  ] =
+    useState(
+      describeSignOut(
+        signedOut
+      )
+    );
+
+  useEffect(
+    () => {
+      const text =
+        describeSignOut(
+          signedOut
+        );
+
+      if (text) {
+        setNotice(text);
+      }
+    },
+    [
+      signedOut,
+    ]
+  );
+
+  // Too many attempts: signing in is locked until lock.until,
+  // and after a lockout every attempt needs a CAPTCHA.
+  const [
+    lock,
+    setLock,
+  ] =
+    useState<SignInLock | null>(
+      null
+    );
+
+  const [
+    now,
+    setNow,
+  ] =
+    useState(
+      Date.now()
+    );
+
+  const [
+    captcha,
+    setCaptcha,
+  ] =
+    useState<LoginCaptcha | null>(
+      null
+    );
+
+  const [
+    captchaAnswer,
+    setCaptchaAnswer,
+  ] =
+    useState('');
+
+  const [
+    captchaLoading,
+    setCaptchaLoading,
+  ] =
+    useState(false);
+
+  const [
+    captchaLoadError,
+    setCaptchaLoadError,
+  ] =
+    useState<string | null>(
+      null
+    );
 
   // ==========================================================
   // ANIMATION VALUES
@@ -287,6 +437,22 @@ export default function AdminLoginScreen() {
         token &&
         isAdminRole(profile?.role)
       ) {
+        // Remembered, but unused for too long: sign out
+        // instead of reopening the portal.
+        if (
+          await isAdminSessionIdle()
+        ) {
+          await endIdleAdminSession();
+
+          setNotice(
+            describeSignOut(
+              'inactivity'
+            )
+          );
+
+          return;
+        }
+
         router.replace(
           '/dashboard'
         );
@@ -440,6 +606,256 @@ export default function AdminLoginScreen() {
       cardTranslateY,
       cardScale,
       securityOpacity,
+    ]
+  );
+
+  // ==========================================================
+  // LOCKOUT + CAPTCHA
+  //
+  // The server decides; this only shows it. A lock is saved in
+  // the browser so a refresh shows the countdown (and the
+  // CAPTCHA) again before the next attempt.
+  // ==========================================================
+
+  function applyLock(
+    next: SignInLock | null
+  ) {
+    setNow(Date.now());
+    setLock(next);
+
+    if (!next) {
+      void clearAdminLoginLock();
+
+      return;
+    }
+
+    // A network limit isn't about one account; not saved.
+    if (next.email) {
+      void saveAdminLoginLock({
+        email:
+          next.email,
+
+        lockedUntil:
+          next.until,
+
+        captchaRequired:
+          next.captcha,
+      });
+    }
+  }
+
+  // Saved lock from before the page was refreshed.
+  useEffect(
+    () => {
+      let active = true;
+
+      (async () => {
+        const saved =
+          await getAdminLoginLock();
+
+        if (
+          !active ||
+          !saved
+        ) {
+          return;
+        }
+
+        const until =
+          saved.lockedUntil &&
+          saved.lockedUntil >
+            Date.now()
+            ? saved.lockedUntil
+            : null;
+
+        if (
+          !until &&
+          !saved.captchaRequired
+        ) {
+          void clearAdminLoginLock();
+
+          return;
+        }
+
+        setNow(Date.now());
+
+        setLock({
+          email:
+            saved.email,
+
+          until,
+
+          captcha:
+            saved.captchaRequired,
+        });
+
+        setEmail(
+          saved.email
+        );
+
+        if (until) {
+          setError(
+            'Too many incorrect password attempts.'
+          );
+        }
+      })();
+
+      return () => {
+        active = false;
+      };
+    },
+    []
+  );
+
+  // Countdown; when it ends, the CAPTCHA (if needed) remains.
+  useEffect(
+    () => {
+      const until =
+        lock?.until;
+
+      if (!until) {
+        return;
+      }
+
+      const timer =
+        setInterval(
+          () => {
+            const current =
+              Date.now();
+
+            setNow(current);
+
+            if (
+              current >=
+              until
+            ) {
+              setError('');
+
+              applyLock(
+                lock.captcha
+                  ? {
+                      ...lock,
+                      until:
+                        null,
+                    }
+                  : null
+              );
+            }
+          },
+          1000
+        );
+
+      return () =>
+        clearInterval(timer);
+    },
+    [
+      lock,
+    ]
+  );
+
+  // A lock applies to the account it came from (or to every
+  // account, for a network limit).
+  const currentEmail =
+    email
+      .trim()
+      .toLowerCase();
+
+  const lockApplies =
+    Boolean(lock) &&
+    (lock?.email === null ||
+      lock?.email ===
+        currentEmail);
+
+  const cooldownSeconds =
+    lockApplies &&
+    lock?.until
+      ? Math.max(
+          0,
+          Math.ceil(
+            (lock.until - now) /
+              1000
+          )
+        )
+      : 0;
+
+  const cooldownText =
+    `${Math.floor(
+      cooldownSeconds / 60
+    )}:${String(
+      cooldownSeconds % 60
+    ).padStart(2, '0')}`;
+
+  const showCaptcha =
+    lockApplies &&
+    lock?.captcha === true &&
+    cooldownSeconds === 0;
+
+  async function loadCaptcha() {
+    setCaptchaLoading(true);
+    setCaptchaLoadError(null);
+    setCaptchaAnswer('');
+
+    try {
+      setCaptcha(
+        await getLoginCaptcha()
+      );
+    } catch (loadError) {
+      setCaptcha(null);
+
+      setCaptchaLoadError(
+        loadError instanceof Error
+          ? loadError.message
+          : 'Unable to load the picture.'
+      );
+    } finally {
+      setCaptchaLoading(false);
+    }
+  }
+
+  // A picture whenever one is needed and there isn't one (also
+  // after each attempt, since a CAPTCHA works only once).
+  useEffect(
+    () => {
+      if (
+        showCaptcha &&
+        !captcha &&
+        !captchaLoading &&
+        !captchaLoadError
+      ) {
+        void loadCaptcha();
+      }
+    },
+    [
+      showCaptcha,
+      captcha,
+      captchaLoading,
+      captchaLoadError,
+    ]
+  );
+
+  // The server forgets a CAPTCHA after 5 minutes; swap it for a
+  // new one just before.
+  useEffect(
+    () => {
+      if (!captcha) {
+        return;
+      }
+
+      const timer =
+        setTimeout(
+          () =>
+            setCaptcha(null),
+          Math.max(
+            30,
+            captcha.expires_in_seconds -
+              10
+          ) * 1000
+        );
+
+      return () =>
+        clearTimeout(timer);
+    },
+    [
+      captcha,
     ]
   );
 
@@ -668,13 +1084,15 @@ export default function AdminLoginScreen() {
   async function handleSignIn() {
     if (
       loading ||
-      resettingPassword
+      resettingPassword ||
+      cooldownSeconds > 0
     ) {
       return;
     }
 
     setError('');
     setSuccessMessage('');
+    setNotice('');
 
     const cleanEmail =
       email
@@ -716,6 +1134,39 @@ export default function AdminLoginScreen() {
       return;
     }
 
+    if (showCaptcha) {
+      if (!captcha) {
+        showError(
+          'Please wait for the security check picture to load.'
+        );
+
+        return;
+      }
+
+      if (
+        !captchaAnswer.trim()
+      ) {
+        showError(
+          'Type the characters in the security check picture.'
+        );
+
+        return;
+      }
+    }
+
+    // A CAPTCHA works for one attempt only.
+    const captchaSent =
+      showCaptcha &&
+      captcha
+        ? {
+            captcha_id:
+              captcha.captcha_id,
+
+            captcha_answer:
+              captchaAnswer.trim(),
+          }
+        : null;
+
     try {
       setLoading(
         true
@@ -724,8 +1175,12 @@ export default function AdminLoginScreen() {
       const result =
         await loginAdmin(
           cleanEmail,
-          password
+          password,
+          captchaSent
         );
+
+      // Signed in: no lockout or CAPTCHA anymore.
+      applyLock(null);
 
       if (
         !result?.session?.access_token
@@ -765,11 +1220,114 @@ export default function AdminLoginScreen() {
         signInError
       );
 
-      showError(
+      // The CAPTCHA just sent is used up; a new one loads.
+      if (captchaSent) {
+        setCaptcha(null);
+        setCaptchaAnswer('');
+      }
+
+      let message =
         signInError instanceof
           Error
           ? signInError.message
-          : 'Unable to sign in.'
+          : 'Unable to sign in.';
+
+      if (
+        signInError instanceof
+        AdminApiError
+      ) {
+        const data =
+          signInError.data ||
+          {};
+
+        // Locked: countdown from the server's exact time.
+        if (
+          signInError.code ===
+          'LOGIN_ACCOUNT_RATE_LIMIT'
+        ) {
+          message =
+            'Too many incorrect password attempts.';
+
+          applyLock({
+            email:
+              cleanEmail,
+
+            until:
+              Date.now() +
+              getRetrySeconds(
+                data
+              ) *
+                1000,
+
+            captcha:
+              data.captcha_required ===
+              true,
+          });
+        }
+
+        else if (
+          signInError.code ===
+          'LOGIN_IP_RATE_LIMIT'
+        ) {
+          message =
+            'Too many sign-in attempts from this network.';
+
+          applyLock({
+            email:
+              null,
+
+            until:
+              Date.now() +
+              getRetrySeconds(
+                data
+              ) *
+                1000,
+
+            captcha:
+              false,
+          });
+        }
+
+        // After a lockout, every attempt needs a CAPTCHA.
+        else if (
+          signInError.code ===
+            'CAPTCHA_REQUIRED' ||
+          signInError.code ===
+            'CAPTCHA_INCORRECT' ||
+          (signInError.code ===
+            'INCORRECT_PASSWORD' &&
+            data.captcha_required ===
+              true)
+        ) {
+          if (
+            signInError.code ===
+            'CAPTCHA_INCORRECT'
+          ) {
+            message =
+              "The characters didn't match. Try the new picture.";
+          } else if (
+            signInError.code ===
+            'CAPTCHA_REQUIRED'
+          ) {
+            message =
+              'This account was locked recently. Complete the security check to sign in.';
+          }
+
+          applyLock({
+            email:
+              cleanEmail,
+
+            until:
+              null,
+
+            captcha:
+              true,
+          });
+        }
+      }
+
+      showError(
+        message
       );
     } finally {
       setLoading(
@@ -1202,6 +1760,53 @@ export default function AdminLoginScreen() {
                     },
                   ]}
                 >
+                  {/* WHY THE LAST SESSION ENDED */}
+
+                  {notice ? (
+                    <View
+                      style={[
+                        styles.noticeBox,
+
+                        {
+                          marginBottom:
+                            22 * s,
+
+                          padding:
+                            12 * s,
+
+                          borderRadius:
+                            9 * s,
+                        },
+                      ]}
+                    >
+                      <MaterialIcons
+                        name="info-outline"
+                        size={
+                          19 * s
+                        }
+                        color={
+                          COLORS.notice
+                        }
+                      />
+
+                      <Text
+                        style={[
+                          styles.noticeText,
+
+                          {
+                            fontSize:
+                              11 * s,
+
+                            lineHeight:
+                              16 * s,
+                          },
+                        ]}
+                      >
+                        {notice}
+                      </Text>
+                    </View>
+                  ) : null}
+
                   {/* EMAIL */}
 
                   <View
@@ -1424,6 +2029,222 @@ export default function AdminLoginScreen() {
                     </Pressable>
                   </View>
 
+                  {/* SECURITY CHECK (after a lockout) */}
+
+                  {showCaptcha ? (
+                    <View>
+                      <View
+                        style={[
+                          styles.labelRow,
+
+                          {
+                            marginTop:
+                              24 * s,
+
+                            marginBottom:
+                              6 * s,
+                          },
+                        ]}
+                      >
+                        <MaterialIcons
+                          name="verified-user"
+                          size={
+                            21 * s
+                          }
+                          color={
+                            COLORS.soft
+                          }
+                        />
+
+                        <Text
+                          style={[
+                            styles.label,
+
+                            {
+                              fontSize:
+                                11 * s,
+                            },
+                          ]}
+                        >
+                          SECURITY CHECK
+                        </Text>
+                      </View>
+
+                      <Text
+                        style={[
+                          styles.captchaHint,
+
+                          {
+                            fontSize:
+                              11 * s,
+
+                            marginBottom:
+                              10 * s,
+                          },
+                        ]}
+                      >
+                        This account was locked recently. Type the characters in the picture.
+                      </Text>
+
+                      <View
+                        style={[
+                          styles.captchaRow,
+
+                          {
+                            gap:
+                              10 * s,
+
+                            marginBottom:
+                              10 * s,
+                          },
+                        ]}
+                      >
+                        <View
+                          style={[
+                            styles.captchaPicture,
+
+                            {
+                              height:
+                                64 * s,
+
+                              borderRadius:
+                                12 * s,
+                            },
+                          ]}
+                          accessibilityLabel="CAPTCHA picture"
+                        >
+                          {captchaLoading ? (
+                            <ActivityIndicator
+                              color={
+                                COLORS.red
+                              }
+                            />
+                          ) : captcha ? (
+                            <SvgXml
+                              xml={
+                                captcha.svg
+                              }
+                              width="100%"
+                              height="100%"
+                            />
+                          ) : (
+                            <Text
+                              style={[
+                                styles.captchaPictureError,
+
+                                {
+                                  fontSize:
+                                    11 * s,
+                                },
+                              ]}
+                            >
+                              {captchaLoadError ||
+                                'Press the arrow for a picture.'}
+                            </Text>
+                          )}
+                        </View>
+
+                        <Pressable
+                          style={[
+                            styles.captchaRefresh,
+
+                            {
+                              width:
+                                64 * s,
+
+                              height:
+                                64 * s,
+
+                              borderRadius:
+                                12 * s,
+                            },
+                          ]}
+                          disabled={
+                            loading ||
+                            captchaLoading
+                          }
+                          accessibilityRole="button"
+                          accessibilityLabel="New picture"
+                          onPress={() => {
+                            setCaptcha(null);
+                            setCaptchaLoadError(null);
+                          }}
+                        >
+                          <MaterialIcons
+                            name="refresh"
+                            size={
+                              24 * s
+                            }
+                            color={
+                              COLORS.soft
+                            }
+                          />
+                        </Pressable>
+                      </View>
+
+                      <View
+                        style={[
+                          styles.inputContainer,
+
+                          {
+                            height:
+                              64 * s,
+
+                            borderRadius:
+                              12 * s,
+                          },
+                        ]}
+                      >
+                        <TextInput
+                          value={
+                            captchaAnswer
+                          }
+                          onChangeText={value => {
+                            setCaptchaAnswer(
+                              value
+                            );
+
+                            setError('');
+                          }}
+                          style={[
+                            styles.input,
+
+                            {
+                              fontSize:
+                                14 * s,
+
+                              paddingHorizontal:
+                                18 * s,
+                            },
+                          ]}
+                          placeholder="Type the 5 characters"
+                          placeholderTextColor={
+                            COLORS.muted
+                          }
+                          autoCapitalize="none"
+                          autoCorrect={
+                            false
+                          }
+                          autoComplete="off"
+                          spellCheck={
+                            false
+                          }
+                          maxLength={
+                            5
+                          }
+                          editable={
+                            !loading &&
+                            !captchaLoading
+                          }
+                          returnKeyType="done"
+                          onSubmitEditing={
+                            handleSignIn
+                          }
+                        />
+                      </View>
+                    </View>
+                  ) : null}
+
                   {/* OPTIONS */}
 
                   <View
@@ -1576,9 +2397,10 @@ export default function AdminLoginScreen() {
                           },
                         ]}
                       >
-                        {
-                          error
-                        }
+                        {cooldownSeconds >
+                        0
+                          ? `${error}\nTry again in ${cooldownText}.`
+                          : error}
                       </Text>
                     </Animated.View>
                   ) : null}
@@ -1647,7 +2469,9 @@ export default function AdminLoginScreen() {
                     <Pressable
                       disabled={
                         loading ||
-                        resettingPassword
+                        resettingPassword ||
+                        cooldownSeconds >
+                          0
                       }
                       onPressIn={
                         handleButtonPressIn
@@ -1670,7 +2494,9 @@ export default function AdminLoginScreen() {
 
                         opacity:
                           loading ||
-                          resettingPassword
+                          resettingPassword ||
+                          cooldownSeconds >
+                            0
                             ? 0.6
                             : 1,
                       }}
@@ -1721,7 +2547,10 @@ export default function AdminLoginScreen() {
                               },
                             ]}
                           >
-                            Sign In
+                            {cooldownSeconds >
+                            0
+                              ? `Try again in ${cooldownText}`
+                              : 'Sign In'}
                           </Text>
                         )}
                       </LinearGradient>
@@ -2161,6 +2990,71 @@ const styles =
         'center',
     },
 
+    captchaHint: {
+      color:
+        COLORS.muted,
+
+      fontFamily:
+        'Inter_400Regular',
+    },
+
+    captchaRow: {
+      flexDirection:
+        'row',
+
+      alignItems:
+        'center',
+    },
+
+    // Light, like most CAPTCHAs, so the characters read well.
+    captchaPicture: {
+      flex:
+        1,
+
+      alignItems:
+        'center',
+
+      justifyContent:
+        'center',
+
+      overflow:
+        'hidden',
+
+      backgroundColor:
+        '#F4F6FA',
+    },
+
+    captchaPictureError: {
+      paddingHorizontal:
+        10,
+
+      color:
+        '#555F75',
+
+      fontFamily:
+        'Inter_400Regular',
+
+      textAlign:
+        'center',
+    },
+
+    captchaRefresh: {
+      alignItems:
+        'center',
+
+      justifyContent:
+        'center',
+
+      borderWidth:
+        1,
+
+      borderColor:
+        'rgba(133,154,203,0.28)',
+
+      backgroundColor:
+        COLORS.navyInput,
+    },
+
     optionsRow: {
       flexDirection:
         'row',
@@ -2278,6 +3172,37 @@ const styles =
 
       color:
         COLORS.success,
+
+      fontFamily:
+        'Inter_400Regular',
+    },
+
+    noticeBox: {
+      flexDirection:
+        'row',
+
+      alignItems:
+        'center',
+
+      gap:
+        8,
+
+      borderWidth:
+        1,
+
+      borderColor:
+        'rgba(243,163,74,0.28)',
+
+      backgroundColor:
+        'rgba(243,163,74,0.10)',
+    },
+
+    noticeText: {
+      flex:
+        1,
+
+      color:
+        COLORS.notice,
 
       fontFamily:
         'Inter_400Regular',

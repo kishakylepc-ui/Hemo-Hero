@@ -10,6 +10,18 @@ const {
   '../config/supabase'
 );
 
+const {
+  verifyCaptcha,
+} = require(
+  '../services/captchaService'
+);
+
+const {
+  setActivityOutcome,
+} = require(
+  './activityLogMiddleware'
+);
+
 // ============================================================
 // CONSTANTS
 // ============================================================
@@ -27,15 +39,24 @@ const ACCOUNT_ATTEMPT_LIMIT =
 // Increasing lockout duration.
 //
 // 1st lockout = 1 minute
-// 2nd lockout = 3 minutes
-// 3rd lockout = 5 minutes
-// 4th+ lockout = 10 minutes
+// 2nd lockout = 5 minutes
+// 3rd+ lockout = 15 minutes
 const ACCOUNT_LOCK_MINUTES = [
   1,
-  3,
   5,
-  10,
+  15,
 ];
+
+// After this many lockouts, every further sign-in attempt for
+// the account needs a solved CAPTCHA (captchaService.js).
+const CAPTCHA_AFTER_LOCKOUTS =
+  1;
+
+// After a day with no wrong passwords and no lockout, the
+// account starts over: a 1-minute first lockout and no CAPTCHA.
+// (A successful sign-in starts over right away.)
+const ESCALATION_RESET_MS =
+  24 * 60 * 60 * 1000;
 
 // Network/IP protection remains broader.
 const IP_WINDOW_MS =
@@ -67,10 +88,12 @@ const IP_RETRY_MINUTES =
 // -> most recent wrong password
 //
 // lockedUntil
-// -> timestamp until which login is blocked
+// -> end of the latest lockout (kept after it ends, so the
+//    escalation reset counts from the end of the lockout)
 //
 // lockLevel
-// -> determines increasing lockout duration
+// -> number of lockouts so far; sets the next lockout's
+//    duration and whether a CAPTCHA is needed
 //
 // IMPORTANT:
 //
@@ -374,16 +397,44 @@ function getLockDurationMinutes(
 }
 
 // ------------------------------------------------------------
-// RETRY MINUTES
+// LOCK STATE
 // ------------------------------------------------------------
 
-function getRetryMinutes(
+function isLocked(
+  record,
+  now = Date.now()
+) {
+  return Boolean(
+    record?.lockedUntil &&
+      now <
+        record.lockedUntil
+  );
+}
+
+function needsCaptcha(
+  record
+) {
+  return Boolean(
+    record &&
+      record.lockLevel >=
+        CAPTCHA_AFTER_LOCKOUTS
+  );
+}
+
+// ------------------------------------------------------------
+// TIME LEFT ON A LOCKOUT
+//
+// Seconds drive the apps' countdown; minutes are for the
+// message.
+// ------------------------------------------------------------
+
+function getRetrySeconds(
   lockedUntil
 ) {
   if (
     !lockedUntil
   ) {
-    return 1;
+    return 60;
   }
 
   return Math.max(
@@ -393,9 +444,24 @@ function getRetryMinutes(
         lockedUntil -
         Date.now()
       ) /
-        60000
+        1000
     )
   );
+}
+
+function describeWait(
+  seconds
+) {
+  const minutes =
+    Math.max(
+      1,
+      Math.ceil(
+        seconds /
+          60
+      )
+    );
+
+  return `${minutes} minute${minutes === 1 ? '' : 's'}`;
 }
 
 // ============================================================
@@ -419,53 +485,38 @@ function getAccountRecord(
   const now =
     Date.now();
 
-  // ----------------------------------------------------------
-  // LOCKOUT EXPIRED
-  // ----------------------------------------------------------
-  //
-  // After the lock expires:
-  //
-  // - allow login again
-  // - reset the current 3-attempt cycle
-  // - KEEP the lock level so another set of 3 failures
-  //   receives a longer lockout
-  // ----------------------------------------------------------
-
   if (
-    record.lockedUntil &&
-    now >=
-      record.lockedUntil
+    isLocked(
+      record,
+      now
+    )
   ) {
-    record.lockedUntil =
-      null;
-
-    record.count =
-      0;
-
-    record.firstAttemptAt =
-      null;
-
-    accountAttempts.set(
-      email,
-      record
-    );
+    return record;
   }
 
   // ----------------------------------------------------------
-  // CLEAN INACTIVITY RESET
+  // ESCALATION RESET
   // ----------------------------------------------------------
   //
-  // If there have been no failed password attempts for
-  // 15 minutes and the account is not currently locked,
-  // completely reset the escalation.
+  // No wrong password and no lockout for a day: forget the
+  // account's history (lockout level and CAPTCHA included).
+  // Counted from the later of the last wrong password and the
+  // end of the last lockout.
   // ----------------------------------------------------------
 
+  const lastEventAt =
+    Math.max(
+      record.lastAttemptAt ||
+        0,
+      record.lockedUntil ||
+        0
+    );
+
   if (
-    !record.lockedUntil &&
-    record.lastAttemptAt &&
+    lastEventAt &&
     now -
-      record.lastAttemptAt >=
-      ACCOUNT_ATTEMPT_WINDOW_MS
+      lastEventAt >=
+      ESCALATION_RESET_MS
   ) {
     accountAttempts.delete(
       email
@@ -479,14 +530,11 @@ function getAccountRecord(
   // ----------------------------------------------------------
   //
   // Reset the current 3-attempt counter if its first
-  // attempt is already outside the window.
-  //
-  // The lock level is preserved unless the inactivity
-  // reset above has also been reached.
+  // attempt is already outside the window. The lock level
+  // is kept.
   // ----------------------------------------------------------
 
   if (
-    !record.lockedUntil &&
     record.firstAttemptAt &&
     now -
       record.firstAttemptAt >=
@@ -528,18 +576,21 @@ function getAccountRecord(
 // -> 1 minute
 //
 // Second lockout
-// -> 3 minutes
-//
-// Third lockout
 // -> 5 minutes
 //
-// Fourth and later lockouts
-// -> 10 minutes
+// Third and later lockouts
+// -> 15 minutes
+//
+// CAPTCHA:
+//
+// After the first lockout ends, every attempt must include a
+// solved CAPTCHA (captcha_id + captcha_answer) or it is turned
+// away before the password is checked.
 //
 // SUCCESSFUL LOGIN:
 //
 // -> resets failed attempts
-// -> resets lockout level
+// -> resets lockout level and the CAPTCHA requirement
 //
 // NON-EXISTENT ACCOUNT:
 //
@@ -589,23 +640,29 @@ async function accountLoginLimiter(
   // ----------------------------------------------------------
 
   if (
-    currentRecord
-      ?.lockedUntil &&
-    Date.now() <
+    isLocked(
       currentRecord
-        .lockedUntil
+    )
   ) {
-    const retryMinutes =
-      getRetryMinutes(
+    const retrySeconds =
+      getRetrySeconds(
         currentRecord
           .lockedUntil
       );
+
+    setActivityOutcome(
+      res,
+      {
+        description:
+          `Sign-in blocked: the account is locked for another ${describeWait(retrySeconds)}.`,
+      }
+    );
 
     return res
       .status(429)
       .json({
         error:
-          `Too many incorrect password attempts. Please try again in ${retryMinutes} minute${retryMinutes === 1 ? '' : 's'}.`,
+          `Too many incorrect password attempts. Please try again in ${describeWait(retrySeconds)}.`,
 
         code:
           'LOGIN_ACCOUNT_RATE_LIMIT',
@@ -614,8 +671,100 @@ async function accountLoginLimiter(
           0,
 
         retry_after_minutes:
-          retryMinutes,
+          Math.ceil(
+            retrySeconds /
+              60
+          ),
+
+        retry_after_seconds:
+          retrySeconds,
+
+        locked_until:
+          toIso(
+            currentRecord
+              .lockedUntil
+          ),
+
+        captcha_required:
+          needsCaptcha(
+            currentRecord
+          ),
       });
+  }
+
+  // ----------------------------------------------------------
+  // CAPTCHA AFTER A LOCKOUT
+  // ----------------------------------------------------------
+
+  if (
+    needsCaptcha(
+      currentRecord
+    )
+  ) {
+    const captchaId =
+      req.body
+        ?.captcha_id;
+
+    const captchaAnswer =
+      req.body
+        ?.captcha_answer;
+
+    if (
+      !captchaId ||
+      !captchaAnswer
+    ) {
+      setActivityOutcome(
+        res,
+        {
+          description:
+            'Sign-in blocked: a CAPTCHA is required after a lockout.',
+        }
+      );
+
+      return res
+        .status(428)
+        .json({
+          error:
+            'Please complete the CAPTCHA to sign in.',
+
+          code:
+            'CAPTCHA_REQUIRED',
+
+          captcha_required:
+            true,
+        });
+    }
+
+    if (
+      !verifyCaptcha(
+        captchaId,
+        captchaAnswer
+      )
+    ) {
+      setActivityOutcome(
+        res,
+        {
+          action:
+            'CAPTCHA_FAILED',
+
+          description:
+            'Sign-in blocked: the CAPTCHA answer was wrong or expired.',
+        }
+      );
+
+      return res
+        .status(428)
+        .json({
+          error:
+            'The CAPTCHA answer was incorrect. Please try the new one.',
+
+          code:
+            'CAPTCHA_INCORRECT',
+
+          captcha_required:
+            true,
+        });
+    }
   }
 
   // ----------------------------------------------------------
@@ -743,8 +892,22 @@ async function accountLoginLimiter(
           retry_after_minutes:
             lockMinutes,
 
+          retry_after_seconds:
+            lockMinutes *
+            60,
+
+          locked_until:
+            toIso(
+              record.lockedUntil
+            ),
+
           lockout_level:
             record.lockLevel,
+
+          captcha_required:
+            needsCaptcha(
+              record
+            ),
         };
       }
 
@@ -767,8 +930,19 @@ async function accountLoginLimiter(
         retry_after_minutes:
           null,
 
+        retry_after_seconds:
+          null,
+
+        locked_until:
+          null,
+
         lockout_level:
           record.lockLevel,
+
+        captcha_required:
+          needsCaptcha(
+            record
+          ),
       };
     };
 
@@ -781,6 +955,7 @@ async function accountLoginLimiter(
   // - failed attempts
   // - lockout
   // - escalating lockout level
+  // - the CAPTCHA requirement
   // ----------------------------------------------------------
 
   req.resetLoginAttempts =
@@ -862,6 +1037,10 @@ const ipLoginLimiter =
 
       retry_after_minutes:
         IP_RETRY_MINUTES,
+
+      retry_after_seconds:
+        IP_RETRY_MINUTES *
+        60,
     },
   });
 
@@ -886,9 +1065,34 @@ const loginLimiter = [
 ];
 
 // ============================================================
+// CLEAR A LOCKOUT
+//
+// After a password reset: the attempts were against the old
+// password. Also clears the lockout level and the CAPTCHA.
+// ============================================================
+
+function clearLoginLockout(
+  email
+) {
+  const clean =
+    String(
+      email || ''
+    )
+      .trim()
+      .toLowerCase();
+
+  if (clean) {
+    accountAttempts.delete(
+      clean
+    );
+  }
+}
+
+// ============================================================
 // EXPORT
 // ============================================================
 
 module.exports = {
   loginLimiter,
+  clearLoginLockout,
 };

@@ -6,8 +6,15 @@ const {
 
 const {
   setActivityEntity,
+  setActivityOutcome,
 } = require(
   '../middleware/activityLogMiddleware'
+);
+
+const {
+  clearLoginLockout,
+} = require(
+  '../middleware/loginRateLimiter'
 );
 
 const {
@@ -404,9 +411,190 @@ function validateDateOfBirth(
 // SAFE USER RESPONSE
 // ============================================================
 
+// ============================================================
+// SIGN-IN LOCKOUTS (wrong passwords)
+//
+// From login_lockouts (loginRateLimiter.js). Shown while it
+// matters: locked now, or wrong passwords within the last day
+// (after a quiet day the limiter starts the account over).
+// ============================================================
+
+const LOCKOUT_MEMORY_MS =
+  24 * 60 * 60 * 1000;
+
+function describeLoginLockout(
+  row
+) {
+  if (!row) {
+    return null;
+  }
+
+  const now =
+    Date.now();
+
+  const lockedUntil =
+    Date.parse(
+      row.locked_until ||
+        ''
+    );
+
+  const lockedNow =
+    Number.isFinite(
+      lockedUntil
+    ) &&
+    lockedUntil >
+      now;
+
+  const lastEvent =
+    Math.max(
+      Date.parse(
+        row.last_failed_at ||
+          ''
+      ) || 0,
+      Number.isFinite(
+        lockedUntil
+      )
+        ? lockedUntil
+        : 0
+    );
+
+  if (
+    !lockedNow &&
+    (!lastEvent ||
+      now - lastEvent >=
+        LOCKOUT_MEMORY_MS)
+  ) {
+    return null;
+  }
+
+  const lockouts =
+    Number(
+      row.lock_level
+    ) || 0;
+
+  return {
+    locked:
+      lockedNow,
+
+    locked_until:
+      lockedNow
+        ? row.locked_until
+        : null,
+
+    failed_attempts:
+      Number(
+        row.failed_count
+      ) || 0,
+
+    lockouts,
+
+    // After a lockout, signing in needs a CAPTCHA.
+    captcha_required:
+      lockouts >= 1,
+  };
+}
+
+// email -> login_lockouts row. Empty when the table is missing.
+async function getLoginLockoutsByEmails(
+  emails
+) {
+  const map =
+    new Map();
+
+  const clean = [
+    ...new Set(
+      (emails || [])
+        .filter(Boolean)
+        .map(email =>
+          String(email)
+            .trim()
+            .toLowerCase()
+        )
+    ),
+  ];
+
+  if (
+    clean.length ===
+    0
+  ) {
+    return map;
+  }
+
+  try {
+    const {
+      data,
+      error,
+    } =
+      await supabaseAdmin
+        .from(
+          'login_lockouts'
+        )
+        .select(
+          '*'
+        )
+        .in(
+          'email',
+          clean
+        );
+
+    if (error) {
+      console.error(
+        'LOGIN LOCKOUT LOOKUP ERROR:',
+        error.message
+      );
+
+      return map;
+    }
+
+    for (const row of data || []) {
+      map.set(
+        row.email,
+        row
+      );
+    }
+  } catch (error) {
+    console.error(
+      'LOGIN LOCKOUT LOOKUP ERROR:',
+      error
+    );
+  }
+
+  return map;
+}
+
+function lockoutFor(
+  map,
+  user
+) {
+  return map.get(
+    String(
+      user?.email ||
+        ''
+    )
+      .trim()
+      .toLowerCase()
+  ) || null;
+}
+
+// Locked by an admin, or locked now after wrong passwords.
+function isUserLocked(
+  user,
+  lockoutRow
+) {
+  return (
+    user?.is_locked ===
+      true ||
+    describeLoginLockout(
+      lockoutRow
+    )?.locked ===
+      true
+  );
+}
+
 function buildSafeUser(
   user,
-  donorApplication = null
+  donorApplication = null,
+  loginLockout = null
 ) {
   if (
     !user
@@ -507,6 +695,31 @@ function buildSafeUser(
     deactivated_at:
       user.deactivated_at ??
       null,
+
+    // Locked by an admin (migration 20261022_account_lock).
+    is_locked:
+      user.is_locked ===
+      true,
+
+    locked_at:
+      user.is_locked ===
+      true
+        ? user.locked_at ??
+          null
+        : null,
+
+    locked_reason:
+      user.is_locked ===
+      true
+        ? user.locked_reason ??
+          null
+        : null,
+
+    // Locked for a while after wrong passwords (login_lockouts).
+    login_lockout:
+      describeLoginLockout(
+        loginLockout
+      ),
 
     created_at:
       user.created_at ??
@@ -703,11 +916,10 @@ async function getAdminUserSummary(
         .from(
           'users'
         )
-        .select(`
-          id,
-          role,
-          is_active
-        `)
+        // '*': is_locked only exists after migration 20261022.
+        .select(
+          '*'
+        )
         .in(
           'role',
           ['user', 'admin']
@@ -738,7 +950,19 @@ async function getAdminUserSummary(
 
       inactive:
         0,
+
+      // Locked by an admin or after wrong passwords.
+      locked:
+        0,
     };
+
+    const lockouts =
+      await getLoginLockoutsByEmails(
+        (users || []).map(
+          user =>
+            user.email
+        )
+      );
 
     const superAdmin =
       isSuperAdmin(
@@ -778,6 +1002,19 @@ async function getAdminUserSummary(
           1;
       } else {
         summary.active +=
+          1;
+      }
+
+      if (
+        isUserLocked(
+          user,
+          lockoutFor(
+            lockouts,
+            user
+          )
+        )
+      ) {
+        summary.locked +=
           1;
       }
     }
@@ -851,6 +1088,7 @@ async function getAdminUsers(
         'all',
         'active',
         'inactive',
+        'locked',
       ].includes(
         status
       )
@@ -972,6 +1210,32 @@ async function getAdminUsers(
         );
     }
 
+    // Sign-in lockouts: for the Locked filter and each row.
+    const lockouts =
+      await getLoginLockoutsByEmails(
+        filteredUsers.map(
+          user =>
+            user.email
+        )
+      );
+
+    if (
+      status ===
+      'locked'
+    ) {
+      filteredUsers =
+        filteredUsers.filter(
+          user =>
+            isUserLocked(
+              user,
+              lockoutFor(
+                lockouts,
+                user
+              )
+            )
+        );
+    }
+
     // --------------------------------------------------------
     // SEARCH
     // --------------------------------------------------------
@@ -1068,7 +1332,11 @@ async function getAdminUsers(
             donorMap.get(
               user.id
             ) ||
-            null
+            null,
+            lockoutFor(
+              lockouts,
+              user
+            )
           )
       );
 
@@ -1193,6 +1461,13 @@ async function getAdminUserById(
         ]
       );
 
+    const lockouts =
+      await getLoginLockoutsByEmails(
+        [
+          user.email,
+        ]
+      );
+
     return res
       .status(200)
       .json({
@@ -1202,7 +1477,11 @@ async function getAdminUserById(
             donorMap.get(
               user.id
             ) ||
-            null
+            null,
+            lockoutFor(
+              lockouts,
+              user
+            )
           ),
       });
   } catch (
@@ -2460,7 +2739,7 @@ async function updateAdminUser(
         )
         .eq(
           'role',
-          'user'
+          targetUser.role
         )
         .select('*')
         .single();
@@ -2708,7 +2987,7 @@ async function deactivateAdminUser(
         )
         .eq(
           'role',
-          'user'
+          targetUser.role
         )
         .select('*')
         .single();
@@ -2913,7 +3192,7 @@ async function activateAdminUser(
         )
         .eq(
           'role',
-          'user'
+          targetUser.role
         )
         .select('*')
         .single();
@@ -3109,7 +3388,7 @@ async function deleteAdminUser(
         )
         .eq(
           'role',
-          'user'
+          targetUser.role
         )
         .select(
           'id'
@@ -3241,6 +3520,655 @@ async function deleteAdminUser(
 // EXPORTS
 // ============================================================
 
+// ============================================================
+// LOCK / UNLOCK / ROLE
+//
+// PATCH /api/admin/users/:id/lock     { reason? }
+// PATCH /api/admin/users/:id/unlock
+// PATCH /api/admin/users/:id/role     { role }  (super admin)
+//
+// Lock: the account can't sign in and its current sessions
+// stop working (authMiddleware), until unlocked. Supabase also
+// bans the sign-in, so its sessions can't be renewed. Unlike
+// deactivating, nothing else about the account changes.
+//
+// Unlock: lifts that lock and also clears a sign-in lockout
+// from wrong passwords (and with it the CAPTCHA).
+// ============================================================
+
+// Effectively forever; lifted by Unlock.
+const LOCK_BAN_DURATION =
+  '876000h';
+
+const MAX_LOCK_REASON_LENGTH =
+  300;
+
+// The account to act on, or null after sending the error.
+async function loadTargetForAction(
+  req,
+  res,
+  {
+    selfError,
+    logTag,
+  }
+) {
+  const targetUserId =
+    cleanText(
+      req.params.id
+    );
+
+  if (!targetUserId) {
+    res
+      .status(400)
+      .json({
+        error:
+          'User ID is required.',
+      });
+
+    return null;
+  }
+
+  setActivityEntity(
+    res,
+    'user_account',
+    targetUserId
+  );
+
+  if (
+    targetUserId ===
+    req.dbUser?.id
+  ) {
+    res
+      .status(400)
+      .json({
+        error:
+          selfError,
+      });
+
+    return null;
+  }
+
+  const {
+    user:
+      targetUser,
+    error:
+      targetError,
+  } =
+    await findTargetUser(
+      targetUserId
+    );
+
+  if (targetError) {
+    console.error(
+      `ADMIN ${logTag} LOOKUP ERROR:`,
+      targetError
+    );
+
+    res
+      .status(500)
+      .json({
+        error:
+          'Unable to load user account.',
+      });
+
+    return null;
+  }
+
+  if (!targetUser) {
+    res
+      .status(404)
+      .json({
+        error:
+          'User not found.',
+      });
+
+    return null;
+  }
+
+  const manageError =
+    getManageError(
+      req,
+      targetUser
+    );
+
+  if (manageError) {
+    res
+      .status(403)
+      .json({
+        error:
+          manageError,
+      });
+
+    return null;
+  }
+
+  return targetUser;
+}
+
+// The users columns come from migration 20261022_account_lock.
+function sendLockColumnError(
+  res,
+  error,
+  logTag
+) {
+  console.error(
+    `ADMIN ${logTag} ERROR:`,
+    error
+  );
+
+  const missingColumn =
+    error?.code ===
+      '42703' ||
+    error?.code ===
+      'PGRST204';
+
+  return res
+    .status(500)
+    .json({
+      error:
+        missingColumn
+          ? 'Account locking needs database migration 20261022_account_lock.sql. Run it in the Supabase SQL editor.'
+          : 'Unable to update the account.',
+    });
+}
+
+async function setSignInBan(
+  userId,
+  banned
+) {
+  try {
+    const {
+      error,
+    } =
+      await supabaseAdmin
+        .auth
+        .admin
+        .updateUserById(
+          userId,
+          {
+            ban_duration:
+              banned
+                ? LOCK_BAN_DURATION
+                : 'none',
+          }
+        );
+
+    if (error) {
+      console.error(
+        'SIGN-IN BAN ERROR:',
+        error.message
+      );
+    }
+  } catch (error) {
+    console.error(
+      'SIGN-IN BAN ERROR:',
+      error
+    );
+  }
+}
+
+// ------------------------------------------------------------
+// PATCH /api/admin/users/:id/lock
+// ------------------------------------------------------------
+
+async function lockAdminUser(
+  req,
+  res
+) {
+  try {
+    const targetUser =
+      await loadTargetForAction(
+        req,
+        res,
+        {
+          selfError:
+            'You cannot lock your own account.',
+
+          logTag:
+            'LOCK USER',
+        }
+      );
+
+    if (!targetUser) {
+      return;
+    }
+
+    const reason =
+      cleanText(
+        req.body?.reason
+      ).slice(
+        0,
+        MAX_LOCK_REASON_LENGTH
+      );
+
+    if (
+      targetUser.is_locked ===
+      true
+    ) {
+      return res
+        .status(200)
+        .json({
+          message:
+            'This account is already locked.',
+
+          user:
+            buildSafeUser(
+              targetUser
+            ),
+        });
+    }
+
+    const now =
+      new Date()
+        .toISOString();
+
+    const {
+      data:
+        updatedUser,
+      error:
+        updateError,
+    } =
+      await supabaseAdmin
+        .from(
+          'users'
+        )
+        .update({
+          is_locked:
+            true,
+
+          locked_at:
+            now,
+
+          locked_reason:
+            reason ||
+            null,
+
+          updated_at:
+            now,
+        })
+        .eq(
+          'id',
+          targetUser.id
+        )
+        .eq(
+          'role',
+          targetUser.role
+        )
+        .select('*')
+        .single();
+
+    if (updateError) {
+      return sendLockColumnError(
+        res,
+        updateError,
+        'LOCK USER'
+      );
+    }
+
+    // Sessions can't be renewed while locked.
+    await setSignInBan(
+      targetUser.id,
+      true
+    );
+
+    setActivityOutcome(
+      res,
+      {
+        description:
+          `Administrator locked ${targetUser.email}${reason ? `. Reason: ${reason}` : '.'}`,
+      }
+    );
+
+    return res
+      .status(200)
+      .json({
+        message:
+          'Account locked. The user is signed out and can\'t sign in until the account is unlocked.',
+
+        user:
+          buildSafeUser(
+            updatedUser
+          ),
+      });
+  } catch (error) {
+    console.error(
+      'ADMIN LOCK USER SERVER ERROR:',
+      error
+    );
+
+    return res
+      .status(500)
+      .json({
+        error:
+          'Internal server error.',
+      });
+  }
+}
+
+// ------------------------------------------------------------
+// PATCH /api/admin/users/:id/unlock
+// ------------------------------------------------------------
+
+async function unlockAdminUser(
+  req,
+  res
+) {
+  try {
+    const targetUser =
+      await loadTargetForAction(
+        req,
+        res,
+        {
+          selfError:
+            'You cannot unlock your own account.',
+
+          logTag:
+            'UNLOCK USER',
+        }
+      );
+
+    if (!targetUser) {
+      return;
+    }
+
+    const lockouts =
+      await getLoginLockoutsByEmails(
+        [
+          targetUser.email,
+        ]
+      );
+
+    const signInLockout =
+      describeLoginLockout(
+        lockoutFor(
+          lockouts,
+          targetUser
+        )
+      );
+
+    const adminLocked =
+      targetUser.is_locked ===
+      true;
+
+    if (
+      !adminLocked &&
+      !signInLockout
+    ) {
+      return res
+        .status(200)
+        .json({
+          message:
+            'This account is not locked.',
+
+          user:
+            buildSafeUser(
+              targetUser
+            ),
+        });
+    }
+
+    let updatedUser =
+      targetUser;
+
+    if (adminLocked) {
+      const {
+        data,
+        error:
+          updateError,
+      } =
+        await supabaseAdmin
+          .from(
+            'users'
+          )
+          .update({
+            is_locked:
+              false,
+
+            locked_at:
+              null,
+
+            locked_reason:
+              null,
+
+            updated_at:
+              new Date()
+                .toISOString(),
+          })
+          .eq(
+            'id',
+            targetUser.id
+          )
+          .eq(
+            'role',
+            targetUser.role
+          )
+          .select('*')
+          .single();
+
+      if (updateError) {
+        return sendLockColumnError(
+          res,
+          updateError,
+          'UNLOCK USER'
+        );
+      }
+
+      updatedUser =
+        data;
+
+      await setSignInBan(
+        targetUser.id,
+        false
+      );
+    }
+
+    // Wrong-password lockout, its level and the CAPTCHA.
+    clearLoginLockout(
+      targetUser.email
+    );
+
+    const cleared = [
+      adminLocked &&
+        'the administrator lock',
+
+      signInLockout &&
+        'the sign-in lockout from wrong passwords',
+    ]
+      .filter(Boolean)
+      .join(' and ');
+
+    setActivityOutcome(
+      res,
+      {
+        description:
+          `Administrator unlocked ${targetUser.email}: removed ${cleared}.`,
+      }
+    );
+
+    return res
+      .status(200)
+      .json({
+        message:
+          'Account unlocked. The user can sign in again.',
+
+        user:
+          buildSafeUser(
+            updatedUser
+          ),
+      });
+  } catch (error) {
+    console.error(
+      'ADMIN UNLOCK USER SERVER ERROR:',
+      error
+    );
+
+    return res
+      .status(500)
+      .json({
+        error:
+          'Internal server error.',
+      });
+  }
+}
+
+// ------------------------------------------------------------
+// PATCH /api/admin/users/:id/role
+//
+// Super admin only (route). Between user and admin; the super
+// admin role itself can't be given or taken here.
+// ------------------------------------------------------------
+
+const ROLE_LABELS = {
+  user:
+    'User',
+
+  admin:
+    'Admin',
+};
+
+async function changeAdminUserRole(
+  req,
+  res
+) {
+  try {
+    const newRole =
+      cleanText(
+        req.body?.role
+      ).toLowerCase();
+
+    if (
+      !ROLE_LABELS[newRole]
+    ) {
+      return res
+        .status(400)
+        .json({
+          error:
+            'Role must be user or admin.',
+        });
+    }
+
+    const targetUser =
+      await loadTargetForAction(
+        req,
+        res,
+        {
+          selfError:
+            'You cannot change your own role.',
+
+          logTag:
+            'CHANGE ROLE',
+        }
+      );
+
+    if (!targetUser) {
+      return;
+    }
+
+    if (
+      !ROLE_LABELS[
+        targetUser.role
+      ]
+    ) {
+      return res
+        .status(403)
+        .json({
+          error:
+            'This account\'s role can\'t be changed here.',
+        });
+    }
+
+    if (
+      targetUser.role ===
+      newRole
+    ) {
+      return res
+        .status(400)
+        .json({
+          error:
+            `This account is already ${ROLE_LABELS[newRole] === 'Admin' ? 'an Admin' : 'a User'}.`,
+        });
+    }
+
+    const {
+      data:
+        updatedUser,
+      error:
+        updateError,
+    } =
+      await supabaseAdmin
+        .from(
+          'users'
+        )
+        .update({
+          role:
+            newRole,
+
+          updated_at:
+            new Date()
+              .toISOString(),
+        })
+        .eq(
+          'id',
+          targetUser.id
+        )
+        .eq(
+          'role',
+          targetUser.role
+        )
+        .select('*')
+        .single();
+
+    if (updateError) {
+      console.error(
+        'ADMIN CHANGE ROLE ERROR:',
+        updateError
+      );
+
+      return res
+        .status(500)
+        .json({
+          error:
+            'Unable to change the role.',
+        });
+    }
+
+    setActivityOutcome(
+      res,
+      {
+        description:
+          `Super admin changed the role of ${targetUser.email} from ${ROLE_LABELS[targetUser.role]} to ${ROLE_LABELS[newRole]}.`,
+      }
+    );
+
+    return res
+      .status(200)
+      .json({
+        message:
+          newRole ===
+          'admin'
+            ? 'Role changed to Admin. They can now sign in to the Admin Portal.'
+            : 'Role changed to User. They can no longer use the Admin Portal.',
+
+        user:
+          buildSafeUser(
+            updatedUser
+          ),
+      });
+  } catch (error) {
+    console.error(
+      'ADMIN CHANGE ROLE SERVER ERROR:',
+      error
+    );
+
+    return res
+      .status(500)
+      .json({
+        error:
+          'Internal server error.',
+      });
+  }
+}
+
 module.exports = {
   getAdminUserSummary,
   getAdminUsers,
@@ -3251,6 +4179,10 @@ module.exports = {
 
   deactivateAdminUser,
   activateAdminUser,
+
+  lockAdminUser,
+  unlockAdminUser,
+  changeAdminUserRole,
 
   deleteAdminUser,
 };

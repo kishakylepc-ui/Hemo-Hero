@@ -12,8 +12,32 @@ const {
 const {
   setActivityUser,
   setActivityEntity,
+  setActivityOutcome,
 } = require(
   '../middleware/activityLogMiddleware'
+);
+
+const {
+  createCaptcha,
+} = require(
+  '../services/captchaService'
+);
+
+// 10-minute codes, 5 wrong tries, 60 s between codes.
+const {
+  getResendBlock,
+  recordCodeSent,
+  getVerifyBlock,
+  recordWrongCode,
+  recordCodeUsed,
+} = require(
+  '../services/otpGuardService'
+);
+
+const {
+  clearLoginLockout,
+} = require(
+  '../middleware/loginRateLimiter'
 );
 
 const {
@@ -730,6 +754,17 @@ async function register(
       data.user.id
     );
 
+    // A verification code was emailed: its time limit and
+    // tries start now.
+    if (
+      !data.session
+    ) {
+      await recordCodeSent(
+        'signup',
+        cleanEmail
+      );
+    }
+
     // --------------------------------------------------------
     // SUCCESS
     // --------------------------------------------------------
@@ -862,6 +897,31 @@ async function verifyEmail(
         });
     }
 
+    // Expired, or too many wrong tries: a new code is needed.
+    const blocked =
+      await getVerifyBlock(
+        'signup',
+        cleanEmail
+      );
+
+    if (blocked) {
+      setActivityOutcome(
+        res,
+        {
+          description:
+            `Email verification blocked: ${blocked.body.error}`,
+        }
+      );
+
+      return res
+        .status(
+          blocked.status
+        )
+        .json(
+          blocked.body
+        );
+    }
+
     const {
       data,
       error,
@@ -885,15 +945,34 @@ async function verifyEmail(
         error.message
       );
 
+      const wrong =
+        await recordWrongCode(
+          'signup',
+          cleanEmail
+        );
+
+      setActivityOutcome(
+        res,
+        {
+          description:
+            `Email verification failed: ${wrong.body.error}`,
+        }
+      );
+
       return res
         .status(
-          400
+          wrong.status
         )
-        .json({
-          error:
-            'Invalid or expired verification code',
-        });
+        .json(
+          wrong.body
+        );
     }
+
+    // Each code works once.
+    await recordCodeUsed(
+      'signup',
+      cleanEmail
+    );
 
     if (
       !data?.user
@@ -978,7 +1057,9 @@ async function verifyEmail(
       if (
         dbUser &&
         dbUser.is_active !==
-          false
+          false &&
+        dbUser.is_locked !==
+          true
       ) {
         profile =
           dbUser;
@@ -1110,6 +1191,23 @@ async function resendVerification(
         });
     }
 
+    // 60 seconds between codes.
+    const wait =
+      await getResendBlock(
+        'signup',
+        cleanEmail
+      );
+
+    if (wait) {
+      return res
+        .status(
+          wait.status
+        )
+        .json(
+          wait.body
+        );
+    }
+
     const frontendUrl =
       process.env
         .FRONTEND_URL ||
@@ -1148,6 +1246,11 @@ async function resendVerification(
             'Unable to resend verification code. Please wait and try again.',
         });
     }
+
+    await recordCodeSent(
+      'signup',
+      cleanEmail
+    );
 
     return res
       .status(
@@ -1336,8 +1439,9 @@ async function login(
         .from(
           'users'
         )
+        // '*': is_locked only exists after migration 20261022.
         .select(
-          'id, email, role, is_active'
+          '*'
         )
         .eq(
           'email',
@@ -1436,6 +1540,36 @@ async function login(
     }
 
     // --------------------------------------------------------
+    // ACCOUNT LOCKED BY AN ADMIN
+    // --------------------------------------------------------
+
+    if (
+      existingAccount
+        .is_locked ===
+      true
+    ) {
+      setActivityOutcome(
+        res,
+        {
+          description:
+            'Sign-in blocked: the account is locked by an administrator.',
+        }
+      );
+
+      return res
+        .status(
+          403
+        )
+        .json({
+          error:
+            'Your account has been locked by an administrator. Please contact support.',
+
+          code:
+            'ACCOUNT_LOCKED',
+        });
+    }
+
+    // --------------------------------------------------------
     // ATTEMPT SUPABASE LOGIN
     // --------------------------------------------------------
 
@@ -1528,13 +1662,27 @@ async function login(
             ? retryMinutes
             : 1;
 
+        const minuteText =
+          `${safeRetryMinutes} minute${safeRetryMinutes === 1 ? '' : 's'}`;
+
+        setActivityOutcome(
+          res,
+          {
+            action:
+              'ACCOUNT_LOCKOUT',
+
+            description:
+              `Account locked for ${minuteText} after 3 incorrect passwords.`,
+          }
+        );
+
         return res
           .status(
             429
           )
           .json({
             error:
-              `Too many incorrect password attempts. Please try again in ${safeRetryMinutes} minute${safeRetryMinutes === 1 ? '' : 's'}.`,
+              `Too many incorrect password attempts. Please try again in ${minuteText}.`,
 
             code:
               'LOGIN_ACCOUNT_RATE_LIMIT',
@@ -1544,6 +1692,22 @@ async function login(
 
             retry_after_minutes:
               safeRetryMinutes,
+
+            retry_after_seconds:
+              attemptResult
+                .retry_after_seconds ??
+              safeRetryMinutes *
+                60,
+
+            locked_until:
+              attemptResult
+                .locked_until ??
+              null,
+
+            captcha_required:
+              attemptResult
+                .captcha_required ===
+              true,
           });
       }
 
@@ -1574,6 +1738,14 @@ async function login(
         }
       }
 
+      setActivityOutcome(
+        res,
+        {
+          description:
+            `User login attempt failed: ${loginError}`,
+        }
+      );
+
       return res
         .status(
           401
@@ -1591,6 +1763,13 @@ async function login(
             )
               ? attemptsRemaining
               : null,
+
+          // The next attempt needs a new CAPTCHA (the one just
+          // used is spent).
+          captcha_required:
+            attemptResult
+              ?.captcha_required ===
+            true,
         });
     }
 
@@ -1715,6 +1894,50 @@ async function login(
 }
 
 // ============================================================
+// GET /api/auth/captcha
+//
+// A new sign-in CAPTCHA, needed after an account has been
+// locked (see loginRateLimiter.js). Returns the picture as SVG
+// markup; the answer stays on the server.
+// ============================================================
+
+function getLoginCaptcha(
+  req,
+  res
+) {
+  try {
+    res.set(
+      'Cache-Control',
+      'no-store'
+    );
+
+    return res
+      .status(
+        200
+      )
+      .json(
+        createCaptcha()
+      );
+  } catch (
+    error
+  ) {
+    console.error(
+      'CAPTCHA ERROR:',
+      error
+    );
+
+    return res
+      .status(
+        500
+      )
+      .json({
+        error:
+          'Unable to load the CAPTCHA. Please try again.',
+      });
+  }
+}
+
+// ============================================================
 // POST /api/auth/refresh
 //
 // Exchanges a refresh token for a new session so the mobile
@@ -1813,10 +2036,15 @@ async function refreshSession(
         });
     }
 
+    const locked =
+      dbUser?.is_locked ===
+      true;
+
     if (
       !dbUser ||
       dbUser.is_active ===
-        false
+        false ||
+      locked
     ) {
       try {
         await supabaseAdmin
@@ -1834,13 +2062,23 @@ async function refreshSession(
 
       return res
         .status(403)
-        .json({
-          error:
-            'Your account has been deactivated. Please contact an administrator.',
+        .json(
+          locked
+            ? {
+                error:
+                  'Your account has been locked by an administrator. Please contact support.',
 
-          code:
-            'ACCOUNT_DEACTIVATED',
-        });
+                code:
+                  'ACCOUNT_LOCKED',
+              }
+            : {
+                error:
+                  'Your account has been deactivated. Please contact an administrator.',
+
+                code:
+                  'ACCOUNT_DEACTIVATED',
+              }
+        );
     }
 
     return res
@@ -1949,6 +2187,47 @@ async function logout(
         });
     }
 
+    // --------------------------------------------------------
+    // AUTO-LOGOUT
+    //
+    // The apps sign out on their own after a period without
+    // activity and send { reason: 'inactivity', idle_minutes }.
+    // --------------------------------------------------------
+
+    if (
+      req.body
+        ?.reason ===
+      'inactivity'
+    ) {
+      const idleMinutes =
+        Number(
+          req.body
+            ?.idle_minutes
+        );
+
+      const minutes =
+        Number.isInteger(
+          idleMinutes
+        ) &&
+        idleMinutes >=
+          1 &&
+        idleMinutes <=
+          120
+          ? idleMinutes
+          : 15;
+
+      setActivityOutcome(
+        res,
+        {
+          action:
+            'AUTO_LOGOUT',
+
+          description:
+            `User was signed out automatically after ${minutes} minute${minutes === 1 ? '' : 's'} of inactivity.`,
+        }
+      );
+    }
+
     return res
       .status(
         200
@@ -2028,6 +2307,24 @@ async function forgotPassword(
         });
     }
 
+    // 60 seconds between codes (checked for any email, so the
+    // reply doesn't reveal whether an account exists).
+    const wait =
+      await getResendBlock(
+        'recovery',
+        cleanEmail
+      );
+
+    if (wait) {
+      return res
+        .status(
+          wait.status
+        )
+        .json(
+          wait.body
+        );
+    }
+
     const frontendUrl =
       process.env
         .FRONTEND_URL ||
@@ -2050,6 +2347,11 @@ async function forgotPassword(
       console.error(
         'FORGOT PASSWORD SUPABASE ERROR:',
         error.message
+      );
+    } else {
+      await recordCodeSent(
+        'recovery',
+        cleanEmail
       );
     }
 
@@ -2166,6 +2468,31 @@ async function verifyRecoveryCode(
         });
     }
 
+    // Expired, or too many wrong tries: a new code is needed.
+    const blocked =
+      await getVerifyBlock(
+        'recovery',
+        cleanEmail
+      );
+
+    if (blocked) {
+      setActivityOutcome(
+        res,
+        {
+          description:
+            `Password reset code blocked: ${blocked.body.error}`,
+        }
+      );
+
+      return res
+        .status(
+          blocked.status
+        )
+        .json(
+          blocked.body
+        );
+    }
+
     const {
       data,
       error,
@@ -2194,15 +2521,34 @@ async function verifyRecoveryCode(
         error?.message
       );
 
+      const wrong =
+        await recordWrongCode(
+          'recovery',
+          cleanEmail
+        );
+
+      setActivityOutcome(
+        res,
+        {
+          description:
+            `Password reset code failed: ${wrong.body.error}`,
+        }
+      );
+
       return res
         .status(
-          400
+          wrong.status
         )
-        .json({
-          error:
-            'Invalid or expired password reset code',
-        });
+        .json(
+          wrong.body
+        );
     }
+
+    // Each code works once.
+    await recordCodeUsed(
+      'recovery',
+      cleanEmail
+    );
 
     const verifiedEmail =
       data.user.email
@@ -2474,6 +2820,54 @@ async function resetPassword(
             'Unable to update password',
         });
     }
+
+    // --------------------------------------------------------
+    // END EVERY SESSION
+    //
+    // Signs the account out everywhere (other phones, browser
+    // tabs, and this reset session), so only the new password
+    // works from now on.
+    // --------------------------------------------------------
+
+    try {
+      const {
+        error:
+          signOutError,
+      } =
+        await supabaseAdmin
+          .auth
+          .admin
+          .signOut(
+            recovery_token,
+            'global'
+          );
+
+      if (signOutError) {
+        console.error(
+          'RESET PASSWORD SIGNOUT ERROR:',
+          signOutError.message
+        );
+      }
+    } catch (signOutError) {
+      console.error(
+        'RESET PASSWORD SIGNOUT ERROR:',
+        signOutError
+      );
+    }
+
+    // The email owner proved who they are: a sign-in lockout
+    // from wrong guesses at the old password no longer applies.
+    clearLoginLockout(
+      userData.user.email
+    );
+
+    setActivityOutcome(
+      res,
+      {
+        description:
+          'User reset their account password. Every session was signed out.',
+      }
+    );
 
     return res
       .status(
@@ -3294,6 +3688,7 @@ module.exports = {
   verifyEmail,
   resendVerification,
   login,
+  getLoginCaptcha,
   refreshSession,
   logout,
   forgotPassword,

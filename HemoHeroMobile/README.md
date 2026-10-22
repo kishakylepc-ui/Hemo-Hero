@@ -22,6 +22,10 @@ The app finds the server by itself: it uses the address of the computer running 
 
 - **Notifications:** Expo Go on Android can't receive push notifications, so the app shows new notifications itself while it's open. On iPhone, Expo Go receives push notifications. Profile → Notification Settings chooses which kinds of updates alert the phone; the Notifications inbox always keeps everything.
 - **Location:** used for nearby searches and for sharing a trip with the requester. Expo Go only shares location while the app is open, so the screen stays on during a trip.
+- **Signing out after inactivity:**
+  - After 15 minutes without a touch or typing, the app signs out. A warning with a countdown shows 1 minute before. Coming back after 15 minutes in the background, or with the app closed, also signs out.
+  - Like any sign-out, this turns off push notifications for that phone until the person signs in again.
+  - For a demo, set `EXPO_PUBLIC_IDLE_TIMEOUT_MINUTES` in `.env` to a shorter time (see `.env.example`).
 - After installing or updating packages, start with `npx expo start -c` to clear the cache.
 
 ## Project layout

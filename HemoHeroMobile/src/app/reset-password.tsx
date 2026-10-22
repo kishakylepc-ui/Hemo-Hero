@@ -1,4 +1,5 @@
 import {
+  useEffect,
   useRef,
   useState,
 } from 'react';
@@ -41,10 +42,16 @@ import {
 import { shiftedDown, withStatusBar } from '../lib/fullScreen';
 
 import {
+  ApiError,
   forgotPassword,
   resetPassword,
   verifyRecoveryCode,
 } from '../lib/api';
+
+// A new code only 60 seconds after the last one (the server
+// enforces it too).
+const RESEND_SECONDS =
+  60;
 
 import AuthField from '../components/AuthField';
 
@@ -102,7 +109,22 @@ export default function ResetPasswordScreen() {
       email?:
         | string
         | string[];
+
+      // Seconds before Resend works (when Forgot Password
+      // found a code sent less than a minute ago).
+      wait?:
+        | string
+        | string[];
     }>();
+
+  const waitParam =
+    Number(
+      Array.isArray(
+        params.wait
+      )
+        ? params.wait[0]
+        : params.wait
+    );
 
   const emailParam =
     params.email;
@@ -191,6 +213,49 @@ export default function ResetPasswordScreen() {
     setResending,
   ] =
     useState(false);
+
+  // The code was sent just before this screen opened.
+  const [
+    resendSeconds,
+    setResendSeconds,
+  ] =
+    useState(
+      Number.isFinite(
+        waitParam
+      ) &&
+        waitParam > 0
+        ? Math.ceil(
+            waitParam
+          )
+        : RESEND_SECONDS
+    );
+
+  useEffect(() => {
+    if (
+      resendSeconds <=
+      0
+    ) {
+      return;
+    }
+
+    const timer =
+      setTimeout(
+        () =>
+          setResendSeconds(
+            current =>
+              Math.max(
+                0,
+                current - 1
+              )
+          ),
+        1000
+      );
+
+    return () =>
+      clearTimeout(timer);
+  }, [
+    resendSeconds,
+  ]);
 
   const [
     errorMessage,
@@ -389,6 +454,20 @@ export default function ResetPasswordScreen() {
           error.message;
       }
 
+      // Used up (5 wrong tries) or too old: a new code is
+      // needed, so empty the boxes.
+      if (
+        error instanceof ApiError &&
+        [
+          'OTP_TOO_MANY_ATTEMPTS',
+          'OTP_EXPIRED',
+        ].includes(
+          error.data?.code
+        )
+      ) {
+        setCode('');
+      }
+
       setErrorMessage(
         message
       );
@@ -416,6 +495,7 @@ export default function ResetPasswordScreen() {
   async function handleResendCode() {
     if (
       !email ||
+      resendSeconds > 0 ||
       resending ||
       verifying ||
       resetting
@@ -447,8 +527,12 @@ export default function ResetPasswordScreen() {
 
       setErrorMessage('');
 
+      setResendSeconds(
+        RESEND_SECONDS
+      );
+
       setSuccessMessage(
-        'A new password reset code has been sent to your email.'
+        'A new password reset code has been sent to your email. Codes sent earlier no longer work.'
       );
 
       // ------------------------------------------------------
@@ -480,6 +564,26 @@ export default function ResetPasswordScreen() {
       ) {
         message =
           error.message;
+      }
+
+      // Too soon: count down the time the server gave.
+      const waitSeconds =
+        error instanceof ApiError
+          ? Number(
+              error.data
+                ?.retry_after_seconds
+            )
+          : NaN;
+
+      if (
+        Number.isFinite(
+          waitSeconds
+        ) &&
+        waitSeconds > 0
+      ) {
+        setResendSeconds(
+          waitSeconds
+        );
       }
 
       setSuccessMessage('');
@@ -1171,6 +1275,7 @@ export default function ResetPasswordScreen() {
 
                           <TouchableOpacity
                             disabled={
+                              resendSeconds > 0 ||
                               resending ||
                               verifying
                             }
@@ -1179,13 +1284,18 @@ export default function ResetPasswordScreen() {
                             }
                           >
                             <Text
-                              style={
-                                styles.resendText
-                              }
+                              style={[
+                                styles.resendText,
+
+                                resendSeconds > 0 &&
+                                  styles.resendTextWaiting,
+                              ]}
                             >
                               {resending
                                 ? 'Sending...'
-                                : 'Resend Code'}
+                                : resendSeconds > 0
+                                  ? `Resend in ${resendSeconds}s`
+                                  : 'Resend Code'}
                             </Text>
                           </TouchableOpacity>
                         </View>
@@ -1992,6 +2102,12 @@ const styles =
         'Inter_600SemiBold',
 
       fontSize: 12,
+    },
+
+    // "Resend in 42s" (same grey as Verify Email).
+    resendTextWaiting: {
+      color:
+        '#999999',
     },
 
     // ========================================================

@@ -12,6 +12,10 @@ const {
   deactivateAdminUser,
   activateAdminUser,
 
+  lockAdminUser,
+  unlockAdminUser,
+  changeAdminUserRole,
+
   deleteAdminUser,
 } =
   require(
@@ -21,6 +25,7 @@ const {
 const {
   requireAuth,
   requireAdmin,
+  requireSuperAdmin,
 } =
   require(
     '../middleware/authMiddleware'
@@ -174,6 +179,104 @@ router.patch(
   }),
 
   activateAdminUser
+);
+
+// ============================================================
+// LOCK / UNLOCK
+//
+// PATCH /api/admin/users/:id/lock    { reason? }
+// PATCH /api/admin/users/:id/unlock
+//
+// Locked accounts can't sign in until unlocked. Unlock also
+// clears a sign-in lockout from wrong passwords.
+// Keep BEFORE /:id.
+// ============================================================
+
+router.patch(
+  '/:id/lock',
+
+  activityLog({
+    action:
+      'ADMIN_LOCK_USER',
+
+    module:
+      'User Management',
+
+    successDescription:
+      'Administrator locked a user account.',
+
+    failureDescription:
+      'Administrator attempt to lock a user account failed.',
+
+    entityType:
+      'user_account',
+  }),
+
+  lockAdminUser
+);
+
+router.patch(
+  '/:id/unlock',
+
+  activityLog({
+    action:
+      'ADMIN_UNLOCK_USER',
+
+    module:
+      'User Management',
+
+    successDescription:
+      'Administrator unlocked a user account.',
+
+    failureDescription:
+      'Administrator attempt to unlock a user account failed.',
+
+    entityType:
+      'user_account',
+  }),
+
+  unlockAdminUser
+);
+
+// ============================================================
+// CHANGE ROLE
+//
+// PATCH /api/admin/users/:id/role  { role: 'user' | 'admin' }
+//
+// SUPER ADMIN ONLY. Keep BEFORE /:id.
+// ============================================================
+
+router.patch(
+  '/:id/role',
+
+  activityLog({
+    action:
+      'ADMIN_CHANGE_ROLE',
+
+    module:
+      'User Management',
+
+    successDescription:
+      'Super admin changed a user\'s role.',
+
+    failureDescription:
+      'Attempt to change a user\'s role failed.',
+
+    entityType:
+      'user_account',
+
+    metadata: ({
+      req,
+    }) => ({
+      requested_role:
+        req.body?.role ??
+        null,
+    }),
+  }),
+
+  requireSuperAdmin,
+
+  changeAdminUserRole
 );
 
 // ============================================================

@@ -415,9 +415,16 @@ async function request(
 // LOGIN
 // ------------------------------------------------------------
 
+// A solved sign-in CAPTCHA, needed after a lockout.
+export type CaptchaAnswer = {
+  captcha_id: string;
+  captcha_answer: string;
+};
+
 export async function loginUser(
   email: string,
-  password: string
+  password: string,
+  captcha?: CaptchaAnswer | null
 ) {
   return request(
     '/api/auth/login',
@@ -433,7 +440,32 @@ export async function loginUser(
               .toLowerCase(),
 
           password,
+
+          ...(captcha ||
+            {}),
         }),
+    }
+  );
+}
+
+// ------------------------------------------------------------
+// SIGN-IN CAPTCHA
+//
+// A new picture to solve; the answer stays on the server.
+// ------------------------------------------------------------
+
+export type LoginCaptcha = {
+  captcha_id: string;
+  svg: string;
+  expires_in_seconds: number;
+};
+
+export async function getLoginCaptcha(): Promise<LoginCaptcha> {
+  return request(
+    '/api/auth/captcha',
+    {
+      method:
+        'GET',
     }
   );
 }
@@ -705,17 +737,24 @@ export async function changePassword(
 // PATCH /api/auth/me/email
 // ------------------------------------------------------------
 
-export async function changeEmail(
+// Change email, step 1: the server emails a 6-digit code to the
+// new address. Nothing changes yet.
+export async function requestEmailChange(
   accessToken: string,
   currentPassword: string,
   newEmail: string,
   confirmEmail: string
-) {
+): Promise<{
+  message: string;
+  new_email: string;
+  resend_after_seconds: number;
+  expires_in_seconds: number;
+}> {
   return request(
-    '/api/auth/me/email',
+    '/api/auth/me/email/request',
     {
       method:
-        'PATCH',
+        'POST',
 
       headers: {
         Authorization:
@@ -736,6 +775,82 @@ export async function changeEmail(
             confirmEmail
               .trim()
               .toLowerCase(),
+        }),
+    }
+  );
+}
+
+// A new code (at most one a minute).
+export async function resendEmailChange(
+  accessToken: string,
+  newEmail: string
+): Promise<{
+  message: string;
+  resend_after_seconds: number;
+}> {
+  return request(
+    '/api/auth/me/email/resend',
+    {
+      method:
+        'POST',
+
+      headers: {
+        Authorization:
+          `Bearer ${accessToken}`,
+      },
+
+      body:
+        JSON.stringify({
+          new_email:
+            newEmail,
+        }),
+    }
+  );
+}
+
+// Change email, step 2. 'changed': done, sign in again with the
+// new email. 'confirm_other': Supabase also sent a code to the
+// other address (next_target), which must be entered too.
+export type EmailChangeTarget =
+  | 'new'
+  | 'current';
+
+export async function verifyEmailChange(
+  accessToken: string,
+  newEmail: string,
+  code: string,
+  target: EmailChangeTarget
+): Promise<
+  | {
+      status: 'changed';
+      message: string;
+      email: string;
+    }
+  | {
+      status: 'confirm_other';
+      next_target: EmailChangeTarget;
+      message: string;
+    }
+> {
+  return request(
+    '/api/auth/me/email/verify',
+    {
+      method:
+        'POST',
+
+      headers: {
+        Authorization:
+          `Bearer ${accessToken}`,
+      },
+
+      body:
+        JSON.stringify({
+          new_email:
+            newEmail,
+
+          code,
+
+          target,
         }),
     }
   );
@@ -806,7 +921,12 @@ export async function deleteAccountPermanently(
 // ------------------------------------------------------------
 
 export async function logoutUser(
-  accessToken: string
+  accessToken: string,
+  options: {
+    // Signed out automatically (logged as AUTO_LOGOUT).
+    reason?: 'inactivity';
+    idleMinutes?: number;
+  } = {}
 ) {
   return request(
     '/api/auth/logout',
@@ -818,6 +938,15 @@ export async function logoutUser(
         Authorization:
           `Bearer ${accessToken}`,
       },
+
+      body:
+        JSON.stringify({
+          reason:
+            options.reason,
+
+          idle_minutes:
+            options.idleMinutes,
+        }),
     }
   );
 }

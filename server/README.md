@@ -49,8 +49,15 @@ The base tables (`users`, `donor_applications`, `blood_requests`, `blood_request
 | Role | Can do |
 |---|---|
 | `user` | The mobile app (donors and requesters) |
-| `admin` | Every Admin Portal module, including the log trail. Manages user accounts. |
-| `super_admin` | Everything an admin can do, and also creates, edits, deactivates and deletes admin accounts (Users → Admins, or Create User → Admin), and makes, downloads and restores database backups (Settings → Data Backups) |
+| `admin` | Every Admin Portal module, including the log trail. Manages user accounts: create, edit, deactivate, lock or unlock, and delete. |
+| `super_admin` | Everything an admin can do. Also manages admin accounts the same way (Users → Admins, or Create User → Admin), changes a user's role between User and Admin (user page → Change Role), and makes, downloads and restores database backups (Settings → Data Backups). |
+
+**Lock vs. deactivate:**
+- **Lock** stops the account from signing in and ends its current sessions until an admin unlocks it. Supabase also bans the sign-in, so the sessions can't be renewed. Nothing else about the account changes. It needs migration `20261022_account_lock.sql`.
+- **Unlock** also clears a lockout from wrong passwords, along with its CAPTCHA.
+- The Users list counts both kinds of lock under **Locked**.
+- **Deactivate** also closes the person's active requests and releases their offers.
+- The log trail records these as `ADMIN_LOCK_USER` (with the reason), `ADMIN_UNLOCK_USER` and `ADMIN_CHANGE_ROLE` (old and new role).
 
 To make the first admin, sign up (for example in the mobile app), then run in the SQL editor:
 
@@ -107,8 +114,37 @@ Restoring a backup:
 
 ## Sign-in protection
 
-- Three wrong passwords lock the account for 1 minute. Later lockouts last 3, 5, then 10 minutes; a successful sign-in resets the count.
-- Lockouts are kept in the `login_lockouts` table, so restarting the server doesn't clear them. (Before migration 20261006 is run, they're kept in memory and the server logs a warning.)
+- Three wrong passwords lock the account for 1 minute. Later lockouts last 5 minutes, then 15 minutes each time after that. The apps count down to the second (`retry_after_seconds`).
+- After the first lockout, every sign-in attempt for that account needs a CAPTCHA (`GET /api/auth/captcha`, sent back as `captcha_id` and `captcha_answer`). Each CAPTCHA works once and expires after 5 minutes. One network can get 20 a minute.
+- A successful sign-in clears the count, the lockout level and the CAPTCHA. So does a full day without a wrong password.
+- Lockouts are kept in the `login_lockouts` table, so restarting the server doesn't clear them. (Before migration 20261006 is run, they're kept in memory and the server logs a warning.) The apps also remember a lockout, so refreshing or reopening shows the countdown again.
+- The log trail records each lockout as `ACCOUNT_LOCKOUT` and each wrong CAPTCHA as `CAPTCHA_FAILED`.
+- When an app signs out after inactivity, it sends `{ "reason": "inactivity", "idle_minutes": 15 }` to `POST /api/auth/logout`. The log trail records that as `AUTO_LOGOUT`. Every sign-out ends all of that account's sessions.
+- Resetting the password also ends every session, and clears any sign-in lockout on that account. Changing the password or the email already ended every session.
+
+## One-time codes
+
+Supabase emails the 6-digit codes and checks them, and each code works only once. These codes cover verifying a new account, Forgot Password, and Change Email. The server adds its own rules on top (`src/services/otpGuardService.js`), whatever the Supabase settings are:
+
+- A code expires 10 minutes after it was sent.
+- 5 wrong tries use a code up, and a new code is needed. Each wrong try says how many are left.
+- A new code can be sent only 60 seconds after the last one. The reply includes `retry_after_seconds`, and the apps count down to it.
+
+The send times and tries are kept in the `otp_attempts` table (migration `20261022_otp_attempts.sql`). Until that migration is run, they're kept in memory and the server logs a warning.
+
+**Change Email** confirms the new address before saving it:
+
+1. `POST /api/auth/me/email/request` takes `current_password`, `new_email` and `confirm_email`. Supabase emails a code to the new address. With Supabase's **Secure email change** on (the default), it also emails one to the current address.
+2. `POST /api/auth/me/email/verify` takes `new_email`, `code` and `target` (`new` or `current`).
+   - When another code is still needed, it answers `status: "confirm_other"`.
+   - When every code is in, the email changes and every session ends (`status: "changed"`).
+3. `POST /api/auth/me/email/resend` sends new codes.
+
+**Supabase setup** (dashboard → Authentication → Emails):
+
+- In the **Change Email Address** template, add the code, for example `<p>Your code: <strong>{{ .Token }}</strong></p>`. Without it, the email has only a link, and the apps need the code.
+- Optional: set **Email OTP Expiration** to 600 seconds to match the server's 10 minutes. The default is 3600.
+- Optional: turn **Secure email change** off if only the new address should get a code.
 - One network can make at most 30 failed sign-ins in 15 minutes.
 
 ## Tests
