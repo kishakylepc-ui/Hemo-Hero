@@ -480,4 +480,5 @@ async function logActivity({
 module.exports = {
   logActivity,
   sanitizeMetadata,
+  getClientIp,
 };

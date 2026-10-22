@@ -49,9 +49,10 @@ import {
   AdminApiError,
   getLoginCaptcha,
   loginAdmin,
-  requestAdminPasswordReset,
   type LoginCaptcha,
 } from '../lib/api';
+
+import ResetPasswordModal from '../components/ResetPasswordModal';
 
 import {
   clearAdminLoginLock,
@@ -71,6 +72,8 @@ import {
   IDLE_TIMEOUT_MINUTES,
   isAdminSessionIdle,
 } from '../lib/sessionTimeout';
+
+import { getUsernameProblem } from '../lib/username';
 
 // Why the last session ended (see SessionGuard).
 function describeSignOut(
@@ -1103,22 +1106,31 @@ export default function AdminLoginScreen() {
       !cleanEmail
     ) {
       showError(
-        'Please enter your admin email address.'
+        'Please enter your username or admin email address.'
       );
 
       return;
     }
 
+    // A username or an email (only an email has @).
     const emailPattern =
       /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
     if (
-      !emailPattern.test(
-        cleanEmail
-      )
+      cleanEmail.includes('@')
+        ? !emailPattern.test(
+            cleanEmail
+          )
+        : Boolean(
+            getUsernameProblem(
+              cleanEmail
+            )
+          )
     ) {
       showError(
-        'Please enter a valid admin email address.'
+        cleanEmail.includes('@')
+          ? 'Please enter a valid admin email address.'
+          : 'Please enter a valid username or email address.'
       );
 
       return;
@@ -1344,7 +1356,9 @@ export default function AdminLoginScreen() {
   // PASSWORD RESET
   // ==========================================================
 
-  async function handleForgotPassword() {
+  // Opens the reset popup (email, code, new password). The sign-in
+  // form waits while it is open.
+  function handleForgotPassword() {
     if (
       loading ||
       resettingPassword
@@ -1354,72 +1368,25 @@ export default function AdminLoginScreen() {
 
     setError('');
     setSuccessMessage('');
+    setNotice('');
 
-    const cleanEmail =
-      email
-        .trim()
-        .toLowerCase();
+    setResettingPassword(
+      true
+    );
+  }
 
-    if (
-      !cleanEmail
-    ) {
-      showError(
-        'Enter your administrator email address first.'
-      );
+  function handlePasswordReset(
+    message: string
+  ) {
+    setResettingPassword(
+      false
+    );
 
-      return;
-    }
+    setPassword('');
 
-    const emailPattern =
-      /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-
-    if (
-      !emailPattern.test(
-        cleanEmail
-      )
-    ) {
-      showError(
-        'Please enter a valid administrator email address.'
-      );
-
-      return;
-    }
-
-    try {
-      setResettingPassword(
-        true
-      );
-
-      const result =
-        await requestAdminPasswordReset(
-          cleanEmail
-        );
-
-      setError('');
-
-      setSuccessMessage(
-        result?.message ||
-          'Password reset instructions have been sent to the administrator email.'
-      );
-    } catch (
-      resetError
-    ) {
-      console.log(
-        'ADMIN RESET ERROR:',
-        resetError
-      );
-
-      showError(
-        resetError instanceof
-          Error
-          ? resetError.message
-          : 'Unable to request a password reset.'
-      );
-    } finally {
-      setResettingPassword(
-        false
-      );
-    }
+    setSuccessMessage(
+      message
+    );
   }
 
   // ==========================================================
@@ -1820,7 +1787,7 @@ export default function AdminLoginScreen() {
                     ]}
                   >
                     <MaterialIcons
-                      name="mail-outline"
+                      name="person-outline"
                       size={
                         21 * s
                       }
@@ -1839,7 +1806,7 @@ export default function AdminLoginScreen() {
                         },
                       ]}
                     >
-                      EMAIL ADDRESS
+                      USERNAME OR EMAIL
                     </Text>
                   </View>
 
@@ -1879,7 +1846,7 @@ export default function AdminLoginScreen() {
                             18 * s,
                         },
                       ]}
-                      placeholder="name@organization.com"
+                      placeholder="username or name@organization.com"
                       placeholderTextColor={
                         COLORS.muted
                       }
@@ -1888,7 +1855,7 @@ export default function AdminLoginScreen() {
                         false
                       }
                       keyboardType="email-address"
-                      autoComplete="email"
+                      autoComplete="username"
                       editable={
                         !loading &&
                         !resettingPassword
@@ -2341,9 +2308,7 @@ export default function AdminLoginScreen() {
                           },
                         ]}
                       >
-                        {resettingPassword
-                          ? 'Sending...'
-                          : 'Forgot Password?'}
+                        Forgot Password?
                       </Text>
                     </Pressable>
                   </View>
@@ -2644,6 +2609,19 @@ export default function AdminLoginScreen() {
           </SafeAreaView>
         </LinearGradient>
       </View>
+
+      {/* Forgot Password: email, code, new password */}
+
+      <ResetPasswordModal
+        visible={resettingPassword}
+        scale={s}
+        fontScale={Math.max(tablet.scale, 0.92)}
+        initialEmail={email}
+        onClose={() =>
+          setResettingPassword(false)
+        }
+        onDone={handlePasswordReset}
+      />
     </View>
   );
 }

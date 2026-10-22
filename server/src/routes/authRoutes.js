@@ -17,6 +17,7 @@ const {
   resendVerification,
   login,
   getLoginCaptcha,
+  getUsernameAvailability,
   refreshSession,
   logout,
   forgotPassword,
@@ -85,6 +86,33 @@ const {
 } = require(
   'express-rate-limit'
 );
+
+const {
+  resolveLoginIdentifier,
+} = require(
+  '../middleware/loginIdentifier'
+);
+
+// Username checks while typing: 60 a minute per network.
+const usernameCheckLimiter =
+  rateLimit({
+    windowMs:
+      60 * 1000,
+
+    limit:
+      60,
+
+    standardHeaders:
+      false,
+
+    legacyHeaders:
+      false,
+
+    message: {
+      error:
+        'Too many username checks. Please wait a minute.',
+    },
+  });
 
 // New CAPTCHAs per network: 20 a minute is plenty for people
 // and stops a script from filling the server's memory.
@@ -395,9 +423,25 @@ router.post(
       'user_account',
   }),
 
+  // A username becomes the account's email before the lockout
+  // check, so both count against the same account.
+  resolveLoginIdentifier,
+
   loginLimiter,
 
   login
+);
+
+// ------------------------------------------------------------
+// USERNAME AVAILABLE?
+//
+// GET /api/auth/username-available?username=
+// ------------------------------------------------------------
+
+router.get(
+  '/username-available',
+  usernameCheckLimiter,
+  getUsernameAvailability
 );
 
 // ------------------------------------------------------------

@@ -114,6 +114,58 @@ async function getActivityLogs(
         req.query.success
       ).toLowerCase();
 
+    // Date range: from (included) and to (not included), as ISO
+    // times. The portal sends the start of the first day and
+    // the start of the day after the last one, in its timezone.
+    const dateFrom =
+      cleanText(
+        req.query.from
+      );
+
+    const dateTo =
+      cleanText(
+        req.query.to
+      );
+
+    for (const value of [
+      dateFrom,
+      dateTo,
+    ]) {
+      if (
+        value &&
+        !Number.isFinite(
+          Date.parse(value)
+        )
+      ) {
+        return res
+          .status(400)
+          .json({
+            error:
+              'Invalid date filter.',
+
+            code:
+              'INVALID_DATE_FILTER',
+          });
+      }
+    }
+
+    if (
+      dateFrom &&
+      dateTo &&
+      Date.parse(dateFrom) >=
+        Date.parse(dateTo)
+    ) {
+      return res
+        .status(400)
+        .json({
+          error:
+            'The start date must be before the end date.',
+
+          code:
+            'INVALID_DATE_FILTER',
+        });
+    }
+
     let successFilter =
       null;
 
@@ -222,6 +274,34 @@ async function getActivityLogs(
         query.ilike(
           'user_email',
           `%${userEmail}%`
+        );
+    }
+
+    // --------------------------------------------------------
+    // DATE FILTER
+    // --------------------------------------------------------
+
+    if (
+      dateFrom
+    ) {
+      query =
+        query.gte(
+          'created_at',
+          new Date(
+            dateFrom
+          ).toISOString()
+        );
+    }
+
+    if (
+      dateTo
+    ) {
+      query =
+        query.lt(
+          'created_at',
+          new Date(
+            dateTo
+          ).toISOString()
         );
     }
 

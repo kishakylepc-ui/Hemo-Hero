@@ -912,6 +912,9 @@ export default function AdminUserDetailsScreen() {
                             },
                           ]}
                         >
+                          {user.username
+                            ? `@${user.username} · `
+                            : ''}
                           {user.email ||
                             'No email available'}
                         </Text>
@@ -1074,6 +1077,7 @@ export default function AdminUserDetailsScreen() {
                       title="Account Information"
                     >
                       <InfoGrid>
+                        <InfoItem fontScale={fs} label="Username" value={user.username ? `@${user.username}` : 'Not set'} />
                         <InfoItem fontScale={fs} label="Role" value={formatValue(user.role)} />
                         <InfoItem
                           fontScale={fs}

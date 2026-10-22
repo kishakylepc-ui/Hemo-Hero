@@ -10,6 +10,24 @@ Write each change under **Unreleased** as you make it. `node scripts/version.js 
 
 ## Unreleased
 
+- **Usernames.** Sign in with a username or an email, in both apps. A lockout and the CAPTCHA follow the account whichever one is typed.
+  - Sign Up asks for a username and checks while you type whether it's free.
+  - It can be changed in Edit Profile (mobile) and Settings (admin), and admins set it in Create User and Edit User.
+  - The Users list shows and searches usernames.
+  - Usernames are 3 to 20 lowercase letters, numbers, periods or underscores, and they're unique regardless of letter case. So are emails now, in the app's own table.
+  - Existing accounts get a username made from their email.
+  - Needs migration `20261022_usernames.sql`.
+- Admin portal: **Forgot Password** now opens a reset popup with three steps: email, the 6-digit code (with Resend), and a new password with its rules shown while typing. Before, it only sent the code, with nowhere to enter it.
+
+- The log trail records blocked requests as **Unauthorized Access** (module Access Control), with the user, route, IP address and reason. That covers:
+  - no or a bad sign-in token
+  - a deactivated or locked account
+  - a user opening an admin feature, or an admin opening a super-admin feature
+  - a non-admin signing in to the Admin Portal, who now gets no session there at all
+
+  Each caller and reason is recorded at most once a minute.
+- Log Trails: a **Date** filter: All time, Today, Last 7 days, Last 30 days, or **Custom**, a range picked in a calendar.
+
 - Sign-in lockouts now last 1, 5, then 15 minutes (they were 1, 3, 5 and 10). Both apps count down to the second, and the countdown comes back after a refresh or after reopening the app. The admin portal used to show only a message, with no timer.
 - After an account has been locked once, signing in to it needs a CAPTCHA until a sign-in succeeds or a day passes without a wrong password. The server makes the picture (`svg-captcha`), and each one works once and expires after 5 minutes. The admin portal now uses `react-native-svg` to show it.
 - A lockout that ended more than 15 minutes earlier used to reset the account to a 1-minute lockout. The account now keeps its lockout level.

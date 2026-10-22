@@ -349,6 +349,13 @@ function activityLog({
             ) ||
             action;
 
+          const finalModule =
+            cleanText(
+              res?.locals
+                ?.activityModule
+            ) ||
+            module;
+
           // --------------------------------------------------
           // METADATA
           // --------------------------------------------------
@@ -406,7 +413,8 @@ function activityLog({
             action:
               finalAction,
 
-            module,
+            module:
+              finalModule,
 
             description,
 
@@ -506,8 +514,9 @@ function setActivityEntity(
 // ============================================================
 // SET ACTIVITY OUTCOME
 //
-// Replaces the route's action and/or description for this one
-// entry, when the result is more specific than "failed":
+// Replaces the route's action, module and/or description for
+// this one entry, when the result is more specific than
+// "failed":
 //
 // setActivityOutcome(res, {
 //   action: 'ACCOUNT_LOCKOUT',
@@ -519,6 +528,7 @@ function setActivityOutcome(
   res,
   {
     action = null,
+    module = null,
     description = null,
   } = {}
 ) {
@@ -533,6 +543,14 @@ function setActivityOutcome(
       .activityAction =
       cleanText(
         action
+      );
+  }
+
+  if (module) {
+    res.locals
+      .activityModule =
+      cleanText(
+        module
       );
   }
 

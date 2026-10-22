@@ -18,6 +18,14 @@ const {
 );
 
 const {
+  normalizeUsername,
+  checkUsernameTaken,
+  isUsernameConflict,
+} = require(
+  '../utils/username'
+);
+
+const {
   normalizePhone,
 } = require(
   '../utils/phone'
@@ -625,6 +633,10 @@ function buildSafeUser(
 
     email:
       user.email ??
+      null,
+
+    username:
+      user.username ??
       null,
 
     first_name:
@@ -1249,6 +1261,7 @@ async function getAdminUsers(
             const searchable =
               [
                 user.email,
+                user.username,
                 user.first_name,
                 user.middle_name,
                 user.last_name,
@@ -1539,9 +1552,64 @@ async function createAdminUser(
       province,
 
       role,
+
+      username,
     } =
       req.body ||
       {};
+
+    // --------------------------------------------------------
+    // USERNAME (required, unique)
+    // --------------------------------------------------------
+
+    const usernameCheck =
+      normalizeUsername(
+        username
+      );
+
+    if (
+      !usernameCheck.valid
+    ) {
+      return res
+        .status(400)
+        .json({
+          error:
+            usernameCheck.error,
+
+          code:
+            'INVALID_USERNAME',
+        });
+    }
+
+    const usernameLookup =
+      await checkUsernameTaken(
+        usernameCheck.value
+      );
+
+    if (
+      usernameLookup.error
+    ) {
+      return res
+        .status(500)
+        .json({
+          error:
+            usernameLookup.error,
+        });
+    }
+
+    if (
+      usernameLookup.taken
+    ) {
+      return res
+        .status(409)
+        .json({
+          error:
+            'This username is taken. Please choose another.',
+
+          code:
+            'USERNAME_TAKEN',
+        });
+    }
 
     // --------------------------------------------------------
     // PHONE (optional)
@@ -1932,6 +2000,9 @@ async function createAdminUser(
       email:
         cleanEmail,
 
+      username:
+        usernameCheck.value,
+
       first_name:
         cleanFirstName,
 
@@ -2097,6 +2168,23 @@ async function createAdminUser(
       await rollbackCreatedAuthUser(
         createdAuthUserId
       );
+
+      // Someone took the username a moment ago.
+      if (
+        isUsernameConflict(
+          profileError
+        )
+      ) {
+        return res
+          .status(409)
+          .json({
+            error:
+              'This username is taken. Please choose another.',
+
+            code:
+              'USERNAME_TAKEN',
+          });
+      }
 
       return res
         .status(500)
@@ -2295,12 +2383,76 @@ async function updateAdminUser(
       barangay,
       city,
       province,
+      username,
     } =
       req.body ||
       {};
 
     const updates =
       {};
+
+    // --------------------------------------------------------
+    // USERNAME (unique; can be changed, not removed)
+    // --------------------------------------------------------
+
+    if (
+      username !==
+      undefined
+    ) {
+      const usernameCheck =
+        normalizeUsername(
+          username
+        );
+
+      if (
+        !usernameCheck.valid
+      ) {
+        return res
+          .status(400)
+          .json({
+            error:
+              usernameCheck.error,
+
+            code:
+              'INVALID_USERNAME',
+          });
+      }
+
+      if (
+        usernameCheck.value !==
+        targetUser.username
+      ) {
+        const lookup =
+          await checkUsernameTaken(
+            usernameCheck.value,
+            targetUser.id
+          );
+
+        if (lookup.error) {
+          return res
+            .status(500)
+            .json({
+              error:
+                lookup.error,
+            });
+        }
+
+        if (lookup.taken) {
+          return res
+            .status(409)
+            .json({
+              error:
+                'This username is taken. Please choose another.',
+
+              code:
+                'USERNAME_TAKEN',
+            });
+        }
+
+        updates.username =
+          usernameCheck.value;
+      }
+    }
 
     let emailChanged =
       false;
@@ -2783,6 +2935,23 @@ async function updateAdminUser(
             rollbackError
           );
         }
+      }
+
+      // Someone took the username a moment ago.
+      if (
+        isUsernameConflict(
+          updateError
+        )
+      ) {
+        return res
+          .status(409)
+          .json({
+            error:
+              'This username is taken. Please choose another.',
+
+            code:
+              'USERNAME_TAKEN',
+          });
       }
 
       return res

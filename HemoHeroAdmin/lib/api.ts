@@ -25,6 +25,9 @@ export type AdminProfile = {
 
   email?: string | null;
 
+  // Signs in too (with the email).
+  username?: string | null;
+
   first_name?: string | null;
 
   middle_name?: string | null;
@@ -244,6 +247,11 @@ export type ActivityLogFilters = {
   success?: boolean;
 
   user_email?: string;
+
+  // Date range as ISO times: from included, to not included.
+  from?: string;
+
+  to?: string;
 };
 
 export type ActivityLogResponse = {
@@ -542,6 +550,9 @@ export type AdminManagedUser = {
 
   email?: string | null;
 
+  // Signs in too (with the email); unique.
+  username?: string | null;
+
   first_name?: string | null;
 
   middle_name?: string | null;
@@ -673,6 +684,9 @@ export type AdminUserActionResponse = {
 export type AdminCreateUserInput = {
   email: string;
 
+  // Required; unique.
+  username: string;
+
   password: string;
 
   confirm_password: string;
@@ -707,6 +721,8 @@ export type AdminCreateUserInput = {
 
 export type AdminUpdateUserInput = {
   email?: string;
+
+  username?: string;
 
   first_name?: string;
 
@@ -1196,6 +1212,11 @@ export async function loginAdmin(
 
             password,
 
+            // Non-admin accounts get no session here, and the
+            // attempt is logged as unauthorized access.
+            portal:
+              'admin',
+
             ...(captcha ||
               {}),
           }),
@@ -1285,6 +1306,80 @@ export async function requestAdminPasswordReset(
   );
 }
 
+// Step 2: the 6-digit code from the email. Returns a short-lived
+// recovery token for step 3.
+export async function verifyAdminRecoveryCode(
+  email: string,
+  code: string
+): Promise<{
+  message: string;
+  recovery_token: string;
+}> {
+  const response =
+    await fetch(
+      `${API_URL}/api/auth/verify-recovery-code`,
+      {
+        method:
+          'POST',
+
+        headers: {
+          'Content-Type':
+            'application/json',
+        },
+
+        body:
+          JSON.stringify({
+            email:
+              email.trim(),
+
+            code,
+          }),
+      }
+    );
+
+  return parseResponse(
+    response
+  );
+}
+
+// Step 3: the new password. Every session of the account ends.
+export async function resetAdminPassword(
+  recoveryToken: string,
+  password: string,
+  confirmPassword: string
+): Promise<{
+  message: string;
+}> {
+  const response =
+    await fetch(
+      `${API_URL}/api/auth/reset-password`,
+      {
+        method:
+          'POST',
+
+        headers: {
+          'Content-Type':
+            'application/json',
+        },
+
+        body:
+          JSON.stringify({
+            recovery_token:
+              recoveryToken,
+
+            password,
+
+            confirm_password:
+              confirmPassword,
+          }),
+      }
+    );
+
+  return parseResponse(
+    response
+  );
+}
+
 // ============================================================
 // SERVER VERSION
 //
@@ -1316,6 +1411,8 @@ export async function getServerVersion(): Promise<string> {
 // ============================================================
 
 export type AdminAccountUpdateInput = {
+  username?: string;
+
   first_name?: string;
 
   middle_name?: string | null;
@@ -1898,6 +1995,20 @@ export async function getAdminActivityLogs(
     params.set(
       'user_email',
       filters.user_email.trim()
+    );
+  }
+
+  if (filters.from) {
+    params.set(
+      'from',
+      filters.from
+    );
+  }
+
+  if (filters.to) {
+    params.set(
+      'to',
+      filters.to
     );
   }
 

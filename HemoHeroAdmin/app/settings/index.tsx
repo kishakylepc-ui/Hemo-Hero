@@ -62,6 +62,11 @@ import { isAdminRole, isSuperAdmin } from '../../lib/roles';
 
 import { goToAdminSignIn } from '../../lib/signInRoute';
 
+import {
+  cleanUsername,
+  getUsernameProblem,
+} from '../../lib/username';
+
 // ============================================================
 // DESIGN
 //
@@ -225,6 +230,8 @@ export default function AdminSettingsScreen() {
 
   // PROFILE FORM
 
+  // Signs in too (with the email); unique.
+  const [username, setUsername] = useState('');
   const [firstName, setFirstName] = useState('');
   const [middleName, setMiddleName] = useState('');
   const [lastName, setLastName] = useState('');
@@ -447,6 +454,7 @@ export default function AdminSettingsScreen() {
   // ==========================================================
 
   function openProfileForm() {
+    setUsername(account?.username || '');
     setFirstName(source?.first_name || '');
     setMiddleName(source?.middle_name || '');
     setLastName(source?.last_name || '');
@@ -543,6 +551,19 @@ export default function AdminSettingsScreen() {
       return;
     }
 
+    // Accounts made before usernames may still have none.
+    const usernameProblem =
+      username.trim() ||
+      account?.username
+        ? getUsernameProblem(username)
+        : null;
+
+    if (usernameProblem) {
+      setFormError(usernameProblem);
+
+      return;
+    }
+
     try {
       setSaving(true);
       setFormError('');
@@ -556,6 +577,9 @@ export default function AdminSettingsScreen() {
 
       const result =
         await updateAdminAccount(token, {
+          ...(username.trim()
+            ? { username: cleanUsername(username) }
+            : {}),
           first_name: firstName.trim(),
           middle_name: middleName.trim() || null,
           last_name: lastName.trim(),
@@ -569,6 +593,7 @@ export default function AdminSettingsScreen() {
       if (profile) {
         const nextProfile: AdminProfile = {
           ...profile,
+          username: result.user.username,
           first_name: result.user.first_name,
           middle_name: result.user.middle_name,
           last_name: result.user.last_name,
@@ -1633,13 +1658,22 @@ export default function AdminSettingsScreen() {
         fontScale={fs}
         icon="edit"
         title="Edit Profile"
-        description="Update your administrator name and contact number."
+        description="Update your username, name and contact number."
         error={formError}
         saving={saving}
         submitLabel="Save Changes"
         onClose={closeFormModal}
         onSubmit={saveProfile}
       >
+        <FormField
+          scale={s}
+          fontScale={fs}
+          label="Username * (sign in with it or your email)"
+          value={username}
+          onChangeText={setUsername}
+          keyboardType="email-address"
+        />
+
         <View
           style={[
             styles.row,

@@ -12,6 +12,44 @@ const {
   '../config/supabase'
 );
 
+const {
+  logUnauthorizedAccess,
+} = require(
+  '../utils/accessLog'
+);
+
+// Turns a request away and records it in the log trail as
+// UNAUTHORIZED_ACCESS (utils/accessLog.js).
+function block(
+  req,
+  res,
+  {
+    status,
+    body,
+    reason,
+    user = null,
+  }
+) {
+  logUnauthorizedAccess(
+    req,
+    {
+      reason,
+
+      reasonCode:
+        body.code,
+
+      statusCode:
+        status,
+
+      user,
+    }
+  );
+
+  return res
+    .status(status)
+    .json(body);
+}
+
 // ============================================================
 // AUTHENTICATION MIDDLEWARE
 // ============================================================
@@ -47,15 +85,25 @@ async function requireAuth(
       typeof authHeader !==
         'string'
     ) {
-      return res
-        .status(401)
-        .json({
-          error:
-            'Missing Authorization header',
+      return block(
+        req,
+        res,
+        {
+          status:
+            401,
 
-          code:
-            'AUTH_HEADER_MISSING',
-        });
+          body: {
+            error:
+              'Missing Authorization header',
+
+            code:
+              'AUTH_HEADER_MISSING',
+          },
+
+          reason:
+            'Blocked: a protected route was opened without signing in.',
+        }
+      );
     }
 
     // Accept:
@@ -71,15 +119,25 @@ async function requireAuth(
     if (
       !match
     ) {
-      return res
-        .status(401)
-        .json({
-          error:
-            'Invalid Authorization header',
+      return block(
+        req,
+        res,
+        {
+          status:
+            401,
 
-          code:
-            'AUTH_HEADER_INVALID',
-        });
+          body: {
+            error:
+              'Invalid Authorization header',
+
+            code:
+              'AUTH_HEADER_INVALID',
+          },
+
+          reason:
+            'Blocked: a protected route was opened with a malformed sign-in header.',
+        }
+      );
     }
 
     const token =
@@ -88,15 +146,25 @@ async function requireAuth(
     if (
       !token
     ) {
-      return res
-        .status(401)
-        .json({
-          error:
-            'Missing authentication token',
+      return block(
+        req,
+        res,
+        {
+          status:
+            401,
 
-          code:
-            'AUTH_TOKEN_MISSING',
-        });
+          body: {
+            error:
+              'Missing authentication token',
+
+            code:
+              'AUTH_TOKEN_MISSING',
+          },
+
+          reason:
+            'Blocked: a protected route was opened without a sign-in token.',
+        }
+      );
     }
 
     // --------------------------------------------------------
@@ -126,15 +194,40 @@ async function requireAuth(
         );
       }
 
-      return res
-        .status(401)
-        .json({
-          error:
-            'Invalid or expired token',
+      const body = {
+        error:
+          'Invalid or expired token',
 
-          code:
-            'AUTH_TOKEN_INVALID',
-        });
+        code:
+          'AUTH_TOKEN_INVALID',
+      };
+
+      // An expired token is routine: the apps renew it and try
+      // again. Anything else (forged, revoked) is recorded.
+      if (
+        /expired/i.test(
+          error?.message ||
+            ''
+        )
+      ) {
+        return res
+          .status(401)
+          .json(body);
+      }
+
+      return block(
+        req,
+        res,
+        {
+          status:
+            401,
+
+          body,
+
+          reason:
+            'Blocked: the sign-in token was not valid (forged, revoked or from a signed-out session).',
+        }
+      );
     }
 
     // --------------------------------------------------------
@@ -230,15 +323,28 @@ async function requireAuth(
       dbUser.is_active ===
       false
     ) {
-      return res
-        .status(403)
-        .json({
-          error:
-            'Your account has been deactivated. Please contact an administrator.',
+      return block(
+        req,
+        res,
+        {
+          status:
+            403,
 
-          code:
-            'ACCOUNT_DEACTIVATED',
-        });
+          body: {
+            error:
+              'Your account has been deactivated. Please contact an administrator.',
+
+            code:
+              'ACCOUNT_DEACTIVATED',
+          },
+
+          reason:
+            'Blocked: a deactivated account tried to keep using the app.',
+
+          user:
+            dbUser,
+        }
+      );
     }
 
     // Locked by an admin: current sessions stop working too.
@@ -246,15 +352,28 @@ async function requireAuth(
       dbUser.is_locked ===
       true
     ) {
-      return res
-        .status(403)
-        .json({
-          error:
-            'Your account has been locked by an administrator. Please contact support.',
+      return block(
+        req,
+        res,
+        {
+          status:
+            403,
 
-          code:
-            'ACCOUNT_LOCKED',
-        });
+          body: {
+            error:
+              'Your account has been locked by an administrator. Please contact support.',
+
+            code:
+              'ACCOUNT_LOCKED',
+          },
+
+          reason:
+            'Blocked: a locked account tried to keep using the app.',
+
+          user:
+            dbUser,
+        }
+      );
     }
 
     // --------------------------------------------------------
@@ -341,15 +460,28 @@ function requireAdmin(
       req.dbUser.role
     )
   ) {
-    return res
-      .status(403)
-      .json({
-        error:
-          'Admin access required',
+    return block(
+      req,
+      res,
+      {
+        status:
+          403,
 
-        code:
-          'ADMIN_REQUIRED',
-      });
+        body: {
+          error:
+            'Admin access required',
+
+          code:
+            'ADMIN_REQUIRED',
+        },
+
+        reason:
+          `Blocked: an account with the ${req.dbUser.role || 'unknown'} role tried to use an admin-only feature.`,
+
+        user:
+          req.dbUser,
+      }
+    );
   }
 
   return next();
@@ -386,15 +518,28 @@ function requireSuperAdmin(
       req.dbUser.role
     )
   ) {
-    return res
-      .status(403)
-      .json({
-        error:
-          'Only the super admin can do this.',
+    return block(
+      req,
+      res,
+      {
+        status:
+          403,
 
-        code:
-          'SUPER_ADMIN_REQUIRED',
-      });
+        body: {
+          error:
+            'Only the super admin can do this.',
+
+          code:
+            'SUPER_ADMIN_REQUIRED',
+        },
+
+        reason:
+          `Blocked: an account with the ${req.dbUser.role || 'unknown'} role tried to use a super-admin-only feature.`,
+
+        user:
+          req.dbUser,
+      }
+    );
   }
 
   return next();

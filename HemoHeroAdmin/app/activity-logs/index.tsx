@@ -31,6 +31,11 @@ import AdminHeader from '../../components/AdminHeader';
 
 import { FadeInView } from '../../components/AdminMotion';
 
+import DateRangeModal, {
+  formatDateKey,
+  fromDateKey,
+} from '../../components/DateRangeModal';
+
 import {
   getAdminActivityLogs,
   getAdminActivityLogSummary,
@@ -91,9 +96,77 @@ type StatusFilter =
   | 'successful'
   | 'failed';
 
+// Date filter: a preset, or days picked in the calendar
+// ('YYYY-MM-DD').
+type DateFilter =
+  | { kind: 'all' | 'today' | '7d' | '30d' }
+  | { kind: 'custom'; start: string; end: string };
+
+const DATE_PRESETS: {
+  kind: 'all' | 'today' | '7d' | '30d';
+  label: string;
+}[] = [
+  { kind: 'all', label: 'All time' },
+  { kind: 'today', label: 'Today' },
+  { kind: '7d', label: 'Last 7 days' },
+  { kind: '30d', label: 'Last 30 days' },
+];
+
+// The filter as ISO times for the server: from the start of the
+// first day up to (not including) the start of the day after
+// the last one, in this device's timezone.
+function getDateRange(
+  filter: DateFilter
+): { from?: string; to?: string } {
+  if (filter.kind === 'all') {
+    return {};
+  }
+
+  const today = new Date();
+
+  const startOfDay = (date: Date, addDays = 0) =>
+    new Date(
+      date.getFullYear(),
+      date.getMonth(),
+      date.getDate() + addDays
+    );
+
+  if (filter.kind === 'custom') {
+    return {
+      from: startOfDay(
+        fromDateKey(filter.start)
+      ).toISOString(),
+
+      to: startOfDay(
+        fromDateKey(filter.end),
+        1
+      ).toISOString(),
+    };
+  }
+
+  const daysBack = {
+    today: 0,
+    '7d': 6,
+    '30d': 29,
+  }[filter.kind];
+
+  return {
+    from: startOfDay(
+      today,
+      -daysBack
+    ).toISOString(),
+
+    to: startOfDay(
+      today,
+      1
+    ).toISOString(),
+  };
+}
+
 // Module names written by the server's activityLog() routes.
 const MODULES = [
   'Authentication',
+  'Access Control',
   'Profile',
   'Account Security',
   'User Management',
@@ -164,6 +237,12 @@ export default function ActivityLogsScreen() {
   const [moduleFilter, setModuleFilter] =
     useState<string>('all');
 
+  const [dateFilter, setDateFilter] =
+    useState<DateFilter>({ kind: 'all' });
+
+  const [dateModalVisible, setDateModalVisible] =
+    useState(false);
+
   const [selectedLog, setSelectedLog] =
     useState<ActivityLog | null>(null);
 
@@ -185,6 +264,7 @@ export default function ActivityLogsScreen() {
       emailFilter,
       statusFilter,
       moduleFilter,
+      dateFilter,
     ])
   );
 
@@ -239,6 +319,7 @@ export default function ActivityLogsScreen() {
             moduleFilter === 'all'
               ? undefined
               : moduleFilter,
+          ...getDateRange(dateFilter),
         }),
       ]);
 
@@ -305,18 +386,35 @@ export default function ActivityLogsScreen() {
     setModuleFilter(value);
   }
 
+  function changeDateFilter(
+    value: DateFilter
+  ) {
+    setPage(1);
+    setDateFilter(value);
+  }
+
   function resetFilters() {
     setEmailInput('');
     setEmailFilter('');
     setStatusFilter('all');
     setModuleFilter('all');
+    setDateFilter({ kind: 'all' });
     setPage(1);
   }
 
   const hasFilters =
     Boolean(emailFilter) ||
     statusFilter !== 'all' ||
-    moduleFilter !== 'all';
+    moduleFilter !== 'all' ||
+    dateFilter.kind !== 'all';
+
+  // "Oct 1 – Oct 22" on the Custom chip.
+  const customDateLabel =
+    dateFilter.kind === 'custom'
+      ? dateFilter.start === dateFilter.end
+        ? formatDateKey(dateFilter.start)
+        : `${formatDateKey(dateFilter.start)} – ${formatDateKey(dateFilter.end)}`
+      : 'Custom';
 
   const successRate =
     summary.total > 0
@@ -601,6 +699,151 @@ export default function ActivityLogsScreen() {
                   </Pressable>
                 </View>
 
+                {/* DATE */}
+
+                <View
+                  style={[
+                    styles.wrapRow,
+
+                    {
+                      gap: 7 * s,
+                      marginBottom: 10 * s,
+                    },
+                  ]}
+                >
+                  <Text
+                    style={[
+                      styles.filterLabel,
+
+                      {
+                        fontSize: 11 * fs,
+                        marginRight: 6 * s,
+                        minWidth: 56 * s,
+                      },
+                    ]}
+                  >
+                    DATE
+                  </Text>
+
+                  {DATE_PRESETS.map(preset => (
+                    <Pressable
+                      key={preset.kind}
+                      onPress={() =>
+                        changeDateFilter({
+                          kind: preset.kind,
+                        })
+                      }
+                      style={({ pressed }) => [
+                        styles.chip,
+
+                        {
+                          height: 32 * s,
+                          paddingHorizontal: 12 * s,
+                          borderRadius: 8 * s,
+                        },
+
+                        dateFilter.kind === preset.kind &&
+                          styles.chipActive,
+
+                        pressed &&
+                          styles.pressed,
+                      ]}
+                    >
+                      <Text
+                        style={[
+                          styles.chipText,
+
+                          {
+                            fontSize: 12 * fs,
+                          },
+
+                          dateFilter.kind === preset.kind &&
+                            styles.chipTextActive,
+                        ]}
+                      >
+                        {preset.label}
+                      </Text>
+                    </Pressable>
+                  ))}
+
+                  <Pressable
+                    onPress={() =>
+                      setDateModalVisible(true)
+                    }
+                    style={({ pressed }) => [
+                      styles.chip,
+
+                      {
+                        height: 32 * s,
+                        paddingHorizontal: 12 * s,
+                        borderRadius: 8 * s,
+                        flexDirection: 'row',
+                        alignItems: 'center',
+                        gap: 6 * s,
+                      },
+
+                      dateFilter.kind === 'custom' &&
+                        styles.chipActive,
+
+                      pressed &&
+                        styles.pressed,
+                    ]}
+                  >
+                    <MaterialIcons
+                      name="date-range"
+                      size={15 * s}
+                      color={
+                        dateFilter.kind === 'custom'
+                          ? COLORS.white
+                          : COLORS.soft
+                      }
+                    />
+
+                    <Text
+                      style={[
+                        styles.chipText,
+
+                        {
+                          fontSize: 12 * fs,
+                        },
+
+                        dateFilter.kind === 'custom' &&
+                          styles.chipTextActive,
+                      ]}
+                    >
+                      {customDateLabel}
+                    </Text>
+                  </Pressable>
+                </View>
+
+                <DateRangeModal
+                  visible={dateModalVisible}
+                  scale={s}
+                  fontScale={fs}
+                  initialStart={
+                    dateFilter.kind === 'custom'
+                      ? dateFilter.start
+                      : null
+                  }
+                  initialEnd={
+                    dateFilter.kind === 'custom'
+                      ? dateFilter.end
+                      : null
+                  }
+                  onClose={() =>
+                    setDateModalVisible(false)
+                  }
+                  onApply={(start, end) => {
+                    setDateModalVisible(false);
+
+                    changeDateFilter({
+                      kind: 'custom',
+                      start,
+                      end,
+                    });
+                  }}
+                />
+
                 {/* MODULES */}
 
                 <View
@@ -620,6 +863,7 @@ export default function ActivityLogsScreen() {
                       {
                         fontSize: 11 * fs,
                         marginRight: 6 * s,
+                        minWidth: 56 * s,
                       },
                     ]}
                   >
@@ -1806,6 +2050,7 @@ function getActionIcon(
   const normalized =
     String(action || '').toUpperCase();
 
+  if (normalized.includes('UNAUTHORIZED')) return 'gpp-bad';
   if (normalized.includes('LOCKOUT')) return 'lock-clock';
   if (normalized.includes('CAPTCHA')) return 'security';
   if (normalized.includes('UNLOCK')) return 'lock-open';

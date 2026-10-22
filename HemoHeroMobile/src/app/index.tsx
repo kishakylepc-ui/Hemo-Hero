@@ -68,6 +68,8 @@ import {
   isSessionIdle,
 } from '../lib/sessionTimeout';
 
+import { getUsernameProblem } from '../lib/username';
+
 import {
   holdIntro,
   whenIntroDone,
@@ -1073,16 +1075,25 @@ export default function SignInScreen() {
       Record<SignInField, string>
     > = {};
 
+    // A username or an email (only an email has @).
     if (!cleanEmail) {
       errors.email =
-        'Enter your email address.';
+        'Enter your username or email.';
     } else if (
-      !emailPattern.test(
-        cleanEmail
-      )
+      cleanEmail.includes('@')
+        ? !emailPattern.test(
+            cleanEmail
+          )
+        : Boolean(
+            getUsernameProblem(
+              cleanEmail
+            )
+          )
     ) {
       errors.email =
-        'Enter a valid email address.';
+        cleanEmail.includes('@')
+          ? 'Enter a valid email address.'
+          : 'Enter a valid username or email.';
     }
 
     if (!password) {
@@ -1257,8 +1268,13 @@ export default function SignInScreen() {
           apiData.code ===
           'ACCOUNT_NOT_FOUND'
         ) {
+          const typedEmail =
+            cleanEmail.includes('@');
+
           message =
-            'No account uses this email.';
+            typedEmail
+              ? 'No account uses this email.'
+              : 'No account uses this username.';
 
           field = 'email';
 
@@ -1271,11 +1287,13 @@ export default function SignInScreen() {
                 pathname:
                   '/signup',
 
-                params: {
-                  email:
-                    cleanEmail,
-                },
-              }),
+                params: typedEmail
+                  ? {
+                      email:
+                        cleanEmail,
+                    }
+                  : {},
+              } as any),
           };
         }
 
@@ -1469,7 +1487,7 @@ export default function SignInScreen() {
           'EMAIL_REQUIRED'
         ) {
           message =
-            'Please enter your email address.';
+            'Please enter your username or email.';
         }
 
         // ----------------------------------------------------
@@ -1493,7 +1511,7 @@ export default function SignInScreen() {
           'EMPTY_CREDENTIALS'
         ) {
           message =
-            'Please enter your email address and password.';
+            'Please enter your username or email, and your password.';
         }
 
         // ----------------------------------------------------
@@ -1900,16 +1918,16 @@ export default function SignInScreen() {
                       }}
                     >
                       <AuthField
-                        label="Email Address"
-                        icon="mail-outline"
-                        placeholder="Enter your email"
+                        label="Username or Email"
+                        icon="person-outline"
+                        placeholder="Enter your username or email"
                         keyboardType="email-address"
                         autoCapitalize="none"
                         autoCorrect={
                           false
                         }
-                        autoComplete="email"
-                        textContentType="emailAddress"
+                        autoComplete="username"
+                        textContentType="username"
                         value={
                           email
                         }

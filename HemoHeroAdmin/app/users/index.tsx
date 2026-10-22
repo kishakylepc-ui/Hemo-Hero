@@ -689,7 +689,7 @@ export default function AdminUsersScreen() {
                       onChangeText={setSearchInput}
                       onSubmitEditing={submitSearch}
                       returnKeyType="search"
-                      placeholder="Search by name or email"
+                      placeholder="Search by name, username or email"
                       placeholderTextColor={COLORS.muted}
                       autoCapitalize="none"
                       autoCorrect={false}
@@ -1670,6 +1670,9 @@ function UserRow({
               },
             ]}
           >
+            {user.username
+              ? `@${user.username} · `
+              : ''}
             {user.email || 'No email'}
           </Text>
         </View>

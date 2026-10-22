@@ -1783,6 +1783,7 @@ function getActivityIcon(
   const normalized =
     String(action || '').toUpperCase();
 
+  if (normalized.includes('UNAUTHORIZED')) return 'gpp-bad';
   if (normalized.includes('LOCKOUT')) return 'lock-clock';
   if (normalized.includes('CAPTCHA')) return 'security';
   if (normalized.includes('UNLOCK')) return 'lock-open';

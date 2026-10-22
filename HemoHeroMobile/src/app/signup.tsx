@@ -46,12 +46,18 @@ import { shiftedDown, withStatusBar } from '../lib/fullScreen';
 
 import {
   ApiError,
+  checkUsernameAvailable,
   registerUser,
 } from '../lib/api';
 
 import {
   saveSession,
 } from '../lib/session';
+
+import {
+  cleanUsername,
+  getUsernameProblem,
+} from '../lib/username';
 
 import {
   whenIntroDone,
@@ -140,6 +146,22 @@ export default function SignUpScreen() {
         : ''
     );
 
+  // Sign in with it or the email; unique.
+  const [
+    username,
+    setUsername,
+  ] =
+    useState('');
+
+  // Checked with the server while typing.
+  const [
+    usernameStatus,
+    setUsernameStatus,
+  ] =
+    useState<
+      'idle' | 'checking' | 'available' | 'taken'
+    >('idle');
+
   const [
     password,
     setPassword,
@@ -173,9 +195,60 @@ export default function SignUpScreen() {
   ] =
     useState<{
       email?: string;
+      username?: string;
       password?: string;
       confirm?: string;
     }>({});
+
+  // ==========================================================
+  // USERNAME AVAILABILITY (half a second after typing stops)
+  // ==========================================================
+
+  useEffect(() => {
+    const clean =
+      cleanUsername(username);
+
+    if (
+      !clean ||
+      getUsernameProblem(clean)
+    ) {
+      setUsernameStatus('idle');
+
+      return;
+    }
+
+    setUsernameStatus('checking');
+
+    let active = true;
+
+    const timer = setTimeout(async () => {
+      try {
+        const result =
+          await checkUsernameAvailable(
+            clean
+          );
+
+        if (active) {
+          setUsernameStatus(
+            result.available
+              ? 'available'
+              : 'taken'
+          );
+        }
+      } catch {
+        // The server checks again on Create Account.
+        if (active) {
+          setUsernameStatus('idle');
+        }
+      }
+    }, 500);
+
+    return () => {
+      active = false;
+
+      clearTimeout(timer);
+    };
+  }, [username]);
 
   // Next step offered with the error ("Sign in instead").
   const [
@@ -192,6 +265,9 @@ export default function SignUpScreen() {
     setTermsError,
   ] =
     useState(false);
+
+  const usernameRef =
+    useRef<TextInput>(null);
 
   const passwordRef =
     useRef<TextInput>(null);
@@ -695,6 +771,7 @@ export default function SignUpScreen() {
 
     const errors: {
       email?: string;
+      username?: string;
       password?: string;
       confirm?: string;
     } = {};
@@ -709,6 +786,19 @@ export default function SignUpScreen() {
     ) {
       errors.email =
         'Enter a valid email address.';
+    }
+
+    const usernameProblem =
+      getUsernameProblem(username);
+
+    if (usernameProblem) {
+      errors.username =
+        usernameProblem;
+    } else if (
+      usernameStatus === 'taken'
+    ) {
+      errors.username =
+        'This username is taken.';
     }
 
     if (!password) {
@@ -731,6 +821,7 @@ export default function SignUpScreen() {
 
     if (
       errors.email ||
+      errors.username ||
       errors.password ||
       errors.confirm
     ) {
@@ -769,6 +860,7 @@ export default function SignUpScreen() {
       const data =
         await registerUser(
           cleanEmail,
+          cleanUsername(username),
           password,
           confirmPassword
         );
@@ -868,6 +960,33 @@ export default function SignUpScreen() {
         return;
       }
 
+      // Username taken (someone just picked it) or not allowed.
+      if (
+        error instanceof ApiError &&
+        (error.data?.code ===
+          'USERNAME_TAKEN' ||
+          error.data?.code ===
+            'INVALID_USERNAME')
+      ) {
+        if (
+          error.data.code ===
+          'USERNAME_TAKEN'
+        ) {
+          setUsernameStatus('taken');
+        }
+
+        setFieldErrors({
+          username:
+            error.message,
+        });
+
+        triggerError(
+          'Please choose another username.'
+        );
+
+        return;
+      }
+
       if (
         error instanceof
         Error
@@ -891,7 +1010,7 @@ export default function SignUpScreen() {
   // ==========================================================
 
   function clearFieldError(
-    field: 'email' | 'password' | 'confirm'
+    field: 'email' | 'username' | 'password' | 'confirm'
   ) {
     if (fieldErrors[field]) {
       setFieldErrors(
@@ -1333,9 +1452,76 @@ export default function SignUpScreen() {
                         )
                       }
                       onSubmitEditing={() =>
-                        passwordRef.current?.focus()
+                        usernameRef.current?.focus()
                       }
                     />
+
+                    {/* ==============================================
+                        USERNAME (checked while typing)
+                    ============================================== */}
+
+                    <AuthField
+                      ref={
+                        usernameRef
+                      }
+                      label="Username"
+                      icon="alternate-email"
+                      placeholder="Choose a username"
+                      autoCapitalize="none"
+                      autoCorrect={
+                        false
+                      }
+                      autoComplete="username-new"
+                      textContentType="username"
+                      maxLength={21}
+                      value={
+                        username
+                      }
+                      editable={
+                        !loading
+                      }
+                      returnKeyType="next"
+                      submitBehavior="submit"
+                      error={
+                        fieldErrors.username ||
+                        (usernameStatus === 'taken'
+                          ? 'This username is taken.'
+                          : undefined)
+                      }
+                      valid={
+                        usernameStatus ===
+                        'available'
+                      }
+                      onChangeText={value => {
+                        setUsername(
+                          value
+                        );
+
+                        clearFieldError(
+                          'username'
+                        );
+                      }}
+                      onSubmitEditing={() =>
+                        passwordRef.current?.focus()
+                      }
+                    >
+                      {!fieldErrors.username &&
+                      usernameStatus !== 'taken' ? (
+                        <Text
+                          style={
+                            styles.usernameHint
+                          }
+                        >
+                          {usernameStatus ===
+                          'checking'
+                            ? 'Checking...'
+                            : usernameStatus ===
+                                'available'
+                              ? 'Available. You can sign in with it or your email.'
+                              : '3 to 20 letters, numbers, periods or underscores.'}
+                        </Text>
+                      ) : null}
+                    </AuthField>
 
                     {/* ==============================================
                         PASSWORD (+ strength and rules)
@@ -1701,6 +1887,15 @@ export default function SignUpScreen() {
 
 const styles =
   StyleSheet.create({
+    // Under the Username field.
+    usernameHint: {
+      marginTop: 5,
+      marginLeft: 14,
+      color: '#777777',
+      fontFamily: 'Inter_400Regular',
+      fontSize: 11.5,
+    },
+
     flex: {
       flex: 1,
     },

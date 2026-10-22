@@ -476,6 +476,7 @@ export async function getLoginCaptcha(): Promise<LoginCaptcha> {
 
 export async function registerUser(
   email: string,
+  username: string,
   password: string,
   confirmPassword: string
 ) {
@@ -492,11 +493,35 @@ export async function registerUser(
               .trim()
               .toLowerCase(),
 
+          username,
+
           password,
 
           confirm_password:
             confirmPassword,
         }),
+    }
+  );
+}
+
+// ------------------------------------------------------------
+// USERNAME AVAILABLE? (while typing)
+// ------------------------------------------------------------
+
+export async function checkUsernameAvailable(
+  username: string
+): Promise<{
+  available: boolean;
+  username?: string;
+  error?: string | null;
+}> {
+  return request(
+    `/api/auth/username-available?username=${encodeURIComponent(
+      username
+    )}`,
+    {
+      method:
+        'GET',
     }
   );
 }

@@ -61,6 +61,11 @@ import {
 
 import { isAdminRole } from '../../../lib/roles';
 
+import {
+  cleanUsername,
+  getUsernameProblem,
+} from '../../../lib/username';
+
 // ============================================================
 // IPAD PRO LANDSCAPE
 // ============================================================
@@ -180,6 +185,15 @@ export default function AdminEditUserScreen() {
   const [
     email,
     setEmail,
+  ] =
+    useState(
+      ''
+    );
+
+  // Signs in too (with the email); unique.
+  const [
+    username,
+    setUsername,
   ] =
     useState(
       ''
@@ -406,6 +420,11 @@ export default function AdminEditUserScreen() {
         ''
       );
 
+      setUsername(
+        loadedUser.username ||
+        ''
+      );
+
       setFirstName(
         loadedUser.first_name ||
         ''
@@ -529,6 +548,23 @@ export default function AdminEditUserScreen() {
       return 'Please enter a valid email address.';
     }
 
+    // Accounts made before usernames may still have none.
+    if (
+      username.trim() ||
+      user?.username
+    ) {
+      const usernameProblem =
+        getUsernameProblem(
+          username
+        );
+
+      if (
+        usernameProblem
+      ) {
+        return usernameProblem;
+      }
+    }
+
     if (
       dateOfBirth.trim() &&
       !/^\d{4}-\d{2}-\d{2}$/.test(
@@ -606,6 +642,15 @@ export default function AdminEditUserScreen() {
                 .trim()
                 .toLowerCase(),
 
+            ...(username.trim()
+              ? {
+                  username:
+                    cleanUsername(
+                      username
+                    ),
+                }
+              : {}),
+
             first_name:
               firstName.trim(),
 
@@ -657,6 +702,11 @@ export default function AdminEditUserScreen() {
 
       setEmail(
         result.user.email ||
+        ''
+      );
+
+      setUsername(
+        result.user.username ||
         ''
       );
 
@@ -1299,6 +1349,38 @@ export default function AdminEditUserScreen() {
                               Changing the email updates both the Hemo-Hero profile and the user&apos;s authentication email.
                             </Text>
                           </View>
+                        </View>
+
+                        <View
+                          style={
+                            styles.fullField
+                          }
+                        >
+                          <FormLabel
+                            scale={
+                              s
+                            }
+                            label="Username"
+                            required
+                          />
+
+                          <InputBox
+                            scale={
+                              s
+                            }
+                            value={
+                              username
+                            }
+                            onChangeText={
+                              setUsername
+                            }
+                            placeholder="3-20 letters, numbers, . or _"
+                            autoCapitalize="none"
+                            editable={
+                              !saving
+                            }
+                            icon="alternate-email"
+                          />
                         </View>
                       </View>
                     </FormSection>

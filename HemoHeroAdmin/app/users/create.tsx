@@ -60,6 +60,11 @@ import {
 
 import { isAdminRole, isSuperAdmin } from '../../lib/roles';
 
+import {
+  cleanUsername,
+  getUsernameProblem,
+} from '../../lib/username';
+
 const COLORS = {
   outer:
     '#02040A',
@@ -149,6 +154,15 @@ export default function AdminCreateUserScreen() {
   const [
     email,
     setEmail,
+  ] =
+    useState(
+      ''
+    );
+
+  // Signs in too (with the email); unique.
+  const [
+    username,
+    setUsername,
   ] =
     useState(
       ''
@@ -442,6 +456,17 @@ export default function AdminCreateUserScreen() {
       return 'Please enter a valid email address.';
     }
 
+    const usernameProblem =
+      getUsernameProblem(
+        username
+      );
+
+    if (
+      usernameProblem
+    ) {
+      return usernameProblem;
+    }
+
     if (
       !password
     ) {
@@ -542,6 +567,11 @@ export default function AdminCreateUserScreen() {
                 .trim()
                 .toLowerCase(),
 
+            username:
+              cleanUsername(
+                username
+              ),
+
             password,
 
             confirm_password:
@@ -631,6 +661,10 @@ export default function AdminCreateUserScreen() {
     }
 
     setEmail(
+      ''
+    );
+
+    setUsername(
       ''
     );
 
@@ -1285,7 +1319,7 @@ export default function AdminCreateUserScreen() {
                   >
                     <View
                       style={
-                        styles.fullField
+                        styles.halfField
                       }
                     >
                       <FormLabel
@@ -1313,6 +1347,38 @@ export default function AdminCreateUserScreen() {
                           !submitting
                         }
                         icon="email"
+                      />
+                    </View>
+
+                    <View
+                      style={
+                        styles.halfField
+                      }
+                    >
+                      <FormLabel
+                        scale={
+                          s
+                        }
+                        label="Username"
+                        required
+                      />
+
+                      <InputBox
+                        scale={
+                          s
+                        }
+                        value={
+                          username
+                        }
+                        onChangeText={
+                          setUsername
+                        }
+                        placeholder="3-20 letters, numbers, . or _"
+                        autoCapitalize="none"
+                        editable={
+                          !submitting
+                        }
+                        icon="alternate-email"
                       />
                     </View>
 

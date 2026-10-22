@@ -44,6 +44,15 @@ function fakeSupabase({
       },
 
       from(table) {
+        // Log trail entries (e.g. a blocked locked account).
+        if (table === 'activity_logs') {
+          return {
+            insert: () => ({
+              select: () => ({ single: () => ok({}) }),
+            }),
+          };
+        }
+
         if (table === 'login_lockouts') {
           return {
             select: () => ({

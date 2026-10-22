@@ -579,9 +579,23 @@ export default function ProfileScreen() {
             ) ||
         'Hemo-Hero User';
 
+    // "@juan.delacruz · juan@example.com" (the username signs in
+    // too).
     const email =
-        profile?.email ||
-        'Email unavailable';
+        [
+            profile?.username
+                ? `@${profile.username}`
+                : null,
+
+            profile?.email ||
+                'Email unavailable',
+        ]
+            .filter(
+                Boolean
+            )
+            .join(
+                ' · '
+            );
 
     // Off during the 90-day wait after a donation, whatever the
     // saved setting is.

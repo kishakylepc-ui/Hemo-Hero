@@ -19,6 +19,8 @@ Built with Expo SDK 57 and Expo Router. It runs in a web browser and on iPad (Ex
 
 Only admin and super admin accounts can sign in. The [server README](../server/README.md#admin-accounts) explains the roles and how to create the first admin.
 
+Sign in with a username or an email. **Forgot Password?** opens a reset popup: a code goes to your email, you enter it, then you choose a new password.
+
 **Sessions:**
 - After 15 minutes without a click, key press, scroll or touch, the portal signs out. A warning with a countdown shows 1 minute before.
 - Activity in any open tab counts for all of them, and signing out in one tab signs out every tab.
@@ -36,7 +38,7 @@ Only admin and super admin accounts can sign in. The [server README](../server/R
 | Donations | Every donation record; mark flagged records valid or reject them |
 | Analytics | Applications, accounts, request outcomes, donations, issues and activity |
 | Issues | User reports and feedback: review, resolve or dismiss, and remove false requests |
-| Log Trails | Record of user and admin actions |
+| Log Trails | Record of user and admin actions, including blocked (unauthorized) access. Filter by result, user email, module, and date (Today, Last 7 or 30 days, or a range picked in a calendar). |
 | Settings | Your admin profile, password and email, and signing out. The super admin also gets **Data Backups**: back up now, the daily automatic backups, download and restore. |
 
 ## Project layout

@@ -53,6 +53,20 @@ const {
   '../utils/phone'
 );
 
+const {
+  isAdminRole,
+} = require(
+  '../utils/roles'
+);
+
+const {
+  normalizeUsername,
+  checkUsernameTaken,
+  isUsernameConflict,
+} = require(
+  '../utils/username'
+);
+
 // The profile plus whether a blood type proof is on file.
 async function withBloodTypeProof(
   user
@@ -513,6 +527,7 @@ async function register(
   try {
     const {
       email,
+      username,
       password,
       confirm_password,
     } =
@@ -524,6 +539,7 @@ async function register(
 
     if (
       !email ||
+      !username ||
       !password ||
       !confirm_password
     ) {
@@ -533,7 +549,7 @@ async function register(
         )
         .json({
           error:
-            'email, password, and confirm_password are required',
+            'Email, username, password, and confirm password are required.',
         });
     }
 
@@ -625,6 +641,65 @@ async function register(
           error:
             passwordValidation
               .error,
+        });
+    }
+
+    // --------------------------------------------------------
+    // USERNAME: VALID AND FREE
+    // --------------------------------------------------------
+
+    const usernameCheck =
+      normalizeUsername(
+        username
+      );
+
+    if (
+      !usernameCheck.valid
+    ) {
+      return res
+        .status(
+          400
+        )
+        .json({
+          error:
+            usernameCheck.error,
+
+          code:
+            'INVALID_USERNAME',
+        });
+    }
+
+    const usernameLookup =
+      await checkUsernameTaken(
+        usernameCheck.value
+      );
+
+    if (
+      usernameLookup.error
+    ) {
+      return res
+        .status(
+          500
+        )
+        .json({
+          error:
+            usernameLookup.error,
+        });
+    }
+
+    if (
+      usernameLookup.taken
+    ) {
+      return res
+        .status(
+          409
+        )
+        .json({
+          error:
+            'This username is taken. Please choose another.',
+
+          code:
+            'USERNAME_TAKEN',
         });
     }
 
@@ -728,6 +803,40 @@ async function register(
           error:
             'Unable to create account',
         });
+    }
+
+    // --------------------------------------------------------
+    // SAVE THE USERNAME
+    //
+    // The auth trigger made the users row during signUp. If
+    // someone took the name a moment ago, the account still
+    // works and they pick another in Edit Profile.
+    // --------------------------------------------------------
+
+    const {
+      error:
+        usernameSaveError,
+    } =
+      await supabaseAdmin
+        .from(
+          'users'
+        )
+        .update({
+          username:
+            usernameCheck.value,
+        })
+        .eq(
+          'id',
+          data.user.id
+        );
+
+    if (
+      usernameSaveError
+    ) {
+      console.error(
+        'REGISTER USERNAME ERROR:',
+        usernameSaveError
+      );
     }
 
     // --------------------------------------------------------
@@ -1324,7 +1433,7 @@ async function login(
         )
         .json({
           error:
-            'Please enter your email and password.',
+            'Please enter your username or email, and your password.',
 
           code:
             'EMPTY_CREDENTIALS',
@@ -1332,7 +1441,7 @@ async function login(
     }
 
     // --------------------------------------------------------
-    // EMAIL EMPTY
+    // USERNAME/EMAIL EMPTY
     // --------------------------------------------------------
 
     if (
@@ -1344,10 +1453,30 @@ async function login(
         )
         .json({
           error:
-            'Please enter your email address.',
+            'Please enter your username or email.',
 
           code:
             'EMAIL_REQUIRED',
+        });
+    }
+
+    // --------------------------------------------------------
+    // UNKNOWN USERNAME (loginIdentifier.js)
+    // --------------------------------------------------------
+
+    if (
+      req.loginUnknownUsername
+    ) {
+      return res
+        .status(
+          404
+        )
+        .json({
+          error:
+            'No account uses this username.',
+
+          code:
+            'ACCOUNT_NOT_FOUND',
         });
     }
 
@@ -1854,6 +1983,64 @@ async function login(
     );
 
     // --------------------------------------------------------
+    // ADMIN PORTAL: ADMINS ONLY
+    //
+    // The Admin Portal sends { portal: 'admin' }. Other accounts
+    // get no session there, and the attempt is recorded.
+    // --------------------------------------------------------
+
+    if (
+      req.body?.portal ===
+        'admin' &&
+      !isAdminRole(
+        dbUser.role
+      )
+    ) {
+      // Only this new session; their app sessions stay.
+      try {
+        await supabaseAdmin
+          .auth
+          .admin
+          .signOut(
+            data.session
+              .access_token,
+            'local'
+          );
+      } catch (signOutError) {
+        console.error(
+          'ADMIN PORTAL SIGNOUT ERROR:',
+          signOutError
+        );
+      }
+
+      setActivityOutcome(
+        res,
+        {
+          action:
+            'UNAUTHORIZED_ACCESS',
+
+          module:
+            'Access Control',
+
+          description:
+            `Blocked: an account with the ${dbUser.role || 'unknown'} role tried to sign in to the Admin Portal.`,
+        }
+      );
+
+      return res
+        .status(
+          403
+        )
+        .json({
+          error:
+            'This account is not authorized to access the Hemo-Hero Admin Portal.',
+
+          code:
+            'ADMIN_REQUIRED',
+        });
+    }
+
+    // --------------------------------------------------------
     // SUCCESS
     // --------------------------------------------------------
 
@@ -1889,6 +2076,90 @@ async function login(
       .json({
         error:
           'Login failed',
+      });
+  }
+}
+
+// ============================================================
+// GET /api/auth/username-available?username=
+//
+// For the sign-up and profile screens while typing:
+// { available, username } or { available: false, error }.
+// Signed in, your own username counts as available.
+// ============================================================
+
+async function getUsernameAvailability(
+  req,
+  res
+) {
+  try {
+    const check =
+      normalizeUsername(
+        req.query
+          ?.username
+      );
+
+    if (!check.valid) {
+      return res
+        .status(
+          200
+        )
+        .json({
+          available:
+            false,
+
+          error:
+            check.error,
+        });
+    }
+
+    const lookup =
+      await checkUsernameTaken(
+        check.value,
+        req.dbUser?.id ||
+          null
+      );
+
+    if (lookup.error) {
+      return res
+        .status(
+          500
+        )
+        .json({
+          error:
+            lookup.error,
+        });
+    }
+
+    return res
+      .status(
+        200
+      )
+      .json({
+        available:
+          !lookup.taken,
+
+        username:
+          check.value,
+
+        error:
+          lookup.taken
+            ? 'This username is taken.'
+            : null,
+      });
+  } catch (error) {
+    console.error(
+      'USERNAME AVAILABILITY ERROR:',
+      error
+    );
+
+    return res
+      .status(
+        500
+      )
+      .json({
+        error:
+          'Unable to check the username.',
       });
   }
 }
@@ -2948,6 +3219,7 @@ async function updateProfile(
       last_name,
       suffix,
       phone,
+      username,
 
       date_of_birth,
       gender,
@@ -2969,6 +3241,70 @@ async function updateProfile(
 
     const updates =
       {};
+
+    // ========================================================
+    // USERNAME (unique; can be changed, not removed)
+    // ========================================================
+
+    if (
+      username !==
+      undefined
+    ) {
+      const usernameCheck =
+        normalizeUsername(
+          username
+        );
+
+      if (
+        !usernameCheck.valid
+      ) {
+        return res
+          .status(400)
+          .json({
+            error:
+              usernameCheck.error,
+
+            code:
+              'INVALID_USERNAME',
+          });
+      }
+
+      if (
+        usernameCheck.value !==
+        req.dbUser
+          .username
+      ) {
+        const lookup =
+          await checkUsernameTaken(
+            usernameCheck.value,
+            req.dbUser.id
+          );
+
+        if (lookup.error) {
+          return res
+            .status(500)
+            .json({
+              error:
+                lookup.error,
+            });
+        }
+
+        if (lookup.taken) {
+          return res
+            .status(409)
+            .json({
+              error:
+                'This username is taken. Please choose another.',
+
+              code:
+                'USERNAME_TAKEN',
+            });
+        }
+
+        updates.username =
+          usernameCheck.value;
+      }
+    }
 
     // ========================================================
     // FIRST NAME
@@ -3606,6 +3942,25 @@ async function updateProfile(
         error
       );
 
+      // Two people picked the same username at once.
+      if (
+        isUsernameConflict(
+          error
+        )
+      ) {
+        return res
+          .status(
+            409
+          )
+          .json({
+            error:
+              'This username is taken. Please choose another.',
+
+            code:
+              'USERNAME_TAKEN',
+          });
+      }
+
       return res
         .status(
           400
@@ -3689,6 +4044,7 @@ module.exports = {
   resendVerification,
   login,
   getLoginCaptcha,
+  getUsernameAvailability,
   refreshSession,
   logout,
   forgotPassword,

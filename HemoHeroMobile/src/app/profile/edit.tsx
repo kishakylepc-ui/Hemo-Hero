@@ -45,6 +45,11 @@ import {
 } from '../../lib/session';
 
 import {
+  cleanUsername,
+  getUsernameProblem,
+} from '../../lib/username';
+
+import {
   normalizePhone,
   PHONE_ERROR,
 } from '../../lib/phone';
@@ -280,6 +285,13 @@ export default function EditProfileScreen() {
   // FORM
   // ==========================================================
 
+  // Sign in with it or the email; unique.
+  const [
+    username,
+    setUsername,
+  ] =
+    useState('');
+
   const [
     firstName,
     setFirstName,
@@ -503,6 +515,11 @@ export default function EditProfileScreen() {
 
           setDonorApplication(
             application
+          );
+
+          setUsername(
+            user.username ||
+            ''
           );
 
           setFirstName(
@@ -1684,6 +1701,37 @@ export default function EditProfileScreen() {
       return;
     }
 
+    // Username: sent only when changed (the server checks it is
+    // free). An account without one may leave it empty.
+    const newUsername =
+      cleanUsername(username);
+
+    const usernameChanged =
+      newUsername !==
+      (originalProfile?.username || '');
+
+    const usernameProblem =
+      usernameChanged &&
+      (newUsername ||
+        originalProfile?.username)
+        ? getUsernameProblem(
+            newUsername
+          )
+        : null;
+
+    if (usernameProblem) {
+      setErrorMessage(
+        usernameProblem
+      );
+
+      showMessage(
+        'Check Username',
+        usernameProblem
+      );
+
+      return;
+    }
+
     const bloodTypeChanged =
       !isApprovedDonor &&
       bloodType !==
@@ -1778,6 +1826,14 @@ export default function EditProfileScreen() {
         province:
           cleanProvince,
       };
+
+      if (
+        usernameChanged &&
+        newUsername
+      ) {
+        payload.username =
+          newUsername;
+      }
 
       // Clearing the blood type also removes its proof.
       if (
@@ -2239,6 +2295,23 @@ export default function EditProfileScreen() {
                   styles.card
                 }
               >
+                <Field
+                  label="Username"
+                  value={
+                    username
+                  }
+                  placeholder="Choose a username"
+                  autoCapitalize="none"
+                  hint="Sign in with your username or email. 3 to 20 letters, numbers, periods or underscores."
+                  editable={
+                    !saving &&
+                    !photoBusy
+                  }
+                  onChangeText={
+                    setUsername
+                  }
+                />
+
                 <Field
                   label="Phone Number"
                   value={
@@ -3674,6 +3747,15 @@ type FieldProps = {
     | 'phone-pad'
     | 'numbers-and-punctuation';
 
+  // 'none' for the username.
+  autoCapitalize?:
+    | 'none'
+    | 'sentences'
+    | 'words';
+
+  // Under the input (e.g. the username rule).
+  hint?: string;
+
   last?:
     boolean;
 };
@@ -3685,6 +3767,8 @@ function Field({
   editable,
   onChangeText,
   keyboardType = 'default',
+  autoCapitalize,
+  hint,
   last = false,
 }: FieldProps) {
   return (
@@ -3723,6 +3807,9 @@ function Field({
         keyboardType={
           keyboardType
         }
+        autoCapitalize={
+          autoCapitalize
+        }
         autoCorrect={
           false
         }
@@ -3730,6 +3817,16 @@ function Field({
           onChangeText
         }
       />
+
+      {hint ? (
+        <Text
+          style={
+            styles.fieldHint
+          }
+        >
+          {hint}
+        </Text>
+      ) : null}
     </View>
   );
 }
@@ -4235,6 +4332,13 @@ const styles =
 
       fontSize:
         12.5,
+    },
+
+    fieldHint: {
+      marginTop: 5,
+      color: '#8A8A8A',
+      fontFamily: 'Inter_400Regular',
+      fontSize: 11.5,
     },
 
     input: {

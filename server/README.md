@@ -121,6 +121,28 @@ Restoring a backup:
 - The log trail records each lockout as `ACCOUNT_LOCKOUT` and each wrong CAPTCHA as `CAPTCHA_FAILED`.
 - When an app signs out after inactivity, it sends `{ "reason": "inactivity", "idle_minutes": 15 }` to `POST /api/auth/logout`. The log trail records that as `AUTO_LOGOUT`. Every sign-out ends all of that account's sessions.
 - Resetting the password also ends every session, and clears any sign-in lockout on that account. Changing the password or the email already ended every session.
+- The Admin Portal sends `portal: "admin"` with its sign-in. An account that isn't an admin gets no session there, and the attempt is recorded (below).
+- Sign-in takes a username or an email in the `email` field. A username is looked up first (`middleware/loginIdentifier.js`), so the lockout, the CAPTCHA and the log trail all apply to the same account.
+
+## Usernames
+
+Migration `20261022_usernames.sql` adds `users.username`. It must be 3 to 20 lowercase letters, numbers, periods or underscores, starting with a letter or number (`src/utils/username.js` checks the same rule). Usernames and emails are unique regardless of letter case.
+- The migration gives existing accounts a username made from their email, adding a number when one is taken.
+- Sign-up requires a username: `POST /api/auth/register` takes `username`.
+- `PATCH /api/auth/me` and the admin create and edit routes accept `username`.
+- `GET /api/auth/username-available?username=` answers `{ available }` while someone types. It allows 60 checks a minute per network.
+
+## Log trail: unauthorized access
+
+Every request an access check turns away is recorded as `UNAUTHORIZED_ACCESS` in the **Access Control** module, with the user (when known), route, IP address and reason (`src/utils/accessLog.js`). That covers:
+- no sign-in token, or one that isn't valid (forged or revoked)
+- a deactivated or locked account that tries to keep using the app
+- a user opening an admin-only feature, or an admin opening a super-admin-only one
+- a non-admin signing in to the Admin Portal
+
+Expired tokens aren't recorded, because the apps renew them routinely. The same caller, route and reason is recorded at most once a minute, so a script can't flood the log trail.
+
+`GET /api/admin/activity-logs` also takes `from` and `to` (ISO times; `to` is not included) to filter by date.
 
 ## One-time codes
 
