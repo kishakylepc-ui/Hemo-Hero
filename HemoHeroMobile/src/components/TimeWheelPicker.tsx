@@ -13,6 +13,7 @@ import {
   Text,
   TouchableOpacity,
   View,
+  type ScrollViewInstance,
 } from 'react-native';
 
 import {
@@ -170,7 +171,7 @@ function WheelColumn({
   onChange: (index: number) => void;
 }) {
   const scrollRef =
-    useRef<ScrollView>(null);
+    useRef<ScrollViewInstance>(null);
 
   const scrollY =
     useRef(

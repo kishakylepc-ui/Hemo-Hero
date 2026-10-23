@@ -30,7 +30,12 @@ export function withStatusBar(
         0
     ) || 0;
 
-  const grown: ViewStyle = {
+  // ViewStyle's fields are read-only, so build a plain object.
+  const grown: {
+    paddingTop: number;
+    height?: number;
+    minHeight?: number;
+  } = {
     paddingTop:
       paddingTop +
       insetTop,

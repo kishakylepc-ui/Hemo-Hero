@@ -7,8 +7,8 @@ Hemo-Hero connects people who need blood with verified donors nearby. Requesters
 | Folder | What it is | Built with |
 |---|---|---|
 | [server](server/) | API server for both apps | Node.js, Express, Supabase (database, sign-in, file storage) |
-| [HemoHeroMobile](HemoHeroMobile/) | App for donors and requesters (Android, iPhone, web) | Expo SDK 57, React Native, Expo Router |
-| [HemoHeroAdmin](HemoHeroAdmin/) | Admin portal (browser, iPad) | Expo SDK 57, React Native Web, Expo Router |
+| [HemoHeroMobile](HemoHeroMobile/) | App for donors and requesters (Android, iPhone, web) | Expo SDK 58, React Native, Expo Router |
+| [HemoHeroAdmin](HemoHeroAdmin/) | Admin portal (browser, iPad) | Expo SDK 58, React Native Web, Expo Router |
 
 Maps use OpenStreetMap with OSRM routing; notifications use Expo's push service.
 

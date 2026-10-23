@@ -15,6 +15,7 @@ import {
   TextInput,
   TouchableOpacity,
   View,
+  type TextInputInstance,
 } from 'react-native';
 
 import {
@@ -141,7 +142,7 @@ export default function ResetPasswordScreen() {
       .toLowerCase();
 
   const inputRef =
-    useRef<TextInput>(
+    useRef<TextInputInstance>(
       null
     );
 
@@ -194,7 +195,7 @@ export default function ResetPasswordScreen() {
     useState(false);
 
   const confirmRef =
-    useRef<TextInput>(null);
+    useRef<TextInputInstance>(null);
 
   const [
     verifying,

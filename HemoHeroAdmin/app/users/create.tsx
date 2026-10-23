@@ -17,6 +17,7 @@ import {
   Text,
   TextInput,
   View,
+  type ScrollViewInstance,
 } from 'react-native';
 
 import {
@@ -315,7 +316,7 @@ export default function AdminCreateUserScreen() {
   // Used to bring the success/error message into view after
   // pressing Create User at the bottom of the form.
   const scrollRef =
-    useRef<ScrollView>(null);
+    useRef<ScrollViewInstance>(null);
 
   function scrollToTop() {
     scrollRef.current?.scrollTo({

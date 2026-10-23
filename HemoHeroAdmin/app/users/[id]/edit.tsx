@@ -16,6 +16,7 @@ import {
   Text,
   TextInput,
   View,
+  type ScrollViewInstance,
 } from 'react-native';
 
 import {
@@ -326,7 +327,7 @@ export default function AdminEditUserScreen() {
     useRef<string | null>(null);
 
   const scrollRef =
-    useRef<ScrollView>(null);
+    useRef<ScrollViewInstance>(null);
 
   function scrollToTop() {
     scrollRef.current?.scrollTo({

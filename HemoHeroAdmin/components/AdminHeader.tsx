@@ -15,6 +15,7 @@ import {
   Text,
   useWindowDimensions,
   View,
+  type ViewInstance,
 } from 'react-native';
 
 import {
@@ -193,7 +194,7 @@ export default function AdminHeader({
     useState(false);
 
   const bellRef =
-    useRef<View>(null);
+    useRef<ViewInstance>(null);
 
   // ==========================================================
   // UNREAD COUNT

@@ -52,6 +52,7 @@ Write each change under **Unreleased** as you make it. `node scripts/version.js 
   - Needs migration `20261022_account_lock.sql`.
 - Admin portal, user page: **Change Role** (super admin only) switches an account between User and Admin. It's logged as **Admin Change Role**.
 - Fixed: the super admin's edit, deactivate, activate and delete actions on admin accounts failed with "Unable to …", because the server only updated accounts with the User role.
+- Both apps now run on **Expo SDK 58** (React Native 0.88, React 19.3). They need Expo Go for SDK 58, or a new development build or APK.
 
 ## 1.1.1 - 2026-10-18
 

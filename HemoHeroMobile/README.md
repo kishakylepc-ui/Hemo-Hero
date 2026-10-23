@@ -2,7 +2,7 @@
 
 The Hemo-Hero app for donors and requesters: sign up, apply as a donor, post or answer blood requests, coordinate in chat with a live trip map, confirm donations and rate each other.
 
-Built with Expo SDK 57 (React Native 0.86) and Expo Router. It talks only to the [Hemo-Hero server](../server/README.md).
+Built with Expo SDK 58 (React Native 0.88) and Expo Router. It talks only to the [Hemo-Hero server](../server/README.md).
 
 ## Run it
 

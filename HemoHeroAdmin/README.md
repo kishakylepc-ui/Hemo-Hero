@@ -2,7 +2,7 @@
 
 The admin side of Hemo-Hero: approve donors, manage users, monitor blood requests and donations, handle reports, and see analytics and the log trail.
 
-Built with Expo SDK 57 and Expo Router. It runs in a web browser and on iPad (Expo Go), and fills the screen in both orientations. It was designed for the iPad Pro 13".
+Built with Expo SDK 58 and Expo Router. It runs in a web browser and on iPad (Expo Go), and fills the screen in both orientations. It was designed for the iPad Pro 13".
 
 ## Run it
 

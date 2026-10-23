@@ -15,6 +15,7 @@ import {
   TextInput,
   TouchableOpacity,
   View,
+  type TextInputInstance,
 } from 'react-native';
 
 import {
@@ -146,7 +147,7 @@ export default function VerifyEmailScreen() {
       .toLowerCase();
 
   const inputRef =
-    useRef<TextInput>(
+    useRef<TextInputInstance>(
       null
     );
 

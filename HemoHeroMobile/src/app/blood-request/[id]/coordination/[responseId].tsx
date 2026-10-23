@@ -23,6 +23,7 @@ import {
   TouchableOpacity,
   View,
   useWindowDimensions,
+  type ScrollViewInstance,
 } from 'react-native';
 
 import { MaterialIcons } from '@expo/vector-icons';
@@ -407,7 +408,7 @@ export default function DonationCoordinationScreen() {
 
   const scrollRef =
     useRef<
-      ScrollView | null
+      ScrollViewInstance | null
     >(
       null
     );

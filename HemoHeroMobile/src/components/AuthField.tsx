@@ -12,6 +12,7 @@ import {
   TouchableOpacity,
   View,
   type TextInputProps,
+  type TextInputInstance,
 } from 'react-native';
 
 import {
@@ -62,7 +63,7 @@ export type AuthFieldProps =
     children?: ReactNode;
   };
 
-const AuthField = forwardRef<TextInput, AuthFieldProps>(
+const AuthField = forwardRef<TextInputInstance, AuthFieldProps>(
   function AuthField(
     {
       label,

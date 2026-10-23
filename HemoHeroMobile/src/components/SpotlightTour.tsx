@@ -13,6 +13,7 @@ import {
   Text,
   TouchableOpacity,
   View,
+  type ViewInstance,
 } from 'react-native';
 
 import { MaterialIcons } from '@expo/vector-icons';
@@ -42,7 +43,7 @@ import {
 
 export type SpotlightStep = {
   key: string;
-  target: RefObject<View | null>;
+  target: RefObject<ViewInstance | null>;
   title: string;
   text: string;
   // Corner roundness of the highlight (e.g. larger for a pill).
@@ -71,7 +72,7 @@ const SHADE_COLOR = 'rgba(23,8,8,0.66)';
 // Position of a view on screen, or null when it isn't laid out
 // (a zero-height marker still counts).
 export function measureView(
-  view: View | null
+  view: ViewInstance | null
 ): Promise<Rect | null> {
   return new Promise(resolve => {
     if (!view) {
@@ -105,7 +106,7 @@ export default function SpotlightTour({
   onFinish: () => void;
 }) {
   const rootRef =
-    useRef<View>(null);
+    useRef<ViewInstance>(null);
 
   const [index, setIndex] =
     useState(0);

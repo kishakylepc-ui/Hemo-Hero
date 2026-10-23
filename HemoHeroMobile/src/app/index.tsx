@@ -18,6 +18,7 @@ import {
   TouchableOpacity,
   useWindowDimensions,
   View,
+  type TextInputInstance,
 } from 'react-native';
 
 import {
@@ -298,7 +299,7 @@ export default function SignInScreen() {
     );
 
   const passwordRef =
-    useRef<TextInput>(null);
+    useRef<TextInputInstance>(null);
 
   // ==========================================================
   // ANIMATION VALUES

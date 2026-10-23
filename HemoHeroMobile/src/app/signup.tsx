@@ -18,6 +18,7 @@ import {
   TouchableOpacity,
   useWindowDimensions,
   View,
+  type TextInputInstance,
 } from 'react-native';
 
 import {
@@ -267,13 +268,13 @@ export default function SignUpScreen() {
     useState(false);
 
   const usernameRef =
-    useRef<TextInput>(null);
+    useRef<TextInputInstance>(null);
 
   const passwordRef =
-    useRef<TextInput>(null);
+    useRef<TextInputInstance>(null);
 
   const confirmRef =
-    useRef<TextInput>(null);
+    useRef<TextInputInstance>(null);
 
   const [
     accepted,

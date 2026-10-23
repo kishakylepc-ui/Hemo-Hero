@@ -252,8 +252,10 @@ export default function TripMap({
   recenterSignal?: number;
   style?: StyleProp<ViewStyle>;
 }) {
+  // WebView's types default its generic to undefined, which
+  // turns its props into never; pass object explicitly.
   const webViewRef =
-    useRef<WebView>(null);
+    useRef<WebView<object>>(null);
 
   const iframeRef =
     useRef<any>(null);
@@ -383,7 +385,7 @@ export default function TripMap({
           },
         })
       ) : (
-        <WebView
+        <WebView<object>
           ref={webViewRef}
           source={{
             html: MAP_HTML,

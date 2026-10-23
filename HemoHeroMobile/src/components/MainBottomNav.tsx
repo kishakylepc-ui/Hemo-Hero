@@ -7,6 +7,7 @@ import {
   Text,
   TouchableOpacity,
   View,
+  type ViewInstance,
 } from 'react-native';
 
 import {
@@ -111,7 +112,7 @@ type MainBottomNavProps = {
 
   // The pill itself, e.g. for the Home tour to measure.
   pillRef?:
-    Ref<View>;
+    Ref<ViewInstance>;
 };
 
 // ============================================================

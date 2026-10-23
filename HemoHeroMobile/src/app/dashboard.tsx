@@ -16,6 +16,8 @@ import {
   TouchableOpacity,
   useWindowDimensions,
   View,
+  type ScrollViewInstance,
+  type ViewInstance,
 } from 'react-native';
 
 import {
@@ -1761,26 +1763,26 @@ function showMessage(
     }>();
 
   const scrollRef =
-    useRef<ScrollView>(null);
+    useRef<ScrollViewInstance>(null);
 
   // Top of the scrolling content (to work out scroll offsets).
   const scrollTopRef =
-    useRef<View>(null);
+    useRef<ViewInstance>(null);
 
   const createButtonRef =
-    useRef<View>(null);
+    useRef<ViewInstance>(null);
 
   const nearbyRef =
-    useRef<View>(null);
+    useRef<ViewInstance>(null);
 
   const findDonorsRef =
-    useRef<View>(null);
+    useRef<ViewInstance>(null);
 
   const donorCardRef =
-    useRef<View>(null);
+    useRef<ViewInstance>(null);
 
   const navRef =
-    useRef<View>(null);
+    useRef<ViewInstance>(null);
 
   const [
     tourVisible,
