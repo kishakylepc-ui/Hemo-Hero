@@ -33,7 +33,7 @@ const OUTPUT_FILE = path.join(
 // with no description.
 const TABLE_PURPOSES = {
   users:
-    'Every account: donors, requesters and admins. The id is the Supabase Auth user id. role is user, admin or super_admin.',
+    'Every account: donors, requesters and admins. The id is the Supabase Auth user id. role is user, admin or super_admin. username is unique, ignoring letter case. is_locked marks an account an admin locked.',
   donor_applications:
     'A user\'s application to become a donor: eligibility answers, blood type, availability and the admin\'s review.',
   blood_requests:
@@ -64,6 +64,8 @@ const TABLE_PURPOSES = {
     'Verified hospitals, blood banks and Red Cross chapters shown on the map.',
   login_lockouts:
     'Failed sign-in counts and lockouts per email, so a lockout survives a server restart.',
+  otp_attempts:
+    'One-time code limits per email and kind of code: when the last code was sent and how many wrong tries it has had.',
   notification_preferences:
     'Which kinds of updates alert a user\'s phone. No row means everything is on.',
   data_backups:
@@ -89,6 +91,7 @@ const TABLE_ORDER = [
   'facility_locations',
   'notification_preferences',
   'login_lockouts',
+  'otp_attempts',
   'data_backups',
 ];
 

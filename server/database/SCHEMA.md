@@ -1,6 +1,6 @@
 # Hemo-Hero Database Structure
 
-Generated from the live Supabase database on 2026-10-14 by `npm run schema:doc` (server folder). Don't edit this file by hand; run the command again after a migration.
+Generated from the live Supabase database on 2026-10-25 by `npm run schema:doc` (server folder). Don't edit this file by hand; run the command again after a migration.
 
 The tables live in the `public` schema of Supabase (PostgreSQL). Sign-in accounts are Supabase Auth users, and `users.id` is the same id. The server reads and writes with the service role, so the apps never touch the tables directly.
 
@@ -8,11 +8,11 @@ Schema changes are in [migrations](migrations/), run in date order in the Supaba
 
 ## Summary
 
-18 tables, 41 foreign keys.
+19 tables, 41 foreign keys.
 
 | Table | Columns | Foreign keys | Purpose |
 | --- | --- | --- | --- |
-| [users](#users) | 22 | 0 | Every account: donors, requesters and admins. The id is the Supabase Auth user id. role is user, admin or super_admin. |
+| [users](#users) | 26 | 0 | Every account: donors, requesters and admins. The id is the Supabase Auth user id. role is user, admin or super_admin. username is unique, ignoring letter case. is_locked marks an account an admin locked. |
 | [donor_applications](#donor_applications) | 22 | 2 | A user's application to become a donor: eligibility answers, blood type, availability and the admin's review. |
 | [blood_requests](#blood_requests) | 25 | 2 | Blood requests posted by requesters: blood type, bags needed, urgency, schedule, meet-up location and status. |
 | [blood_request_responses](#blood_request_responses) | 7 | 2 | A donor's offer to help with a request (pending, accepted, rejected, no-show and so on). |
@@ -29,6 +29,7 @@ Schema changes are in [migrations](migrations/), run in date order in the Supaba
 | [facility_locations](#facility_locations) | 12 | 0 | Verified hospitals, blood banks and Red Cross chapters shown on the map. |
 | [notification_preferences](#notification_preferences) | 7 | 1 | Which kinds of updates alert a user's phone. No row means everything is on. |
 | [login_lockouts](#login_lockouts) | 7 | 0 | Failed sign-in counts and lockouts per email, so a lockout survives a server restart. |
+| [otp_attempts](#otp_attempts) | 5 | 0 | One-time code limits per email and kind of code: when the last code was sent and how many wrong tries it has had. |
 | [data_backups](#data_backups) | 10 | 2 | The list of database backups. The backup files are in the private backups storage bucket. |
 
 ## Relationships
@@ -124,6 +125,10 @@ erDiagram
     uuid user_id PK, FK
   }
   login_lockouts {
+    text email PK
+  }
+  otp_attempts {
+    text kind PK
     text email PK
   }
   data_backups {
@@ -224,7 +229,7 @@ Null "no" means the column is required (NOT NULL).
 
 ### users
 
-Every account: donors, requesters and admins. The id is the Supabase Auth user id. role is user, admin or super_admin.
+Every account: donors, requesters and admins. The id is the Supabase Auth user id. role is user, admin or super_admin. username is unique, ignoring letter case. is_locked marks an account an admin locked.
 
 | Column | Type | Null | Default | Key |
 | --- | --- | --- | --- | --- |
@@ -250,6 +255,10 @@ Every account: donors, requesters and admins. The id is the Supabase Auth user i
 | longitude | double | yes |  |  |
 | is_active | boolean | no | `true` |  |
 | deactivated_at | timestamptz | yes |  |  |
+| is_locked | boolean | yes | `false` |  |
+| locked_at | timestamptz | yes |  |  |
+| locked_reason | text | yes |  |  |
+| username | text | yes |  |  |
 
 ### donor_applications
 
@@ -573,6 +582,18 @@ Failed sign-in counts and lockouts per email, so a lockout survives a server res
 | last_failed_at | timestamptz | yes |  |  |
 | locked_until | timestamptz | yes |  |  |
 | lock_level | integer | no | `0` |  |
+| updated_at | timestamptz | no | `now()` |  |
+
+### otp_attempts
+
+One-time code limits per email and kind of code: when the last code was sent and how many wrong tries it has had.
+
+| Column | Type | Null | Default | Key |
+| --- | --- | --- | --- | --- |
+| kind | text | no |  | PK |
+| email | text | no |  | PK |
+| sent_at | timestamptz | yes |  |  |
+| wrong_count | integer | no | `0` |  |
 | updated_at | timestamptz | no | `now()` |  |
 
 ### data_backups
