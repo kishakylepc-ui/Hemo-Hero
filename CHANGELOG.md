@@ -14,6 +14,7 @@ Write each change under **Unreleased** as you make it. `node scripts/version.js 
   - "Welcome back" and "Create your account" headings, and an iPhone-style Sign In / Sign Up switch.
   - Outlined fields with a soft red ring while you type. Forgot Password, Reset Password and the Account & Security password fields use the same style.
   - Sign Up has a five-step password strength bar and rule chips that turn green, and the whole form fits without scrolling.
+  - Forgot Password, Reset Password and Verify Email use the same red screen and white sheet, so the whole sign-in flow matches.
 
 ## 1.2.0 - 2026-10-25
 

@@ -40,7 +40,7 @@ import {
   useSafeAreaInsets,
 } from 'react-native-safe-area-context';
 
-import { shiftedDown, withStatusBar } from '../lib/fullScreen';
+import { shiftedDown } from '../lib/fullScreen';
 
 import {
   ApiError,
@@ -69,8 +69,9 @@ const COLORS = {
   redDark: '#8F1111',
   redButton: '#B42323',
 
-  pinkTop: '#EBA4A7',
-  pinkBottom: '#D93238',
+  heroTop: '#D31115',
+  heroMiddle: '#A10F12',
+  heroBottom: '#8F1111',
 
   white: '#FFFFFF',
   black: '#171717',
@@ -904,105 +905,79 @@ export default function ResetPasswordScreen() {
                 false
               }
             >
-              <View
+              {/* ====================================================
+                  HERO (red) + SHEET (the form), like Sign In
+              ==================================================== */}
+
+              <LinearGradient
+                colors={[
+                  COLORS.heroTop,
+                  COLORS.heroMiddle,
+                  COLORS.heroBottom,
+                ]}
+                locations={[
+                  0,
+                  0.45,
+                  1,
+                ]}
                 style={
-                  styles.authContent
+                  styles.hero
                 }
               >
-                {/* ==================================================
-                    HEADER
-                ================================================== */}
-
                 <View
-                  style={
-                    styles.headerWrapper
-                  }
-                >
-                  <LinearGradient
-                    colors={[
-                      COLORS.red,
-                      COLORS.redDark,
-                    ]}
-                    style={withStatusBar(
-                      styles.header,
-                      insets.top
-                    )}
-                  >
-                    <View
-                      style={shiftedDown(
-                        styles.headerCircleLeft,
-                        insets.top
-                      )}
-                    />
-
-                    <View
-                      style={shiftedDown(
-                        styles.headerCircleRight,
-                        insets.top
-                      )}
-                    />
-
-                    <Text
-                      style={
-                        styles.brandName
-                      }
-                    >
-                      Hemo-Hero
-                    </Text>
-
-                    <Text
-                      style={
-                        styles.tagline
-                      }
-                    >
-                      Connect to Donors Near You
-                    </Text>
-                  </LinearGradient>
-                </View>
-
-                {/* ==================================================
-                    LOGO
-                ================================================== */}
+                  style={shiftedDown(
+                    styles.headerCircleRight,
+                    insets.top
+                  )}
+                />
 
                 <View
                   style={[
-                    styles.logoCircle,
+                    styles.heroRow,
 
-                    // Moves down with the header.
                     {
-                      marginTop:
-                        insets.top,
+                      paddingTop:
+                        insets.top + 16,
                     },
                   ]}
                 >
-                  <Image
-                    source={require(
-                      '../../assets/images/LifeLine (5).png'
-                    )}
-                    style={
-                      styles.logoImage
-                    }
-                    resizeMode="contain"
-                  />
-                </View>
-
-                {/* ==================================================
-                    BODY
-                ================================================== */}
-
-                <LinearGradient
-                  colors={[
-                    COLORS.pinkTop,
-                    COLORS.pinkBottom,
-                  ]}
-                  style={
-                    styles.bodyBackground
-                  }
-                >
                   <View
                     style={
-                      styles.card
+                      styles.logoCircle
                     }
+                  >
+                    <Image
+                      source={require(
+                        '../../assets/images/LifeLine (5).png'
+                      )}
+                      style={
+                        styles.logoImage
+                      }
+                      resizeMode="contain"
+                    />
+                  </View>
+
+                  <Text
+                    style={
+                      styles.brandName
+                    }
+                  >
+                    Hemo-Hero
+                  </Text>
+                </View>
+
+                  <View
+                    style={[
+                      styles.sheet,
+
+                      {
+                        paddingBottom:
+                          Math.max(
+                            insets.bottom,
+                            12
+                          ) + 22,
+                      },
+                    ]}
                   >
                     {/* ==============================================
                         STEP
@@ -1568,7 +1543,6 @@ export default function ResetPasswordScreen() {
                     </TouchableOpacity>
                   </View>
                 </LinearGradient>
-              </View>
             </ScrollView>
           </KeyboardAvoidingView>
         </SafeAreaView>
@@ -1583,6 +1557,80 @@ export default function ResetPasswordScreen() {
 
 const styles =
   StyleSheet.create({
+    // ========================================================
+    // HERO (red, full screen) + SHEET, like Sign In / Sign Up
+    // ========================================================
+
+    hero: {
+      flexGrow: 1,
+    },
+
+    headerCircleRight: {
+      position: 'absolute',
+      width: 220,
+      height: 220,
+      borderRadius: 110,
+      right: -90,
+      top: -110,
+      backgroundColor: 'rgba(255,255,255,0.07)',
+    },
+
+    // Logo and name in one centered row.
+    heroRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: 12,
+    },
+
+    logoCircle: {
+      width: 48,
+      height: 48,
+      borderRadius: 24,
+      backgroundColor: COLORS.white,
+      alignItems: 'center',
+      justifyContent: 'center',
+      overflow: 'hidden',
+      shadowColor: '#000000',
+      shadowOffset: {
+        width: 0,
+        height: 8,
+      },
+      shadowOpacity: 0.18,
+      shadowRadius: 10,
+      elevation: 6,
+    },
+
+    logoImage: {
+      width: 40,
+      height: 40,
+    },
+
+    brandName: {
+      color: COLORS.white,
+      fontFamily: 'Poppins_700Bold',
+      fontSize: 24,
+      lineHeight: 30,
+    },
+
+    // The form, on a white sheet rising from the bottom.
+    sheet: {
+      flexGrow: 1,
+      marginTop: 24,
+      paddingHorizontal: 24,
+      paddingTop: 28,
+      borderTopLeftRadius: 32,
+      borderTopRightRadius: 32,
+      backgroundColor: COLORS.white,
+      shadowColor: '#000000',
+      shadowOffset: {
+        width: 0,
+        height: -12,
+      },
+      shadowOpacity: 0.12,
+      shadowRadius: 24,
+    },
+
     flex: {
       flex: 1,
     },
@@ -1603,7 +1651,7 @@ const styles =
       backgroundColor:
         Platform.OS === 'web'
           ? '#1E1E1E'
-          : COLORS.pinkBottom,
+          : COLORS.heroBottom,
     },
 
     phone: {
@@ -1624,7 +1672,7 @@ const styles =
         'hidden',
 
       backgroundColor:
-        COLORS.pinkBottom,
+        COLORS.heroBottom,
     },
 
     safeArea: {
@@ -1638,184 +1686,35 @@ const styles =
       flexGrow: 1,
 
       backgroundColor:
-        COLORS.pinkBottom,
+        COLORS.heroBottom,
     },
 
-    authContent: {
-      flexGrow: 1,
-
-      position:
-        'relative',
-
-      backgroundColor:
-        COLORS.pinkTop,
-    },
 
     // ========================================================
     // HEADER
     // ========================================================
 
-    headerWrapper: {
-      backgroundColor:
-        COLORS.pinkTop,
 
-      zIndex: 1,
-    },
 
-    header: {
-      height: 230,
 
-      alignItems:
-        'center',
 
-      paddingTop: 42,
 
-      borderBottomLeftRadius:
-        58,
-
-      borderBottomRightRadius:
-        58,
-
-      overflow:
-        'hidden',
-    },
-
-    headerCircleLeft: {
-      position:
-        'absolute',
-
-      width: 180,
-
-      height: 180,
-
-      borderRadius: 90,
-
-      left: -100,
-
-      top: -50,
-
-      backgroundColor:
-        'rgba(255,255,255,0.07)',
-    },
-
-    headerCircleRight: {
-      position:
-        'absolute',
-
-      width: 180,
-
-      height: 180,
-
-      borderRadius: 90,
-
-      right: -92,
-
-      top: -55,
-
-      backgroundColor:
-        'rgba(255,255,255,0.07)',
-    },
-
-    brandName: {
-      color:
-        COLORS.white,
-
-      fontFamily:
-        'Poppins_700Bold',
-
-      fontSize: 30,
-    },
-
-    tagline: {
-      marginTop: 7,
-
-      color:
-        COLORS.white,
-
-      fontFamily:
-        'Inter_400Regular',
-
-      fontSize: 12.5,
-    },
 
     // ========================================================
     // LOGO
     // ========================================================
 
-    logoCircle: {
-      position:
-        'absolute',
 
-      top: 165,
-
-      alignSelf:
-        'center',
-
-      width: 130,
-
-      height: 130,
-
-      borderRadius: 65,
-
-      backgroundColor:
-        COLORS.white,
-
-      alignItems:
-        'center',
-
-      justifyContent:
-        'center',
-
-      overflow:
-        'hidden',
-
-      zIndex: 100,
-
-      elevation: 100,
-    },
-
-    logoImage: {
-      width: 110,
-
-      height: 110,
-    },
 
     // ========================================================
     // BODY
     // ========================================================
 
-    bodyBackground: {
-      flexGrow: 1,
-
-      minHeight: 644,
-
-      paddingHorizontal: 24,
-
-      paddingTop: 91,
-
-      paddingBottom: 30,
-
-      zIndex: 2,
-    },
 
     // ========================================================
     // CARD
     // ========================================================
 
-    card: {
-      backgroundColor:
-        COLORS.white,
-
-      borderRadius: 25,
-
-      paddingHorizontal: 22,
-
-      paddingTop: 23,
-
-      paddingBottom: 22,
-
-      elevation: 2,
-    },
 
     stepLabel: {
       marginBottom: 6,
@@ -1837,8 +1736,7 @@ const styles =
       color:
         COLORS.black,
 
-      fontFamily:
-        'Poppins_700Bold',
+      fontFamily: 'Poppins_600SemiBold',
 
       fontSize: 20,
 
@@ -1936,7 +1834,7 @@ const styles =
       borderColor:
         COLORS.errorBorder,
 
-      borderRadius: 8,
+      borderRadius: 12,
 
       backgroundColor:
         COLORS.errorBackground,
@@ -1983,7 +1881,7 @@ const styles =
       borderColor:
         COLORS.successBorder,
 
-      borderRadius: 8,
+      borderRadius: 12,
 
       backgroundColor:
         COLORS.successBackground,
@@ -2032,7 +1930,7 @@ const styles =
       borderColor:
         COLORS.inputBorder,
 
-      borderRadius: 10,
+      borderRadius: 12,
 
       alignItems:
         'center',
@@ -2192,11 +2090,11 @@ const styles =
 
       gap: 8,
 
-      height: 50,
+      height: 52,
 
       marginTop: 22,
 
-      borderRadius: 7,
+      borderRadius: 14,
 
       backgroundColor:
         COLORS.redButton,
@@ -2206,6 +2104,16 @@ const styles =
 
       justifyContent:
         'center',
+
+      shadowColor: COLORS.redButton,
+
+      shadowOffset: { width: 0, height: 8 },
+
+      shadowOpacity: 0.28,
+
+      shadowRadius: 12,
+
+      elevation: 4,
     },
 
     disabledButton: {
