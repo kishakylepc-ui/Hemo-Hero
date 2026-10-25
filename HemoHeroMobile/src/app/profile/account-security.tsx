@@ -1951,7 +1951,7 @@ export default function AccountSecurityScreen() {
 
                     <AuthField
                       label="Verification Code"
-                      icon="pin"
+                      icon="keypad-outline"
                       value={
                         emailCode
                       }
@@ -3168,7 +3168,7 @@ function ModalField({
         keyboardType ===
         'email-address'
           ? 'mail-outline'
-          : 'edit'
+          : 'create-outline'
       }
       value={value}
       placeholder={placeholder}
@@ -3212,7 +3212,7 @@ function PasswordField({
   return (
     <AuthField
       label={label}
-      icon="lock-outline"
+      icon="lock-closed-outline"
       password
       passwordVisible={visible}
       onTogglePassword={onToggle}

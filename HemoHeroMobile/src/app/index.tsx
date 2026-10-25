@@ -39,10 +39,10 @@ import {
   useSafeAreaInsets,
 } from 'react-native-safe-area-context';
 
-import { shiftedDown, withStatusBar } from '../lib/fullScreen';
+import { shiftedDown } from '../lib/fullScreen';
 
 import {
-  MaterialIcons,
+  Ionicons,
 } from '@expo/vector-icons';
 
 import {
@@ -129,8 +129,12 @@ const COLORS = {
   redDark: '#8F1111',
   redButton: '#B42323',
 
-  pinkTop: '#EBA4A7',
-  pinkBottom: '#D93238',
+  // Sign-in hero, top to bottom.
+  heroTop: '#D31115',
+  heroMiddle: '#A10F12',
+  heroBottom: '#8F1111',
+
+  trust: '#8A8A8A',
 
   white: '#FFFFFF',
   black: '#171717',
@@ -1616,167 +1620,165 @@ export default function SignInScreen() {
                 false
               }
             >
-              <View
+              {/* ====================================================
+                  HERO (red, behind everything) + SHEET (the form)
+              ==================================================== */}
+
+              <LinearGradient
+                colors={[
+                  COLORS.heroTop,
+                  COLORS.heroMiddle,
+                  COLORS.heroBottom,
+                ]}
+                locations={[
+                  0,
+                  0.45,
+                  1,
+                ]}
                 style={
-                  styles.authContent
+                  styles.hero
                 }
               >
-                {/* ==================================================
-                    HEADER
-                ================================================== */}
+                <View
+                  style={shiftedDown(
+                    styles.headerCircleLeft,
+                    insets.top
+                  )}
+                />
 
                 <View
-                  style={
-                    styles.headerWrapper
-                  }
-                >
-                  <LinearGradient
-                    colors={[
-                      COLORS.red,
-                      COLORS.redDark,
-                    ]}
-                    style={withStatusBar(
-                      [
-                        styles.header,
+                  style={shiftedDown(
+                    styles.headerCircleRight,
+                    insets.top
+                  )}
+                />
 
-                        isSmallPhone &&
-                          styles.headerSmall,
-                      ],
-                      insets.top
-                    )}
-                  >
-                    <View
-                      style={shiftedDown(
-                        styles.headerCircleLeft,
-                        insets.top
-                      )}
-                    />
-
-                    <View
-                      style={shiftedDown(
-                        styles.headerCircleRight,
-                        insets.top
-                      )}
-                    />
-
-                    <Animated.View
-                      style={{
-                        alignItems:
-                          'center',
-
-                        opacity:
-                          headerOpacity,
-
-                        transform: [
-                          {
-                            translateY:
-                              headerTranslateY,
-                          },
-                        ],
-                      }}
-                    >
-                      <Text
-                        style={[
-                          styles.brandName,
-
-                          isSmallPhone &&
-                            styles.brandNameSmall,
-                        ]}
-                      >
-                        Hemo-Hero
-                      </Text>
-
-                      <Text
-                        style={
-                          styles.tagline
-                        }
-                      >
-                        Connect to Donors Near You
-                      </Text>
-                    </Animated.View>
-                  </LinearGradient>
-                </View>
-
-                {/* ==================================================
-                    LOGO
-                ================================================== */}
-
-                <Animated.View
+                <View
                   style={[
-                    styles.logoCircle,
-
-                    isSmallPhone &&
-                      styles.logoCircleSmall,
-
-                    // Moves down with the header.
-                    {
-                      marginTop:
-                        insets.top,
-                    },
+                    styles.heroContent,
 
                     {
-                      opacity:
-                        logoOpacity,
-
-                      transform: [
-                        {
-                          scale:
-                            logoScale,
-                        },
-                      ],
+                      paddingTop:
+                        insets.top +
+                        (isSmallPhone
+                          ? 16
+                          : 24),
                     },
-                  ]}
-                >
-                  <Image
-                    source={require(
-                      '../../assets/images/LifeLine (5).png'
-                    )}
-                    style={[
-                      styles.logoImage,
-
-                      isSmallPhone &&
-                        styles.logoImageSmall,
-                    ]}
-                    resizeMode="contain"
-                  />
-                </Animated.View>
-
-                {/* ==================================================
-                    BODY
-                ================================================== */}
-
-                <LinearGradient
-                  colors={[
-                    COLORS.pinkTop,
-                    COLORS.pinkBottom,
-                  ]}
-                  style={[
-                    styles.bodyBackground,
-
-                    isSmallPhone &&
-                      styles.bodyBackgroundSmall,
                   ]}
                 >
                   <Animated.View
                     style={[
-                      styles.card,
+                      styles.logoCircle,
 
                       isSmallPhone &&
-                        styles.cardSmall,
+                        styles.logoCircleSmall,
 
                       {
                         opacity:
-                          cardOpacity,
+                          logoOpacity,
 
                         transform: [
                           {
-                            translateY:
-                              cardTranslateY,
+                            scale:
+                              logoScale,
                           },
                         ],
                       },
                     ]}
                   >
+                    <Image
+                      source={require(
+                        '../../assets/images/LifeLine (5).png'
+                      )}
+                      style={[
+                        styles.logoImage,
+
+                        isSmallPhone &&
+                          styles.logoImageSmall,
+                      ]}
+                      resizeMode="contain"
+                    />
+                  </Animated.View>
+
+                  <Animated.View
+                    style={{
+                      alignItems:
+                        'center',
+
+                      opacity:
+                        headerOpacity,
+
+                      transform: [
+                        {
+                          translateY:
+                            headerTranslateY,
+                        },
+                      ],
+                    }}
+                  >
+                    <Text
+                      style={[
+                        styles.brandName,
+
+                        isSmallPhone &&
+                          styles.brandNameSmall,
+                      ]}
+                    >
+                      Hemo-Hero
+                    </Text>
+
+                    <Text
+                      style={
+                        styles.tagline
+                      }
+                    >
+                      Connect to Donors Near You
+                    </Text>
+                  </Animated.View>
+                </View>
+
+                <Animated.View
+                  style={[
+                    styles.sheet,
+
+                    isSmallPhone &&
+                      styles.sheetSmall,
+
+                    {
+                      paddingBottom:
+                        Math.max(
+                          insets.bottom,
+                          12
+                        ) + 22,
+
+                      opacity:
+                        cardOpacity,
+
+                      transform: [
+                        {
+                          translateY:
+                            cardTranslateY,
+                        },
+                      ],
+                    },
+                  ]}
+                >
+                    <Text
+                      style={
+                        styles.sheetTitle
+                      }
+                    >
+                      Welcome back
+                    </Text>
+
+                    <Text
+                      style={
+                        styles.sheetSubtitle
+                      }
+                    >
+                      Sign in to keep helping save lives.
+                    </Text>
+
                     {/* ==============================================
                         TABS
                     ============================================== */}
@@ -1816,8 +1818,8 @@ export default function SignInScreen() {
                         }
                         accessibilityLiveRegion="polite"
                       >
-                        <MaterialIcons
-                          name="info-outline"
+                        <Ionicons
+                          name="information-circle-outline"
                           size={17}
                           color={
                             COLORS.noticeText
@@ -1890,7 +1892,7 @@ export default function SignInScreen() {
                               }
                             </Text>
 
-                            <MaterialIcons
+                            <Ionicons
                               name="arrow-forward"
                               size={15}
                               color={
@@ -1996,7 +1998,7 @@ export default function SignInScreen() {
                           passwordRef
                         }
                         label="Password"
-                        icon="lock-outline"
+                        icon="lock-closed-outline"
                         password
                         placeholder="Enter your password"
                         autoCapitalize="none"
@@ -2211,9 +2213,30 @@ export default function SignInScreen() {
                         </Text>
                       </TouchableOpacity>
                     </Animated.View>
-                  </Animated.View>
-                </LinearGradient>
-              </View>
+
+                    <View
+                      style={
+                        styles.trustRow
+                      }
+                    >
+                      <Ionicons
+                        name="shield-checkmark-outline"
+                        size={14}
+                        color={
+                          COLORS.trust
+                        }
+                      />
+
+                      <Text
+                        style={
+                          styles.trustText
+                        }
+                      >
+                        Only verified donors can offer to donate.
+                      </Text>
+                    </View>
+                </Animated.View>
+              </LinearGradient>
             </ScrollView>
           </KeyboardAvoidingView>
         </SafeAreaView>
@@ -2237,124 +2260,77 @@ const styles =
     // DESKTOP
     // ========================================================
 
- desktopBackground: {
-  flex: 1,
+    desktopBackground: {
+      flex: 1,
 
-  alignItems:
-    'center',
+      alignItems:
+        'center',
 
-  justifyContent:
-    'center',
+      justifyContent:
+        'center',
 
-  backgroundColor:
-    Platform.OS ===
-      'web'
-      ? '#1E1E1E'
-      : COLORS.pinkBottom,
-},
+      backgroundColor:
+        Platform.OS ===
+          'web'
+          ? '#1E1E1E'
+          : COLORS.heroBottom,
+    },
 
     // ========================================================
     // PHONE
     // ========================================================
 
     phone: {
-  width:
-    '100%',
+      width:
+        '100%',
 
-  height:
-    '100%',
+      height:
+        '100%',
 
-  maxWidth:
-    Platform.OS ===
-      'web'
-      ? 440
-      : '100%',
+      maxWidth:
+        Platform.OS ===
+          'web'
+          ? 440
+          : '100%',
 
-  overflow:
-    'hidden',
+      overflow:
+        'hidden',
 
-  backgroundColor:
-    COLORS.pinkBottom,
-},
+      backgroundColor:
+        COLORS.heroBottom,
+    },
 
     safeArea: {
       flex: 1,
 
       backgroundColor:
-        COLORS.red,
+        COLORS.heroBottom,
     },
 
     scroll: {
       flexGrow: 1,
-
-      backgroundColor:
-        COLORS.pinkBottom,
     },
 
-    authContent: {
+    // ========================================================
+    // HERO (red, full screen) - the sheet sits on it
+    // ========================================================
+
+    hero: {
       flexGrow: 1,
-
-      position:
-        'relative',
-
-      backgroundColor:
-        COLORS.pinkTop,
-    },
-
-    // ========================================================
-    // HEADER
-    // ========================================================
-
-    headerWrapper: {
-      backgroundColor:
-        COLORS.pinkTop,
-
-      zIndex:
-        1,
-    },
-
-    header: {
-      height: 260,
-
-      alignItems:
-        'center',
-
-      paddingTop: 55,
-
-      borderBottomLeftRadius:
-        62,
-
-      borderBottomRightRadius:
-        62,
-
-      overflow:
-        'hidden',
-    },
-
-    headerSmall: {
-      height: 230,
-
-      paddingTop: 38,
-
-      borderBottomLeftRadius:
-        54,
-
-      borderBottomRightRadius:
-        54,
     },
 
     headerCircleLeft: {
       position:
         'absolute',
 
-      width: 180,
-      height: 180,
+      width: 240,
+      height: 240,
 
       borderRadius:
-        90,
+        120,
 
-      left: -100,
-      top: -50,
+      left: -110,
+      top: -80,
 
       backgroundColor:
         'rgba(255,255,255,0.07)',
@@ -2364,71 +2340,33 @@ const styles =
       position:
         'absolute',
 
-      width: 180,
-      height: 180,
+      width: 220,
+      height: 220,
 
       borderRadius:
-        90,
+        110,
 
-      right: -92,
-      top: -55,
+      right: -90,
+      top: 40,
 
       backgroundColor:
-        'rgba(255,255,255,0.07)',
+        'rgba(255,255,255,0.06)',
     },
 
-    brandName: {
-      color:
-        COLORS.white,
-
-      fontFamily:
-        'Poppins_700Bold',
-
-      fontSize:
-        31,
-    },
-
-    brandNameSmall: {
-      fontSize:
-        29,
-    },
-
-    tagline: {
-      marginTop:
-        7,
-
-      color:
-        COLORS.white,
-
-      fontFamily:
-        'Inter_400Regular',
-
-      fontSize:
-        12.5,
-    },
-
-    // ========================================================
-    // LOGO
-    // ========================================================
-
-    logoCircle: {
-      position:
-        'absolute',
-
-      top:
-        186,
-
-      alignSelf:
+    heroContent: {
+      alignItems:
         'center',
 
-      width:
-        148,
+      paddingHorizontal:
+        24,
+    },
 
-      height:
-        148,
+    logoCircle: {
+      width: 88,
+      height: 88,
 
       borderRadius:
-        74,
+        44,
 
       backgroundColor:
         COLORS.white,
@@ -2442,154 +2380,198 @@ const styles =
       overflow:
         'hidden',
 
-      zIndex:
-        100,
-
-      elevation:
-        100,
-
       shadowColor:
         '#000000',
 
       shadowOffset: {
-        width:
-          0,
-
-        height:
-          2,
+        width: 0,
+        height: 10,
       },
 
       shadowOpacity:
-        0.08,
+        0.2,
 
       shadowRadius:
-        4,
+        14,
+
+      elevation:
+        8,
     },
 
     logoCircleSmall: {
-      top:
-        167,
-
-      width:
-        126,
-
-      height:
-        126,
+      width: 76,
+      height: 76,
 
       borderRadius:
-        63,
+        38,
     },
 
     logoImage: {
-      width:
-        128,
-
-      height:
-        128,
+      width: 74,
+      height: 74,
     },
 
     logoImageSmall: {
-      width:
-        108,
-
-      height:
-        108,
+      width: 64,
+      height: 64,
     },
 
-    // ========================================================
-    // BODY
-    // ========================================================
+    brandName: {
+      marginTop:
+        16,
 
-    bodyBackground: {
-      flexGrow:
-        1,
-
-      minHeight:
-        614,
-
-      paddingHorizontal:
-        26,
-
-      paddingTop:
-        Platform.OS ===
-          'web'
-          ? 115
-          : 100,
-
-      paddingBottom:
-        36,
-
-      zIndex:
-        2,
-    },
-
-    bodyBackgroundSmall: {
-      minHeight:
-        614,
-
-      paddingHorizontal:
-        22,
-
-      paddingTop:
-        82,
-
-      paddingBottom:
-        28,
-    },
-
-    // ========================================================
-    // CARD
-    // ========================================================
-
-    card: {
-      backgroundColor:
+      color:
         COLORS.white,
 
-      borderRadius:
-        25,
+      fontFamily:
+        'Poppins_700Bold',
+
+      fontSize:
+        28,
+
+      lineHeight:
+        36,
+    },
+
+    brandNameSmall: {
+      marginTop:
+        12,
+
+      fontSize:
+        26,
+
+      lineHeight:
+        34,
+    },
+
+    tagline: {
+      marginTop:
+        2,
+
+      color:
+        'rgba(255,255,255,0.85)',
+
+      fontFamily:
+        'Inter_400Regular',
+
+      fontSize:
+        14,
+
+      lineHeight:
+        20,
+    },
+
+    // ========================================================
+    // SHEET (the form, rising from the bottom)
+    // ========================================================
+
+    sheet: {
+      flexGrow: 1,
+
+      marginTop:
+        36,
 
       paddingHorizontal:
-        22,
+        24,
 
       paddingTop:
-        17,
+        28,
 
-      paddingBottom:
-        23,
+      borderTopLeftRadius:
+        32,
+
+      borderTopRightRadius:
+        32,
+
+      backgroundColor:
+        COLORS.white,
 
       shadowColor:
         '#000000',
 
       shadowOffset: {
-        width:
-          0,
-
-        height:
-          2,
+        width: 0,
+        height: -12,
       },
 
       shadowOpacity:
-        0.06,
+        0.12,
 
       shadowRadius:
-        5,
-
-      elevation:
-        2,
+        24,
     },
 
-    cardSmall: {
-      borderRadius:
-        23,
-
-      paddingHorizontal:
-        20,
+    sheetSmall: {
+      marginTop:
+        28,
 
       paddingTop:
-        15,
+        24,
+    },
 
-      paddingBottom:
+    sheetTitle: {
+      color:
+        COLORS.black,
+
+      fontFamily:
+        'Poppins_600SemiBold',
+
+      fontSize:
+        22,
+
+      lineHeight:
+        30,
+    },
+
+    sheetSubtitle: {
+      marginTop:
+        2,
+
+      marginBottom:
         20,
+
+      color:
+        '#666666',
+
+      fontFamily:
+        'Inter_400Regular',
+
+      fontSize:
+        13.5,
+
+      lineHeight:
+        20,
+    },
+
+    // "Only verified donors can offer to donate."
+    trustRow: {
+      marginTop:
+        'auto',
+
+      paddingTop:
+        24,
+
+      flexDirection:
+        'row',
+
+      alignItems:
+        'center',
+
+      justifyContent:
+        'center',
+
+      gap: 6,
+    },
+
+    trustText: {
+      color:
+        COLORS.trust,
+
+      fontFamily:
+        'Inter_400Regular',
+
+      fontSize:
+        12,
     },
 
     // ========================================================
@@ -2606,8 +2588,7 @@ const styles =
     // ========================================================
 
     errorContainer: {
-      marginBottom:
-        18,
+      marginBottom: 16,
 
       paddingHorizontal:
         12,
@@ -2621,8 +2602,7 @@ const styles =
       borderColor:
         '#F5BABA',
 
-      borderRadius:
-        8,
+      borderRadius: 12,
 
       backgroundColor:
         '#FDECEC',
@@ -2630,7 +2610,7 @@ const styles =
 
     // "You were signed out after 15 minutes of inactivity."
     noticeContainer: {
-      marginBottom: 18,
+      marginBottom: 16,
       paddingHorizontal: 12,
       paddingVertical: 10,
       flexDirection: 'row',
@@ -2638,7 +2618,7 @@ const styles =
       gap: 8,
       borderWidth: 1,
       borderColor: COLORS.noticeBorder,
-      borderRadius: 8,
+      borderRadius: 12,
       backgroundColor: COLORS.noticeBackground,
     },
 
@@ -2703,19 +2683,17 @@ const styles =
       alignSelf:
         'flex-end',
 
-      marginTop:
-        14,
+      marginTop: -6,
+
+      paddingVertical: 4,
     },
 
     forgotText: {
-      color:
-        COLORS.red,
+      color: COLORS.redButton,
 
-      fontFamily:
-        'Inter_500Medium',
+      fontFamily: 'Inter_600SemiBold',
 
-      fontSize:
-        12,
+      fontSize: 13,
     },
 
     // ========================================================
@@ -2728,14 +2706,11 @@ const styles =
 
       gap: 8,
 
-      height:
-        50,
+      height: 52,
 
-      marginTop:
-        28,
+      marginTop: 20,
 
-      borderRadius:
-        7,
+      borderRadius: 14,
 
       backgroundColor:
         COLORS.redButton,
@@ -2745,6 +2720,19 @@ const styles =
 
       justifyContent:
         'center',
+
+      shadowColor: COLORS.redButton,
+
+      shadowOpacity: 0.28,
+
+      shadowRadius: 12,
+
+      shadowOffset: {
+        width: 0,
+        height: 8,
+      },
+
+      elevation: 4,
     },
 
     disabledButton: {
@@ -2759,7 +2747,6 @@ const styles =
       fontFamily:
         'Poppins_600SemiBold',
 
-      fontSize:
-        14.5,
+      fontSize: 15.5,
     },
   });

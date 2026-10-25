@@ -22,7 +22,7 @@ import {
 } from 'react-native';
 
 import {
-  MaterialIcons,
+  Ionicons,
 } from '@expo/vector-icons';
 
 import {
@@ -43,7 +43,7 @@ import {
   useSafeAreaInsets,
 } from 'react-native-safe-area-context';
 
-import { shiftedDown, withStatusBar } from '../lib/fullScreen';
+import { shiftedDown } from '../lib/fullScreen';
 
 import {
   ApiError,
@@ -80,8 +80,10 @@ const COLORS = {
   redDark: '#8F1111',
   redButton: '#B42323',
 
-  pinkTop: '#EBA4A7',
-  pinkBottom: '#D93238',
+  // Sign-up hero, top to bottom.
+  heroTop: '#D31115',
+  heroMiddle: '#A10F12',
+  heroBottom: '#8F1111',
 
   white: '#FFFFFF',
   black: '#171717',
@@ -1040,19 +1042,23 @@ export default function SignUpScreen() {
     valid: boolean;
     label: string;
   }) {
+    // A chip that turns green once the rule is met.
     return (
       <View
-        style={
-          styles.requirementItem
-        }
+        style={[
+          styles.requirementItem,
+
+          valid &&
+            styles.requirementItemValid,
+        ]}
       >
-        <MaterialIcons
+        <Ionicons
           name={
             valid
-              ? 'check-circle'
-              : 'radio-button-unchecked'
+              ? 'checkmark'
+              : 'ellipse-outline'
           }
-          size={13}
+          size={12}
           color={
             valid
               ? COLORS.requirementActive
@@ -1129,167 +1135,132 @@ export default function SignUpScreen() {
                 false
               }
             >
-              <View
+              {/* ====================================================
+                  HERO (red, behind everything) + SHEET (the form)
+                  The logo and name sit in one row here, so the
+                  whole form fits without scrolling.
+              ==================================================== */}
+
+              <LinearGradient
+                colors={[
+                  COLORS.heroTop,
+                  COLORS.heroMiddle,
+                  COLORS.heroBottom,
+                ]}
+                locations={[
+                  0,
+                  0.45,
+                  1,
+                ]}
                 style={
-                  styles.authContent
+                  styles.hero
                 }
               >
-                {/* ==================================================
-                    HEADER
-                ================================================== */}
+                <View
+                  style={shiftedDown(
+                    styles.headerCircleRight,
+                    insets.top
+                  )}
+                />
 
                 <View
-                  style={
-                    styles.headerWrapper
-                  }
-                >
-                  <LinearGradient
-                    colors={[
-                      COLORS.red,
-                      COLORS.redDark,
-                    ]}
-                    style={withStatusBar(
-                      [
-                        styles.header,
-
-                        isSmallPhone &&
-                          styles.headerSmall,
-                      ],
-                      insets.top
-                    )}
-                  >
-                    <View
-                      style={shiftedDown(
-                        styles.headerCircleLeft,
-                        insets.top
-                      )}
-                    />
-
-                    <View
-                      style={shiftedDown(
-                        styles.headerCircleRight,
-                        insets.top
-                      )}
-                    />
-
-                    <Animated.View
-                      style={{
-                        alignItems:
-                          'center',
-
-                        opacity:
-                          headerOpacity,
-
-                        transform: [
-                          {
-                            translateY:
-                              headerTranslateY,
-                          },
-                        ],
-                      }}
-                    >
-                      <Text
-                        style={[
-                          styles.brandName,
-
-                          isSmallPhone &&
-                            styles.brandNameSmall,
-                        ]}
-                      >
-                        Hemo-Hero
-                      </Text>
-
-                      <Text
-                        style={
-                          styles.tagline
-                        }
-                      >
-                        Connect to Donors Near You
-                      </Text>
-                    </Animated.View>
-                  </LinearGradient>
-                </View>
-
-                {/* ==================================================
-                    LOGO
-                ================================================== */}
-
-                <Animated.View
                   style={[
-                    styles.logoCircle,
-
-                    isSmallPhone &&
-                      styles.logoCircleSmall,
-
-                    // Moves down with the header.
-                    {
-                      marginTop:
-                        insets.top,
-                    },
+                    styles.heroRow,
 
                     {
-                      opacity:
-                        logoOpacity,
-
-                      transform: [
-                        {
-                          scale:
-                            logoScale,
-                        },
-                      ],
+                      paddingTop:
+                        insets.top +
+                        (isSmallPhone
+                          ? 12
+                          : 16),
                     },
-                  ]}
-                >
-                  <Image
-                    source={require(
-                      '../../assets/images/LifeLine (5).png'
-                    )}
-                    style={[
-                      styles.logoImage,
-
-                      isSmallPhone &&
-                        styles.logoImageSmall,
-                    ]}
-                    resizeMode="contain"
-                  />
-                </Animated.View>
-
-                {/* ==================================================
-                    BODY
-                ================================================== */}
-
-                <LinearGradient
-                  colors={[
-                    COLORS.pinkTop,
-                    COLORS.pinkBottom,
-                  ]}
-                  style={[
-                    styles.bodyBackground,
-
-                    isSmallPhone &&
-                      styles.bodyBackgroundSmall,
                   ]}
                 >
                   <Animated.View
                     style={[
-                      styles.card,
-
-                      isSmallPhone &&
-                        styles.cardSmall,
+                      styles.logoCircle,
 
                       {
                         opacity:
-                          cardOpacity,
+                          logoOpacity,
 
                         transform: [
                           {
-                            translateY:
-                              cardTranslateY,
+                            scale:
+                              logoScale,
                           },
                         ],
                       },
                     ]}
                   >
+                    <Image
+                      source={require(
+                        '../../assets/images/LifeLine (5).png'
+                      )}
+                      style={
+                        styles.logoImage
+                      }
+                      resizeMode="contain"
+                    />
+                  </Animated.View>
+
+                  <Animated.View
+                    style={{
+                      opacity:
+                        headerOpacity,
+
+                      transform: [
+                        {
+                          translateY:
+                            headerTranslateY,
+                        },
+                      ],
+                    }}
+                  >
+                    <Text
+                      style={
+                        styles.brandName
+                      }
+                    >
+                      Hemo-Hero
+                    </Text>
+                  </Animated.View>
+                </View>
+
+                <Animated.View
+                  style={[
+                    styles.sheet,
+
+                    isSmallPhone &&
+                      styles.sheetSmall,
+
+                    {
+                      paddingBottom:
+                        Math.max(
+                          insets.bottom,
+                          12
+                        ) + 22,
+
+                      opacity:
+                        cardOpacity,
+
+                      transform: [
+                        {
+                          translateY:
+                            cardTranslateY,
+                        },
+                      ],
+                    },
+                  ]}
+                >
+                    <Text
+                      style={
+                        styles.sheetTitle
+                      }
+                    >
+                      Create your account
+                    </Text>
+
                     {/* ==============================================
                         TABS
                     ============================================== */}
@@ -1369,7 +1340,7 @@ export default function SignUpScreen() {
                               }
                             </Text>
 
-                            <MaterialIcons
+                            <Ionicons
                               name="arrow-forward"
                               size={15}
                               color={
@@ -1391,8 +1362,8 @@ export default function SignUpScreen() {
                           styles.successContainer
                         }
                       >
-                        <MaterialIcons
-                          name="check-circle"
+                        <Ionicons
+                          name="checkmark-circle"
                           size={17}
                           color={
                             COLORS.success
@@ -1466,7 +1437,7 @@ export default function SignUpScreen() {
                         usernameRef
                       }
                       label="Username"
-                      icon="alternate-email"
+                      icon="at-outline"
                       placeholder="Choose a username"
                       autoCapitalize="none"
                       autoCorrect={
@@ -1509,9 +1480,13 @@ export default function SignUpScreen() {
                       {!fieldErrors.username &&
                       usernameStatus !== 'taken' ? (
                         <Text
-                          style={
-                            styles.usernameHint
-                          }
+                          style={[
+                            styles.usernameHint,
+
+                            usernameStatus ===
+                              'available' &&
+                              styles.usernameHintAvailable,
+                          ]}
                         >
                           {usernameStatus ===
                           'checking'
@@ -1533,7 +1508,7 @@ export default function SignUpScreen() {
                         passwordRef
                       }
                       label="Password"
-                      icon="lock-outline"
+                      icon="lock-closed-outline"
                       password
                       placeholder="Create a password"
                       autoCapitalize="none"
@@ -1583,25 +1558,28 @@ export default function SignUpScreen() {
                             styles.strengthRow
                           }
                         >
+                          {/* One segment per rule met (5 rules). */}
                           <View
                             style={
-                              styles.strengthTrack
+                              styles.strengthSegments
                             }
                           >
-                            <View
-                              style={[
-                                styles.strengthFill,
-                                {
-                                  width: `${
-                                    (passwordScore /
-                                      5) *
-                                    100
-                                  }%`,
-                                  backgroundColor:
-                                    strength.color,
-                                },
-                              ]}
-                            />
+                            {[0, 1, 2, 3, 4].map(
+                              index => (
+                                <View
+                                  key={index}
+                                  style={[
+                                    styles.strengthSegment,
+
+                                    index <
+                                      passwordScore && {
+                                      backgroundColor:
+                                        strength.color,
+                                    },
+                                  ]}
+                                />
+                              )
+                            )}
                           </View>
 
                           <Text
@@ -1679,7 +1657,7 @@ export default function SignUpScreen() {
                         confirmRef
                       }
                       label="Confirm Password"
-                      icon="lock-outline"
+                      icon="lock-closed-outline"
                       password
                       placeholder="Type it again"
                       autoCapitalize="none"
@@ -1764,9 +1742,9 @@ export default function SignUpScreen() {
                           ]}
                         >
                           {accepted ? (
-                            <MaterialIcons
-                              name="check"
-                              size={13}
+                            <Ionicons
+                              name="checkmark"
+                              size={14}
                               color={
                                 COLORS.white
                               }
@@ -1871,9 +1849,8 @@ export default function SignUpScreen() {
                         </Text>
                       </TouchableOpacity>
                     </Animated.View>
-                  </Animated.View>
-                </LinearGradient>
-              </View>
+                </Animated.View>
+              </LinearGradient>
             </ScrollView>
           </KeyboardAvoidingView>
         </SafeAreaView>
@@ -1889,9 +1866,30 @@ export default function SignUpScreen() {
 const styles =
   StyleSheet.create({
     // Under the Username field.
+    usernameHintAvailable: {
+      color: COLORS.success,
+    },
+
+    requirementItemValid: {
+      backgroundColor: COLORS.successBackground,
+    },
+
+    strengthSegment: {
+      flex: 1,
+      height: 4,
+      borderRadius: 2,
+      backgroundColor: '#EDE6E6',
+    },
+
+    strengthSegments: {
+      flex: 1,
+      flexDirection: 'row',
+      gap: 4,
+    },
+
     usernameHint: {
-      marginTop: 5,
-      marginLeft: 14,
+      marginTop: 6,
+      marginLeft: 4,
       color: '#777777',
       fontFamily: 'Inter_400Regular',
       fontSize: 11.5,
@@ -1915,9 +1913,10 @@ const styles =
         'center',
 
       backgroundColor:
-        Platform.OS === 'web'
+        Platform.OS ===
+          'web'
           ? '#1E1E1E'
-          : COLORS.pinkBottom,
+          : COLORS.heroBottom,
     },
 
     // ========================================================
@@ -1926,171 +1925,80 @@ const styles =
 
     phone: {
       width:
-        Platform.OS === 'web'
-          ? 440
-          : '100%',
+        '100%',
 
       height:
-        Platform.OS === 'web'
-          ? '100%'
-          : '100%',
+        '100%',
 
       maxWidth:
-        '100%',
+        Platform.OS ===
+          'web'
+          ? 440
+          : '100%',
 
       overflow:
         'hidden',
 
       backgroundColor:
-        COLORS.pinkBottom,
+        COLORS.heroBottom,
     },
 
     safeArea: {
       flex: 1,
 
       backgroundColor:
-        COLORS.red,
+        COLORS.heroBottom,
     },
 
     scroll: {
       flexGrow: 1,
-
-      backgroundColor:
-        COLORS.pinkBottom,
     },
 
-    authContent: {
+    // ========================================================
+    // HERO (red, full screen) - the sheet sits on it
+    // ========================================================
+
+    hero: {
       flexGrow: 1,
-
-      position:
-        'relative',
-
-      backgroundColor:
-        COLORS.pinkTop,
-    },
-
-    // ========================================================
-    // HEADER
-    // ========================================================
-
-    headerWrapper: {
-      backgroundColor:
-        COLORS.pinkTop,
-
-      zIndex:
-        1,
-    },
-
-    header: {
-      height: 260,
-
-      alignItems:
-        'center',
-
-      paddingTop: 55,
-
-      borderBottomLeftRadius:
-        62,
-
-      borderBottomRightRadius:
-        62,
-
-      overflow:
-        'hidden',
-    },
-
-    headerSmall: {
-      height: 230,
-
-      paddingTop: 38,
-
-      borderBottomLeftRadius:
-        54,
-
-      borderBottomRightRadius:
-        54,
-    },
-
-    headerCircleLeft: {
-      position:
-        'absolute',
-
-      width: 180,
-
-      height: 180,
-
-      borderRadius: 90,
-
-      left: -100,
-
-      top: -50,
-
-      backgroundColor:
-        'rgba(255,255,255,0.07)',
     },
 
     headerCircleRight: {
       position:
         'absolute',
 
-      width: 180,
+      width: 220,
+      height: 220,
 
-      height: 180,
+      borderRadius:
+        110,
 
-      borderRadius: 90,
-
-      right: -92,
-
-      top: -55,
+      right: -90,
+      top: -110,
 
       backgroundColor:
         'rgba(255,255,255,0.07)',
     },
 
-    brandName: {
-      color:
-        COLORS.white,
+    // Logo and name in one centered row.
+    heroRow: {
+      flexDirection:
+        'row',
 
-      fontFamily:
-        'Poppins_700Bold',
-
-      fontSize: 31,
-    },
-
-    brandNameSmall: {
-      fontSize: 29,
-    },
-
-    tagline: {
-      marginTop: 7,
-
-      color:
-        COLORS.white,
-
-      fontFamily:
-        'Inter_400Regular',
-
-      fontSize: 12.5,
-    },
-
-    // ========================================================
-    // LOGO
-    // ========================================================
-
-    logoCircle: {
-      position:
-        'absolute',
-
-      top: 186,
-
-      alignSelf:
+      alignItems:
         'center',
 
-      width: 148,
+      justifyContent:
+        'center',
 
-      height: 148,
+      gap: 12,
+    },
 
-      borderRadius: 74,
+    logoCircle: {
+      width: 48,
+      height: 48,
+
+      borderRadius:
+        24,
 
       backgroundColor:
         COLORS.white,
@@ -2104,115 +2012,103 @@ const styles =
       overflow:
         'hidden',
 
-      zIndex: 100,
-
-      elevation: 100,
-
       shadowColor:
         '#000000',
 
       shadowOffset: {
         width: 0,
-        height: 2,
+        height: 8,
       },
 
-      shadowOpacity: 0.08,
+      shadowOpacity:
+        0.18,
 
-      shadowRadius: 4,
-    },
+      shadowRadius:
+        10,
 
-    logoCircleSmall: {
-      top: 167,
-
-      width: 126,
-
-      height: 126,
-
-      borderRadius: 63,
+      elevation:
+        6,
     },
 
     logoImage: {
-      width: 128,
-
-      height: 128,
+      width: 40,
+      height: 40,
     },
 
-    logoImageSmall: {
-      width: 108,
-
-      height: 108,
-    },
-
-    // ========================================================
-    // BODY
-    // ========================================================
-
-    bodyBackground: {
-      flexGrow: 1,
-
-      minHeight: 614,
-
-      paddingHorizontal: 26,
-
-      paddingTop:
-        Platform.OS === 'web'
-          ? 115
-          : 100,
-
-      paddingBottom: 36,
-
-      zIndex: 2,
-    },
-
-    bodyBackgroundSmall: {
-      minHeight: 614,
-
-      paddingHorizontal: 22,
-
-      paddingTop: 82,
-
-      paddingBottom: 28,
-    },
-
-    // ========================================================
-    // CARD
-    // ========================================================
-
-    card: {
-      backgroundColor:
+    brandName: {
+      color:
         COLORS.white,
 
-      borderRadius: 25,
+      fontFamily:
+        'Poppins_700Bold',
 
-      paddingHorizontal: 22,
+      fontSize:
+        24,
 
-      paddingTop: 17,
+      lineHeight:
+        30,
+    },
 
-      paddingBottom: 23,
+    // ========================================================
+    // SHEET (the form, rising from the bottom)
+    // ========================================================
+
+    sheet: {
+      flexGrow: 1,
+
+      marginTop:
+        24,
+
+      paddingHorizontal:
+        24,
+
+      paddingTop:
+        24,
+
+      borderTopLeftRadius:
+        32,
+
+      borderTopRightRadius:
+        32,
+
+      backgroundColor:
+        COLORS.white,
 
       shadowColor:
         '#000000',
 
       shadowOffset: {
         width: 0,
-        height: 2,
+        height: -12,
       },
 
-      shadowOpacity: 0.06,
+      shadowOpacity:
+        0.12,
 
-      shadowRadius: 5,
-
-      elevation: 2,
+      shadowRadius:
+        24,
     },
 
-    cardSmall: {
-      borderRadius: 23,
+    sheetSmall: {
+      marginTop:
+        20,
+    },
 
-      paddingHorizontal: 20,
+    sheetTitle: {
+      marginBottom:
+        16,
 
-      paddingTop: 15,
+      color:
+        COLORS.black,
 
-      paddingBottom: 20,
+      fontFamily:
+        'Poppins_600SemiBold',
+
+      fontSize:
+        22,
+
+      lineHeight:
+        30,
     },
 
     // ========================================================
@@ -2235,7 +2131,7 @@ const styles =
       borderColor:
         '#F5BABA',
 
-      borderRadius: 8,
+      borderRadius: 12,
 
       backgroundColor:
         '#FDECEC',
@@ -2336,24 +2232,13 @@ const styles =
     // Password strength bar under the field.
     strengthRow: {
       marginTop: 8,
-      marginHorizontal: 6,
+      marginHorizontal: 2,
       flexDirection: 'row',
       alignItems: 'center',
-      gap: 10,
+      gap: 8,
     },
 
-    strengthTrack: {
-      flex: 1,
-      height: 5,
-      borderRadius: 3,
-      overflow: 'hidden',
-      backgroundColor: '#EFE6E6',
-    },
 
-    strengthFill: {
-      height: '100%',
-      borderRadius: 3,
-    },
 
     strengthLabel: {
       minWidth: 52,
@@ -2365,11 +2250,11 @@ const styles =
     // Rules, shown while typing until all are met.
     requirementsList: {
       marginTop: 8,
-      marginHorizontal: 6,
+      marginHorizontal: 0,
       flexDirection: 'row',
       flexWrap: 'wrap',
-      columnGap: 12,
-      rowGap: 5,
+      columnGap: 6,
+      rowGap: 6,
     },
 
     requirementItem: {
@@ -2380,6 +2265,14 @@ const styles =
         'center',
 
       gap: 4,
+
+      paddingHorizontal: 8,
+
+      paddingVertical: 3,
+
+      borderRadius: 10,
+
+      backgroundColor: '#F2F2F4',
     },
 
     requirementText: {
@@ -2414,13 +2307,13 @@ const styles =
     },
 
     checkbox: {
-      width: 15,
+      width: 20,
 
-      height: 15,
+      height: 20,
 
-      marginRight: 9,
+      marginRight: 10,
 
-      borderWidth: 1,
+      borderWidth: 1.5,
 
       borderColor:
         '#CCCCCC',
@@ -2430,6 +2323,8 @@ const styles =
 
       justifyContent:
         'center',
+
+      borderRadius: 6,
     },
 
     checkboxError: {
@@ -2473,11 +2368,11 @@ const styles =
 
       gap: 8,
 
-      height: 50,
+      height: 52,
 
-      marginTop: 26,
+      marginTop: 20,
 
-      borderRadius: 7,
+      borderRadius: 14,
 
       backgroundColor:
         COLORS.redButton,
@@ -2487,6 +2382,19 @@ const styles =
 
       justifyContent:
         'center',
+
+      shadowColor: COLORS.redButton,
+
+      shadowOpacity: 0.28,
+
+      shadowRadius: 12,
+
+      shadowOffset: {
+        width: 0,
+        height: 8,
+      },
+
+      elevation: 4,
     },
 
     disabledButton: {
@@ -2500,6 +2408,6 @@ const styles =
       fontFamily:
         'Poppins_600SemiBold',
 
-      fontSize: 14.5,
+      fontSize: 15.5,
     },
   });

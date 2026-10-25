@@ -1311,7 +1311,7 @@ export default function ResetPasswordScreen() {
                       <>
                         <AuthField
                           label="New Password"
-                          icon="lock-outline"
+                          icon="lock-closed-outline"
                           password
                           placeholder="Enter new password"
                           value={
@@ -1451,7 +1451,7 @@ export default function ResetPasswordScreen() {
                             confirmRef
                           }
                           label="Confirm Password"
-                          icon="lock-outline"
+                          icon="lock-closed-outline"
                           password
                           placeholder="Confirm new password"
                           value={

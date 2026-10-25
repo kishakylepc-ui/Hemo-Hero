@@ -121,7 +121,7 @@ export default function CaptchaField({
 
       <AuthField
         label="Characters"
-        icon="verified-user"
+        icon="shield-checkmark-outline"
         placeholder="Type the 5 characters"
         autoCapitalize="none"
         autoCorrect={false}

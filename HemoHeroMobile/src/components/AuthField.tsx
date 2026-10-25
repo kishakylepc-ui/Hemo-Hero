@@ -16,7 +16,7 @@ import {
 } from 'react-native';
 
 import {
-  MaterialIcons,
+  Ionicons,
 } from '@expo/vector-icons';
 
 import {
@@ -26,23 +26,26 @@ import {
 // ============================================================
 // AUTH FIELD (sign in / sign up)
 //
-// Label, leading icon, red border while focused or wrong, the
-// error under the field, and for passwords an eye button to
-// show or hide it.
+// Label, leading icon, red border and a soft red ring while
+// focused (red border when wrong), the error under the field,
+// and for passwords an eye button to show or hide it.
 // ============================================================
 
 const COLORS = {
   redButton: '#B42323',
+  label: '#444449',
   black: '#171717',
-  border: '#D8D8D8',
+  border: '#E4D7D7',
+  fill: '#FCFCFD',
   placeholder: '#A3A3A3',
-  icon: '#A08F8F',
+  icon: '#9A8C8C',
   green: '#198754',
   errorTint: '#FFF7F7',
+  focusRing: 'rgba(180,35,35,0.10)',
 };
 
 type IconName =
-  keyof typeof MaterialIcons.glyphMap;
+  keyof typeof Ionicons.glyphMap;
 
 export type AuthFieldProps =
   Omit<TextInputProps, 'style' | 'secureTextEntry'> & {
@@ -123,6 +126,15 @@ const AuthField = forwardRef<TextInputInstance, AuthFieldProps>(
           {label}
         </Text>
 
+        <View style={styles.boxWrap}>
+        {/* Soft ring around the field while typing. */}
+        {focused && !showInvalid ? (
+          <View
+            pointerEvents="none"
+            style={styles.focusRing}
+          />
+        ) : null}
+
         <View
           style={[
             styles.box,
@@ -130,7 +142,7 @@ const AuthField = forwardRef<TextInputInstance, AuthFieldProps>(
             showInvalid && styles.boxError,
           ]}
         >
-          <MaterialIcons
+          <Ionicons
             name={icon}
             size={18}
             color={accent}
@@ -162,9 +174,9 @@ const AuthField = forwardRef<TextInputInstance, AuthFieldProps>(
           />
 
           {valid ? (
-            <MaterialIcons
-              name="check-circle"
-              size={18}
+            <Ionicons
+              name="checkmark-circle"
+              size={19}
               color={COLORS.green}
             />
           ) : null}
@@ -184,17 +196,18 @@ const AuthField = forwardRef<TextInputInstance, AuthFieldProps>(
                 toggleVisible
               }
             >
-              <MaterialIcons
+              <Ionicons
                 name={
                   visible
-                    ? 'visibility-off'
-                    : 'visibility'
+                    ? 'eye-off-outline'
+                    : 'eye-outline'
                 }
-                size={19}
+                size={20}
                 color={COLORS.icon}
               />
             </TouchableOpacity>
           ) : null}
+        </View>
         </View>
 
         {error ? (
@@ -222,28 +235,42 @@ const styles = StyleSheet.create({
   },
 
   label: {
-    marginBottom: 7,
-    color: COLORS.black,
-    fontFamily: 'Inter_500Medium',
+    marginBottom: 8,
+    color: COLORS.label,
+    fontFamily: 'Inter_600SemiBold',
     fontSize: 12.5,
   },
 
+  boxWrap: {
+    position: 'relative',
+  },
+
+  focusRing: {
+    position: 'absolute',
+    top: -4,
+    right: -4,
+    bottom: -4,
+    left: -4,
+    borderRadius: 16,
+    backgroundColor: COLORS.focusRing,
+  },
+
   box: {
-    height: 46,
-    paddingLeft: 14,
-    paddingRight: 13,
+    height: 50,
+    paddingHorizontal: 14,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 9,
+    gap: 10,
     borderWidth: 1,
     borderColor: COLORS.border,
-    borderRadius: 23,
-    backgroundColor: '#FFFFFF',
+    borderRadius: 12,
+    backgroundColor: COLORS.fill,
   },
 
   boxFocused: {
     borderWidth: 1.5,
     borderColor: COLORS.redButton,
+    backgroundColor: '#FFFFFF',
   },
 
   boxError: {
@@ -257,15 +284,15 @@ const styles = StyleSheet.create({
     height: '100%',
     color: COLORS.black,
     fontFamily: 'Inter_400Regular',
-    fontSize: 13.5,
+    fontSize: 14,
     ...(Platform.OS === 'web'
       ? ({ outlineStyle: 'none' } as object)
       : null),
   },
 
   error: {
-    marginTop: 5,
-    marginLeft: 14,
+    marginTop: 6,
+    marginLeft: 4,
     color: COLORS.redButton,
     fontFamily: 'Inter_500Medium',
     fontSize: 11.5,

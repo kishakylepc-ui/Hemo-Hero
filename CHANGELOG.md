@@ -10,6 +10,11 @@ Write each change under **Unreleased** as you make it. `node scripts/version.js 
 
 ## Unreleased
 
+- Mobile: new **Sign In** and **Sign Up** design. The screen is red with the logo, and the form sits on a white sheet that rises from the bottom.
+  - "Welcome back" and "Create your account" headings, and an iPhone-style Sign In / Sign Up switch.
+  - Outlined fields with a soft red ring while you type. Forgot Password, Reset Password and the Account & Security password fields use the same style.
+  - Sign Up has a five-step password strength bar and rule chips that turn green, and the whole form fits without scrolling.
+
 ## 1.2.0 - 2026-10-25
 
 - Mobile, Edit Profile: the **Account** section now holds the username instead of the read-only email. It says while you type whether a new username is available or taken, like Sign Up.
