@@ -12,11 +12,12 @@ import {
   View,
 } from 'react-native';
 
-import { MaterialIcons } from '@expo/vector-icons';
+import { Ionicons } from '@expo/vector-icons';
 
 import {
   COLORS,
   FONTS,
+  ICON_TILE,
   RADIUS,
 } from '../constants/theme';
 
@@ -50,7 +51,7 @@ export type AppModalVariant =
 
 type IconName =
   ComponentProps<
-    typeof MaterialIcons
+    typeof Ionicons
   >['name'];
 
 const VARIANTS: Record<
@@ -63,35 +64,35 @@ const VARIANTS: Record<
   }
 > = {
   info: {
-    icon: 'info-outline',
+    icon: 'information-circle',
     color: COLORS.blue,
     tint: COLORS.blueLight,
     button: COLORS.redButton,
   },
 
   success: {
-    icon: 'check-circle-outline',
+    icon: 'checkmark-circle',
     color: COLORS.green,
     tint: COLORS.greenLight,
     button: COLORS.green,
   },
 
   warning: {
-    icon: 'warning-amber',
+    icon: 'warning',
     color: COLORS.orange,
     tint: COLORS.orangeLight,
     button: COLORS.orange,
   },
 
   danger: {
-    icon: 'report-gmailerrorred',
+    icon: 'alert-circle',
     color: COLORS.red,
     tint: COLORS.pinkLight,
     button: COLORS.redDark,
   },
 
   error: {
-    icon: 'error-outline',
+    icon: 'close-circle',
     color: COLORS.red,
     tint: COLORS.pinkLight,
     button: COLORS.redButton,
@@ -168,9 +169,9 @@ export default function AppModal({
               },
             ]}
           >
-            <MaterialIcons
+            <Ionicons
               name={icon || palette.icon}
-              size={30}
+              size={ICON_TILE.lg.glyph}
               color={palette.color}
             />
           </View>
@@ -250,8 +251,10 @@ const styles = StyleSheet.create({
 
   card: {
     width: '100%',
-    maxWidth: 380,
-    padding: 24,
+    maxWidth: 340,
+    paddingTop: 28,
+    paddingHorizontal: 24,
+    paddingBottom: 20,
     alignItems: 'center',
     borderRadius: RADIUS.xl,
     backgroundColor: COLORS.card,
@@ -265,25 +268,26 @@ const styles = StyleSheet.create({
     elevation: 12,
   },
 
+  // iPhone-style tile: a tinted rounded square.
   iconCircle: {
-    width: 60,
-    height: 60,
-    borderRadius: 30,
+    width: ICON_TILE.lg.size,
+    height: ICON_TILE.lg.size,
+    borderRadius: ICON_TILE.lg.radius,
     alignItems: 'center',
     justifyContent: 'center',
   },
 
   title: {
-    marginTop: 14,
+    marginTop: 16,
     color: COLORS.black,
-    fontFamily: FONTS.heading,
+    fontFamily: FONTS.headingSemi,
     fontSize: 17,
     lineHeight: 24,
     textAlign: 'center',
   },
 
   message: {
-    marginTop: 7,
+    marginTop: 6,
     color: COLORS.muted,
     fontFamily: FONTS.body,
     fontSize: 13.5,
@@ -293,9 +297,9 @@ const styles = StyleSheet.create({
 
   actions: {
     width: '100%',
-    marginTop: 22,
+    marginTop: 24,
     flexDirection: 'row',
-    gap: 10,
+    gap: 8,
   },
 
   cancelButton: {
@@ -303,14 +307,12 @@ const styles = StyleSheet.create({
     minHeight: 48,
     alignItems: 'center',
     justifyContent: 'center',
-    borderWidth: 1,
-    borderColor: COLORS.border,
     borderRadius: RADIUS.md,
-    backgroundColor: COLORS.white,
+    backgroundColor: '#F2F2F4',
   },
 
   cancelText: {
-    color: COLORS.muted,
+    color: COLORS.black,
     fontFamily: FONTS.headingSemi,
     fontSize: 13.5,
   },

@@ -12,7 +12,7 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
-import { MaterialCommunityIcons, MaterialIcons } from '@expo/vector-icons';
+import { Ionicons, MaterialCommunityIcons, MaterialIcons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { router, useLocalSearchParams } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
@@ -962,7 +962,7 @@ export default function DonorHistoryScreen() {
                     style={styles.modalCloseButton}
                     onPress={() => setCalendarVisible(false)}
                   >
-                    <MaterialIcons name="close" size={20} color={COLORS.black} />
+                    <Ionicons name="close" size={18} color={COLORS.black} />
                   </TouchableOpacity>
                 </View>
 
@@ -973,7 +973,7 @@ export default function DonorHistoryScreen() {
                       style={styles.monthButton}
                       onPress={handlePreviousMonth}
                     >
-                      <MaterialIcons name="chevron-left" size={24} color={COLORS.redButton} />
+                      <Ionicons name="chevron-back" size={24} color={COLORS.redButton} />
                     </TouchableOpacity>
                   ) : (
                     <View style={styles.monthButtonSpacer} />
@@ -994,8 +994,8 @@ export default function DonorHistoryScreen() {
                           ? String(visibleYear)
                           : `${MONTH_NAMES[visibleMonth]} ${visibleYear}`}
                     </Text>
-                    <MaterialIcons
-                      name={calendarView === 'days' ? 'arrow-drop-down' : 'arrow-drop-up'}
+                    <Ionicons
+                      name={calendarView === 'days' ? 'chevron-down' : 'chevron-up'}
                       size={24}
                       color={COLORS.redButton}
                     />
@@ -1008,8 +1008,8 @@ export default function DonorHistoryScreen() {
                       disabled={!canGoNextMonth}
                       onPress={handleNextMonth}
                     >
-                      <MaterialIcons
-                        name="chevron-right"
+                      <Ionicons
+                        name="chevron-forward"
                         size={24}
                         color={canGoNextMonth ? COLORS.redButton : '#CFCFCF'}
                       />
@@ -1081,7 +1081,7 @@ export default function DonorHistoryScreen() {
                 )}
 
                 <View style={styles.calendarFooter}>
-                  <MaterialIcons name="info-outline" size={17} color={COLORS.redButton} />
+                  <Ionicons name="information-circle-outline" size={17} color={COLORS.redButton} />
                   <Text style={styles.calendarFooterText}>
                     Tap the month and year at the top to jump quickly. Future dates
                     cannot be selected.
@@ -1114,7 +1114,7 @@ export default function DonorHistoryScreen() {
                     style={styles.modalCloseButton}
                     onPress={() => setSelectorVisible(null)}
                   >
-                    <MaterialIcons name="close" size={20} color={COLORS.black} />
+                    <Ionicons name="close" size={18} color={COLORS.black} />
                   </TouchableOpacity>
                 </View>
 
@@ -1156,7 +1156,7 @@ export default function DonorHistoryScreen() {
                     style={styles.modalCloseButton}
                     onPress={() => setFacilityModalVisible(false)}
                   >
-                    <MaterialIcons name="close" size={20} color={COLORS.black} />
+                    <Ionicons name="close" size={18} color={COLORS.black} />
                   </TouchableOpacity>
                 </View>
 
@@ -1169,8 +1169,8 @@ export default function DonorHistoryScreen() {
                     ]}
                     onPress={loadNearbyFacilities}
                   >
-                    <MaterialIcons
-                      name="location-on"
+                    <Ionicons
+                      name="location-outline"
                       size={18}
                       color={facilityMode === 'nearby' ? COLORS.white : COLORS.redButton}
                     />
@@ -1192,8 +1192,8 @@ export default function DonorHistoryScreen() {
                     ]}
                     onPress={handleManualMode}
                   >
-                    <MaterialIcons
-                      name="edit"
+                    <Ionicons
+                      name="create-outline"
                       size={18}
                       color={facilityMode === 'manual' ? COLORS.white : COLORS.redButton}
                     />
@@ -1211,9 +1211,9 @@ export default function DonorHistoryScreen() {
                 {facilityMode === 'none' ? (
                   <View style={styles.facilityInitial}>
                     <View style={styles.facilityInitialIcon}>
-                      <MaterialIcons
-                        name="medical-services"
-                        size={31}
+                      <Ionicons
+                        name="medkit-outline"
+                        size={28}
                         color={COLORS.redButton}
                       />
                     </View>
@@ -1277,8 +1277,8 @@ export default function DonorHistoryScreen() {
 
                               {facility.address ? (
                                 <View style={styles.facilityAddressRow}>
-                                  <MaterialIcons
-                                    name="location-on"
+                                  <Ionicons
+                                    name="location-outline"
                                     size={12}
                                     color={COLORS.lightMuted}
                                   />
@@ -1294,10 +1294,10 @@ export default function DonorHistoryScreen() {
                             </View>
 
                             {facility.is_verified ? (
-                              <MaterialIcons name="verified" size={17} color={COLORS.green} />
+                              <Ionicons name="shield-checkmark" size={17} color={COLORS.green} />
                             ) : (
-                              <MaterialIcons
-                                name="chevron-right"
+                              <Ionicons
+                                name="chevron-forward"
                                 size={21}
                                 color={COLORS.lightMuted}
                               />
@@ -1307,7 +1307,7 @@ export default function DonorHistoryScreen() {
                       </ScrollView>
                     ) : (
                       <View style={styles.noFacilities}>
-                        <MaterialIcons name="location-off" size={30} color={COLORS.redButton} />
+                        <Ionicons name="location-outline" size={30} color={COLORS.redButton} />
                         <Text style={styles.noFacilitiesTitle}>No nearby facilities found</Text>
                         <TouchableOpacity
                           accessibilityRole="button"
@@ -1339,8 +1339,8 @@ export default function DonorHistoryScreen() {
                   <View style={styles.manualSection}>
                     <Text style={styles.manualLabel}>Facility Name</Text>
                     <View style={styles.manualInputContainer}>
-                      <MaterialIcons
-                        name="medical-services"
+                      <Ionicons
+                        name="medkit-outline"
                         size={19}
                         color={COLORS.lightMuted}
                       />
@@ -1508,25 +1508,25 @@ const styles = StyleSheet.create({
     lineHeight: 20, textAlign: 'center', flexShrink: 1,
   },
   modalBackdrop: {
-    flex: 1, paddingHorizontal: 20, alignItems: 'center',
-    justifyContent: 'center', backgroundColor: 'rgba(0,0,0,0.48)',
+    flex: 1, paddingHorizontal: 24, alignItems: 'center',
+    justifyContent: 'center', backgroundColor: 'rgba(0,0,0,0.45)',
   },
   modalHeader: {
     flexDirection: 'row', alignItems: 'flex-start',
-    justifyContent: 'space-between', marginBottom: 18,
+    justifyContent: 'space-between', marginBottom: 16,
   },
-  modalTitle: { color: COLORS.black, fontFamily: 'Poppins_600SemiBold', fontSize: 16 },
+  modalTitle: { color: COLORS.black, fontFamily: 'Poppins_600SemiBold', fontSize: 17, lineHeight: 24 },
   modalSubtitle: {
     marginTop: 2, color: COLORS.muted, fontFamily: 'Inter_400Regular',
     fontSize: 12, lineHeight: 18, flexShrink: 1,
   },
   modalCloseButton: {
-    width: 44, height: 44, borderRadius: 22, alignItems: 'center',
-    justifyContent: 'center', backgroundColor: '#F4F4F4',
+    width: 32, height: 32, borderRadius: 16, alignItems: 'center',
+    justifyContent: 'center', backgroundColor: '#F2F2F4',
   },
   calendarModal: {
-    width: '100%', maxWidth: 360, paddingHorizontal: 17,
-    paddingTop: 18, paddingBottom: 17, borderRadius: 22, backgroundColor: COLORS.white,
+    width: '100%', maxWidth: 360, paddingHorizontal: 20,
+    paddingTop: 24, paddingBottom: 20, borderRadius: 22, backgroundColor: COLORS.white,
   },
   monthNavigation: {
     flexDirection: 'row', alignItems: 'center',
@@ -1555,22 +1555,22 @@ const styles = StyleSheet.create({
   selectedDayText: { color: COLORS.white, fontFamily: 'Inter_600SemiBold' },
   futureDayText: { color: '#D5D5D5' },
   calendarFooter: {
-    marginTop: 11, padding: 10, flexDirection: 'row', alignItems: 'center',
-    gap: 7, borderRadius: 10, backgroundColor: COLORS.pink,
+    marginTop: 12, padding: 12, flexDirection: 'row', alignItems: 'center',
+    gap: 8, borderRadius: 12, backgroundColor: COLORS.pink,
   },
   calendarFooterText: {
     flex: 1, color: COLORS.muted, fontFamily: 'Inter_400Regular', fontSize: 12,
   },
   facilityModal: {
-    width: '100%', maxWidth: 370, maxHeight: '78%', paddingHorizontal: 17,
-    paddingTop: 18, paddingBottom: 17, borderRadius: 22, backgroundColor: COLORS.white,
+    width: '100%', maxWidth: 370, maxHeight: '78%', paddingHorizontal: 20,
+    paddingTop: 24, paddingBottom: 20, borderRadius: 22, backgroundColor: COLORS.white,
   },
   facilityHeaderText: { flex: 1, paddingRight: 10 },
-  facilityModeRow: { flexDirection: 'row', gap: 9, marginBottom: 16 },
+  facilityModeRow: { flexDirection: 'row', gap: 8, marginBottom: 16 },
   facilityModeButton: {
-    flex: 1, height: 43, borderWidth: 1, borderColor: '#E0B6B6', borderRadius: 11,
+    flex: 1, height: 44, borderWidth: 1, borderColor: '#E0B6B6', borderRadius: 12,
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
-    gap: 5, backgroundColor: COLORS.white,
+    gap: 6, backgroundColor: COLORS.white,
   },
   facilityModeButtonSelected: {
     borderColor: COLORS.redButton, backgroundColor: COLORS.redButton,
@@ -1583,8 +1583,8 @@ const styles = StyleSheet.create({
     minHeight: 220, paddingHorizontal: 20, alignItems: 'center', justifyContent: 'center',
   },
   facilityInitialIcon: {
-    width: 62, height: 62, borderRadius: 31, alignItems: 'center',
-    justifyContent: 'center', backgroundColor: COLORS.pink, marginBottom: 12,
+    width: 56, height: 56, borderRadius: 16, alignItems: 'center',
+    justifyContent: 'center', backgroundColor: COLORS.pink, marginBottom: 16,
   },
   facilityInitialTitle: {
     color: COLORS.black, fontFamily: 'Inter_600SemiBold', fontSize: 13, textAlign: 'center',
@@ -1604,7 +1604,7 @@ const styles = StyleSheet.create({
     borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: COLORS.border,
   },
   facilityItemIcon: {
-    width: 44, height: 44, marginRight: 10, borderRadius: 13,
+    width: 40, height: 40, marginRight: 12, borderRadius: 11,
     alignItems: 'center', justifyContent: 'center',
   },
   facilityItemContent: { flex: 1, paddingRight: 8 },
@@ -1631,12 +1631,12 @@ const styles = StyleSheet.create({
     marginTop: 8, color: COLORS.black, fontFamily: 'Inter_600SemiBold', fontSize: 12,
   },
   retryFacilityButton: {
-    marginTop: 12, paddingHorizontal: 17, paddingVertical: 9,
-    borderRadius: 9, backgroundColor: COLORS.redButton,
+    marginTop: 12, paddingHorizontal: 16, paddingVertical: 10,
+    borderRadius: 12, backgroundColor: COLORS.redButton,
   },
   retryFacilityText: { color: COLORS.white, fontFamily: 'Inter_600SemiBold', fontSize: 12 },
   facilityErrorCard: {
-    marginTop: 10, padding: 10, borderRadius: 10, backgroundColor: COLORS.pink,
+    marginTop: 12, padding: 12, borderRadius: 12, backgroundColor: COLORS.pink,
   },
   facilityErrorText: {
     color: COLORS.muted, fontFamily: 'Inter_400Regular',
@@ -1653,7 +1653,7 @@ const styles = StyleSheet.create({
   manualInputContainer: {
     minHeight: 50, paddingHorizontal: 12, flexDirection: 'row', alignItems: 'center',
     gap: 8, borderWidth: 1, borderColor: COLORS.border,
-    borderRadius: 11, backgroundColor: COLORS.white,
+    borderRadius: 12, backgroundColor: COLORS.white,
   },
   manualInput: {
     flex: 1, color: COLORS.black, fontFamily: 'Inter_400Regular', fontSize: 12,
@@ -1662,7 +1662,7 @@ const styles = StyleSheet.create({
     marginTop: 5, color: COLORS.lightMuted, fontFamily: 'Inter_400Regular', fontSize: 12,
   },
   manualDoneButton: {
-    height: 45, marginTop: 20, borderRadius: 10,
+    height: 48, marginTop: 20, borderRadius: 12,
     alignItems: 'center', justifyContent: 'center', backgroundColor: COLORS.redButton,
   },
   manualDoneButtonDisabled: { opacity: 0.45 },

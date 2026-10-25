@@ -8,9 +8,7 @@ import {
   View,
 } from 'react-native';
 
-import {
-  MaterialIcons,
-} from '@expo/vector-icons';
+import { Ionicons } from '@expo/vector-icons';
 
 import {
   useSafeAreaInsets,
@@ -182,7 +180,7 @@ export default function PhotoSourceSheet({
           </Text>
 
           <OptionRow
-            icon="photo-camera"
+            icon="camera-outline"
             label="Take Photo"
             onPress={() =>
               choose('camera')
@@ -190,7 +188,7 @@ export default function PhotoSourceSheet({
           />
 
           <OptionRow
-            icon="photo-library"
+            icon="images-outline"
             label="Choose from Library"
             onPress={() =>
               choose('library')
@@ -199,7 +197,7 @@ export default function PhotoSourceSheet({
 
           {hasPhoto && onRemove ? (
             <OptionRow
-              icon="delete-outline"
+              icon="trash-outline"
               label="Remove Photo"
               danger
               onPress={remove}
@@ -227,7 +225,7 @@ function OptionRow({
   danger,
   onPress,
 }: {
-  icon: keyof typeof MaterialIcons.glyphMap;
+  icon: keyof typeof Ionicons.glyphMap;
   label: string;
   danger?: boolean;
   onPress: () => void;
@@ -245,7 +243,7 @@ function OptionRow({
           danger && styles.optionIconDanger,
         ]}
       >
-        <MaterialIcons
+        <Ionicons
           name={icon}
           size={21}
           color={
@@ -287,11 +285,11 @@ const styles = StyleSheet.create({
   },
 
   handle: {
-    width: 40,
-    height: 4,
-    marginBottom: 14,
+    width: 36,
+    height: 5,
+    marginBottom: 16,
     alignSelf: 'center',
-    borderRadius: 2,
+    borderRadius: 3,
     backgroundColor: COLORS.cardBorder,
   },
 
@@ -312,9 +310,9 @@ const styles = StyleSheet.create({
   },
 
   optionIcon: {
-    width: 38,
-    height: 38,
-    borderRadius: 19,
+    width: 40,
+    height: 40,
+    borderRadius: 11,
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: COLORS.blueLight,
@@ -336,12 +334,14 @@ const styles = StyleSheet.create({
 
   cancelButton: {
     height: 48,
-    marginTop: 12,
+    marginTop: 16,
     alignItems: 'center',
     justifyContent: 'center',
-    borderRadius: 13,
-    borderWidth: 1,
+    borderRadius: 12,
+    borderWidth: 0,
     borderColor: COLORS.cardBorder,
+
+    backgroundColor: '#F2F2F4',
   },
 
   cancelText: {

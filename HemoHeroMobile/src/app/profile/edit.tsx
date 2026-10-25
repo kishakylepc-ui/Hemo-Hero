@@ -13,7 +13,8 @@ import {
   View,
 } from 'react-native';
 
-import { MaterialIcons } from '@expo/vector-icons';
+import { Ionicons, MaterialIcons } from '@expo/vector-icons';
+import { ICON_TILE } from '../../constants/theme';
 import PhotoSourceSheet from '../../components/PhotoSourceSheet';
 import BloodTypeProofField from '../../components/BloodTypeProofField';
 import type { PickedImage } from '../../lib/imageUpload';
@@ -25,6 +26,7 @@ import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 import { shiftedDown, withStatusBar } from '../../lib/fullScreen';
 
 import {
+  checkUsernameAvailable,
   deleteProfilePhoto,
   getCurrentUser,
   saveBloodTypeWithProof,
@@ -291,6 +293,15 @@ export default function EditProfileScreen() {
     setUsername,
   ] =
     useState('');
+
+  // Checked with the server while typing, like Sign Up.
+  const [
+    usernameStatus,
+    setUsernameStatus,
+  ] =
+    useState<
+      'idle' | 'checking' | 'available' | 'taken'
+    >('idle');
 
   const [
     firstName,
@@ -639,13 +650,101 @@ export default function EditProfileScreen() {
   );
 
   // ==========================================================
-  // DISPLAY DATA
+  // USERNAME AVAILABILITY (half a second after typing stops)
   // ==========================================================
 
-  const email =
-    originalProfile
-      ?.email ||
-    '';
+  const currentUsername =
+    originalProfile?.username || '';
+
+  const cleanedUsername =
+    cleanUsername(username);
+
+  useEffect(() => {
+    if (
+      !cleanedUsername ||
+      cleanedUsername === currentUsername ||
+      getUsernameProblem(cleanedUsername)
+    ) {
+      setUsernameStatus('idle');
+
+      return;
+    }
+
+    setUsernameStatus('checking');
+
+    let active = true;
+
+    const timer = setTimeout(async () => {
+      try {
+        const result =
+          await checkUsernameAvailable(
+            cleanedUsername
+          );
+
+        if (active) {
+          setUsernameStatus(
+            result.available
+              ? 'available'
+              : 'taken'
+          );
+        }
+      } catch {
+        // The server checks again on Save.
+        if (active) {
+          setUsernameStatus('idle');
+        }
+      }
+    }, 500);
+
+    return () => {
+      active = false;
+
+      clearTimeout(timer);
+    };
+  }, [cleanedUsername, currentUsername]);
+
+  // The line under the username field, and its colour.
+  const usernameProblemNow =
+    cleanedUsername &&
+    cleanedUsername !== currentUsername
+      ? getUsernameProblem(cleanedUsername)
+      : null;
+
+  const usernameHint:
+    | {
+        text: string;
+        tone: 'muted' | 'good' | 'bad';
+      } =
+    cleanedUsername &&
+    cleanedUsername === currentUsername
+      ? {
+          text: 'Your current username.',
+          tone: 'muted',
+        }
+      : usernameProblemNow
+        ? {
+            text: usernameProblemNow,
+            tone: 'bad',
+          }
+        : usernameStatus === 'checking'
+          ? {
+              text: 'Checking...',
+              tone: 'muted',
+            }
+          : usernameStatus === 'available'
+            ? {
+                text: 'Available.',
+                tone: 'good',
+              }
+            : usernameStatus === 'taken'
+              ? {
+                  text: 'This username is taken.',
+                  tone: 'bad',
+                }
+              : {
+                  text: '3 to 20 letters, numbers, periods or underscores.',
+                  tone: 'muted',
+                };
 
   // ==========================================================
   // ADDRESS CHANGED
@@ -1732,6 +1831,22 @@ export default function EditProfileScreen() {
       return;
     }
 
+    if (
+      usernameChanged &&
+      usernameStatus === 'taken'
+    ) {
+      setErrorMessage(
+        'This username is taken.'
+      );
+
+      showMessage(
+        'Check Username',
+        'This username is taken. Please choose another one.'
+      );
+
+      return;
+    }
+
     const bloodTypeChanged =
       !isApprovedDonor &&
       bloodType !==
@@ -2141,13 +2256,13 @@ export default function EditProfileScreen() {
               ) : null}
 
               {/* ==================================================
-                  ACCOUNT
+                  ACCOUNT (username)
               ================================================== */}
 
               <SectionHeader
-                icon="lock-outline"
+                icon="alternate-email"
                 title="Account"
-                subtitle="Your account email cannot be changed here."
+                subtitle="Sign in with your username or your email."
               />
 
               <View
@@ -2155,52 +2270,28 @@ export default function EditProfileScreen() {
                   styles.card
                 }
               >
-                <View
-                  style={
-                    styles.fieldContainerLast
+                <Field
+                  label="Username"
+                  value={
+                    username
                   }
-                >
-                  <Text
-                    style={
-                      styles.fieldLabel
-                    }
-                  >
-                    Email Address
-                  </Text>
-
-                  <View
-                    style={
-                      styles.readOnlyInput
-                    }
-                  >
-                    <MaterialIcons
-                      name="email"
-                      size={19}
-                      color={
-                        COLORS.redButton
-                      }
-                    />
-
-                    <Text
-                      numberOfLines={1}
-                      style={
-                        styles.readOnlyText
-                      }
-                    >
-                      {
-                        email
-                      }
-                    </Text>
-
-                    <MaterialIcons
-                      name="lock"
-                      size={16}
-                      color={
-                        COLORS.lightMuted
-                      }
-                    />
-                  </View>
-                </View>
+                  placeholder="Choose a username"
+                  autoCapitalize="none"
+                  hint={
+                    usernameHint.text
+                  }
+                  hintTone={
+                    usernameHint.tone
+                  }
+                  editable={
+                    !saving &&
+                    !photoBusy
+                  }
+                  onChangeText={
+                    setUsername
+                  }
+                  last
+                />
               </View>
 
               {/* ==================================================
@@ -2295,23 +2386,6 @@ export default function EditProfileScreen() {
                   styles.card
                 }
               >
-                <Field
-                  label="Username"
-                  value={
-                    username
-                  }
-                  placeholder="Choose a username"
-                  autoCapitalize="none"
-                  hint="Sign in with your username or email. 3 to 20 letters, numbers, periods or underscores."
-                  editable={
-                    !saving &&
-                    !photoBusy
-                  }
-                  onChangeText={
-                    setUsername
-                  }
-                />
-
                 <Field
                   label="Phone Number"
                   value={
@@ -3043,9 +3117,9 @@ export default function EditProfileScreen() {
                   closeBirthdayPicker
                 }
               >
-                <MaterialIcons
+                <Ionicons
                   name="close"
-                  size={20}
+                  size={17}
                   color={
                     COLORS.black
                   }
@@ -3073,8 +3147,8 @@ export default function EditProfileScreen() {
                   goPreviousMonth
                 }
               >
-                <MaterialIcons
-                  name="chevron-left"
+                <Ionicons
+                  name="chevron-back"
                   size={22}
                   color={
                     COLORS.red
@@ -3123,11 +3197,11 @@ export default function EditProfileScreen() {
                       .getFullYear()}
                   </Text>
 
-                  <MaterialIcons
+                  <Ionicons
                     name={
                       showYearPicker
-                        ? 'keyboard-arrow-up'
-                        : 'keyboard-arrow-down'
+                        ? 'chevron-up'
+                        : 'chevron-down'
                     }
                     size={17}
                     color={
@@ -3154,8 +3228,8 @@ export default function EditProfileScreen() {
                   goNextMonth
                 }
               >
-                <MaterialIcons
-                  name="chevron-right"
+                <Ionicons
+                  name="chevron-forward"
                   size={22}
                   color={
                     canGoNextMonth()
@@ -3237,8 +3311,8 @@ export default function EditProfileScreen() {
                           </Text>
 
                           {selectedYear ? (
-                            <MaterialIcons
-                              name="check"
+                            <Ionicons
+                              name="checkmark"
                               size={17}
                               color={
                                 COLORS.white
@@ -3397,8 +3471,8 @@ export default function EditProfileScreen() {
                 styles.calendarSelectedInfo
               }
             >
-              <MaterialIcons
-                name="event"
+              <Ionicons
+                name="calendar-outline"
                 size={17}
                 color={
                   COLORS.redButton
@@ -3508,24 +3582,26 @@ export default function EditProfileScreen() {
                   styles.actionPopupIconDanger,
               ]}
             >
-              <MaterialIcons
+              <Ionicons
                 name={
                   actionPopup.variant ===
                   'success'
-                    ? 'check-circle-outline'
+                    ? 'checkmark-circle'
                     : actionPopup.variant ===
                         'warning'
-                      ? 'warning-amber'
+                      ? 'warning'
                       : (
                             actionPopup.variant ===
                               'danger' ||
                             actionPopup.variant ===
                               'error'
                           )
-                        ? 'error-outline'
-                        : 'info-outline'
+                        ? 'close-circle'
+                        : 'information-circle'
                 }
-                size={31}
+                size={
+            ICON_TILE.lg.glyph
+          }
                 color={
                   actionPopup.variant ===
                   'success'
@@ -3756,6 +3832,12 @@ type FieldProps = {
   // Under the input (e.g. the username rule).
   hint?: string;
 
+  // Green for "available", red for a problem.
+  hintTone?:
+    | 'muted'
+    | 'good'
+    | 'bad';
+
   last?:
     boolean;
 };
@@ -3769,6 +3851,7 @@ function Field({
   keyboardType = 'default',
   autoCapitalize,
   hint,
+  hintTone = 'muted',
   last = false,
 }: FieldProps) {
   return (
@@ -3820,9 +3903,15 @@ function Field({
 
       {hint ? (
         <Text
-          style={
-            styles.fieldHint
-          }
+          style={[
+            styles.fieldHint,
+
+            hintTone === 'good' &&
+              styles.fieldHintGood,
+
+            hintTone === 'bad' &&
+              styles.fieldHintBad,
+          ]}
         >
           {hint}
         </Text>
@@ -4341,6 +4430,14 @@ const styles =
       fontSize: 11.5,
     },
 
+    fieldHintGood: {
+      color: COLORS.green,
+    },
+
+    fieldHintBad: {
+      color: COLORS.redButton,
+    },
+
     input: {
       height:
         44,
@@ -4456,53 +4553,6 @@ const styles =
     birthdayPlaceholder: {
       color:
         COLORS.lightMuted,
-    },
-
-    // ========================================================
-    // READ ONLY
-    // ========================================================
-
-    readOnlyInput: {
-      height:
-        45,
-
-      paddingHorizontal:
-        13,
-
-      flexDirection:
-        'row',
-
-      alignItems:
-        'center',
-
-      gap:
-        9,
-
-      borderWidth:
-        1,
-
-      borderColor:
-        COLORS.border,
-
-      borderRadius:
-        11,
-
-      backgroundColor:
-        COLORS.graySoft,
-    },
-
-    readOnlyText: {
-      flex:
-        1,
-
-      color:
-        COLORS.muted,
-
-      fontFamily:
-        'Inter_500Medium',
-
-      fontSize:
-        13,
     },
 
     // ========================================================
@@ -5161,8 +5211,7 @@ const styles =
       justifyContent:
         'center',
 
-      paddingHorizontal:
-        16,
+      paddingHorizontal: 24,
     },
 
     calendarBackdrop: {
@@ -5179,14 +5228,11 @@ const styles =
       maxWidth:
         380,
 
-      paddingHorizontal:
-        18,
+      paddingHorizontal: 20,
 
-      paddingTop:
-        18,
+      paddingTop: 24,
 
-      paddingBottom:
-        20,
+      paddingBottom: 20,
 
       borderRadius:
         22,
@@ -5229,24 +5275,21 @@ const styles =
       justifyContent:
         'space-between',
 
-      marginBottom:
-        15,
+      marginBottom: 16,
     },
 
     calendarTitle: {
       color:
         COLORS.black,
 
-      fontFamily:
-        'Poppins_700Bold',
+      fontFamily: 'Poppins_600SemiBold',
 
       fontSize:
         17,
     },
 
     calendarSubtitle: {
-      marginTop:
-        1,
+      marginTop: 2,
 
       color:
         COLORS.muted,
@@ -5259,14 +5302,11 @@ const styles =
     },
 
     calendarClose: {
-      width:
-        38,
+      width: 30,
 
-      height:
-        38,
+      height: 30,
 
-      borderRadius:
-        19,
+      borderRadius: 15,
 
       alignItems:
         'center',
@@ -5274,8 +5314,7 @@ const styles =
       justifyContent:
         'center',
 
-      backgroundColor:
-        '#F5F5F6',
+      backgroundColor: '#F2F2F4',
     },
 
     // ========================================================
@@ -5306,8 +5345,7 @@ const styles =
       height:
         40,
 
-      borderRadius:
-        14,
+      borderRadius: 12,
 
       alignItems:
         'center',
@@ -5362,8 +5400,7 @@ const styles =
       height:
         34,
 
-      paddingHorizontal:
-        9,
+      paddingHorizontal: 10,
 
       flexDirection:
         'row',
@@ -5374,8 +5411,7 @@ const styles =
       justifyContent:
         'center',
 
-      gap:
-        2,
+      gap: 4,
 
       borderWidth:
         1,
@@ -5383,8 +5419,7 @@ const styles =
       borderColor:
         '#E7C5C7',
 
-      borderRadius:
-        10,
+      borderRadius: 12,
 
       backgroundColor:
         COLORS.pinkSoft,
@@ -5420,8 +5455,7 @@ const styles =
       marginBottom:
         12,
 
-      padding:
-        10,
+      padding: 12,
 
       borderWidth:
         1,
@@ -5429,16 +5463,14 @@ const styles =
       borderColor:
         COLORS.border,
 
-      borderRadius:
-        14,
+      borderRadius: 12,
 
       backgroundColor:
         '#FCFCFD',
     },
 
     calendarYearPickerTitle: {
-      marginBottom:
-        7,
+      marginBottom: 8,
 
       color:
         COLORS.muted,
@@ -5462,16 +5494,14 @@ const styles =
       paddingBottom:
         2,
 
-      gap:
-        5,
+      gap: 6,
     },
 
     calendarYearOption: {
       minHeight:
         38,
 
-      paddingHorizontal:
-        13,
+      paddingHorizontal: 12,
 
       flexDirection:
         'row',
@@ -5621,14 +5651,11 @@ const styles =
     // ========================================================
 
     calendarSelectedInfo: {
-      minHeight:
-        40,
+      minHeight: 44,
 
-      marginTop:
-        8,
+      marginTop: 12,
 
-      paddingHorizontal:
-        11,
+      paddingHorizontal: 12,
 
       flexDirection:
         'row',
@@ -5636,16 +5663,14 @@ const styles =
       alignItems:
         'center',
 
-      borderRadius:
-        11,
+      borderRadius: 12,
 
       backgroundColor:
         COLORS.pinkSoft,
     },
 
     calendarSelectedLabel: {
-      marginLeft:
-        7,
+      marginLeft: 8,
 
       color:
         COLORS.muted,
@@ -5676,14 +5701,11 @@ const styles =
     // ========================================================
 
     confirmDateButton: {
-      height:
-        47,
+      height: 48,
 
-      marginTop:
-        14,
+      marginTop: 16,
 
-      borderRadius:
-        11,
+      borderRadius: 12,
 
       alignItems:
         'center',
@@ -5731,17 +5753,13 @@ const styles =
       width:
         '100%',
 
-      maxWidth:
-        360,
+      maxWidth: 340,
 
-      paddingHorizontal:
-        20,
+      paddingHorizontal: 24,
 
-      paddingTop:
-        22,
+      paddingTop: 28,
 
-      paddingBottom:
-        18,
+      paddingBottom: 20,
 
       borderRadius:
         22,
@@ -5771,20 +5789,16 @@ const styles =
     },
 
     actionPopupIcon: {
-      width:
-        56,
+      width: ICON_TILE.lg.size,
 
-      height:
-        56,
+      height: ICON_TILE.lg.size,
 
       alignSelf:
         'center',
 
-      marginBottom:
-        13,
+      marginBottom: 16,
 
-      borderRadius:
-        28,
+      borderRadius: ICON_TILE.lg.radius,
 
       alignItems:
         'center',
@@ -5818,19 +5832,16 @@ const styles =
       fontFamily:
         'Poppins_600SemiBold',
 
-      fontSize:
-        17,
+      fontSize: 17,
 
-      lineHeight:
-        22,
+      lineHeight: 24,
 
       textAlign:
         'center',
     },
 
     actionPopupMessage: {
-      marginTop:
-        8,
+      marginTop: 6,
 
       color:
         COLORS.muted,
@@ -5849,14 +5860,12 @@ const styles =
     },
 
     actionPopupActions: {
-      marginTop:
-        19,
+      marginTop: 24,
 
       flexDirection:
         'row',
 
-      gap:
-        9,
+      gap: 8,
     },
 
     actionPopupActionsSingle: {
@@ -5868,17 +5877,14 @@ const styles =
       flex:
         1,
 
-      height:
-        45,
+      height: 48,
 
-      borderWidth:
-        1,
+      borderWidth: 0,
 
       borderColor:
         '#E5CCCC',
 
-      borderRadius:
-        10,
+      borderRadius: 12,
 
       alignItems:
         'center',
@@ -5886,8 +5892,7 @@ const styles =
       justifyContent:
         'center',
 
-      backgroundColor:
-        COLORS.white,
+      backgroundColor: '#F2F2F4',
     },
 
     actionPopupSecondaryText: {
@@ -5908,11 +5913,9 @@ const styles =
       minWidth:
         128,
 
-      height:
-        45,
+      height: 48,
 
-      borderRadius:
-        10,
+      borderRadius: 12,
 
       alignItems:
         'center',

@@ -17,7 +17,7 @@ import {
   View,
 } from 'react-native';
 
-import { MaterialIcons } from '@expo/vector-icons';
+import { Ionicons } from '@expo/vector-icons';
 
 import { COLORS } from '../constants/theme';
 
@@ -255,11 +255,11 @@ export default function DonationFeedbackModal({
                 styles.iconDispute,
             ]}
           >
-            <MaterialIcons
+            <Ionicons
               name={
                 isDispute
-                  ? 'report-gmailerrorred'
-                  : 'rate-review'
+                  ? 'alert-circle'
+                  : 'star-outline'
               }
               size={29}
               color={
@@ -317,11 +317,11 @@ export default function DonationFeedbackModal({
                             ],
                           }}
                         >
-                          <MaterialIcons
+                          <Ionicons
                             name={
                               filled
                                 ? 'star'
-                                : 'star-border'
+                                : 'star-outline'
                             }
                             size={38}
                             color={
@@ -366,10 +366,10 @@ export default function DonationFeedbackModal({
                             styles.quickNoteActive,
                         ]}
                       >
-                        <MaterialIcons
+                        <Ionicons
                           name={
                             active
-                              ? 'check'
+                              ? 'checkmark'
                               : 'add'
                           }
                           size={13}
@@ -431,8 +431,8 @@ export default function DonationFeedbackModal({
               offset={4}
               style={styles.error}
             >
-              <MaterialIcons
-                name="error-outline"
+              <Ionicons
+                name="alert-circle-outline"
                 size={16}
                 color={COLORS.redButton}
               />
@@ -504,10 +504,10 @@ const styles = StyleSheet.create({
 
   card: {
     width: '100%',
-    maxWidth: 380,
-    paddingHorizontal: 20,
-    paddingTop: 22,
-    paddingBottom: 18,
+    maxWidth: 340,
+    paddingHorizontal: 24,
+    paddingTop: 28,
+    paddingBottom: 20,
     borderRadius: 22,
     backgroundColor: COLORS.white,
     shadowColor: '#000000',
@@ -523,11 +523,11 @@ const styles = StyleSheet.create({
   icon: {
     width: 56,
     height: 56,
-    borderRadius: 28,
+    borderRadius: 16,
     alignSelf: 'center',
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 13,
+    marginBottom: 16,
     backgroundColor: COLORS.orangeLight,
   },
 
@@ -575,12 +575,12 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     flexWrap: 'wrap',
     justifyContent: 'center',
-    gap: 7,
+    gap: 8,
   },
 
   quickNote: {
-    paddingHorizontal: 10,
-    paddingVertical: 7,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
@@ -608,7 +608,7 @@ const styles = StyleSheet.create({
   input: {
     minHeight: 80,
     marginTop: 14,
-    padding: 11,
+    padding: 12,
     borderRadius: 12,
     borderWidth: 1.5,
     borderColor: COLORS.border,
@@ -632,13 +632,13 @@ const styles = StyleSheet.create({
   },
 
   error: {
-    marginTop: 10,
-    paddingHorizontal: 10,
-    paddingVertical: 9,
+    marginTop: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
     flexDirection: 'row',
     alignItems: 'flex-start',
-    gap: 7,
-    borderRadius: 10,
+    gap: 8,
+    borderRadius: 12,
     backgroundColor: COLORS.pinkLight,
   },
 
@@ -651,20 +651,20 @@ const styles = StyleSheet.create({
   },
 
   actions: {
-    marginTop: 16,
+    marginTop: 24,
     flexDirection: 'row',
-    gap: 9,
+    gap: 8,
   },
 
   secondaryButton: {
     flex: 1,
-    height: 46,
+    height: 48,
     alignItems: 'center',
     justifyContent: 'center',
-    borderRadius: 11,
-    borderWidth: 1,
+    borderRadius: 12,
+    borderWidth: 0,
     borderColor: '#E7A6A6',
-    backgroundColor: COLORS.white,
+    backgroundColor: '#F2F2F4',
   },
 
   secondaryText: {
@@ -675,10 +675,10 @@ const styles = StyleSheet.create({
 
   primaryButton: {
     flex: 1,
-    height: 46,
+    height: 48,
     alignItems: 'center',
     justifyContent: 'center',
-    borderRadius: 11,
+    borderRadius: 12,
     backgroundColor: COLORS.green,
   },
 

@@ -21,8 +21,12 @@ import {
 } from 'react-native';
 
 import {
-  MaterialIcons,
+  Ionicons,
 } from '@expo/vector-icons';
+
+import {
+  ICON_TILE,
+} from '../constants/theme';
 
 import {
   LinearGradient,
@@ -1645,13 +1649,13 @@ function showMessage(
     ) || null;
 
   function getActiveRequestStatus(): {
-    icon: keyof typeof MaterialIcons.glyphMap;
+    icon: keyof typeof Ionicons.glyphMap;
     tone: 'green' | 'orange' | 'muted';
     text: string;
   } {
     if (activeRequestFlagged) {
       return {
-        icon: 'report-problem',
+        icon: 'alert-circle-outline',
         tone: 'orange',
         text: 'Under review · hidden from donors for now',
       };
@@ -1659,7 +1663,7 @@ function showMessage(
 
     if (activeDonation) {
       return {
-        icon: 'task-alt',
+        icon: 'checkmark-done-outline',
         tone: 'green',
         text:
           activeDonation.status ===
@@ -1678,12 +1682,12 @@ function showMessage(
       return activeTrip.trip.status ===
         'arrived'
         ? {
-            icon: 'where-to-vote',
+            icon: 'location-outline',
             tone: 'green',
             text: `${personName(activeTrip)} has arrived at the facility`,
           }
         : {
-            icon: 'directions-car',
+            icon: 'car-outline',
             tone: 'green',
             text: `${personName(activeTrip)} is on the way${eta ? ` · ${eta} away` : ''}`,
           };
@@ -1691,7 +1695,7 @@ function showMessage(
 
     if (activeScheduled?.schedule) {
       return {
-        icon: 'event',
+        icon: 'calendar-outline',
         tone: 'green',
         text: `Meet ${personName(activeScheduled)} · ${formatMeeting(activeScheduled.schedule.scheduled_at)}`,
       };
@@ -1699,7 +1703,7 @@ function showMessage(
 
     if (activeAccepted.length > 0) {
       return {
-        icon: 'chat-bubble-outline',
+        icon: 'chatbubble-outline',
         tone: 'green',
         text:
           activeAccepted.length === 1
@@ -1712,7 +1716,7 @@ function showMessage(
       activeRequestResponseCounts.accepted > 0
     ) {
       return {
-        icon: 'chat-bubble-outline',
+        icon: 'chatbubble-outline',
         tone: 'green',
         text: 'Donor accepted · set a meeting time',
       };
@@ -1722,7 +1726,7 @@ function showMessage(
       activeRequestResponseCounts.pending > 0
     ) {
       return {
-        icon: 'schedule',
+        icon: 'time-outline',
         tone: 'orange',
         text:
           activeRequestResponseCounts.pending === 1
@@ -1733,7 +1737,7 @@ function showMessage(
 
     if (activeNoShows.length > 0) {
       return {
-        icon: 'person-off',
+        icon: 'person-remove-outline',
         tone: 'orange',
         text: `${personName(activeNoShows[0])} didn't show up · invite another donor`,
       };
@@ -2067,9 +2071,9 @@ function showMessage(
                         );
                       }}
                     >
-                      <MaterialIcons
-                        name="water-drop"
-                        size={12}
+                      <Ionicons
+                        name="water"
+                        size={13}
                         color={
                           COLORS.white
                         }
@@ -2094,8 +2098,8 @@ function showMessage(
                       styles.locationPill
                     }
                   >
-                    <MaterialIcons
-                      name="place"
+                    <Ionicons
+                      name="location"
                       size={13}
                       color={
                         COLORS.white
@@ -2130,12 +2134,12 @@ function showMessage(
                     handleNotifications
                   }
                 >
-                  <MaterialIcons
+                  <Ionicons
                     name={
                       unreadNotifications >
                       0
                         ? 'notifications'
-                        : 'notifications-none'
+                        : 'notifications-outline'
                     }
                     size={25}
                     color={
@@ -2186,7 +2190,7 @@ function showMessage(
                       resizeMode="cover"
                     />
                   ) : (
-                    <MaterialIcons
+                    <Ionicons
                       name="person"
                       size={29}
                       color={
@@ -2240,11 +2244,11 @@ function showMessage(
                   }
                 />
 
-                <MaterialIcons
+                <Ionicons
                   name={
                     activeRequest
-                      ? 'monitor-heart'
-                      : 'emergency'
+                      ? 'pulse'
+                      : 'medical'
                   }
                   size={28}
                   color={
@@ -2301,10 +2305,10 @@ function showMessage(
                 handleCreateRequest
               }
             >
-              <MaterialIcons
+              <Ionicons
                 name={
                   activeRequest
-                    ? 'visibility'
+                    ? 'eye-outline'
                     : 'add-circle'
                 }
                 size={
@@ -2330,7 +2334,7 @@ function showMessage(
                   : 'Create Blood Request'}
               </Text>
 
-              <MaterialIcons
+              <Ionicons
                 name="arrow-forward"
                 size={19}
                 color={
@@ -2409,7 +2413,7 @@ function showMessage(
                       styles.invitationNoticeIcon
                     }
                   >
-                    <MaterialIcons
+                    <Ionicons
                       name="mail-outline"
                       size={20}
                       color={
@@ -2443,8 +2447,8 @@ function showMessage(
                     </Text>
                   </View>
 
-                  <MaterialIcons
-                    name="chevron-right"
+                  <Ionicons
+                    name="chevron-forward"
                     size={22}
                     color={
                       COLORS.redButton
@@ -2469,11 +2473,11 @@ function showMessage(
                   styles.sectionTitleRow
                 }
               >
-                <MaterialIcons
-                  name="assignment"
-                  size={21}
+                <Ionicons
+                  name="clipboard-outline"
+                  size={20}
                   color={
-                    COLORS.black
+                    COLORS.redButton
                   }
                 />
 
@@ -2517,8 +2521,8 @@ function showMessage(
                     styles.emptyRequestIcon
                   }
                 >
-                  <MaterialIcons
-                    name="hourglass-top"
+                  <Ionicons
+                    name="hourglass-outline"
                     size={25}
                     color={
                       COLORS.redButton
@@ -2612,8 +2616,8 @@ function showMessage(
                       styles.bloodBadge
                     }
                   >
-                    <MaterialIcons
-                      name="bloodtype"
+                    <Ionicons
+                      name="water"
                       size={18}
                       color={
                         COLORS.white
@@ -2641,8 +2645,8 @@ function showMessage(
                         styles.requestInfoRow
                       }
                     >
-                      <MaterialIcons
-                        name="local-hospital"
+                      <Ionicons
+                        name="medkit-outline"
                         size={15}
                         color={
                           COLORS.muted
@@ -2668,8 +2672,8 @@ function showMessage(
                         styles.requestInfoRow
                       }
                     >
-                      <MaterialIcons
-                        name="water-drop"
+                      <Ionicons
+                        name="water"
                         size={15}
                         color={
                           COLORS.muted
@@ -2696,12 +2700,12 @@ function showMessage(
                         styles.requestInfoRow
                       }
                     >
-                      <MaterialIcons
+                      <Ionicons
                         name={
                           activeRequest.urgency ===
                           'urgent'
-                            ? 'bolt'
-                            : 'schedule'
+                            ? 'flash'
+                            : 'time-outline'
                         }
                         size={15}
                         color={
@@ -2800,7 +2804,7 @@ function showMessage(
                       styles.progressStatusNoteWarning,
                   ]}
                 >
-                  <MaterialIcons
+                  <Ionicons
                     name={activeStatus.icon}
                     size={15}
                     color={
@@ -2861,8 +2865,8 @@ function showMessage(
                     View My Request
                   </Text>
 
-                  <MaterialIcons
-                    name="chevron-right"
+                  <Ionicons
+                    name="chevron-forward"
                     size={18}
                     color={
                       COLORS.white
@@ -2881,8 +2885,8 @@ function showMessage(
                     styles.emptyRequestIcon
                   }
                 >
-                  <MaterialIcons
-                    name="bloodtype"
+                  <Ionicons
+                    name="water"
                     size={26}
                     color={
                       COLORS.redButton
@@ -2923,8 +2927,8 @@ function showMessage(
                   loadDashboard
                 }
               >
-                <MaterialIcons
-                  name="error-outline"
+                <Ionicons
+                  name="alert-circle-outline"
                   size={18}
                   color={
                     COLORS.redButton
@@ -2974,11 +2978,11 @@ function showMessage(
                       styles.sectionTitleRow
                     }
                   >
-                    <MaterialIcons
-                      name="handshake"
+                    <Ionicons
+                      name="people-outline"
                       size={20}
                       color={
-                        COLORS.green
+                        COLORS.redButton
                       }
                     />
 
@@ -3159,8 +3163,8 @@ function showMessage(
                                 styles.respondedInfoItem
                               }
                             >
-                              <MaterialIcons
-                                name="schedule"
+                              <Ionicons
+                                name="time-outline"
                                 size={15}
                                 color={
                                   COLORS.redButton
@@ -3191,8 +3195,8 @@ function showMessage(
                                 styles.respondedInfoItem
                               }
                             >
-                              <MaterialIcons
-                                name="place"
+                              <Ionicons
+                                name="location-outline"
                                 size={15}
                                 color={
                                   COLORS.redButton
@@ -3219,8 +3223,8 @@ function showMessage(
                                 styles.acceptedRespondedNotice
                               }
                             >
-                              <MaterialIcons
-                                name="check-circle"
+                              <Ionicons
+                                name="checkmark-circle"
                                 size={17}
                                 color={
                                   COLORS.green
@@ -3265,8 +3269,8 @@ function showMessage(
                               ]}
                             >
                               {accepted ? (
-                                <MaterialIcons
-                                  name="chat-bubble-outline"
+                                <Ionicons
+                                  name="chatbubble-outline"
                                   size={16}
                                   color={
                                     COLORS.white
@@ -3287,8 +3291,8 @@ function showMessage(
                                 )}
                               </Text>
 
-                              <MaterialIcons
-                                name="chevron-right"
+                              <Ionicons
+                                name="chevron-forward"
                                 size={17}
                                 color={
                                   accepted
@@ -3324,8 +3328,8 @@ function showMessage(
                   styles.sectionTitleRow
                 }
               >
-                <MaterialIcons
-                  name="near-me"
+                <Ionicons
+                  name="navigate-outline"
                   size={20}
                   color={
                     COLORS.redButton
@@ -3370,8 +3374,8 @@ function showMessage(
                     styles.nearbyEmptyIcon
                   }
                 >
-                  <MaterialIcons
-                    name="location-searching"
+                  <Ionicons
+                    name="locate-outline"
                     size={29}
                     color={
                       COLORS.redButton
@@ -3412,8 +3416,8 @@ function showMessage(
                     styles.nearbyEmptyIcon
                   }
                 >
-                  <MaterialIcons
-                    name="location-off"
+                  <Ionicons
+                    name="location-outline"
                     size={29}
                     color={
                       COLORS.redButton
@@ -3457,8 +3461,8 @@ function showMessage(
                     styles.nearbyEmptyIcon
                   }
                 >
-                  <MaterialIcons
-                    name="travel-explore"
+                  <Ionicons
+                    name="compass-outline"
                     size={29}
                     color={
                       COLORS.redButton
@@ -3552,8 +3556,8 @@ function showMessage(
                               styles.nearbyDistanceRow
                             }
                           >
-                            <MaterialIcons
-                              name="place"
+                            <Ionicons
+                              name="location-outline"
                               size={13}
                               color={
                                 COLORS.muted
@@ -3601,12 +3605,12 @@ function showMessage(
                               : styles.urgencyPillNeeded,
                           ]}
                         >
-                          <MaterialIcons
+                          <Ionicons
                             name={
                               request.urgency ===
                               'urgent'
-                                ? 'bolt'
-                                : 'schedule'
+                                ? 'flash'
+                                : 'time-outline'
                             }
                             size={12}
                             color={
@@ -3644,8 +3648,8 @@ function showMessage(
                             styles.nearbyDetail
                           }
                         >
-                          <MaterialIcons
-                            name="water-drop"
+                          <Ionicons
+                            name="water"
                             size={15}
                             color={
                               COLORS.redButton
@@ -3672,12 +3676,12 @@ function showMessage(
                             styles.nearbyDetail
                           }
                         >
-                          <MaterialIcons
+                          <Ionicons
                             name={
                               request.urgency ===
                               'urgent'
-                                ? 'bolt'
-                                : 'event'
+                                ? 'flash'
+                                : 'calendar-outline'
                             }
                             size={15}
                             color={
@@ -3728,8 +3732,8 @@ function showMessage(
                             View Request
                           </Text>
 
-                          <MaterialIcons
-                            name="chevron-right"
+                          <Ionicons
+                            name="chevron-forward"
                             size={17}
                             color={
                               COLORS.redButton
@@ -3771,8 +3775,8 @@ function showMessage(
                       styles.dropIcon
                     }
                   >
-                    <MaterialIcons
-                      name="person-search"
+                    <Ionicons
+                      name="people-outline"
                       size={20}
                       color={
                         COLORS.redButton
@@ -3802,6 +3806,22 @@ function showMessage(
                     </Text>
                   </View>
                 </View>
+              </View>
+
+              {/* Label with its action on the right, so the
+                  title above keeps the full width. */}
+              <View
+                style={
+                  styles.selectTypeRow
+                }
+              >
+                <Text
+                  style={
+                    styles.smallLabel
+                  }
+                >
+                  Select Blood Type
+                </Text>
 
                 <TouchableOpacity
                   style={[
@@ -3834,8 +3854,8 @@ function showMessage(
                     );
                   }}
                 >
-                  <MaterialIcons
-                    name="compare-arrows"
+                  <Ionicons
+                    name="swap-horizontal"
                     size={13}
                     color={
                       COLORS.redButton
@@ -3851,14 +3871,6 @@ function showMessage(
                   </Text>
                 </TouchableOpacity>
               </View>
-
-              <Text
-                style={
-                  styles.smallLabel
-                }
-              >
-                Select Blood Type
-              </Text>
 
               <View
                 style={
@@ -3920,7 +3932,7 @@ function showMessage(
                   handleSearchDonors
                 }
               >
-                <MaterialIcons
+                <Ionicons
                   name="search"
                   size={20}
                   color={
@@ -3971,12 +3983,12 @@ function showMessage(
                       styles.heartIconApproved,
                   ]}
                 >
-                  <MaterialIcons
+                  <Ionicons
                     name={
                       donorApplication?.status ===
                       'approved'
-                        ? 'verified'
-                        : 'volunteer-activism'
+                        ? 'shield-checkmark'
+                        : 'heart-outline'
                     }
                     size={28}
                     color={
@@ -3993,13 +4005,69 @@ function showMessage(
                     styles.donorText
                   }
                 >
-                  <Text
+                  {/* The badge sits beside the title, so the
+                      subtitle gets the full width. */}
+                  <View
                     style={
-                      styles.donorTitle
+                      styles.donorTitleRow
                     }
                   >
-                    {getDonorCardTitle()}
-                  </Text>
+                    <Text
+                      style={
+                        styles.donorTitle
+                      }
+                    >
+                      {getDonorCardTitle()}
+                    </Text>
+
+                    {donorApplication?.status ===
+                    'pending' ? (
+                      <View
+                        style={
+                          styles.pendingBadge
+                        }
+                      >
+                        <View
+                          style={
+                            styles.pendingDot
+                          }
+                        />
+
+                        <Text
+                          style={
+                            styles.pendingBadgeText
+                          }
+                        >
+                          Pending
+                        </Text>
+                      </View>
+                    ) : null}
+
+                    {donorApplication?.status ===
+                    'approved' ? (
+                      <View
+                        style={
+                          styles.verifiedBadge
+                        }
+                      >
+                        <Ionicons
+                          name="checkmark"
+                          size={12}
+                          color={
+                            COLORS.green
+                          }
+                        />
+
+                        <Text
+                          style={
+                            styles.verifiedBadgeText
+                          }
+                        >
+                          Verified
+                        </Text>
+                      </View>
+                    ) : null}
+                  </View>
 
                   <Text
                     style={
@@ -4009,54 +4077,6 @@ function showMessage(
                     {getDonorCardSubtitle()}
                   </Text>
                 </View>
-
-                {donorApplication?.status ===
-                'pending' ? (
-                  <View
-                    style={
-                      styles.pendingBadge
-                    }
-                  >
-                    <View
-                      style={
-                        styles.pendingDot
-                      }
-                    />
-
-                    <Text
-                      style={
-                        styles.pendingBadgeText
-                      }
-                    >
-                      Pending
-                    </Text>
-                  </View>
-                ) : null}
-
-                {donorApplication?.status ===
-                'approved' ? (
-                  <View
-                    style={
-                      styles.verifiedBadge
-                    }
-                  >
-                    <MaterialIcons
-                      name="check"
-                      size={13}
-                      color={
-                        COLORS.green
-                      }
-                    />
-
-                    <Text
-                      style={
-                        styles.verifiedBadgeText
-                      }
-                    >
-                      Verified
-                    </Text>
-                  </View>
-                ) : null}
               </View>
 
               {(() => {
@@ -4076,11 +4096,11 @@ function showMessage(
                         styles.eligibilityRowWaiting,
                     ]}
                   >
-                    <MaterialIcons
+                    <Ionicons
                       name={
                         eligibility.ready
-                          ? 'event-available'
-                          : 'event'
+                          ? 'calendar-outline'
+                          : 'calendar-outline'
                       }
                       size={16}
                       color={
@@ -4145,7 +4165,7 @@ function showMessage(
                 {!loadingDonorApplication &&
                 donorApplication?.status !==
                   'approved' ? (
-                  <MaterialIcons
+                  <Ionicons
                     name="arrow-forward"
                     size={17}
                     color={
@@ -4157,8 +4177,8 @@ function showMessage(
                   />
                 ) : donorApplication?.status ===
                   'approved' ? (
-                  <MaterialIcons
-                    name="verified"
+                  <Ionicons
+                    name="shield-checkmark"
                     size={17}
                     color={
                       COLORS.green
@@ -4221,20 +4241,22 @@ function showMessage(
             styles.actionPopupIconError,
         ]}
       >
-        <MaterialIcons
+        <Ionicons
           name={
             actionPopup.variant ===
             'success'
-              ? 'check-circle-outline'
+              ? 'checkmark-circle'
               : actionPopup.variant ===
                   'warning'
-                ? 'warning-amber'
+                ? 'warning'
                 : actionPopup.variant ===
                     'error'
-                  ? 'error-outline'
-                  : 'info-outline'
+                  ? 'close-circle'
+                  : 'information-circle'
           }
-          size={31}
+          size={
+            ICON_TILE.lg.glyph
+          }
           color={
             actionPopup.variant ===
             'success'
@@ -4347,7 +4369,7 @@ function showMessage(
           {[
             {
               key: 'receive',
-              icon: 'call-received' as const,
+              icon: 'arrow-down' as const,
               label: 'Can receive blood from',
               types:
                 getCompatibleDonorTypes(
@@ -4356,7 +4378,7 @@ function showMessage(
             },
             {
               key: 'give',
-              icon: 'call-made' as const,
+              icon: 'arrow-up' as const,
               label: 'Can donate blood to',
               types:
                 getCompatibleRecipientTypes(
@@ -4375,7 +4397,7 @@ function showMessage(
                   styles.matchLabelRow
                 }
               >
-                <MaterialIcons
+                <Ionicons
                   name={row.icon}
                   size={15}
                   color={
@@ -4490,6 +4512,21 @@ function showMessage(
 
 const styles =
   StyleSheet.create({
+    donorTitleRow: {
+      flexDirection: 'row',
+      flexWrap: 'wrap',
+      alignItems: 'center',
+      columnGap: 8,
+      rowGap: 4,
+    },
+
+    selectTypeRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      marginBottom: 12,
+    },
+
     desktopBackground: {
       flex: 1,
       alignItems: 'center',
@@ -4609,9 +4646,9 @@ const styles =
       flexDirection: 'row',
       alignItems: 'center',
 
-      gap: 6,
+      gap: 8,
 
-      marginTop: 7,
+      marginTop: 8,
     },
 
     // Tapping it shows the user's own compatibility below.
@@ -4619,12 +4656,12 @@ const styles =
       flexDirection: 'row',
       alignItems: 'center',
 
-      gap: 3,
+      gap: 4,
 
-      paddingHorizontal: 9,
-      paddingVertical: 5,
+      paddingHorizontal: 10,
+      paddingVertical: 0,
 
-      borderRadius: 15,
+      borderRadius: 13,
 
       borderWidth: 1,
 
@@ -4633,6 +4670,8 @@ const styles =
 
       backgroundColor:
         'rgba(255,255,255,0.18)',
+
+      height: 26,
     },
 
     bloodTypePillText: {
@@ -4643,31 +4682,37 @@ const styles =
         'Poppins_600SemiBold',
 
       fontSize: 12.5,
+
+      lineHeight: 16,
     },
 
     locationPill: {
-      alignSelf:
-        'flex-start',
-
       flexShrink: 1,
 
       maxWidth: 190,
 
-      paddingHorizontal: 11,
-      paddingVertical: 5,
+      paddingHorizontal: 10,
+      paddingVertical: 0,
 
       flexDirection: 'row',
       alignItems: 'center',
 
-      borderRadius: 15,
+      borderRadius: 13,
 
       backgroundColor:
         'rgba(255,255,255,0.27)',
+
+      height: 26,
+
+      gap: 4,
+
+      borderWidth: 1,
+
+      borderColor: 'transparent',
     },
 
     locationText: {
       flexShrink: 1,
-      marginLeft: 4,
 
       color:
         COLORS.white,
@@ -4676,6 +4721,8 @@ const styles =
         'Inter_400Regular',
 
       fontSize: 12.5,
+
+      lineHeight: 16,
     },
 
     headerActions: {
@@ -4808,7 +4855,7 @@ const styles =
       width: 44,
       height: 44,
 
-      borderRadius: 22,
+      borderRadius: 12,
 
       marginRight: 12,
 
@@ -4847,18 +4894,18 @@ const styles =
     },
 
     emergencyButton: {
-      height: 40,
+      height: 44,
 
       marginTop: 10,
       marginLeft: 56,
 
-      borderRadius: 9,
+      borderRadius: 12,
 
       flexDirection: 'row',
       alignItems: 'center',
       justifyContent: 'center',
 
-      gap: 7,
+      gap: 8,
 
       backgroundColor:
         COLORS.white,
@@ -4913,8 +4960,8 @@ const styles =
     // paddingBottom is set inline: it includes the space the
     // floating bottom bar covers.
     contentContainer: {
-      paddingHorizontal: 18,
-      paddingTop: 18,
+      paddingHorizontal: 16,
+      paddingTop: 20,
     },
 
     sectionHeader: {
@@ -4924,14 +4971,14 @@ const styles =
       justifyContent:
         'space-between',
 
-      marginBottom: 10,
+      marginBottom: 12,
     },
 
     sectionTitleRow: {
       flexDirection: 'row',
       alignItems: 'center',
 
-      gap: 7,
+      gap: 8,
     },
 
     sectionTitle: {
@@ -4961,8 +5008,8 @@ const styles =
     emptyRequestCard: {
       minHeight: 82,
 
-      paddingHorizontal: 14,
-      paddingVertical: 13,
+      paddingHorizontal: 16,
+      paddingVertical: 16,
 
       flexDirection: 'row',
       alignItems: 'center',
@@ -4972,19 +5019,19 @@ const styles =
       borderColor:
         COLORS.border,
 
-      borderRadius: 13,
+      borderRadius: 16,
 
       backgroundColor:
         COLORS.card,
 
-      marginBottom: 16,
+      marginBottom: 24,
     },
 
     emptyRequestIcon: {
-      width: 48,
-      height: 48,
+      width: 44,
+      height: 44,
 
-      borderRadius: 24,
+      borderRadius: 12,
 
       alignItems: 'center',
       justifyContent: 'center',
@@ -5027,16 +5074,16 @@ const styles =
     // ========================================================
 
     activeRequestCard: {
-      padding: 14,
+      padding: 16,
 
-      marginBottom: 16,
+      marginBottom: 24,
 
       borderWidth: 1,
 
       borderColor:
         '#E3A0A0',
 
-      borderRadius: 14,
+      borderRadius: 16,
 
       backgroundColor:
         COLORS.card,
@@ -5080,7 +5127,7 @@ const styles =
 
       borderRadius: 5,
 
-      marginRight: 7,
+      marginRight: 8,
 
       backgroundColor:
         COLORS.green,
@@ -5120,7 +5167,7 @@ const styles =
       width: 52,
       height: 52,
 
-      borderRadius: 13,
+      borderRadius: 14,
 
       marginRight: 12,
 
@@ -5154,7 +5201,7 @@ const styles =
       alignItems:
         'flex-start',
 
-      gap: 5,
+      gap: 8,
     },
 
     requestInfoText: {
@@ -5269,18 +5316,18 @@ const styles =
     progressStatusNote: {
       minHeight: 39,
 
-      marginTop: -2,
-      marginBottom: 13,
+      marginTop: 0,
+      marginBottom: 16,
 
-      paddingHorizontal: 10,
-      paddingVertical: 8,
+      paddingHorizontal: 12,
+      paddingVertical: 10,
 
       flexDirection: 'row',
       alignItems: 'center',
 
-      gap: 7,
+      gap: 8,
 
-      borderRadius: 9,
+      borderRadius: 12,
 
       backgroundColor:
         '#F5F5F5',
@@ -5331,7 +5378,7 @@ const styles =
     },
 
     viewRequestButton: {
-      height: 39,
+      height: 44,
 
       flexDirection: 'row',
       alignItems: 'center',
@@ -5339,9 +5386,9 @@ const styles =
       justifyContent:
         'center',
 
-      gap: 3,
+      gap: 4,
 
-      borderRadius: 9,
+      borderRadius: 12,
 
       backgroundColor:
         COLORS.redButton,
@@ -5360,18 +5407,18 @@ const styles =
     requestErrorCard: {
       minHeight: 55,
 
-      marginTop: -6,
-      marginBottom: 16,
+      marginTop: -12,
+      marginBottom: 24,
 
-      paddingHorizontal: 11,
-      paddingVertical: 9,
+      paddingHorizontal: 12,
+      paddingVertical: 10,
 
       flexDirection: 'row',
       alignItems: 'center',
 
       gap: 8,
 
-      borderRadius: 10,
+      borderRadius: 12,
 
       borderWidth: 1,
 
@@ -5413,7 +5460,7 @@ const styles =
     // ========================================================
 
     findDonorCard: {
-      paddingHorizontal: 15,
+      paddingHorizontal: 16,
       paddingVertical: 16,
 
       borderWidth: 1,
@@ -5421,12 +5468,12 @@ const styles =
       borderColor:
         '#D6CACA',
 
-      borderRadius: 13,
+      borderRadius: 16,
 
       backgroundColor:
         COLORS.card,
 
-      marginBottom: 19,
+      marginBottom: 24,
     },
 
     findDonorHeader: {
@@ -5438,7 +5485,7 @@ const styles =
       justifyContent:
         'space-between',
 
-      marginBottom: 14,
+      marginBottom: 16,
     },
 
     findDonorTitleRow: {
@@ -5453,10 +5500,10 @@ const styles =
     },
 
     dropIcon: {
-      width: 34,
-      height: 34,
+      width: 40,
+      height: 40,
 
-      borderRadius: 17,
+      borderRadius: 11,
 
       alignItems: 'center',
       justifyContent: 'center',
@@ -5464,7 +5511,7 @@ const styles =
       backgroundColor:
         COLORS.pinkLight,
 
-      marginRight: 8,
+      marginRight: 12,
     },
 
     findDonorTitle: {
@@ -5493,17 +5540,19 @@ const styles =
       flexDirection: 'row',
       alignItems: 'center',
 
-      gap: 3,
+      gap: 4,
 
-      paddingHorizontal: 6,
-      paddingVertical: 4,
+      paddingHorizontal: 10,
+      paddingVertical: 0,
 
       borderWidth: 1,
 
       borderColor:
         '#DAAAAA',
 
-      borderRadius: 10,
+      borderRadius: 14,
+
+      height: 28,
     },
 
     compatibilityText: {
@@ -5524,7 +5573,7 @@ const styles =
       marginTop: 12,
       padding: 12,
 
-      gap: 10,
+      gap: 12,
 
       backgroundColor:
         COLORS.pinkLight,
@@ -5534,7 +5583,7 @@ const styles =
       borderColor:
         '#FDE7E7',
 
-      borderRadius: 12,
+      borderRadius: 14,
     },
 
     matchRow: {
@@ -5545,7 +5594,7 @@ const styles =
       flexDirection: 'row',
       alignItems: 'center',
 
-      gap: 5,
+      gap: 6,
     },
 
     matchLabel: {
@@ -5581,7 +5630,7 @@ const styles =
       minWidth: 40,
 
       paddingHorizontal: 8,
-      paddingVertical: 4,
+      paddingVertical: 5,
 
       alignItems: 'center',
 
@@ -5593,7 +5642,7 @@ const styles =
       borderColor:
         '#DAAAAA',
 
-      borderRadius: 8,
+      borderRadius: 10,
     },
 
     matchChipSelf: {
@@ -5626,7 +5675,7 @@ const styles =
 
       alignSelf: 'center',
 
-      marginBottom: 12,
+      marginBottom: 16,
 
       alignItems: 'center',
       justifyContent: 'center',
@@ -5634,7 +5683,7 @@ const styles =
       backgroundColor:
         COLORS.redButton,
 
-      borderRadius: 32,
+      borderRadius: 18,
     },
 
     compatBadgeText: {
@@ -5665,23 +5714,25 @@ const styles =
       fontSize: 11,
 
       textAlign: 'center',
+
+      marginTop: 12,
     },
 
     eligibilityRow: {
       flexDirection: 'row',
       alignItems: 'center',
 
-      gap: 7,
+      gap: 8,
 
-      marginTop: 12,
+      marginTop: 16,
 
-      paddingHorizontal: 10,
-      paddingVertical: 8,
+      paddingHorizontal: 12,
+      paddingVertical: 10,
 
       backgroundColor:
         '#EAF7EF',
 
-      borderRadius: 10,
+      borderRadius: 12,
     },
 
     eligibilityRowWaiting: {
@@ -5712,7 +5763,7 @@ const styles =
 
       fontSize: 12,
 
-      marginBottom: 8,
+      marginBottom: 0,
     },
 
     bloodGrid: {
@@ -5723,20 +5774,20 @@ const styles =
       justifyContent:
         'space-between',
 
-      rowGap: 9,
+      rowGap: 8,
     },
 
     bloodTypeButton: {
       width: '22.5%',
 
-      height: 43,
+      height: 44,
 
       borderWidth: 1,
 
       borderColor:
         '#878787',
 
-      borderRadius: 10,
+      borderRadius: 12,
 
       alignItems: 'center',
       justifyContent: 'center',
@@ -5777,7 +5828,7 @@ const styles =
 
       marginTop: 16,
 
-      borderRadius: 9,
+      borderRadius: 12,
 
       flexDirection: 'row',
       alignItems: 'center',
@@ -5785,7 +5836,7 @@ const styles =
       justifyContent:
         'center',
 
-      gap: 7,
+      gap: 8,
 
       backgroundColor:
         COLORS.redButton,
@@ -5848,16 +5899,16 @@ const styles =
     },
 
     respondedRequestCard: {
-      padding: 14,
+      padding: 16,
 
-      marginBottom: 11,
+      marginBottom: 12,
 
       borderWidth: 1,
 
       borderColor:
         '#E6D6D6',
 
-      borderRadius: 14,
+      borderRadius: 16,
 
       backgroundColor:
         COLORS.white,
@@ -5893,7 +5944,7 @@ const styles =
       width: 48,
       height: 48,
 
-      marginRight: 10,
+      marginRight: 12,
 
       borderRadius: 14,
 
@@ -5945,13 +5996,13 @@ const styles =
     },
 
     respondedStatusBadge: {
-      minHeight: 27,
+      minHeight: 24,
 
-      paddingHorizontal: 7,
+      paddingHorizontal: 8,
 
       borderWidth: 1,
 
-      borderRadius: 10,
+      borderRadius: 12,
 
       flexDirection: 'row',
       alignItems: 'center',
@@ -5974,12 +6025,12 @@ const styles =
     },
 
     respondedInfoBox: {
-      marginTop: 11,
+      marginTop: 12,
 
-      paddingHorizontal: 10,
-      paddingVertical: 9,
+      paddingHorizontal: 12,
+      paddingVertical: 10,
 
-      borderRadius: 10,
+      borderRadius: 12,
 
       flexDirection: 'row',
 
@@ -5995,7 +6046,7 @@ const styles =
       flexDirection: 'row',
       alignItems: 'center',
 
-      gap: 4,
+      gap: 6,
     },
 
     respondedInfoText: {
@@ -6013,17 +6064,17 @@ const styles =
     acceptedRespondedNotice: {
       minHeight: 44,
 
-      marginTop: 10,
+      marginTop: 12,
 
-      paddingHorizontal: 10,
-      paddingVertical: 8,
+      paddingHorizontal: 12,
+      paddingVertical: 10,
 
-      borderRadius: 10,
+      borderRadius: 12,
 
       flexDirection: 'row',
       alignItems: 'center',
 
-      gap: 7,
+      gap: 8,
 
       backgroundColor:
         '#EAF7EF',
@@ -6043,7 +6094,7 @@ const styles =
     },
 
     respondedFooter: {
-      marginTop: 11,
+      marginTop: 12,
 
       flexDirection: 'row',
       alignItems: 'center',
@@ -6122,19 +6173,19 @@ const styles =
       borderColor:
         COLORS.border,
 
-      borderRadius: 13,
+      borderRadius: 16,
 
       backgroundColor:
         COLORS.card,
 
-      marginBottom: 18,
+      marginBottom: 24,
     },
 
     nearbyEmptyIcon: {
-      width: 51,
-      height: 51,
+      width: 52,
+      height: 52,
 
-      borderRadius: 26,
+      borderRadius: 14,
 
       alignItems: 'center',
       justifyContent: 'center',
@@ -6142,7 +6193,7 @@ const styles =
       backgroundColor:
         COLORS.pinkLight,
 
-      marginBottom: 9,
+      marginBottom: 12,
     },
 
     nearbyEmptyTitle: {
@@ -6191,16 +6242,16 @@ const styles =
     // ========================================================
 
     nearbyRequestCard: {
-      padding: 14,
+      padding: 16,
 
-      marginBottom: 11,
+      marginBottom: 12,
 
       borderWidth: 1,
 
       borderColor:
         '#E3D2D2',
 
-      borderRadius: 14,
+      borderRadius: 16,
 
       backgroundColor:
         COLORS.white,
@@ -6233,7 +6284,7 @@ const styles =
 
       borderRadius: 14,
 
-      marginRight: 10,
+      marginRight: 12,
 
       alignItems: 'center',
       justifyContent: 'center',
@@ -6276,7 +6327,7 @@ const styles =
     },
 
     nearbyDistanceText: {
-      marginLeft: 2,
+      marginLeft: 4,
 
       color:
         COLORS.muted,
@@ -6288,7 +6339,7 @@ const styles =
     },
 
     dotSeparator: {
-      marginHorizontal: 5,
+      marginHorizontal: 6,
 
       color:
         COLORS.lightMuted,
@@ -6307,16 +6358,16 @@ const styles =
     },
 
     urgencyPill: {
-      minHeight: 26,
+      minHeight: 24,
 
-      paddingHorizontal: 7,
+      paddingHorizontal: 8,
 
       flexDirection: 'row',
       alignItems: 'center',
 
-      gap: 2,
+      gap: 4,
 
-      borderRadius: 10,
+      borderRadius: 12,
     },
 
     urgencyPillUrgent: {
@@ -6354,12 +6405,12 @@ const styles =
 
       alignItems: 'center',
 
-      gap: 10,
+      gap: 12,
 
       paddingVertical: 10,
-      paddingHorizontal: 10,
+      paddingHorizontal: 12,
 
-      borderRadius: 10,
+      borderRadius: 12,
 
       backgroundColor:
         '#FFF8F8',
@@ -6371,7 +6422,7 @@ const styles =
       flexDirection: 'row',
       alignItems: 'center',
 
-      gap: 4,
+      gap: 6,
     },
 
     nearbyDetailText: {
@@ -6394,7 +6445,7 @@ const styles =
       justifyContent:
         'space-between',
 
-      marginTop: 11,
+      marginTop: 12,
     },
 
     nearbyHelpText: {
@@ -6435,7 +6486,7 @@ const styles =
       borderColor:
         '#E3A0A0',
 
-      borderRadius: 13,
+      borderRadius: 16,
 
       backgroundColor:
         '#FFF3F3',
@@ -6455,17 +6506,19 @@ const styles =
     },
 
     heartIcon: {
-      width: 45,
-      height: 45,
+      width: 44,
+      height: 44,
 
       alignItems: 'center',
       justifyContent: 'center',
 
-      marginRight: 9,
+      marginRight: 12,
+
+      borderRadius: 12,
     },
 
     heartIconApproved: {
-      borderRadius: 23,
+      borderRadius: 12,
 
       backgroundColor:
         '#E6F6EC',
@@ -6486,7 +6539,7 @@ const styles =
     },
 
     donorSubtitle: {
-      marginTop: 2,
+      marginTop: 4,
 
       color:
         COLORS.muted,
@@ -6499,7 +6552,7 @@ const styles =
 
     pendingBadge: {
       paddingHorizontal: 8,
-      paddingVertical: 5,
+      paddingVertical: 0,
 
       flexDirection: 'row',
 
@@ -6507,10 +6560,12 @@ const styles =
 
       gap: 4,
 
-      borderRadius: 10,
+      borderRadius: 11,
 
       backgroundColor:
         '#FFF5E8',
+
+      height: 22,
     },
 
     pendingDot: {
@@ -6535,18 +6590,20 @@ const styles =
 
     verifiedBadge: {
       paddingHorizontal: 8,
-      paddingVertical: 5,
+      paddingVertical: 0,
 
       flexDirection: 'row',
 
       alignItems: 'center',
 
-      gap: 3,
+      gap: 4,
 
-      borderRadius: 10,
+      borderRadius: 11,
 
       backgroundColor:
         '#E8F6ED',
+
+      height: 22,
     },
 
     verifiedBadgeText: {
@@ -6563,15 +6620,15 @@ const styles =
     applyButton: {
       minWidth: 200,
 
-      height: 42,
+      height: 44,
 
       paddingHorizontal: 18,
 
       alignSelf: 'center',
 
-      marginTop: 12,
+      marginTop: 16,
 
-      borderRadius: 9,
+      borderRadius: 12,
 
       flexDirection: 'row',
       alignItems: 'center',
@@ -6647,24 +6704,20 @@ actionPopupOverlay: {
     'center',
 
   backgroundColor:
-    'rgba(0,0,0,0.48)',
+    'rgba(0,0,0,0.45)',
 },
 
 actionPopupCard: {
   width:
     '100%',
 
-  maxWidth:
-    360,
+  maxWidth: 340,
 
-  paddingHorizontal:
-    20,
+  paddingHorizontal: 24,
 
-  paddingTop:
-    22,
+  paddingTop: 28,
 
-  paddingBottom:
-    18,
+  paddingBottom: 20,
 
   borderRadius:
     22,
@@ -6694,20 +6747,16 @@ actionPopupCard: {
 },
 
 actionPopupIcon: {
-  width:
-    56,
+  width: ICON_TILE.lg.size,
 
-  height:
-    56,
+  height: ICON_TILE.lg.size,
 
   alignSelf:
     'center',
 
-  marginBottom:
-    13,
+  marginBottom: 16,
 
-  borderRadius:
-    28,
+  borderRadius: ICON_TILE.lg.radius,
 
   alignItems:
     'center',
@@ -6741,19 +6790,16 @@ actionPopupTitle: {
   fontFamily:
     'Poppins_600SemiBold',
 
-  fontSize:
-    16,
+  fontSize: 17,
 
-  lineHeight:
-    22,
+  lineHeight: 24,
 
   textAlign:
     'center',
 },
 
 actionPopupMessage: {
-  marginTop:
-    8,
+  marginTop: 6,
 
   color:
     COLORS.muted,
@@ -6772,14 +6818,11 @@ actionPopupMessage: {
 },
 
 actionPopupButton: {
-  height:
-    45,
+  height: 48,
 
-  marginTop:
-    19,
+  marginTop: 24,
 
-  borderRadius:
-    10,
+  borderRadius: 12,
 
   alignItems:
     'center',
@@ -6807,23 +6850,23 @@ actionPopupButtonText: {
 // ============================================================
 
 invitationNotice: {
-  minHeight: 64,
-  marginBottom: 14,
-  paddingHorizontal: 13,
-  paddingVertical: 11,
+  minHeight: 68,
+  marginBottom: 24,
+  paddingHorizontal: 16,
+  paddingVertical: 12,
   flexDirection: 'row',
   alignItems: 'center',
-  gap: 11,
+  gap: 12,
   borderWidth: 1,
   borderColor: '#F0B8B8',
-  borderRadius: 14,
+  borderRadius: 16,
   backgroundColor: COLORS.pinkLight,
 },
 
 invitationNoticeIcon: {
   width: 40,
   height: 40,
-  borderRadius: 20,
+  borderRadius: 11,
   alignItems: 'center',
   justifyContent: 'center',
   backgroundColor: COLORS.white,

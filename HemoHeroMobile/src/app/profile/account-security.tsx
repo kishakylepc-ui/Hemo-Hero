@@ -16,9 +16,7 @@ import {
   View,
 } from 'react-native';
 
-import {
-  MaterialIcons,
-} from '@expo/vector-icons';
+import { Ionicons, MaterialIcons } from '@expo/vector-icons';
 
 import {
   LinearGradient,
@@ -1873,9 +1871,9 @@ export default function AccountSecurityScreen() {
                       closeChangeEmail
                     }
                   >
-                    <MaterialIcons
+                    <Ionicons
                       name="close"
-                      size={20}
+                      size={17}
                       color={
                         COLORS.black
                       }
@@ -1933,8 +1931,8 @@ export default function AccountSecurityScreen() {
                           styles.codeNotice
                         }
                       >
-                        <MaterialIcons
-                          name="mark-email-read"
+                        <Ionicons
+                          name="mail-open-outline"
                           size={17}
                           color={
                             COLORS.green
@@ -2227,9 +2225,9 @@ export default function AccountSecurityScreen() {
                         styles.passwordHeaderIcon
                       }
                     >
-                      <MaterialIcons
-                        name="lock-outline"
-                        size={24}
+                      <Ionicons
+                        name="lock-closed-outline"
+                        size={21}
                         color={
                           COLORS.redButton
                         }
@@ -2269,9 +2267,9 @@ export default function AccountSecurityScreen() {
                         closeChangePassword
                       }
                     >
-                      <MaterialIcons
+                      <Ionicons
                         name="close"
-                        size={20}
+                        size={17}
                         color={
                           COLORS.black
                         }
@@ -2477,8 +2475,8 @@ export default function AccountSecurityScreen() {
                         performChangePassword
                       }
                     >
-                      <MaterialIcons
-                        name="lock-reset"
+                      <Ionicons
+                        name="key-outline"
                         size={18}
                         color={
                           COLORS.white
@@ -2531,8 +2529,8 @@ export default function AccountSecurityScreen() {
                     styles.confirmationIcon
                   }
                 >
-                  <MaterialIcons
-                    name="person-off"
+                  <Ionicons
+                    name="person-remove-outline"
                     size={28}
                     color={
                       COLORS.redButton
@@ -2557,9 +2555,10 @@ export default function AccountSecurityScreen() {
                 </Text>
 
                 <View
-                  style={
-                    styles.modalActions
-                  }
+                  style={[
+                    styles.modalActions,
+                    styles.confirmationActions,
+                  ]}
                 >
                   <TouchableOpacity
                     style={
@@ -2663,9 +2662,9 @@ export default function AccountSecurityScreen() {
                         styles.deleteModalIcon
                       }
                     >
-                      <MaterialIcons
-                        name="delete-outline"
-                        size={27}
+                      <Ionicons
+                        name="trash-outline"
+                        size={21}
                         color={
                           COLORS.redButton
                         }
@@ -2705,9 +2704,9 @@ export default function AccountSecurityScreen() {
                         closeDeleteAccount
                       }
                     >
-                      <MaterialIcons
+                      <Ionicons
                         name="close"
-                        size={20}
+                        size={17}
                         color={
                           COLORS.black
                         }
@@ -2853,8 +2852,8 @@ export default function AccountSecurityScreen() {
                         performDeleteAccount
                       }
                     >
-                      <MaterialIcons
-                        name="delete-outline"
+                      <Ionicons
+                        name="trash-outline"
                         size={18}
                         color={
                           COLORS.white
@@ -2907,9 +2906,9 @@ export default function AccountSecurityScreen() {
                     styles.successIcon
                   }
                 >
-                  <MaterialIcons
-                    name="check-circle"
-                    size={30}
+                  <Ionicons
+                    name="checkmark-circle"
+                    size={28}
                     color={
                       COLORS.green
                     }
@@ -3329,6 +3328,12 @@ function Divider() {
 
 const styles =
   StyleSheet.create({
+    confirmationActions: {
+      marginTop: 24,
+
+      alignSelf: 'stretch',
+    },
+
     desktopBackground: {
       flex: 1,
 
@@ -3902,14 +3907,14 @@ const styles =
       justifyContent:
         'center',
 
-      paddingHorizontal: 20,
+      paddingHorizontal: 24,
 
       backgroundColor:
         'rgba(0,0,0,0.50)',
     },
 
     modalHeader: {
-      marginBottom: 18,
+      marginBottom: 16,
 
       flexDirection:
         'row',
@@ -3924,15 +3929,14 @@ const styles =
     modalHeaderContent: {
       flex: 1,
 
-      paddingRight: 14,
+      paddingRight: 12,
     },
 
     modalTitle: {
       color:
         COLORS.black,
 
-      fontFamily:
-        'Poppins_700Bold',
+      fontFamily: 'Poppins_600SemiBold',
 
       fontSize: 17,
     },
@@ -3952,11 +3956,11 @@ const styles =
     },
 
     closeButton: {
-      width: 38,
+      width: 30,
 
-      height: 38,
+      height: 30,
 
-      borderRadius: 19,
+      borderRadius: 15,
 
       alignItems:
         'center',
@@ -3964,8 +3968,7 @@ const styles =
       justifyContent:
         'center',
 
-      backgroundColor:
-        COLORS.graySoft,
+      backgroundColor: '#F2F2F4',
     },
 
     emailModalCard: {
@@ -3974,26 +3977,26 @@ const styles =
 
       maxWidth: 360,
 
-      paddingHorizontal: 22,
+      paddingHorizontal: 24,
 
-      paddingTop: 22,
+      paddingTop: 24,
 
-      paddingBottom: 22,
+      paddingBottom: 24,
 
-      borderRadius: 20,
+      borderRadius: 22,
 
       backgroundColor:
         COLORS.white,
     },
 
     currentAccountBox: {
-      marginBottom: 18,
+      marginBottom: 16,
 
       paddingHorizontal: 12,
 
-      paddingVertical: 10,
+      paddingVertical: 12,
 
-      borderRadius: 10,
+      borderRadius: 12,
 
       backgroundColor:
         COLORS.graySoft,
@@ -4010,7 +4013,7 @@ const styles =
     },
 
     currentAccountValue: {
-      marginTop: 3,
+      marginTop: 2,
 
       color:
         COLORS.black,
@@ -4026,7 +4029,7 @@ const styles =
     // ========================================================
 
     codeNotice: {
-      marginBottom: 14,
+      marginBottom: 16,
       paddingHorizontal: 12,
       paddingVertical: 10,
       flexDirection: 'row',
@@ -4047,8 +4050,8 @@ const styles =
     },
 
     resendRow: {
-      marginTop: -4,
-      marginBottom: 6,
+      marginTop: 0,
+      marginBottom: 8,
       flexDirection: 'row',
       alignItems: 'center',
       justifyContent: 'center',
@@ -4083,7 +4086,7 @@ const styles =
     },
 
     modalFieldLabel: {
-      marginBottom: 7,
+      marginBottom: 8,
 
       color:
         '#444449',
@@ -4097,14 +4100,14 @@ const styles =
     modalInput: {
       height: 48,
 
-      paddingHorizontal: 13,
+      paddingHorizontal: 12,
 
       borderWidth: 1,
 
       borderColor:
         '#DDDDE2',
 
-      borderRadius: 11,
+      borderRadius: 12,
 
       color:
         COLORS.black,
@@ -4121,7 +4124,7 @@ const styles =
     modalError: {
       marginBottom: 16,
 
-      paddingHorizontal: 11,
+      paddingHorizontal: 12,
 
       paddingVertical: 10,
 
@@ -4133,7 +4136,7 @@ const styles =
 
       gap: 8,
 
-      borderRadius: 10,
+      borderRadius: 12,
 
       backgroundColor:
         COLORS.pinkSoft,
@@ -4210,7 +4213,7 @@ const styles =
     },
 
     passwordHeader: {
-      marginBottom: 22,
+      marginBottom: 20,
 
       flexDirection:
         'row',
@@ -4220,13 +4223,13 @@ const styles =
     },
 
     passwordHeaderIcon: {
-      width: 46,
+      width: 40,
 
-      height: 46,
+      height: 40,
 
-      marginRight: 11,
+      marginRight: 12,
 
-      borderRadius: 23,
+      borderRadius: 11,
 
       alignItems:
         'center',
@@ -4248,8 +4251,7 @@ const styles =
       color:
         COLORS.black,
 
-      fontFamily:
-        'Poppins_700Bold',
+      fontFamily: 'Poppins_600SemiBold',
 
       fontSize: 17,
     },
@@ -4274,7 +4276,7 @@ const styles =
     },
 
     passwordSectionTitle: {
-      marginBottom: 13,
+      marginBottom: 12,
 
       color:
         COLORS.black,
@@ -4298,19 +4300,19 @@ const styles =
     },
 
     requirements: {
-      marginTop: -3,
+      marginTop: -4,
 
-      marginBottom: 18,
+      marginBottom: 16,
 
-      paddingHorizontal: 13,
+      paddingHorizontal: 12,
 
-      paddingTop: 11,
+      paddingTop: 12,
 
       paddingBottom: 12,
 
-      gap: 7,
+      gap: 8,
 
-      borderRadius: 11,
+      borderRadius: 12,
 
       backgroundColor:
         COLORS.graySoft,
@@ -4335,7 +4337,7 @@ const styles =
       alignItems:
         'center',
 
-      gap: 7,
+      gap: 8,
     },
 
     requirementText: {
@@ -4373,11 +4375,11 @@ const styles =
       flexDirection:
         'row',
 
-      gap: 10,
+      gap: 8,
     },
 
     passwordCancelButton: {
-      flex: 1,
+      flex: 0,
 
       height: 48,
 
@@ -4387,19 +4389,20 @@ const styles =
       justifyContent:
         'center',
 
-      borderWidth: 1,
+      borderWidth: 0,
 
       borderColor:
         COLORS.border,
 
-      borderRadius: 11,
+      borderRadius: 12,
 
-      backgroundColor:
-        COLORS.white,
+      backgroundColor: '#F2F2F4',
+
+      paddingHorizontal: 22,
     },
 
     passwordUpdateButton: {
-      flex: 1.3,
+      flex: 1,
 
       height: 48,
 
@@ -4414,10 +4417,12 @@ const styles =
 
       gap: 6,
 
-      borderRadius: 11,
+      borderRadius: 12,
 
       backgroundColor:
         COLORS.redButton,
+
+      paddingHorizontal: 12,
     },
 
     // ========================================================
@@ -4483,17 +4488,17 @@ const styles =
       alignItems:
         'flex-start',
 
-      marginBottom: 18,
+      marginBottom: 16,
     },
 
     deleteModalIcon: {
-      width: 46,
+      width: 40,
 
-      height: 46,
+      height: 40,
 
-      marginRight: 11,
+      marginRight: 12,
 
-      borderRadius: 23,
+      borderRadius: 11,
 
       alignItems:
         'center',
@@ -4515,8 +4520,7 @@ const styles =
       color:
         COLORS.black,
 
-      fontFamily:
-        'Poppins_700Bold',
+      fontFamily: 'Poppins_600SemiBold',
 
       fontSize: 17,
     },
@@ -4536,13 +4540,13 @@ const styles =
     },
 
     deleteInformation: {
-      marginBottom: 18,
+      marginBottom: 16,
 
       paddingHorizontal: 12,
 
-      paddingVertical: 11,
+      paddingVertical: 12,
 
-      borderRadius: 11,
+      borderRadius: 12,
 
       backgroundColor:
         COLORS.graySoft,
@@ -4573,16 +4577,16 @@ const styles =
     },
 
     deleteModalActions: {
-      marginTop: 3,
+      marginTop: 4,
 
       flexDirection:
         'row',
 
-      gap: 10,
+      gap: 8,
     },
 
     deleteCancelButton: {
-      flex: 1,
+      flex: 0,
 
       height: 48,
 
@@ -4592,19 +4596,20 @@ const styles =
       justifyContent:
         'center',
 
-      borderWidth: 1,
+      borderWidth: 0,
 
       borderColor:
         COLORS.border,
 
-      borderRadius: 11,
+      borderRadius: 12,
 
-      backgroundColor:
-        COLORS.white,
+      backgroundColor: '#F2F2F4',
+
+      paddingHorizontal: 22,
     },
 
     deleteConfirmButton: {
-      flex: 1.3,
+      flex: 1,
 
       height: 48,
 
@@ -4619,10 +4624,12 @@ const styles =
 
       gap: 6,
 
-      borderRadius: 11,
+      borderRadius: 12,
 
       backgroundColor:
         COLORS.redButton,
+
+      paddingHorizontal: 12,
     },
 
     deleteConfirmButtonDisabled: {
@@ -4634,25 +4641,25 @@ const styles =
     // ========================================================
 
     modalActions: {
-      marginTop: 7,
+      marginTop: 16,
 
       flexDirection:
         'row',
 
-      gap: 9,
+      gap: 8,
     },
 
     cancelButton: {
       flex: 1,
 
-      height: 45,
+      height: 48,
 
-      borderWidth: 1,
+      borderWidth: 0,
 
       borderColor:
         COLORS.border,
 
-      borderRadius: 10,
+      borderRadius: 12,
 
       alignItems:
         'center',
@@ -4660,8 +4667,7 @@ const styles =
       justifyContent:
         'center',
 
-      backgroundColor:
-        COLORS.white,
+      backgroundColor: '#F2F2F4',
     },
 
     cancelButtonText: {
@@ -4677,9 +4683,9 @@ const styles =
     primaryButton: {
       flex: 1,
 
-      height: 45,
+      height: 48,
 
-      borderRadius: 10,
+      borderRadius: 12,
 
       alignItems:
         'center',
@@ -4694,9 +4700,9 @@ const styles =
     deactivateConfirmButton: {
       flex: 1,
 
-      height: 45,
+      height: 48,
 
-      borderRadius: 10,
+      borderRadius: 12,
 
       alignItems:
         'center',
@@ -4732,16 +4738,16 @@ const styles =
 
       maxWidth: 340,
 
-      paddingHorizontal: 22,
+      paddingHorizontal: 24,
 
-      paddingTop: 24,
+      paddingTop: 28,
 
       paddingBottom: 20,
 
       alignItems:
         'center',
 
-      borderRadius: 20,
+      borderRadius: 22,
 
       backgroundColor:
         COLORS.white,
@@ -4752,9 +4758,9 @@ const styles =
 
       height: 56,
 
-      marginBottom: 13,
+      marginBottom: 16,
 
-      borderRadius: 28,
+      borderRadius: 16,
 
       alignItems:
         'center',
@@ -4771,9 +4777,9 @@ const styles =
 
       height: 56,
 
-      marginBottom: 13,
+      marginBottom: 16,
 
-      borderRadius: 28,
+      borderRadius: 16,
 
       alignItems:
         'center',
@@ -4789,8 +4795,7 @@ const styles =
       color:
         COLORS.black,
 
-      fontFamily:
-        'Poppins_700Bold',
+      fontFamily: 'Poppins_600SemiBold',
 
       fontSize: 17,
 
@@ -4799,7 +4804,7 @@ const styles =
     },
 
     confirmationText: {
-      marginTop: 7,
+      marginTop: 6,
 
       color:
         COLORS.muted,
@@ -4819,11 +4824,11 @@ const styles =
       width:
         '100%',
 
-      height: 45,
+      height: 48,
 
-      marginTop: 20,
+      marginTop: 24,
 
-      borderRadius: 10,
+      borderRadius: 12,
 
       alignItems:
         'center',

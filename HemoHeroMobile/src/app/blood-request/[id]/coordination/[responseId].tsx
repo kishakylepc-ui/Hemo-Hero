@@ -26,7 +26,7 @@ import {
   type ScrollViewInstance,
 } from 'react-native';
 
-import { MaterialIcons } from '@expo/vector-icons';
+import { Ionicons, MaterialIcons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 
 import {
@@ -4923,7 +4923,7 @@ export default function DonationCoordinationScreen() {
                     );
                   }}
                 >
-                  <MaterialIcons
+                  <Ionicons
                     name="arrow-back"
                     size={20}
                     color={COLORS.black}
@@ -4960,9 +4960,9 @@ export default function DonationCoordinationScreen() {
                 style={styles.sheetIconButton}
                 onPress={closeSupport}
               >
-                <MaterialIcons
+                <Ionicons
                   name="close"
-                  size={20}
+                  size={17}
                   color={COLORS.muted}
                 />
               </TouchableOpacity>
@@ -4972,7 +4972,7 @@ export default function DonationCoordinationScreen() {
             'menu' ? (
               <View style={styles.optionList}>
                 <OptionRow
-                  icon="description"
+                  icon="document-text-outline"
                   title="View request"
                   subtitle={`${request?.blood_type || ''} · ${request?.facility_name || ''}`}
                   onPress={() => {
@@ -4983,7 +4983,7 @@ export default function DonationCoordinationScreen() {
                 />
 
                 <OptionRow
-                  icon="near-me"
+                  icon="navigate-outline"
                   title="Directions"
                   subtitle="Open the donation place in maps"
                   onPress={() => {
@@ -5002,7 +5002,7 @@ export default function DonationCoordinationScreen() {
                   tripInfo.trip?.status ===
                     'arrived') ? (
                   <OptionRow
-                    icon="directions-car"
+                    icon="car-outline"
                     title={
                       myRole ===
                       'donor'
@@ -5048,7 +5048,7 @@ export default function DonationCoordinationScreen() {
 
                 {canReportNoShow ? (
                   <OptionRow
-                    icon="event-busy"
+                    icon="calendar-outline"
                     title={`${getOtherFirstName()} didn’t show up`}
                     subtitle="The meeting time passed"
                     danger
@@ -5061,7 +5061,7 @@ export default function DonationCoordinationScreen() {
                 ) : null}
 
                 <OptionRow
-                  icon="chat-bubble-outline"
+                  icon="chatbubble-outline"
                   title="Feedback to Hemo-Hero"
                   subtitle="Tell us how coordinating went"
                   onPress={() =>
@@ -5072,7 +5072,7 @@ export default function DonationCoordinationScreen() {
                 />
 
                 <OptionRow
-                  icon="outlined-flag"
+                  icon="flag-outline"
                   title={`Report ${getOtherFirstName()}`}
                   subtitle="Tell us about a concern"
                   danger
@@ -5087,8 +5087,8 @@ export default function DonationCoordinationScreen() {
               'success' ? (
               <FadeInView style={styles.sheetSuccess}>
                 <View style={styles.successIcon}>
-                  <MaterialIcons
-                    name="check"
+                  <Ionicons
+                    name="checkmark"
                     size={30}
                     color={COLORS.white}
                   />
@@ -5159,8 +5159,8 @@ export default function DonationCoordinationScreen() {
               'noshow' ? (
               <>
                 <View style={styles.noShowCard}>
-                  <MaterialIcons
-                    name="event-busy"
+                  <Ionicons
+                    name="calendar-outline"
                     size={20}
                     color={COLORS.redButton}
                   />
@@ -5220,8 +5220,8 @@ export default function DonationCoordinationScreen() {
                     offset={4}
                     style={styles.errorBox}
                   >
-                    <MaterialIcons
-                      name="error-outline"
+                    <Ionicons
+                      name="alert-circle-outline"
                       size={17}
                       color={COLORS.redButton}
                     />
@@ -5313,11 +5313,11 @@ export default function DonationCoordinationScreen() {
                               )
                             }
                           >
-                            <MaterialIcons
+                            <Ionicons
                               name={
                                 selected
-                                  ? 'radio-button-checked'
-                                  : 'radio-button-unchecked'
+                                  ? 'checkmark-circle'
+                                  : 'ellipse-outline'
                               }
                               size={19}
                               color={
@@ -5399,8 +5399,8 @@ export default function DonationCoordinationScreen() {
                     offset={4}
                     style={styles.errorBox}
                   >
-                    <MaterialIcons
-                      name="error-outline"
+                    <Ionicons
+                      name="alert-circle-outline"
                       size={17}
                       color={COLORS.redButton}
                     />
@@ -5501,7 +5501,7 @@ export default function DonationCoordinationScreen() {
                       )
                     }
                   >
-                    <MaterialIcons
+                    <Ionicons
                       name="arrow-back"
                       size={20}
                       color={COLORS.black}
@@ -5526,8 +5526,8 @@ export default function DonationCoordinationScreen() {
                       )
                     }
                   >
-                    <MaterialIcons
-                      name="chevron-left"
+                    <Ionicons
+                      name="chevron-back"
                       size={22}
                       color={COLORS.redButton}
                     />
@@ -5553,8 +5553,8 @@ export default function DonationCoordinationScreen() {
                       )
                     }
                   >
-                    <MaterialIcons
-                      name="chevron-right"
+                    <Ionicons
+                      name="chevron-forward"
                       size={22}
                       color={COLORS.redButton}
                     />
@@ -5712,7 +5712,7 @@ export default function DonationCoordinationScreen() {
                       )
                     }
                   >
-                    <MaterialIcons
+                    <Ionicons
                       name="arrow-back"
                       size={20}
                       color={COLORS.black}
@@ -5770,9 +5770,9 @@ export default function DonationCoordinationScreen() {
                       )
                     }
                   >
-                    <MaterialIcons
+                    <Ionicons
                       name="close"
-                      size={20}
+                      size={17}
                       color={COLORS.muted}
                     />
                   </TouchableOpacity>
@@ -5784,12 +5784,12 @@ export default function DonationCoordinationScreen() {
 
                 {scheduleLimitText ? (
                   <View style={styles.limitNote}>
-                    <MaterialIcons
+                    <Ionicons
                       name={
                         request?.urgency ===
                         'urgent'
-                          ? 'bolt'
-                          : 'event'
+                          ? 'flash'
+                          : 'calendar-outline'
                       }
                       size={16}
                       color={COLORS.redButton}
@@ -5811,8 +5811,8 @@ export default function DonationCoordinationScreen() {
                       openDatePicker
                     }
                   >
-                    <MaterialIcons
-                      name="calendar-today"
+                    <Ionicons
+                      name="calendar-outline"
                       size={17}
                       color={
                         scheduleDate
@@ -5840,8 +5840,8 @@ export default function DonationCoordinationScreen() {
                       openTimePicker
                     }
                   >
-                    <MaterialIcons
-                      name="schedule"
+                    <Ionicons
+                      name="time-outline"
                       size={18}
                       color={
                         scheduleTime
@@ -6028,20 +6028,20 @@ export default function DonationCoordinationScreen() {
                     ),
                   ]}
                 >
-                  <MaterialIcons
+                  <Ionicons
                     name={
                       actionPopup.variant ===
                       'success'
-                        ? 'check-circle-outline'
+                        ? 'checkmark-circle-outline'
                         : actionPopup.variant ===
                             'warning'
-                          ? 'warning-amber'
+                          ? 'warning-outline'
                           : actionPopup.variant ===
                                 'danger' ||
                               actionPopup.variant ===
                                 'error'
-                            ? 'error-outline'
-                            : 'info-outline'
+                            ? 'alert-circle-outline'
+                            : 'information-circle-outline'
                     }
                     size={28}
                     color={toneColor(
@@ -6348,7 +6348,7 @@ function OptionRow({
   danger = false,
   onPress,
 }: {
-  icon: keyof typeof MaterialIcons.glyphMap;
+  icon: keyof typeof Ionicons.glyphMap;
   title: string;
   subtitle: string;
   danger?: boolean;
@@ -6369,7 +6369,7 @@ function OptionRow({
             styles.optionIconDanger,
         ]}
       >
-        <MaterialIcons
+        <Ionicons
           name={icon}
           size={20}
           color={
@@ -6400,9 +6400,9 @@ function OptionRow({
         </Text>
       </View>
 
-      <MaterialIcons
-        name="chevron-right"
-        size={22}
+      <Ionicons
+        name="chevron-forward"
+        size={20}
         color={COLORS.lightMuted}
       />
     </TouchableOpacity>
@@ -7241,7 +7241,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 22,
     alignItems: 'center',
     justifyContent: 'center',
-    borderRadius: 13,
+    borderRadius: 12,
     backgroundColor: COLORS.redButton,
   },
 
@@ -7256,10 +7256,10 @@ const styles = StyleSheet.create({
     height: 48,
     alignItems: 'center',
     justifyContent: 'center',
-    borderRadius: 13,
-    borderWidth: 1,
+    borderRadius: 12,
+    borderWidth: 0,
     borderColor: COLORS.cardBorder,
-    backgroundColor: COLORS.white,
+    backgroundColor: '#F2F2F4',
   },
 
   secondaryButtonText: {
@@ -7298,11 +7298,11 @@ const styles = StyleSheet.create({
   },
 
   sheetHandle: {
-    width: 40,
-    height: 4,
-    marginBottom: 14,
+    width: 36,
+    height: 5,
+    marginBottom: 16,
     alignSelf: 'center',
-    borderRadius: 2,
+    borderRadius: 3,
     backgroundColor: COLORS.cardBorder,
   },
 
@@ -7322,16 +7322,16 @@ const styles = StyleSheet.create({
   },
 
   sheetIconButton: {
-    width: 34,
-    height: 34,
-    borderRadius: 17,
+    width: 30,
+    height: 30,
+    borderRadius: 15,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: COLORS.page,
+    backgroundColor: '#F2F2F4',
   },
 
   sheetIconSpacer: {
-    width: 34,
+    width: 30,
   },
 
   sheetIntro: {
@@ -7347,7 +7347,7 @@ const styles = StyleSheet.create({
     marginTop: -4,
     marginBottom: 14,
     paddingHorizontal: 12,
-    paddingVertical: 9,
+    paddingVertical: 10,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
@@ -7413,7 +7413,7 @@ const styles = StyleSheet.create({
   },
 
   option: {
-    paddingVertical: 10,
+    paddingVertical: 12,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
@@ -7422,7 +7422,7 @@ const styles = StyleSheet.create({
   optionIcon: {
     width: 40,
     height: 40,
-    borderRadius: 12,
+    borderRadius: 11,
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: COLORS.page,
@@ -7456,7 +7456,7 @@ const styles = StyleSheet.create({
 
   reasonList: {
     marginBottom: 14,
-    gap: 7,
+    gap: 8,
   },
 
   reason: {
@@ -7521,12 +7521,12 @@ const styles = StyleSheet.create({
 
   errorBox: {
     marginBottom: 12,
-    paddingHorizontal: 11,
+    paddingHorizontal: 12,
     paddingVertical: 10,
     flexDirection: 'row',
     alignItems: 'flex-start',
     gap: 8,
-    borderRadius: 11,
+    borderRadius: 12,
     backgroundColor: COLORS.pinkLight,
   },
 
@@ -7576,7 +7576,7 @@ const styles = StyleSheet.create({
   calendarArrow: {
     width: 36,
     height: 36,
-    borderRadius: 18,
+    borderRadius: 10,
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: COLORS.pinkLight,
@@ -7661,9 +7661,9 @@ const styles = StyleSheet.create({
   popupCard: {
     width: '100%',
     maxWidth: 360,
-    paddingHorizontal: 20,
-    paddingTop: 24,
-    paddingBottom: 18,
+    paddingHorizontal: 24,
+    paddingTop: 28,
+    paddingBottom: 20,
     borderRadius: 22,
     backgroundColor: COLORS.white,
   },
@@ -7671,9 +7671,9 @@ const styles = StyleSheet.create({
   popupIcon: {
     width: 56,
     height: 56,
-    marginBottom: 12,
+    marginBottom: 16,
     alignSelf: 'center',
-    borderRadius: 28,
+    borderRadius: 16,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -7695,8 +7695,8 @@ const styles = StyleSheet.create({
   },
 
   popupActions: {
-    marginTop: 18,
+    marginTop: 24,
     flexDirection: 'row',
-    gap: 10,
+    gap: 8,
   },
 });

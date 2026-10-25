@@ -12,7 +12,8 @@ import {
   View,
 } from 'react-native';
 
-import { MaterialIcons } from '@expo/vector-icons';
+import { Ionicons, MaterialIcons } from '@expo/vector-icons';
+import { ICON_TILE } from '../../constants/theme';
 import { LinearGradient } from 'expo-linear-gradient';
 
 import {
@@ -1552,9 +1553,9 @@ export default function DonorDetailsScreen() {
                       styles.modalHeaderIcon
                     }
                   >
-                    <MaterialIcons
-                      name="volunteer-activism"
-                      size={22}
+                    <Ionicons
+                      name="heart-outline"
+                      size={21}
                       color={
                         COLORS.redButton
                       }
@@ -1600,9 +1601,9 @@ export default function DonorDetailsScreen() {
                       closeRequestModal
                     }
                   >
-                    <MaterialIcons
+                    <Ionicons
                       name="close"
-                      size={21}
+                      size={17}
                       color={
                         COLORS.muted
                       }
@@ -1649,9 +1650,9 @@ export default function DonorDetailsScreen() {
                         styles.modalStateIcon
                       }
                     >
-                      <MaterialIcons
-                        name="error-outline"
-                        size={25}
+                      <Ionicons
+                        name="alert-circle-outline"
+                        size={28}
                         color={
                           COLORS.redButton
                         }
@@ -1687,7 +1688,7 @@ export default function DonorDetailsScreen() {
                         loadActiveRequests
                       }
                     >
-                      <MaterialIcons
+                      <Ionicons
                         name="refresh"
                         size={16}
                         color={
@@ -1722,9 +1723,9 @@ export default function DonorDetailsScreen() {
                         styles.modalStateIcon
                       }
                     >
-                      <MaterialIcons
-                        name="bloodtype"
-                        size={26}
+                      <Ionicons
+                        name="water"
+                        size={28}
                         color={
                           COLORS.redButton
                         }
@@ -1758,7 +1759,7 @@ export default function DonorDetailsScreen() {
                         handleCreateBloodRequest
                       }
                     >
-                      <MaterialIcons
+                      <Ionicons
                         name="add"
                         size={18}
                         color={
@@ -1795,9 +1796,9 @@ export default function DonorDetailsScreen() {
                         styles.mismatchIcon
                       }
                     >
-                      <MaterialIcons
-                        name="bloodtype"
-                        size={27}
+                      <Ionicons
+                        name="water"
+                        size={28}
                         color={
                           COLORS.orange
                         }
@@ -1846,8 +1847,8 @@ export default function DonorDetailsScreen() {
                         styles.matchRuleCard
                       }
                     >
-                      <MaterialIcons
-                        name="verified-user"
+                      <Ionicons
+                        name="shield-checkmark-outline"
                         size={16}
                         color={
                           COLORS.redButton
@@ -1875,7 +1876,7 @@ export default function DonorDetailsScreen() {
                         closeRequestModal
                       }
                     >
-                      <MaterialIcons
+                      <Ionicons
                         name="search"
                         size={16}
                         color={
@@ -1953,8 +1954,8 @@ export default function DonorDetailsScreen() {
                                     styles.requestBloodBadge
                                   }
                                 >
-                                  <MaterialIcons
-                                    name="bloodtype"
+                                  <Ionicons
+                                    name="water"
                                     size={17}
                                     color={
                                       COLORS.redButton
@@ -1977,8 +1978,8 @@ export default function DonorDetailsScreen() {
                                     styles.matchBadge
                                   }
                                 >
-                                  <MaterialIcons
-                                    name="check-circle"
+                                  <Ionicons
+                                    name="checkmark-circle"
                                     size={13}
                                     color={
                                       COLORS.green
@@ -1994,11 +1995,11 @@ export default function DonorDetailsScreen() {
                                   </Text>
                                 </View>
 
-                                <MaterialIcons
+                                <Ionicons
                                   name={
                                     selected
-                                      ? 'radio-button-checked'
-                                      : 'radio-button-unchecked'
+                                      ? 'checkmark-circle'
+                                      : 'ellipse-outline'
                                   }
                                   size={21}
                                   color={
@@ -2032,8 +2033,8 @@ export default function DonorDetailsScreen() {
                                     styles.requestMetaItem
                                   }
                                 >
-                                  <MaterialIcons
-                                    name="water-drop"
+                                  <Ionicons
+                                    name="water"
                                     size={13}
                                     color={
                                       COLORS.muted
@@ -2064,12 +2065,12 @@ export default function DonorDetailsScreen() {
                                     styles.requestMetaItem
                                   }
                                 >
-                                  <MaterialIcons
+                                  <Ionicons
                                     name={
                                       request.urgency ===
                                       'urgent'
-                                        ? 'bolt'
-                                        : 'schedule'
+                                        ? 'flash'
+                                        : 'time-outline'
                                     }
                                     size={13}
                                     color={
@@ -2103,8 +2104,8 @@ export default function DonorDetailsScreen() {
                           styles.invitationNotice
                         }
                       >
-                        <MaterialIcons
-                          name="check-circle-outline"
+                        <Ionicons
+                          name="checkmark-circle-outline"
                           size={16}
                           color={
                             COLORS.green
@@ -2152,7 +2153,7 @@ export default function DonorDetailsScreen() {
                         />
                       ) : (
                         <>
-                          <MaterialIcons
+                          <Ionicons
                             name="send"
                             size={18}
                             color={
@@ -2218,20 +2219,22 @@ export default function DonorDetailsScreen() {
                       styles.actionPopupIconError,
                   ]}
                 >
-                  <MaterialIcons
+                  <Ionicons
                     name={
                       actionPopup.variant ===
                       'success'
-                        ? 'check-circle-outline'
+                        ? 'checkmark-circle'
                         : actionPopup.variant ===
                             'warning'
-                          ? 'warning-amber'
+                          ? 'warning'
                           : actionPopup.variant ===
                               'error'
-                            ? 'error-outline'
-                            : 'info-outline'
+                            ? 'close-circle'
+                            : 'information-circle'
                     }
-                    size={31}
+                    size={
+            ICON_TILE.lg.glyph
+          }
                     color={
                       actionPopup.variant ===
                       'success'
@@ -3254,8 +3257,7 @@ const styles =
       flex:
         1,
 
-      paddingHorizontal:
-        20,
+      paddingHorizontal: 24,
 
       alignItems:
         'center',
@@ -3277,11 +3279,9 @@ const styles =
       maxHeight:
         '82%',
 
-      padding:
-        18,
+      padding: 20,
 
-      borderRadius:
-        20,
+      borderRadius: 22,
 
       backgroundColor:
         COLORS.white,
@@ -3313,17 +3313,13 @@ const styles =
     },
 
     modalHeaderIcon: {
-      width:
-        42,
+      width: 40,
 
-      height:
-        42,
+      height: 40,
 
-      marginRight:
-        10,
+      marginRight: 12,
 
-      borderRadius:
-        21,
+      borderRadius: 11,
 
       alignItems:
         'center',
@@ -3372,17 +3368,13 @@ const styles =
     },
 
     modalClose: {
-      width:
-        32,
+      width: 30,
 
-      height:
-        32,
+      height: 30,
 
-      marginLeft:
-        7,
+      marginLeft: 8,
 
-      borderRadius:
-        16,
+      borderRadius: 15,
 
       alignItems:
         'center',
@@ -3390,8 +3382,7 @@ const styles =
       justifyContent:
         'center',
 
-      backgroundColor:
-        COLORS.graySoft,
+      backgroundColor: '#F2F2F4',
     },
 
     modalState: {
@@ -3409,17 +3400,13 @@ const styles =
     },
 
     modalStateIcon: {
-      width:
-        52,
+      width: 56,
 
-      height:
-        52,
+      height: 56,
 
-      marginBottom:
-        9,
+      marginBottom: 12,
 
-      borderRadius:
-        26,
+      borderRadius: 16,
 
       alignItems:
         'center',
@@ -3432,17 +3419,13 @@ const styles =
     },
 
     mismatchIcon: {
-      width:
-        52,
+      width: 56,
 
-      height:
-        52,
+      height: 56,
 
-      marginBottom:
-        9,
+      marginBottom: 12,
 
-      borderRadius:
-        26,
+      borderRadius: 16,
 
       alignItems:
         'center',
@@ -3472,8 +3455,7 @@ const styles =
       maxWidth:
         270,
 
-      marginTop:
-        4,
+      marginTop: 6,
 
       color:
         COLORS.muted,
@@ -3503,11 +3485,9 @@ const styles =
       width:
         '100%',
 
-      marginTop:
-        13,
+      marginTop: 12,
 
-      padding:
-        10,
+      padding: 12,
 
       flexDirection:
         'row',
@@ -3515,11 +3495,9 @@ const styles =
       alignItems:
         'flex-start',
 
-      gap:
-        7,
+      gap: 8,
 
-      borderRadius:
-        10,
+      borderRadius: 12,
 
       backgroundColor:
         COLORS.pinkSoft,
@@ -3543,14 +3521,11 @@ const styles =
     },
 
     modalSecondaryButton: {
-      minHeight:
-        38,
+      minHeight: 44,
 
-      marginTop:
-        14,
+      marginTop: 16,
 
-      paddingHorizontal:
-        15,
+      paddingHorizontal: 16,
 
       flexDirection:
         'row',
@@ -3561,20 +3536,16 @@ const styles =
       justifyContent:
         'center',
 
-      gap:
-        5,
+      gap: 6,
 
-      borderWidth:
-        1,
+      borderWidth: 0,
 
       borderColor:
         '#E3BABA',
 
-      borderRadius:
-        10,
+      borderRadius: 12,
 
-      backgroundColor:
-        COLORS.white,
+      backgroundColor: '#F2F2F4',
     },
 
     modalSecondaryButtonText: {
@@ -3589,11 +3560,9 @@ const styles =
     },
 
     createRequestButton: {
-      minHeight:
-        42,
+      minHeight: 44,
 
-      marginTop:
-        15,
+      marginTop: 16,
 
       paddingHorizontal:
         16,
@@ -3607,11 +3576,9 @@ const styles =
       justifyContent:
         'center',
 
-      gap:
-        6,
+      gap: 6,
 
-      borderRadius:
-        10,
+      borderRadius: 12,
 
       backgroundColor:
         COLORS.redButton,
@@ -3654,11 +3621,9 @@ const styles =
     },
 
     requestOption: {
-      padding:
-        13,
+      padding: 12,
 
-      marginBottom:
-        9,
+      marginBottom: 8,
 
       borderWidth:
         1,
@@ -3688,8 +3653,7 @@ const styles =
       alignItems:
         'center',
 
-      gap:
-        7,
+      gap: 8,
     },
 
     requestBloodBadge: {
@@ -3705,11 +3669,9 @@ const styles =
       alignItems:
         'center',
 
-      gap:
-        3,
+      gap: 4,
 
-      borderRadius:
-        9,
+      borderRadius: 8,
 
       backgroundColor:
         COLORS.pinkSoft,
@@ -3733,20 +3695,17 @@ const styles =
       alignItems:
         'center',
 
-      gap:
-        3,
+      gap: 4,
 
       marginRight:
         'auto',
 
-      paddingHorizontal:
-        6,
+      paddingHorizontal: 8,
 
       minHeight:
         24,
 
-      borderRadius:
-        7,
+      borderRadius: 12,
 
       backgroundColor:
         COLORS.greenSoft,
@@ -3764,8 +3723,7 @@ const styles =
     },
 
     requestFacility: {
-      marginTop:
-        9,
+      marginTop: 8,
 
       color:
         COLORS.black,
@@ -3778,8 +3736,7 @@ const styles =
     },
 
     requestMetaRow: {
-      marginTop:
-        7,
+      marginTop: 6,
 
       flexDirection:
         'row',
@@ -3801,8 +3758,7 @@ const styles =
       alignItems:
         'center',
 
-      gap:
-        3,
+      gap: 4,
     },
 
     requestMetaText: {
@@ -3831,11 +3787,9 @@ const styles =
     },
 
     invitationNotice: {
-      marginTop:
-        5,
+      marginTop: 8,
 
-      padding:
-        10,
+      padding: 12,
 
       flexDirection:
         'row',
@@ -3843,11 +3797,9 @@ const styles =
       alignItems:
         'flex-start',
 
-      gap:
-        6,
+      gap: 8,
 
-      borderRadius:
-        10,
+      borderRadius: 12,
 
       backgroundColor:
         COLORS.greenSoft,
@@ -3871,11 +3823,9 @@ const styles =
     },
 
     sendInvitationButton: {
-      minHeight:
-        46,
+      minHeight: 48,
 
-      marginTop:
-        12,
+      marginTop: 16,
 
       flexDirection:
         'row',
@@ -3886,11 +3836,9 @@ const styles =
       justifyContent:
         'center',
 
-      gap:
-        7,
+      gap: 8,
 
-      borderRadius:
-        11,
+      borderRadius: 12,
 
       backgroundColor:
         COLORS.redButton,
@@ -3937,17 +3885,13 @@ const styles =
       width:
         '100%',
 
-      maxWidth:
-        360,
+      maxWidth: 340,
 
-      paddingHorizontal:
-        20,
+      paddingHorizontal: 24,
 
-      paddingTop:
-        22,
+      paddingTop: 28,
 
-      paddingBottom:
-        18,
+      paddingBottom: 20,
 
       borderRadius:
         22,
@@ -3974,20 +3918,16 @@ const styles =
     },
 
     actionPopupIcon: {
-      width:
-        56,
+      width: ICON_TILE.lg.size,
 
-      height:
-        56,
+      height: ICON_TILE.lg.size,
 
       alignSelf:
         'center',
 
-      marginBottom:
-        13,
+      marginBottom: 16,
 
-      borderRadius:
-        28,
+      borderRadius: ICON_TILE.lg.radius,
 
       alignItems:
         'center',
@@ -4021,19 +3961,16 @@ const styles =
       fontFamily:
         'Poppins_600SemiBold',
 
-      fontSize:
-        17,
+      fontSize: 17,
 
-      lineHeight:
-        22,
+      lineHeight: 24,
 
       textAlign:
         'center',
     },
 
     actionPopupMessage: {
-      marginTop:
-        8,
+      marginTop: 6,
 
       color:
         COLORS.muted,
@@ -4052,14 +3989,11 @@ const styles =
     },
 
     actionPopupButton: {
-      height:
-        45,
+      height: 48,
 
-      marginTop:
-        19,
+      marginTop: 24,
 
-      borderRadius:
-        10,
+      borderRadius: 12,
 
       alignItems:
         'center',

@@ -10,6 +10,14 @@ Write each change under **Unreleased** as you make it. `node scripts/version.js 
 
 ## Unreleased
 
+- Mobile, Edit Profile: the **Account** section now holds the username instead of the read-only email. It says while you type whether a new username is available or taken, like Sign Up.
+- Mobile: iPhone-style icons and spacing on Home and in every pop-up and bottom sheet.
+  - Icons are Ionicons (Apple's SF Symbols look) on rounded-square tiles, with even 8-point spacing.
+  - Close buttons are round and grey, and Cancel buttons are light grey.
+  - The blood type and location chips under your name are now the same size and line up.
+- Fixed: the Deactivate Account pop-up squeezed its two buttons, cutting off "Deactivate".
+- Mobile: notifications in the installed app (APK) show the Hemo-Hero logo instead of a default icon. Expo Go always shows its own icon.
+
 - **Usernames.** Sign in with a username or an email, in both apps. A lockout and the CAPTCHA follow the account whichever one is typed.
   - Sign Up asks for a username and checks while you type whether it's free.
   - It can be changed in Edit Profile (mobile) and Settings (admin), and admins set it in Create User and Edit User.

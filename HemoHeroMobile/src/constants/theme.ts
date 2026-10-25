@@ -78,6 +78,15 @@ export const SPACING = {
   xxl: 28,
 };
 
+// iPhone-style icon tiles: a tinted rounded square holding an
+// Ionicons glyph (Ionicons follow Apple's SF Symbols look).
+// Pop-ups use lg; cards and section rows use md or sm.
+export const ICON_TILE = {
+  sm: { size: 30, radius: 8, glyph: 16 },
+  md: { size: 40, radius: 11, glyph: 21 },
+  lg: { size: 56, radius: 16, glyph: 28 },
+};
+
 // Soft card shadow used across screens.
 export const SHADOW = {
   shadowColor: '#8F1111',

@@ -24,10 +24,7 @@ import {
   View,
 } from 'react-native';
 
-import {
-  MaterialCommunityIcons,
-  MaterialIcons,
-} from '@expo/vector-icons';
+import { Ionicons, MaterialCommunityIcons, MaterialIcons } from '@expo/vector-icons';
 
 import {
   LinearGradient,
@@ -2666,8 +2663,8 @@ export default function CreateBloodRequestScreen() {
                   },
                 ]}
               >
-                <MaterialIcons
-                  name="checklist"
+                <Ionicons
+                  name="list-outline"
                   size={28}
                   color={COLORS.orange}
                 />
@@ -2695,11 +2692,11 @@ export default function CreateBloodRequestScreen() {
                       key={item.label}
                       style={styles.checkRow}
                     >
-                      <MaterialIcons
+                      <Ionicons
                         name={
                           item.done
-                            ? 'check-circle'
-                            : 'radio-button-unchecked'
+                            ? 'checkmark-circle'
+                            : 'ellipse-outline'
                         }
                         size={21}
                         color={
@@ -2747,9 +2744,9 @@ export default function CreateBloodRequestScreen() {
                   accessibilityLabel="Close"
                   onPress={closeSheet}
                 >
-                  <MaterialIcons
+                  <Ionicons
                     name="close"
-                    size={20}
+                    size={17}
                     color={COLORS.muted}
                   />
                 </TouchableOpacity>
@@ -2782,11 +2779,11 @@ export default function CreateBloodRequestScreen() {
                       },
                     ]}
                   >
-                    <MaterialIcons
+                    <Ionicons
                       name={
                         urgency === 'urgent'
-                          ? 'bolt'
-                          : 'event'
+                          ? 'flash'
+                          : 'calendar-outline'
                       }
                       size={14}
                       color={
@@ -2819,7 +2816,7 @@ export default function CreateBloodRequestScreen() {
               {/* Details */}
               <View style={styles.reviewRows}>
                 <ReviewRow
-                  icon="place"
+                  icon="location-outline"
                   iconNode={
                     manualFacilityMode ? undefined : (
                       <FacilityIcon
@@ -2834,14 +2831,14 @@ export default function CreateBloodRequestScreen() {
                 />
 
                 <ReviewRow
-                  icon="schedule"
+                  icon="time-outline"
                   label="Needed"
                   value={reviewNeededBy}
                 />
 
                 {message.trim() ? (
                   <ReviewRow
-                    icon="notes"
+                    icon="document-text-outline"
                     label="Note"
                     value={message.trim()}
                     last
@@ -2851,8 +2848,8 @@ export default function CreateBloodRequestScreen() {
 
               {compatibleDonors.length > 0 ? (
                 <View style={styles.reviewVisibility}>
-                  <MaterialIcons
-                    name="visibility"
+                  <Ionicons
+                    name="eye-outline"
                     size={16}
                     color={COLORS.green}
                   />
@@ -2873,8 +2870,8 @@ export default function CreateBloodRequestScreen() {
                   offset={4}
                   style={styles.sheetError}
                 >
-                  <MaterialIcons
-                    name="error-outline"
+                  <Ionicons
+                    name="alert-circle-outline"
                     size={17}
                     color={COLORS.redButton}
                   />
@@ -2892,8 +2889,8 @@ export default function CreateBloodRequestScreen() {
                   activeOpacity={0.8}
                   onPress={closeSheet}
                 >
-                  <MaterialIcons
-                    name="edit"
+                  <Ionicons
+                    name="create-outline"
                     size={17}
                     color={COLORS.redButton}
                   />
@@ -2926,7 +2923,7 @@ export default function CreateBloodRequestScreen() {
                       />
                     ) : (
                       <>
-                        <MaterialIcons
+                        <Ionicons
                           name="send"
                           size={17}
                           color={COLORS.white}
@@ -2954,8 +2951,8 @@ export default function CreateBloodRequestScreen() {
                 />
 
                 <View style={styles.successIcon}>
-                  <MaterialIcons
-                    name="check"
+                  <Ionicons
+                    name="checkmark"
                     size={40}
                     color={COLORS.white}
                   />
@@ -3029,9 +3026,9 @@ export default function CreateBloodRequestScreen() {
                 setShowFacilityPicker(false)
               }
             >
-              <MaterialIcons
+              <Ionicons
                 name="close"
-                size={20}
+                size={17}
                 color={COLORS.muted}
               />
             </TouchableOpacity>
@@ -3050,8 +3047,8 @@ export default function CreateBloodRequestScreen() {
             </View>
           ) : facilities.length === 0 ? (
             <View style={styles.sheetLoading}>
-              <MaterialCommunityIcons
-                name="map-search-outline"
+              <Ionicons
+                name="map-outline"
                 size={38}
                 color={COLORS.lightMuted}
               />
@@ -3118,11 +3115,11 @@ export default function CreateBloodRequestScreen() {
                         </Text>
                       </View>
 
-                      <MaterialIcons
+                      <Ionicons
                         name={
                           selected
-                            ? 'check-circle'
-                            : 'chevron-right'
+                            ? 'checkmark-circle'
+                            : 'chevron-forward'
                         }
                         size={22}
                         color={
@@ -3145,7 +3142,7 @@ export default function CreateBloodRequestScreen() {
               activeOpacity={0.8}
               onPress={loadNearbyFacilities}
             >
-              <MaterialIcons
+              <Ionicons
                 name="refresh"
                 size={18}
                 color={COLORS.redButton}
@@ -3161,8 +3158,8 @@ export default function CreateBloodRequestScreen() {
               activeOpacity={0.8}
               onPress={switchToManualFacility}
             >
-              <MaterialIcons
-                name="edit-location-alt"
+              <Ionicons
+                name="location-outline"
                 size={18}
                 color={COLORS.redButton}
               />
@@ -3192,9 +3189,9 @@ export default function CreateBloodRequestScreen() {
               accessibilityLabel="Close"
               onPress={() => setShowDatePicker(false)}
             >
-              <MaterialIcons
+              <Ionicons
                 name="close"
-                size={20}
+                size={17}
                 color={COLORS.muted}
               />
             </TouchableOpacity>
@@ -3206,8 +3203,8 @@ export default function CreateBloodRequestScreen() {
               accessibilityLabel="Previous month"
               onPress={previousMonth}
             >
-              <MaterialIcons
-                name="chevron-left"
+              <Ionicons
+                name="chevron-back"
                 size={24}
                 color={COLORS.redButton}
               />
@@ -3222,8 +3219,8 @@ export default function CreateBloodRequestScreen() {
               accessibilityLabel="Next month"
               onPress={nextMonth}
             >
-              <MaterialIcons
-                name="chevron-right"
+              <Ionicons
+                name="chevron-forward"
                 size={24}
                 color={COLORS.redButton}
               />
@@ -3346,9 +3343,9 @@ export default function CreateBloodRequestScreen() {
               accessibilityLabel="Close"
               onPress={() => setShowTimePicker(false)}
             >
-              <MaterialIcons
+              <Ionicons
                 name="close"
-                size={20}
+                size={17}
                 color={COLORS.muted}
               />
             </TouchableOpacity>
@@ -3427,15 +3424,15 @@ export default function CreateBloodRequestScreen() {
                   },
                 ]}
               >
-                <MaterialIcons
+                <Ionicons
                   name={
                     actionPopup.variant === 'success'
-                      ? 'check-circle-outline'
+                      ? 'checkmark-circle-outline'
                       : actionPopup.variant === 'warning'
-                        ? 'info-outline'
+                        ? 'information-circle-outline'
                         : actionPopup.variant === 'error'
-                          ? 'error-outline'
-                          : 'info-outline'
+                          ? 'alert-circle-outline'
+                          : 'information-circle-outline'
                   }
                   size={28}
                   color={
@@ -3598,7 +3595,7 @@ function ReviewRow({
   detail,
   last = false,
 }: {
-  icon?: keyof typeof MaterialIcons.glyphMap;
+  icon?: keyof typeof Ionicons.glyphMap;
   iconNode?: ReactNode;
   label: string;
   value: string;
@@ -3616,8 +3613,8 @@ function ReviewRow({
     >
       {iconNode || (
         <View style={styles.reviewRowIcon}>
-          <MaterialIcons
-            name={icon || 'info-outline'}
+          <Ionicons
+            name={icon || 'information-circle-outline'}
             size={19}
             color={COLORS.redButton}
           />
@@ -4380,11 +4377,11 @@ const styles = StyleSheet.create({
   },
 
   sheetHandle: {
-    width: 40,
-    height: 4,
+    width: 36,
+    height: 5,
     marginBottom: 16,
     alignSelf: 'center',
-    borderRadius: 2,
+    borderRadius: 3,
     backgroundColor: '#E6DADA',
   },
 
@@ -4393,7 +4390,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    gap: 10,
+    gap: 12,
   },
 
   sheetTitleLeft: {
@@ -4403,27 +4400,27 @@ const styles = StyleSheet.create({
   },
 
   sheetSubtitleLeft: {
-    marginTop: 1,
+    marginTop: 2,
     color: COLORS.muted,
     fontFamily: 'Inter_400Regular',
     fontSize: 12.5,
   },
 
   sheetClose: {
-    width: 34,
-    height: 34,
-    borderRadius: 17,
+    width: 30,
+    height: 30,
+    borderRadius: 15,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#F6EFEF',
+    backgroundColor: '#F2F2F4',
   },
 
   sheetIcon: {
     width: 56,
     height: 56,
-    marginBottom: 12,
+    marginBottom: 16,
     alignSelf: 'center',
-    borderRadius: 28,
+    borderRadius: 16,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -4471,12 +4468,12 @@ const styles = StyleSheet.create({
   },
 
   sheetPrimaryFull: {
-    height: 50,
-    marginTop: 18,
+    height: 48,
+    marginTop: 20,
     alignSelf: 'stretch',
     alignItems: 'center',
     justifyContent: 'center',
-    borderRadius: 13,
+    borderRadius: 12,
     backgroundColor: COLORS.redButton,
   },
 
@@ -4485,7 +4482,7 @@ const styles = StyleSheet.create({
     height: 48,
     alignItems: 'center',
     justifyContent: 'center',
-    borderRadius: 13,
+    borderRadius: 12,
     backgroundColor: COLORS.redButton,
   },
 
@@ -4496,9 +4493,9 @@ const styles = StyleSheet.create({
   },
 
   sheetActions: {
-    marginTop: 18,
+    marginTop: 20,
     flexDirection: 'row',
-    gap: 10,
+    gap: 8,
   },
 
   sheetSecondary: {
@@ -4508,10 +4505,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: 6,
-    borderRadius: 13,
-    borderWidth: 1.5,
+    borderRadius: 12,
+    borderWidth: 0,
     borderColor: COLORS.tileBorder,
-    backgroundColor: COLORS.white,
+    backgroundColor: '#F2F2F4',
   },
 
   sheetSecondaryText: {
@@ -4521,7 +4518,7 @@ const styles = StyleSheet.create({
   },
 
   sheetPrimaryWrap: {
-    borderRadius: 13,
+    borderRadius: 12,
     overflow: 'hidden',
   },
 
@@ -4547,12 +4544,12 @@ const styles = StyleSheet.create({
 
   sheetError: {
     marginTop: 14,
-    paddingHorizontal: 11,
+    paddingHorizontal: 12,
     paddingVertical: 10,
     flexDirection: 'row',
     alignItems: 'flex-start',
     gap: 8,
-    borderRadius: 11,
+    borderRadius: 12,
     backgroundColor: COLORS.pinkLight,
   },
 
@@ -4592,7 +4589,7 @@ const styles = StyleSheet.create({
   reviewBlood: {
     width: 58,
     height: 58,
-    borderRadius: 29,
+    borderRadius: 16,
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: COLORS.redButton,
@@ -4644,8 +4641,8 @@ const styles = StyleSheet.create({
   },
 
   reviewRowIcon: {
-    width: 38,
-    height: 38,
+    width: 40,
+    height: 40,
     borderRadius: 11,
     alignItems: 'center',
     justifyContent: 'center',
@@ -4679,8 +4676,8 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 7,
-    borderRadius: 11,
+    gap: 8,
+    borderRadius: 12,
     backgroundColor: COLORS.greenLight,
   },
 
@@ -4724,7 +4721,7 @@ const styles = StyleSheet.create({
 
   facilityOption: {
     marginBottom: 8,
-    padding: 11,
+    padding: 12,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
@@ -4770,7 +4767,7 @@ const styles = StyleSheet.create({
   calendarArrow: {
     width: 36,
     height: 36,
-    borderRadius: 18,
+    borderRadius: 10,
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: COLORS.pinkLight,
@@ -4852,9 +4849,9 @@ const styles = StyleSheet.create({
   popupCard: {
     width: '100%',
     maxWidth: 360,
-    paddingHorizontal: 20,
-    paddingTop: 24,
-    paddingBottom: 18,
+    paddingHorizontal: 24,
+    paddingTop: 28,
+    paddingBottom: 20,
     borderRadius: 22,
     backgroundColor: COLORS.white,
   },

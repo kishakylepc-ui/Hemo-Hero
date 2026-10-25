@@ -13,7 +13,8 @@ import {
   View,
 } from 'react-native';
 
-import { MaterialIcons } from '@expo/vector-icons';
+import { Ionicons, MaterialIcons } from '@expo/vector-icons';
+import { ICON_TILE } from '../../constants/theme';
 import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
@@ -1403,11 +1404,9 @@ export default function PersonalInformationScreen() {
                   )
                 }
               >
-                <MaterialIcons
+                <Ionicons
                   name="close"
-                  size={
-                    20
-                  }
+                  size={17}
                   color={
                     COLORS.black
                   }
@@ -1432,8 +1431,8 @@ export default function PersonalInformationScreen() {
                   previousYear
                 }
               >
-                <MaterialIcons
-                  name="keyboard-double-arrow-left"
+                <Ionicons
+                  name="play-back-outline"
                   size={
                     20
                   }
@@ -1461,8 +1460,8 @@ export default function PersonalInformationScreen() {
                   nextYear
                 }
               >
-                <MaterialIcons
-                  name="keyboard-double-arrow-right"
+                <Ionicons
+                  name="play-forward-outline"
                   size={
                     20
                   }
@@ -1490,8 +1489,8 @@ export default function PersonalInformationScreen() {
                   previousMonth
                 }
               >
-                <MaterialIcons
-                  name="chevron-left"
+                <Ionicons
+                  name="chevron-back"
                   size={
                     24
                   }
@@ -1521,8 +1520,8 @@ export default function PersonalInformationScreen() {
                   nextMonth
                 }
               >
-                <MaterialIcons
-                  name="chevron-right"
+                <Ionicons
+                  name="chevron-forward"
                   size={
                     24
                   }
@@ -1730,19 +1729,19 @@ export default function PersonalInformationScreen() {
                   styles.actionPopupIconError,
               ]}
             >
-              <MaterialIcons
+              <Ionicons
                 name={
                   actionPopup.variant ===
                     'warning'
-                    ? 'warning-amber'
+                    ? 'warning'
                     : actionPopup.variant ===
                         'error'
-                      ? 'error-outline'
-                      : 'info-outline'
+                      ? 'close-circle'
+                      : 'information-circle'
                 }
                 size={
-                  31
-                }
+            ICON_TILE.lg.glyph
+          }
                 color={
                   actionPopup.variant ===
                     'warning'
@@ -2599,17 +2598,13 @@ const styles =
       maxWidth:
         350,
 
-      paddingHorizontal:
-        19,
+      paddingHorizontal: 20,
 
-      paddingTop:
-        20,
+      paddingTop: 24,
 
-      paddingBottom:
-        18,
+      paddingBottom: 20,
 
-      borderRadius:
-        20,
+      borderRadius: 22,
 
       backgroundColor:
         COLORS.white,
@@ -2645,8 +2640,7 @@ const styles =
       alignItems:
         'flex-start',
 
-      marginBottom:
-        15,
+      marginBottom: 16,
     },
 
     calendarSmallTitle: {
@@ -2675,17 +2669,13 @@ const styles =
     },
 
     closeCalendarButton: {
-      width:
-        32,
+      width: 30,
 
-      height:
-        32,
+      height: 30,
 
-      borderRadius:
-        16,
+      borderRadius: 15,
 
-      backgroundColor:
-        '#F2F2F2',
+      backgroundColor: '#F2F2F4',
 
       alignItems:
         'center',
@@ -2708,8 +2698,7 @@ const styles =
       justifyContent:
         'center',
 
-      marginBottom:
-        7,
+      marginBottom: 8,
     },
 
     yearArrow: {
@@ -2892,14 +2881,11 @@ const styles =
     // ==========================================================
 
     cancelCalendarButton: {
-      height:
-        42,
+      height: 48,
 
-      marginTop:
-        13,
+      marginTop: 16,
 
-      borderRadius:
-        8,
+      borderRadius: 12,
 
       alignItems:
         'center',
@@ -2907,8 +2893,7 @@ const styles =
       justifyContent:
         'center',
 
-      backgroundColor:
-        '#F0F0F0',
+      backgroundColor: '#F2F2F4',
     },
 
     cancelCalendarText: {
@@ -2947,17 +2932,13 @@ const styles =
       width:
         '100%',
 
-      maxWidth:
-        360,
+      maxWidth: 340,
 
-      paddingHorizontal:
-        20,
+      paddingHorizontal: 24,
 
-      paddingTop:
-        22,
+      paddingTop: 28,
 
-      paddingBottom:
-        18,
+      paddingBottom: 20,
 
       borderRadius:
         22,
@@ -2987,20 +2968,16 @@ const styles =
     },
 
     actionPopupIcon: {
-      width:
-        56,
+      width: ICON_TILE.lg.size,
 
-      height:
-        56,
+      height: ICON_TILE.lg.size,
 
       alignSelf:
         'center',
 
-      marginBottom:
-        13,
+      marginBottom: 16,
 
-      borderRadius:
-        28,
+      borderRadius: ICON_TILE.lg.radius,
 
       alignItems:
         'center',
@@ -3029,19 +3006,16 @@ const styles =
       fontFamily:
         'Poppins_600SemiBold',
 
-      fontSize:
-        17,
+      fontSize: 17,
 
-      lineHeight:
-        22,
+      lineHeight: 24,
 
       textAlign:
         'center',
     },
 
     actionPopupMessage: {
-      marginTop:
-        8,
+      marginTop: 6,
 
       color:
         COLORS.muted,
@@ -3060,14 +3034,11 @@ const styles =
     },
 
     actionPopupButton: {
-      height:
-        45,
+      height: 48,
 
-      marginTop:
-        19,
+      marginTop: 24,
 
-      borderRadius:
-        10,
+      borderRadius: 12,
 
       alignItems:
         'center',

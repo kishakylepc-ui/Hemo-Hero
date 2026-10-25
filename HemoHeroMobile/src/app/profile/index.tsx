@@ -1,6 +1,7 @@
 import { useCallback, useState, } from 'react';
 import { ActivityIndicator, Image, Modal, Platform, ScrollView, StyleSheet, Switch, Text, TouchableOpacity, View, } from 'react-native';
-import { MaterialIcons, } from '@expo/vector-icons';
+import { Ionicons, MaterialIcons } from '@expo/vector-icons';
+import { ICON_TILE } from '../../constants/theme';
 import { LinearGradient, } from 'expo-linear-gradient';
 import { router, useFocusEffect, } from 'expo-router';
 import { StatusBar, } from 'expo-status-bar';
@@ -2092,9 +2093,11 @@ export default function ProfileScreen() {
                                         styles.logoutModalIcon
                                     }
                                 >
-                                    <MaterialIcons
-                                        name="logout"
-                                        size={28}
+                                    <Ionicons
+                                        name="log-out-outline"
+                                        size={
+                                            ICON_TILE.lg.glyph
+                                        }
                                         color={
                                             COLORS.redButton
                                         }
@@ -2215,20 +2218,22 @@ export default function ProfileScreen() {
                                             styles.actionPopupIconError,
                                     ]}
                                 >
-                                    <MaterialIcons
+                                    <Ionicons
                                         name={
                                             actionPopup.variant ===
                                             'success'
-                                                ? 'check-circle-outline'
+                                                ? 'checkmark-circle'
                                                 : actionPopup.variant ===
                                                   'warning'
-                                                    ? 'warning-amber'
+                                                    ? 'warning'
                                                     : actionPopup.variant ===
                                                       'error'
-                                                        ? 'error-outline'
-                                                        : 'info-outline'
+                                                        ? 'close-circle'
+                                                        : 'information-circle'
                                         }
-                                        size={31}
+                                        size={
+            ICON_TILE.lg.glyph
+          }
                                         color={
                                             actionPopup.variant ===
                                             'success'
@@ -3797,14 +3802,11 @@ const styles =
             maxWidth:
                 340,
 
-            paddingHorizontal:
-                22,
+            paddingHorizontal: 24,
 
-            paddingTop:
-                26,
+            paddingTop: 28,
 
-            paddingBottom:
-                20,
+            paddingBottom: 20,
 
             borderRadius:
                 22,
@@ -3837,17 +3839,13 @@ const styles =
         },
 
         logoutModalIcon: {
-            width:
-                58,
+            width: ICON_TILE.lg.size,
 
-            height:
-                58,
+            height: ICON_TILE.lg.size,
 
-            marginBottom:
-                15,
+            marginBottom: 16,
 
-            borderRadius:
-                29,
+            borderRadius: ICON_TILE.lg.radius,
 
             alignItems:
                 'center',
@@ -3863,22 +3861,22 @@ const styles =
             color:
                 COLORS.black,
 
-            fontFamily:
-                'Poppins_700Bold',
+            fontFamily: 'Poppins_600SemiBold',
 
             fontSize:
                 17,
 
             textAlign:
                 'center',
+
+            lineHeight: 24,
         },
 
         logoutModalMessage: {
             maxWidth:
                 255,
 
-            marginTop:
-                7,
+            marginTop: 6,
 
             color:
                 COLORS.muted,
@@ -3900,22 +3898,19 @@ const styles =
             width:
                 '100%',
 
-            marginTop:
-                23,
+            marginTop: 24,
 
             flexDirection:
                 'row',
 
-            gap:
-                10,
+            gap: 8,
         },
 
         logoutCancelButton: {
             flex:
                 1,
 
-            height:
-                46,
+            height: 48,
 
             alignItems:
                 'center',
@@ -3923,8 +3918,7 @@ const styles =
             justifyContent:
                 'center',
 
-            borderWidth:
-                1,
+            borderWidth: 0,
 
             borderColor:
                 COLORS.border,
@@ -3932,8 +3926,7 @@ const styles =
             borderRadius:
                 12,
 
-            backgroundColor:
-                COLORS.white,
+            backgroundColor: '#F2F2F4',
         },
 
         logoutCancelText: {
@@ -3951,8 +3944,7 @@ const styles =
             flex:
                 1,
 
-            height:
-                46,
+            height: 48,
 
             alignItems:
                 'center',
@@ -4004,17 +3996,13 @@ const styles =
             width:
                 '100%',
 
-            maxWidth:
-                340,
+            maxWidth: 340,
 
-            paddingHorizontal:
-                22,
+            paddingHorizontal: 24,
 
-            paddingTop:
-                25,
+            paddingTop: 28,
 
-            paddingBottom:
-                20,
+            paddingBottom: 20,
 
             borderRadius:
                 22,
@@ -4047,17 +4035,13 @@ const styles =
         },
 
         actionPopupIcon: {
-            width:
-                58,
+            width: ICON_TILE.lg.size,
 
-            height:
-                58,
+            height: ICON_TILE.lg.size,
 
-            marginBottom:
-                14,
+            marginBottom: 16,
 
-            borderRadius:
-                29,
+            borderRadius: ICON_TILE.lg.radius,
 
             alignItems:
                 'center',
@@ -4091,11 +4075,9 @@ const styles =
             fontFamily:
                 'Poppins_700Bold',
 
-            fontSize:
-                17,
+            fontSize: 17,
 
-            lineHeight:
-                24,
+            lineHeight: 24,
 
             textAlign:
                 'center',
@@ -4105,8 +4087,7 @@ const styles =
             maxWidth:
                 275,
 
-            marginTop:
-                7,
+            marginTop: 6,
 
             color:
                 COLORS.muted,
@@ -4128,14 +4109,11 @@ const styles =
             width:
                 '100%',
 
-            height:
-                46,
+            height: 48,
 
-            marginTop:
-                21,
+            marginTop: 24,
 
-            borderRadius:
-                12,
+            borderRadius: 12,
 
             alignItems:
                 'center',

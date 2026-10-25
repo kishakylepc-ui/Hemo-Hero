@@ -17,9 +17,7 @@ import {
   View,
 } from 'react-native';
 
-import {
-  MaterialIcons,
-} from '@expo/vector-icons';
+import { Ionicons } from '@expo/vector-icons';
 
 import {
   useSafeAreaInsets,
@@ -244,8 +242,8 @@ export default function ConfirmDonationSheet({
           >
             <View style={styles.headerRow}>
               <View style={styles.headerIcon}>
-                <MaterialIcons
-                  name="task-alt"
+                <Ionicons
+                  name="checkmark-done-outline"
                   size={22}
                   color={COLORS.green}
                 />
@@ -267,9 +265,9 @@ export default function ConfirmDonationSheet({
                 accessibilityLabel="Close"
                 onPress={close}
               >
-                <MaterialIcons
+                <Ionicons
                   name="close"
-                  size={20}
+                  size={17}
                   color={COLORS.muted}
                 />
               </TouchableOpacity>
@@ -283,8 +281,8 @@ export default function ConfirmDonationSheet({
               </Text>
 
               <View style={styles.bagValue}>
-                <MaterialIcons
-                  name="bloodtype"
+                <Ionicons
+                  name="water"
                   size={16}
                   color={COLORS.redButton}
                 />
@@ -369,8 +367,8 @@ export default function ConfirmDonationSheet({
             />
 
             <View style={styles.info}>
-              <MaterialIcons
-                name="history"
+              <Ionicons
+                name="time-outline"
                 size={16}
                 color={COLORS.muted}
               />
@@ -386,8 +384,8 @@ export default function ConfirmDonationSheet({
                 offset={4}
                 style={styles.error}
               >
-                <MaterialIcons
-                  name="error-outline"
+                <Ionicons
+                  name="alert-circle-outline"
                   size={17}
                   color={COLORS.redButton}
                 />
@@ -460,25 +458,25 @@ const styles = StyleSheet.create({
   },
 
   handle: {
-    width: 40,
-    height: 4,
+    width: 36,
+    height: 5,
     marginBottom: 16,
     alignSelf: 'center',
-    borderRadius: 2,
+    borderRadius: 3,
     backgroundColor: COLORS.cardBorder,
   },
 
   headerRow: {
-    marginBottom: 18,
+    marginBottom: 16,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
   },
 
   headerIcon: {
-    width: 42,
-    height: 42,
-    borderRadius: 21,
+    width: 40,
+    height: 40,
+    borderRadius: 11,
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: COLORS.greenLight,
@@ -496,19 +494,19 @@ const styles = StyleSheet.create({
   },
 
   subtitle: {
-    marginTop: 1,
+    marginTop: 2,
     color: COLORS.muted,
     fontFamily: 'Inter_400Regular',
     fontSize: 12.5,
   },
 
   close: {
-    width: 34,
-    height: 34,
-    borderRadius: 17,
+    width: 30,
+    height: 30,
+    borderRadius: 15,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: COLORS.page,
+    backgroundColor: '#F2F2F4',
   },
 
   row: {
@@ -532,7 +530,7 @@ const styles = StyleSheet.create({
 
   bagValue: {
     paddingHorizontal: 12,
-    paddingVertical: 7,
+    paddingVertical: 8,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
@@ -619,12 +617,12 @@ const styles = StyleSheet.create({
 
   error: {
     marginTop: 12,
-    paddingHorizontal: 11,
+    paddingHorizontal: 12,
     paddingVertical: 10,
     flexDirection: 'row',
     alignItems: 'flex-start',
     gap: 8,
-    borderRadius: 11,
+    borderRadius: 12,
     backgroundColor: COLORS.pinkLight,
   },
 
@@ -637,9 +635,9 @@ const styles = StyleSheet.create({
   },
 
   actions: {
-    marginTop: 18,
+    marginTop: 20,
     flexDirection: 'row',
-    gap: 10,
+    gap: 8,
   },
 
   secondary: {
@@ -647,10 +645,10 @@ const styles = StyleSheet.create({
     height: 48,
     alignItems: 'center',
     justifyContent: 'center',
-    borderRadius: 13,
-    borderWidth: 1,
+    borderRadius: 12,
+    borderWidth: 0,
     borderColor: COLORS.cardBorder,
-    backgroundColor: COLORS.white,
+    backgroundColor: '#F2F2F4',
   },
 
   secondaryText: {
@@ -664,7 +662,7 @@ const styles = StyleSheet.create({
     height: 48,
     alignItems: 'center',
     justifyContent: 'center',
-    borderRadius: 13,
+    borderRadius: 12,
     backgroundColor: COLORS.redButton,
   },
 

@@ -11,7 +11,8 @@ import {
   View,
 } from 'react-native';
 
-import { MaterialIcons } from '@expo/vector-icons';
+import { Ionicons, MaterialIcons } from '@expo/vector-icons';
+import { ICON_TILE } from '../../constants/theme';
 import { LinearGradient } from 'expo-linear-gradient';
 import { router, useLocalSearchParams } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
@@ -974,22 +975,22 @@ export default function DonorVerificationScreen() {
                   styles.actionPopupIconError,
               ]}
             >
-              <MaterialIcons
+              <Ionicons
                 name={
                   actionPopup.variant ===
                   'success'
-                    ? 'check-circle-outline'
+                    ? 'checkmark-circle'
                     : actionPopup.variant ===
                         'warning'
-                      ? 'warning-amber'
+                      ? 'warning'
                       : actionPopup.variant ===
                           'error'
-                        ? 'error-outline'
-                        : 'info-outline'
+                        ? 'close-circle'
+                        : 'information-circle'
                 }
                 size={
-                  31
-                }
+            ICON_TILE.lg.glyph
+          }
                 color={
                   actionPopup.variant ===
                   'success'
@@ -1768,17 +1769,13 @@ const styles =
       width:
         '100%',
 
-      maxWidth:
-        360,
+      maxWidth: 340,
 
-      paddingHorizontal:
-        20,
+      paddingHorizontal: 24,
 
-      paddingTop:
-        22,
+      paddingTop: 28,
 
-      paddingBottom:
-        18,
+      paddingBottom: 20,
 
       borderRadius:
         22,
@@ -1808,20 +1805,16 @@ const styles =
     },
 
     actionPopupIcon: {
-      width:
-        56,
+      width: ICON_TILE.lg.size,
 
-      height:
-        56,
+      height: ICON_TILE.lg.size,
 
       alignSelf:
         'center',
 
-      marginBottom:
-        13,
+      marginBottom: 16,
 
-      borderRadius:
-        28,
+      borderRadius: ICON_TILE.lg.radius,
 
       alignItems:
         'center',
@@ -1855,19 +1848,16 @@ const styles =
       fontFamily:
         'Poppins_600SemiBold',
 
-      fontSize:
-        16,
+      fontSize: 17,
 
-      lineHeight:
-        22,
+      lineHeight: 24,
 
       textAlign:
         'center',
     },
 
     actionPopupMessage: {
-      marginTop:
-        8,
+      marginTop: 6,
 
       color:
         COLORS.muted,
@@ -1886,14 +1876,11 @@ const styles =
     },
 
     actionPopupButton: {
-      height:
-        45,
+      height: 48,
 
-      marginTop:
-        19,
+      marginTop: 24,
 
-      borderRadius:
-        10,
+      borderRadius: 12,
 
       alignItems:
         'center',
