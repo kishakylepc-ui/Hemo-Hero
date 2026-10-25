@@ -10,6 +10,8 @@ Write each change under **Unreleased** as you make it. `node scripts/version.js 
 
 ## Unreleased
 
+## 1.2.0 - 2026-10-25
+
 - Mobile, Edit Profile: the **Account** section now holds the username instead of the read-only email. It says while you type whether a new username is available or taken, like Sign Up.
 - Mobile: iPhone-style icons and spacing on Home and in every pop-up and bottom sheet.
   - Icons are Ionicons (Apple's SF Symbols look) on rounded-square tiles, with even 8-point spacing.
