@@ -6,7 +6,6 @@ import {
 
 import {
   ActivityIndicator,
-  Image,
   KeyboardAvoidingView,
   Platform,
   ScrollView,
@@ -22,9 +21,6 @@ import {
   MaterialIcons,
 } from '@expo/vector-icons';
 
-import {
-  LinearGradient,
-} from 'expo-linear-gradient';
 
 import {
   router,
@@ -40,7 +36,6 @@ import {
   useSafeAreaInsets,
 } from 'react-native-safe-area-context';
 
-import { shiftedDown } from '../lib/fullScreen';
 
 import {
   ApiError,
@@ -55,6 +50,7 @@ const RESEND_SECONDS =
   60;
 
 import AuthField from '../components/AuthField';
+import AuthHero from '../components/AuthHero';
 
 import {
   FadeInView,
@@ -69,9 +65,6 @@ const COLORS = {
   redDark: '#8F1111',
   redButton: '#B42323',
 
-  heroTop: '#D31115',
-  heroMiddle: '#A10F12',
-  heroBottom: '#8F1111',
 
   white: '#FFFFFF',
   black: '#171717',
@@ -906,65 +899,14 @@ export default function ResetPasswordScreen() {
               }
             >
               {/* ====================================================
-                  HERO (red) + SHEET (the form), like Sign In
+                  HERO: red top with the drop and the wave
               ==================================================== */}
 
-              <LinearGradient
-                colors={[
-                  COLORS.heroTop,
-                  COLORS.heroMiddle,
-                  COLORS.heroBottom,
-                ]}
-                locations={[
-                  0,
-                  0.45,
-                  1,
-                ]}
-                style={
-                  styles.hero
+              <AuthHero
+                topInset={
+                  insets.top
                 }
-              >
-                <View
-                  style={shiftedDown(
-                    styles.headerCircleRight,
-                    insets.top
-                  )}
-                />
-
-                <View
-                  style={[
-                    styles.heroRow,
-
-                    {
-                      paddingTop:
-                        insets.top + 16,
-                    },
-                  ]}
-                >
-                  <View
-                    style={
-                      styles.logoCircle
-                    }
-                  >
-                    <Image
-                      source={require(
-                        '../../assets/images/LifeLine (5).png'
-                      )}
-                      style={
-                        styles.logoImage
-                      }
-                      resizeMode="contain"
-                    />
-                  </View>
-
-                  <Text
-                    style={
-                      styles.brandName
-                    }
-                  >
-                    Hemo-Hero
-                  </Text>
-                </View>
+              />
 
                   <View
                     style={[
@@ -1542,7 +1484,6 @@ export default function ResetPasswordScreen() {
                       </Text>
                     </TouchableOpacity>
                   </View>
-                </LinearGradient>
             </ScrollView>
           </KeyboardAvoidingView>
         </SafeAreaView>
@@ -1558,78 +1499,23 @@ export default function ResetPasswordScreen() {
 const styles =
   StyleSheet.create({
     // ========================================================
-    // HERO (red, full screen) + SHEET, like Sign In / Sign Up
+    // FORM (white, right under the hero's wave)
     // ========================================================
 
-    hero: {
-      flexGrow: 1,
-    },
-
-    headerCircleRight: {
-      position: 'absolute',
-      width: 220,
-      height: 220,
-      borderRadius: 110,
-      right: -90,
-      top: -110,
-      backgroundColor: 'rgba(255,255,255,0.07)',
-    },
-
-    // Logo and name in one centered row.
-    heroRow: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      justifyContent: 'center',
-      gap: 12,
-    },
-
-    logoCircle: {
-      width: 48,
-      height: 48,
-      borderRadius: 24,
-      backgroundColor: COLORS.white,
-      alignItems: 'center',
-      justifyContent: 'center',
-      overflow: 'hidden',
-      shadowColor: '#000000',
-      shadowOffset: {
-        width: 0,
-        height: 8,
-      },
-      shadowOpacity: 0.18,
-      shadowRadius: 10,
-      elevation: 6,
-    },
-
-    logoImage: {
-      width: 40,
-      height: 40,
-    },
-
-    brandName: {
-      color: COLORS.white,
-      fontFamily: 'Poppins_700Bold',
-      fontSize: 24,
-      lineHeight: 30,
-    },
-
-    // The form, on a white sheet rising from the bottom.
     sheet: {
       flexGrow: 1,
-      marginTop: 24,
       paddingHorizontal: 24,
-      paddingTop: 28,
-      borderTopLeftRadius: 32,
-      borderTopRightRadius: 32,
+      paddingTop: 8,
       backgroundColor: COLORS.white,
-      shadowColor: '#000000',
-      shadowOffset: {
-        width: 0,
-        height: -12,
-      },
-      shadowOpacity: 0.12,
-      shadowRadius: 24,
     },
+
+
+
+
+
+
+
+
 
     flex: {
       flex: 1,
@@ -1651,7 +1537,7 @@ const styles =
       backgroundColor:
         Platform.OS === 'web'
           ? '#1E1E1E'
-          : COLORS.heroBottom,
+          : COLORS.white,
     },
 
     phone: {
@@ -1672,7 +1558,7 @@ const styles =
         'hidden',
 
       backgroundColor:
-        COLORS.heroBottom,
+        COLORS.white,
     },
 
     safeArea: {
@@ -1686,7 +1572,7 @@ const styles =
       flexGrow: 1,
 
       backgroundColor:
-        COLORS.heroBottom,
+        COLORS.white,
     },
 
 

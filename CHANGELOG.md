@@ -10,11 +10,11 @@ Write each change under **Unreleased** as you make it. `node scripts/version.js 
 
 ## Unreleased
 
-- Mobile: new **Sign In** and **Sign Up** design. The screen is red with the logo, and the form sits on a white sheet that rises from the bottom.
-  - "Welcome back" and "Create your account" headings, and an iPhone-style Sign In / Sign Up switch.
+- Mobile: new **Sign In** and **Sign Up** design. A red top with a large see-through blood drop meets the white form with a liquid wave.
+  - Sign In says "Give blood. Save lives." and Sign Up says "Join Hemo-Hero". The Sign In / Sign Up switch is now a link under each form ("Create an account" / "Sign in").
   - Outlined fields with a soft red ring while you type. Forgot Password, Reset Password and the Account & Security password fields use the same style.
-  - Sign Up has a five-step password strength bar and rule chips that turn green, and the whole form fits without scrolling.
-  - Forgot Password, Reset Password and Verify Email use the same red screen and white sheet, so the whole sign-in flow matches.
+  - Sign Up has a five-step password strength bar and rule chips that turn green.
+  - Forgot Password, Reset Password and Verify Email have the same red top and wave, so the whole sign-in flow matches.
 
 ## 1.2.0 - 2026-10-25
 

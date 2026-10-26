@@ -8,7 +8,6 @@ import {
   ActivityIndicator,
   Animated,
   Easing,
-  Image,
   KeyboardAvoidingView,
   Platform,
   ScrollView,
@@ -16,7 +15,6 @@ import {
   Text,
   TextInput,
   TouchableOpacity,
-  useWindowDimensions,
   View,
   type TextInputInstance,
 } from 'react-native';
@@ -24,10 +22,6 @@ import {
 import {
   Ionicons,
 } from '@expo/vector-icons';
-
-import {
-  LinearGradient,
-} from 'expo-linear-gradient';
 
 import {
   router,
@@ -43,7 +37,6 @@ import {
   useSafeAreaInsets,
 } from 'react-native-safe-area-context';
 
-import { shiftedDown } from '../lib/fullScreen';
 
 import {
   ApiError,
@@ -65,7 +58,7 @@ import {
 } from '../lib/appIntro';
 
 import AuthField from '../components/AuthField';
-import AuthTabs from '../components/AuthTabs';
+import AuthHero from '../components/AuthHero';
 
 import {
   FadeInView,
@@ -80,10 +73,6 @@ const COLORS = {
   redDark: '#8F1111',
   redButton: '#B42323',
 
-  // Sign-up hero, top to bottom.
-  heroTop: '#D31115',
-  heroMiddle: '#A10F12',
-  heroBottom: '#8F1111',
 
   white: '#FFFFFF',
   black: '#171717',
@@ -109,25 +98,6 @@ export default function SignUpScreen() {
   // like the Home screen).
   const insets =
     useSafeAreaInsets();
-
-  const {
-    height,
-  } =
-    useWindowDimensions();
-
-  /*
-    PRIMARY TARGET:
-    iPhone 17 Pro = approximately 402 x 874
-
-    Smaller phones such as iPhone 13
-    receive slightly tighter spacing.
-  */
-  const isSmallPhone =
-    Platform.OS !==
-      'web' &&
-    height <=
-      844;
-
   // Email carried over from Sign In.
   const params =
     useLocalSearchParams<{
@@ -750,6 +720,24 @@ export default function SignUpScreen() {
   // CREATE ACCOUNT
   // ==========================================================
 
+  // Bottom link: Sign In, carrying over the typed email.
+  function handleGoToSignIn() {
+    router.replace({
+      pathname:
+        '/',
+
+      params:
+        email.trim()
+          ? {
+              email:
+                email
+                  .trim()
+                  .toLowerCase(),
+            }
+          : {},
+    } as any);
+  }
+
   async function handleCreateAccount() {
     if (loading) {
       return;
@@ -1136,103 +1124,47 @@ export default function SignUpScreen() {
               }
             >
               {/* ====================================================
-                  HERO (red, behind everything) + SHEET (the form)
-                  The logo and name sit in one row here, so the
-                  whole form fits without scrolling.
+                  HERO: red top with the drop and the wave
               ==================================================== */}
 
-              <LinearGradient
-                colors={[
-                  COLORS.heroTop,
-                  COLORS.heroMiddle,
-                  COLORS.heroBottom,
-                ]}
-                locations={[
-                  0,
-                  0.45,
-                  1,
-                ]}
-                style={
-                  styles.hero
+              <AuthHero
+                topInset={
+                  insets.top
                 }
-              >
-                <View
-                  style={shiftedDown(
-                    styles.headerCircleRight,
-                    insets.top
-                  )}
-                />
+                size="small"
+                title={"Join Hemo-Hero"}
+                subtitle="Request blood or become a donor."
+                logoStyle={{
+                  opacity:
+                    logoOpacity,
 
-                <View
-                  style={[
-                    styles.heroRow,
-
+                  transform: [
                     {
-                      paddingTop:
-                        insets.top +
-                        (isSmallPhone
-                          ? 12
-                          : 16),
+                      scale:
+                        logoScale,
                     },
-                  ]}
-                >
-                  <Animated.View
-                    style={[
-                      styles.logoCircle,
+                  ],
+                }}
+                textStyle={{
+                  opacity:
+                    headerOpacity,
 
-                      {
-                        opacity:
-                          logoOpacity,
+                  transform: [
+                    {
+                      translateY:
+                        headerTranslateY,
+                    },
+                  ],
+                }}
+              />
 
-                        transform: [
-                          {
-                            scale:
-                              logoScale,
-                          },
-                        ],
-                      },
-                    ]}
-                  >
-                    <Image
-                      source={require(
-                        '../../assets/images/LifeLine (5).png'
-                      )}
-                      style={
-                        styles.logoImage
-                      }
-                      resizeMode="contain"
-                    />
-                  </Animated.View>
-
-                  <Animated.View
-                    style={{
-                      opacity:
-                        headerOpacity,
-
-                      transform: [
-                        {
-                          translateY:
-                            headerTranslateY,
-                        },
-                      ],
-                    }}
-                  >
-                    <Text
-                      style={
-                        styles.brandName
-                      }
-                    >
-                      Hemo-Hero
-                    </Text>
-                  </Animated.View>
-                </View>
+              {/* ====================================================
+                  FORM
+              ==================================================== */}
 
                 <Animated.View
                   style={[
                     styles.sheet,
-
-                    isSmallPhone &&
-                      styles.sheetSmall,
 
                     {
                       paddingBottom:
@@ -1253,40 +1185,6 @@ export default function SignUpScreen() {
                     },
                   ]}
                 >
-                    <Text
-                      style={
-                        styles.sheetTitle
-                      }
-                    >
-                      Create your account
-                    </Text>
-
-                    {/* ==============================================
-                        TABS
-                    ============================================== */}
-
-                    <AuthTabs
-                      active="signup"
-                      disabled={
-                        loading
-                      }
-                      onSwitch={() =>
-                        router.replace({
-                          pathname:
-                            '/',
-
-                          params:
-                            email.trim()
-                              ? {
-                                  email:
-                                    email
-                                      .trim()
-                                      .toLowerCase(),
-                                }
-                              : {},
-                        } as any)
-                      }
-                    />
 
                     {/* ==============================================
                         ERROR
@@ -1849,8 +1747,46 @@ export default function SignUpScreen() {
                         </Text>
                       </TouchableOpacity>
                     </Animated.View>
+                    {/* ==============================================
+                        SWITCH TO SIGN IN
+                    ============================================== */}
+
+                    <View
+                      style={
+                        styles.footerRow
+                      }
+                    >
+                      <Text
+                        style={
+                          styles.footerText
+                        }
+                      >
+                        Already have an account?
+                      </Text>
+
+                      <TouchableOpacity
+                        activeOpacity={
+                          0.7
+                        }
+                        accessibilityRole="button"
+                        disabled={
+                          loading
+                        }
+                        hitSlop={8}
+                        onPress={
+                          handleGoToSignIn
+                        }
+                      >
+                        <Text
+                          style={
+                            styles.footerLink
+                          }
+                        >
+                          Sign in
+                        </Text>
+                      </TouchableOpacity>
+                    </View>
                 </Animated.View>
-              </LinearGradient>
             </ScrollView>
           </KeyboardAvoidingView>
         </SafeAreaView>
@@ -1865,6 +1801,40 @@ export default function SignUpScreen() {
 
 const styles =
   StyleSheet.create({
+    // ========================================================
+    // FORM (white, right under the hero's wave)
+    // ========================================================
+
+    sheet: {
+      flexGrow: 1,
+      paddingHorizontal: 24,
+      paddingTop: 4,
+      backgroundColor: COLORS.white,
+    },
+
+    // "New to Hemo-Hero? Create an account"
+    footerRow: {
+      marginTop: 'auto',
+      paddingTop: 24,
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      flexWrap: 'wrap',
+      gap: 4,
+    },
+
+    footerText: {
+      color: '#666666',
+      fontFamily: 'Inter_400Regular',
+      fontSize: 14,
+    },
+
+    footerLink: {
+      color: COLORS.redButton,
+      fontFamily: 'Inter_600SemiBold',
+      fontSize: 14,
+    },
+
     // Under the Username field.
     usernameHintAvailable: {
       color: COLORS.success,
@@ -1916,7 +1886,7 @@ const styles =
         Platform.OS ===
           'web'
           ? '#1E1E1E'
-          : COLORS.heroBottom,
+          : COLORS.white,
     },
 
     // ========================================================
@@ -1940,176 +1910,30 @@ const styles =
         'hidden',
 
       backgroundColor:
-        COLORS.heroBottom,
+        COLORS.white,
     },
 
     safeArea: {
       flex: 1,
 
       backgroundColor:
-        COLORS.heroBottom,
+        COLORS.white,
     },
 
     scroll: {
       flexGrow: 1,
     },
 
-    // ========================================================
-    // HERO (red, full screen) - the sheet sits on it
-    // ========================================================
 
-    hero: {
-      flexGrow: 1,
-    },
 
-    headerCircleRight: {
-      position:
-        'absolute',
 
-      width: 220,
-      height: 220,
 
-      borderRadius:
-        110,
 
-      right: -90,
-      top: -110,
 
-      backgroundColor:
-        'rgba(255,255,255,0.07)',
-    },
 
-    // Logo and name in one centered row.
-    heroRow: {
-      flexDirection:
-        'row',
 
-      alignItems:
-        'center',
 
-      justifyContent:
-        'center',
 
-      gap: 12,
-    },
-
-    logoCircle: {
-      width: 48,
-      height: 48,
-
-      borderRadius:
-        24,
-
-      backgroundColor:
-        COLORS.white,
-
-      alignItems:
-        'center',
-
-      justifyContent:
-        'center',
-
-      overflow:
-        'hidden',
-
-      shadowColor:
-        '#000000',
-
-      shadowOffset: {
-        width: 0,
-        height: 8,
-      },
-
-      shadowOpacity:
-        0.18,
-
-      shadowRadius:
-        10,
-
-      elevation:
-        6,
-    },
-
-    logoImage: {
-      width: 40,
-      height: 40,
-    },
-
-    brandName: {
-      color:
-        COLORS.white,
-
-      fontFamily:
-        'Poppins_700Bold',
-
-      fontSize:
-        24,
-
-      lineHeight:
-        30,
-    },
-
-    // ========================================================
-    // SHEET (the form, rising from the bottom)
-    // ========================================================
-
-    sheet: {
-      flexGrow: 1,
-
-      marginTop:
-        24,
-
-      paddingHorizontal:
-        24,
-
-      paddingTop:
-        24,
-
-      borderTopLeftRadius:
-        32,
-
-      borderTopRightRadius:
-        32,
-
-      backgroundColor:
-        COLORS.white,
-
-      shadowColor:
-        '#000000',
-
-      shadowOffset: {
-        width: 0,
-        height: -12,
-      },
-
-      shadowOpacity:
-        0.12,
-
-      shadowRadius:
-        24,
-    },
-
-    sheetSmall: {
-      marginTop:
-        20,
-    },
-
-    sheetTitle: {
-      marginBottom:
-        16,
-
-      color:
-        COLORS.black,
-
-      fontFamily:
-        'Poppins_600SemiBold',
-
-      fontSize:
-        22,
-
-      lineHeight:
-        30,
-    },
 
     // ========================================================
     // TABS
