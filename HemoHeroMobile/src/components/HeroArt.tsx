@@ -1,6 +1,7 @@
 import {
   StyleSheet,
   type StyleProp,
+  View,
   type ViewStyle,
 } from 'react-native';
 
@@ -59,20 +60,26 @@ export function HeroWave({
 }: {
   color: string;
 }) {
+  // The View spans the container edge to edge. On phones a
+  // 100% width on the Svg itself leaves out the container's
+  // side padding, so the wave stopped short of the right edge.
   return (
-    <Svg
-      width="100%"
-      height={HERO_WAVE_HEIGHT}
-      viewBox="0 0 390 70"
-      preserveAspectRatio="none"
+    <View
       style={styles.wave}
       pointerEvents="none"
     >
-      <Path
-        d="M0 34 C 70 4, 140 4, 205 30 S 330 66, 390 26 V70 H0 Z"
-        fill={color}
-      />
-    </Svg>
+      <Svg
+        width="100%"
+        height="100%"
+        viewBox="0 0 390 70"
+        preserveAspectRatio="none"
+      >
+        <Path
+          d="M0 34 C 70 4, 140 4, 205 30 S 330 66, 390 26 V70 H0 Z"
+          fill={color}
+        />
+      </Svg>
+    </View>
   );
 }
 
@@ -86,5 +93,6 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     bottom: -1,
+    height: HERO_WAVE_HEIGHT,
   },
 });
