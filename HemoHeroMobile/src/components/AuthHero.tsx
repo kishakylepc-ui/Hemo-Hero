@@ -11,7 +11,12 @@ import {
 } from 'react-native';
 
 import { LinearGradient } from 'expo-linear-gradient';
-import Svg, { Path } from 'react-native-svg';
+
+import {
+  HERO_WAVE_HEIGHT,
+  HeroDrop,
+  HeroWave,
+} from './HeroArt';
 
 // ============================================================
 // AUTH HERO (sign in, sign up, password reset, verify email)
@@ -29,9 +34,6 @@ const COLORS = {
   white: '#FFFFFF',
   subtitle: 'rgba(255,255,255,0.85)',
 };
-
-// The wave's height; the form starts right below it.
-const WAVE_HEIGHT = 56;
 
 type AnimatedStyle =
   ComponentProps<typeof Animated.View>['style'];
@@ -92,10 +94,8 @@ export default function AuthHero({
       ]}
     >
       {/* The see-through drop, partly off the right edge. */}
-      <Svg
+      <HeroDrop
         width={large ? 230 : 160}
-        height={large ? 300 : 210}
-        viewBox="0 0 230 300"
         style={[
           styles.drop,
 
@@ -105,20 +105,7 @@ export default function AuthHero({
               (large ? 4 : -24),
           },
         ]}
-        pointerEvents="none"
-      >
-        <Path
-          d="M115 10 C 160 80, 215 140, 215 195 A 100 100 0 0 1 15 195 C 15 140, 70 80, 115 10 Z"
-          fill={COLORS.white}
-          fillOpacity={0.1}
-        />
-
-        <Path
-          d="M115 70 C 145 115, 175 150, 175 185 A 60 60 0 0 1 55 185 C 55 150, 85 115, 115 70 Z"
-          fill={COLORS.white}
-          fillOpacity={0.08}
-        />
-      </Svg>
+      />
 
       <Animated.View
         style={[
@@ -183,19 +170,9 @@ export default function AuthHero({
       ) : null}
 
       {/* Liquid edge into the white form. */}
-      <Svg
-        width="100%"
-        height={WAVE_HEIGHT}
-        viewBox="0 0 390 70"
-        preserveAspectRatio="none"
-        style={styles.wave}
-        pointerEvents="none"
-      >
-        <Path
-          d="M0 34 C 70 4, 140 4, 205 30 S 330 66, 390 26 V70 H0 Z"
-          fill={COLORS.white}
-        />
-      </Svg>
+      <HeroWave
+        color={COLORS.white}
+      />
     </LinearGradient>
   );
 }
@@ -211,15 +188,14 @@ const styles = StyleSheet.create({
 
   // Room under the text for the wave to sit in.
   heroLarge: {
-    paddingBottom: WAVE_HEIGHT + 20,
+    paddingBottom: HERO_WAVE_HEIGHT + 20,
   },
 
   heroSmall: {
-    paddingBottom: WAVE_HEIGHT + 4,
+    paddingBottom: HERO_WAVE_HEIGHT + 4,
   },
 
   drop: {
-    position: 'absolute',
     right: -48,
   },
 
@@ -286,12 +262,5 @@ const styles = StyleSheet.create({
     fontFamily: 'Inter_400Regular',
     fontSize: 14.5,
     lineHeight: 21,
-  },
-
-  wave: {
-    position: 'absolute',
-    left: 0,
-    right: 0,
-    bottom: -1,
   },
 });

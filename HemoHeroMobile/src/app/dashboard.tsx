@@ -29,6 +29,11 @@ import {
 } from '../constants/theme';
 
 import {
+  HeroDrop,
+  HeroWave,
+} from '../components/HeroArt';
+
+import {
   LinearGradient,
 } from 'expo-linear-gradient';
 
@@ -145,6 +150,11 @@ const COLORS = {
   orange: '#DF721D',
 
   pinkLight: '#FFF0F0',
+
+  // Header, top to bottom (same as the sign-in screens).
+  heroTop: '#E0141A',
+  heroMiddle: '#A10F12',
+  heroBottom: '#8F1111',
 };
 
 // ============================================================
@@ -206,11 +216,9 @@ export default function DashboardScreen() {
   const headerSize =
     isSmallPhone
       ? {
-          height: 124,
           paddingTop: 14,
         }
       : {
-          height: 132,
           paddingTop: 18,
         };
 
@@ -1415,9 +1423,6 @@ function showMessage(
       case 'pending':
         return 'View Application';
 
-      case 'approved':
-        return 'Verified Donor';
-
       case 'rejected':
         return 'Reapply as a Donor';
 
@@ -1847,10 +1852,21 @@ function showMessage(
   async function revealTourStep(
     step: SpotlightStep
   ) {
-    if (
-      step.key === 'create' ||
-      step.key === 'tabs'
-    ) {
+    if (step.key === 'tabs') {
+      return;
+    }
+
+    // The request card is at the top of the scroll content.
+    if (step.key === 'create') {
+      scrollRef.current?.scrollTo({
+        y: 0,
+        animated: true,
+      });
+
+      await new Promise(resolve =>
+        setTimeout(resolve, 450)
+      );
+
       return;
     }
 
@@ -1883,6 +1899,10 @@ function showMessage(
     donorApplication?.status ===
     'approved';
 
+  // Only for approved donors (null otherwise).
+  const donorEligibility =
+    getDonationEligibility();
+
   const tourSteps: SpotlightStep[] = [
     {
       key: 'create',
@@ -1913,7 +1933,7 @@ function showMessage(
         ? 'Your donor status'
         : 'Become a donor',
       text: isApprovedDonor
-        ? 'You are a verified donor. Your donor status shows here.'
+        ? 'You are a verified donor. Tap here to see your application and when you can donate next.'
         : 'Add your blood type with proof in your profile, then apply here with a valid ID. Once an admin approves it, you can offer to donate.',
     },
     {
@@ -1959,54 +1979,88 @@ function showMessage(
           />
 
           {/* ==================================================
+              CONTENT
+          ================================================== */}
+
+          <ScrollView
+            ref={scrollRef}
+            style={
+              styles.content
+            }
+            contentContainerStyle={[
+              styles.contentContainer,
+
+              {
+                paddingBottom:
+                  28 + navSpace,
+              },
+            ]}
+            showsVerticalScrollIndicator={
+              false
+            }
+            refreshControl={
+              <RefreshControl
+                refreshing={
+                  refreshing
+                }
+                onRefresh={
+                  handleRefresh
+                }
+                tintColor={
+                  COLORS.redButton
+                }
+                colors={[
+                  COLORS.redButton,
+                ]}
+              />
+            }
+          >
+            <View
+              ref={scrollTopRef}
+              collapsable={false}
+            />
+
+          {/* ==================================================
               HEADER
           ================================================== */}
 
           <LinearGradient
             colors={[
-              '#CF1115',
-              COLORS.redDark,
+              COLORS.heroTop,
+              COLORS.heroMiddle,
+              COLORS.heroBottom,
             ]}
+            locations={[
+              0,
+              0.6,
+              1,
+            ]}
+            start={{
+              x: 0.15,
+              y: 0,
+            }}
+            end={{
+              x: 0.85,
+              y: 1,
+            }}
             style={[
               styles.header,
 
               {
-                height:
-                  headerSize.height +
-                  insets.top,
-
                 paddingTop:
                   headerSize.paddingTop +
                   insets.top,
               },
             ]}
           >
-            <View
+            <HeroDrop
+              width={200}
               style={[
-                styles.headerCircleLeft,
+                styles.headerDrop,
 
                 {
-                  transform: [
-                    {
-                      translateY:
-                        insets.top,
-                    },
-                  ],
-                },
-              ]}
-            />
-
-            <View
-              style={[
-                styles.headerCircleRight,
-
-                {
-                  transform: [
-                    {
-                      translateY:
-                        insets.top,
-                    },
-                  ],
+                  top:
+                    insets.top - 24,
                 },
               ]}
             />
@@ -2201,25 +2255,19 @@ function showMessage(
                 </TouchableOpacity>
               </View>
             </View>
+            {/* Liquid edge into the page; the request card floats over it. */}
+            <HeroWave
+              color={
+                COLORS.page
+              }
+            />
           </LinearGradient>
 
           {/* ==================================================
-              EMERGENCY
+              REQUEST CARD (floats over the header's wave)
           ================================================== */}
 
-          <LinearGradient
-            colors={[
-              '#960808',
-              '#F20B0B',
-            ]}
-            start={{
-              x: 0,
-              y: 0,
-            }}
-            end={{
-              x: 1,
-              y: 0,
-            }}
+          <View
             style={
               styles.emergencySection
             }
@@ -2238,6 +2286,7 @@ function showMessage(
                     request; hidden once a request is active. */}
                 <PulseRing
                   size={48}
+                  color="rgba(180,35,35,0.35)"
                   active={
                     !activeRequest &&
                     !loadingActiveRequest
@@ -2252,7 +2301,7 @@ function showMessage(
                   }
                   size={28}
                   color={
-                    COLORS.white
+                    COLORS.redButton
                   }
                 />
               </View>
@@ -2268,8 +2317,8 @@ function showMessage(
                   }
                 >
                   {activeRequest
-                    ? 'ACTIVE BLOOD REQUEST'
-                    : 'NEED BLOOD NOW?'}
+                    ? 'Your blood request is active'
+                    : 'Need blood now?'}
                 </Text>
 
                 <Text
@@ -2278,7 +2327,7 @@ function showMessage(
                   }
                 >
                   {activeRequest
-                    ? 'You currently have an active blood request. Track donor offers below.'
+                    ? 'Track donor offers and messages below.'
                     : 'Post a request in about a minute and reach compatible donors nearby.'}
                 </Text>
               </View>
@@ -2317,7 +2366,7 @@ function showMessage(
                     : 22
                 }
                 color={
-                  COLORS.redDark
+                  COLORS.white
                 }
               />
 
@@ -2338,53 +2387,17 @@ function showMessage(
                 name="arrow-forward"
                 size={19}
                 color={
-                  COLORS.redDark
+                  COLORS.white
                 }
               />
             </TouchableOpacity>
-          </LinearGradient>
+          </View>
 
-          {/* ==================================================
-              CONTENT
-          ================================================== */}
-
-          <ScrollView
-            ref={scrollRef}
-            style={
-              styles.content
-            }
-            contentContainerStyle={[
-              styles.contentContainer,
-
-              {
-                paddingBottom:
-                  28 + navSpace,
-              },
-            ]}
-            showsVerticalScrollIndicator={
-              false
-            }
-            refreshControl={
-              <RefreshControl
-                refreshing={
-                  refreshing
-                }
-                onRefresh={
-                  handleRefresh
-                }
-                tintColor={
-                  COLORS.redButton
-                }
-                colors={[
-                  COLORS.redButton,
-                ]}
-              />
-            }
-          >
             <View
-              ref={scrollTopRef}
-              collapsable={false}
-            />
+              style={
+                styles.sections
+              }
+            >
 
             {/* ==================================================
                 PENDING DONATION INVITATIONS
@@ -2735,58 +2748,55 @@ function showMessage(
                   </View>
                 </View>
 
+                {/* Four bars, one per step, with the labels under them. */}
                 <View
                   style={
                     styles.requestProgress
                   }
                 >
-                  {activeSteps.map(
-                    (step, index) => (
-                      <View
-                        key={step.label}
-                        style={
-                          index > 0
-                            ? styles.progressStep
-                            : undefined
-                        }
-                      >
-                        {index > 0 ? (
-                          <View
-                            style={[
-                              styles.progressLine,
-
-                              step.done &&
-                                styles.progressLineActive,
-                            ]}
-                          />
-                        ) : null}
-
+                  <View
+                    style={
+                      styles.progressBars
+                    }
+                  >
+                    {activeSteps.map(
+                      step => (
                         <View
-                          style={
-                            styles.progressItem
-                          }
-                        >
-                          <View
-                            style={
-                              step.done
-                                ? styles.progressDotActive
-                                : styles.progressDotInactive
-                            }
-                          />
+                          key={step.label}
+                          style={[
+                            styles.progressBar,
 
-                          <Text
-                            style={
-                              step.done
-                                ? styles.progressTextActive
-                                : styles.progressTextInactive
-                            }
-                          >
-                            {step.label}
-                          </Text>
-                        </View>
-                      </View>
-                    )
-                  )}
+                            step.done &&
+                              styles.progressBarDone,
+                          ]}
+                        />
+                      )
+                    )}
+                  </View>
+
+                  <View
+                    style={
+                      styles.progressLabels
+                    }
+                  >
+                    {activeSteps.map(
+                      step => (
+                        <Text
+                          key={step.label}
+                          numberOfLines={1}
+                          style={[
+                            styles.progressLabel,
+
+                            step.done
+                              ? styles.progressTextActive
+                              : styles.progressTextInactive,
+                          ]}
+                        >
+                          {step.label}
+                        </Text>
+                      )
+                    )}
+                  </View>
                 </View>
 
                 <FadeInView
@@ -2851,28 +2861,6 @@ function showMessage(
                     </View>
                   ) : null}
                 </FadeInView>
-
-                <View
-                  style={
-                    styles.viewRequestButton
-                  }
-                >
-                  <Text
-                    style={
-                      styles.viewRequestButtonText
-                    }
-                  >
-                    View My Request
-                  </Text>
-
-                  <Ionicons
-                    name="chevron-forward"
-                    size={18}
-                    color={
-                      COLORS.white
-                    }
-                  />
-                </View>
               </TouchableOpacity>
             ) : (
               <View
@@ -3551,48 +3539,32 @@ function showMessage(
                             }
                           </Text>
 
-                          <View
+                          <Text
+                            numberOfLines={1}
                             style={
-                              styles.nearbyDistanceRow
+                              styles.nearbyDistanceText
                             }
                           >
-                            <Ionicons
-                              name="location-outline"
-                              size={13}
-                              color={
-                                COLORS.muted
-                              }
-                            />
-
-                            <Text
-                              style={
-                                styles.nearbyDistanceText
-                              }
-                            >
-                              {request.distance_km.toFixed(
-                                1
-                              )}{' '}
-                              km away
-                            </Text>
-
-                            <Text
-                              style={
-                                styles.dotSeparator
-                              }
-                            >
-                              •
-                            </Text>
-
-                            <Text
-                              style={
-                                styles.nearbyTimeText
-                              }
-                            >
-                              {getTimeAgo(
-                                request.created_at
-                              )}
-                            </Text>
-                          </View>
+                            {request.distance_km.toFixed(
+                              1
+                            )}{' '}
+                            km ·{' '}
+                            {request.units_needed}{' '}
+                            {request.units_needed === 1
+                              ? 'unit'
+                              : 'units'}{' '}
+                            ·{' '}
+                            {request.urgency ===
+                            'urgent'
+                              ? getTimeAgo(
+                                  request.created_at
+                                )
+                              : formatNeededBy(
+                                  request.urgency,
+                                  request.needed_date,
+                                  request.needed_time
+                                )}
+                          </Text>
                         </View>
 
                         <View
@@ -3635,110 +3607,6 @@ function showMessage(
                               ? 'Urgent'
                               : 'Needed'}
                           </Text>
-                        </View>
-                      </View>
-
-                      <View
-                        style={
-                          styles.nearbyDetailsRow
-                        }
-                      >
-                        <View
-                          style={
-                            styles.nearbyDetail
-                          }
-                        >
-                          <Ionicons
-                            name="water"
-                            size={15}
-                            color={
-                              COLORS.redButton
-                            }
-                          />
-
-                          <Text
-                            style={
-                              styles.nearbyDetailText
-                            }
-                          >
-                            {
-                              request.units_needed
-                            }{' '}
-                            {request.units_needed ===
-                            1
-                              ? 'unit'
-                              : 'units'}
-                          </Text>
-                        </View>
-
-                        <View
-                          style={
-                            styles.nearbyDetail
-                          }
-                        >
-                          <Ionicons
-                            name={
-                              request.urgency ===
-                              'urgent'
-                                ? 'flash'
-                                : 'calendar-outline'
-                            }
-                            size={15}
-                            color={
-                              COLORS.redButton
-                            }
-                          />
-
-                          <Text
-                            numberOfLines={
-                              1
-                            }
-                            style={
-                              styles.nearbyDetailText
-                            }
-                          >
-                            {formatNeededBy(
-                              request.urgency,
-                              request.needed_date,
-                              request.needed_time
-                            )}
-                          </Text>
-                        </View>
-                      </View>
-
-                      <View
-                        style={
-                          styles.nearbyCardFooter
-                        }
-                      >
-                        <Text
-                          style={
-                            styles.nearbyHelpText
-                          }
-                        >
-                          Blood donation request
-                        </Text>
-
-                        <View
-                          style={
-                            styles.nearbyViewButton
-                          }
-                        >
-                          <Text
-                            style={
-                              styles.nearbyViewButtonText
-                            }
-                          >
-                            View Request
-                          </Text>
-
-                          <Ionicons
-                            name="chevron-forward"
-                            size={17}
-                            color={
-                              COLORS.redButton
-                            }
-                          />
                         </View>
                       </View>
                     </TouchableOpacity>
@@ -3946,7 +3814,7 @@ function showMessage(
                   }
                 >
                   {selectedBloodType
-                    ? `Find Donors for ${selectedBloodType}`
+                    ? `Find ${selectedBloodType} Donors`
                     : 'Find Donors'}
                 </Text>
               </TouchableOpacity>
@@ -3969,9 +3837,20 @@ function showMessage(
                   styles.donorCardApproved,
               ]}
             >
-              <View
+              {/* The whole row opens the application (once
+                  approved it is the only way in: no button). */}
+              <TouchableOpacity
                 style={
                   styles.donorTop
+                }
+                activeOpacity={
+                  0.7
+                }
+                disabled={
+                  loadingDonorApplication
+                }
+                onPress={
+                  handleDonorAction
                 }
               >
                 <View
@@ -4042,152 +3921,85 @@ function showMessage(
                         </Text>
                       </View>
                     ) : null}
-
-                    {donorApplication?.status ===
-                    'approved' ? (
-                      <View
-                        style={
-                          styles.verifiedBadge
-                        }
-                      >
-                        <Ionicons
-                          name="checkmark"
-                          size={12}
-                          color={
-                            COLORS.green
-                          }
-                        />
-
-                        <Text
-                          style={
-                            styles.verifiedBadgeText
-                          }
-                        >
-                          Verified
-                        </Text>
-                      </View>
-                    ) : null}
                   </View>
 
                   <Text
-                    style={
-                      styles.donorSubtitle
-                    }
-                  >
-                    {getDonorCardSubtitle()}
-                  </Text>
-                </View>
-              </View>
-
-              {(() => {
-                const eligibility =
-                  getDonationEligibility();
-
-                if (!eligibility) {
-                  return null;
-                }
-
-                return (
-                  <View
                     style={[
-                      styles.eligibilityRow,
+                      styles.donorSubtitle,
 
-                      !eligibility.ready &&
-                        styles.eligibilityRowWaiting,
+                      donorEligibility &&
+                        (donorEligibility.ready
+                          ? styles.donorSubtitleReady
+                          : styles.donorSubtitleWaiting),
                     ]}
                   >
-                    <Ionicons
-                      name={
-                        eligibility.ready
-                          ? 'calendar-outline'
-                          : 'calendar-outline'
-                      }
-                      size={16}
-                      color={
-                        eligibility.ready
-                          ? COLORS.green
-                          : COLORS.orange
-                      }
-                    />
+                    {donorEligibility?.text ??
+                      getDonorCardSubtitle()}
+                  </Text>
+                </View>
 
-                    <Text
-                      style={
-                        styles.eligibilityText
-                      }
-                    >
-                      {eligibility.text}
-                    </Text>
-                  </View>
-                );
-              })()}
-
-              <TouchableOpacity
-                style={[
-                  styles.applyButton,
-
-                  donorApplication?.status ===
-                    'approved' &&
-                    styles.applyButtonApproved,
-
-                  donorApplication?.status ===
-                    'pending' &&
-                    styles.applyButtonPending,
-
-                  loadingDonorApplication &&
-                    styles.applyButtonDisabled,
-                ]}
-                activeOpacity={
-                  0.85
-                }
-                disabled={
-                  loadingDonorApplication
-                }
-                onPress={
-                  handleDonorAction
-                }
-              >
-                <Text
-                  style={[
-                    styles.applyButtonText,
-
-                    donorApplication?.status ===
-                      'approved' &&
-                      styles.applyButtonApprovedText,
-
-                    donorApplication?.status ===
-                      'pending' &&
-                      styles.applyButtonPendingText,
-                  ]}
-                >
-                  {getDonorButtonText()}
-                </Text>
-
-                {!loadingDonorApplication &&
-                donorApplication?.status !==
-                  'approved' ? (
+                {isApprovedDonor ? (
                   <Ionicons
-                    name="arrow-forward"
-                    size={17}
-                    color={
-                      donorApplication?.status ===
-                      'pending'
-                        ? COLORS.orange
-                        : COLORS.white
-                    }
-                  />
-                ) : donorApplication?.status ===
-                  'approved' ? (
-                  <Ionicons
-                    name="shield-checkmark"
-                    size={17}
+                    name="chevron-forward"
+                    size={18}
                     color={
                       COLORS.green
                     }
                   />
                 ) : null}
               </TouchableOpacity>
+
+              {!isApprovedDonor ? (
+                <TouchableOpacity
+                  style={[
+                    styles.applyButton,
+
+                    donorApplication?.status ===
+                      'pending' &&
+                      styles.applyButtonPending,
+
+                    loadingDonorApplication &&
+                      styles.applyButtonDisabled,
+                  ]}
+                  activeOpacity={
+                    0.85
+                  }
+                  disabled={
+                    loadingDonorApplication
+                  }
+                  onPress={
+                    handleDonorAction
+                  }
+                >
+                  <Text
+                    style={[
+                      styles.applyButtonText,
+
+                      donorApplication?.status ===
+                        'pending' &&
+                        styles.applyButtonPendingText,
+                    ]}
+                  >
+                    {getDonorButtonText()}
+                  </Text>
+
+                  {!loadingDonorApplication ? (
+                    <Ionicons
+                      name="arrow-forward"
+                      size={17}
+                      color={
+                        donorApplication?.status ===
+                        'pending'
+                          ? COLORS.orange
+                          : COLORS.white
+                      }
+                    />
+                  ) : null}
+                </TouchableOpacity>
+              ) : null}
             </View>
             </FadeInView>
+            </View>
           </ScrollView>
 
           {/* ==================================================
@@ -4512,6 +4324,117 @@ function showMessage(
 
 const styles =
   StyleSheet.create({
+    // ========================================================
+    // HEADER (red, with the drop and the wave)
+    // ========================================================
+
+    header: {
+      paddingHorizontal: 20,
+      // Room for the wave and the request card floating over it.
+      paddingBottom: 92,
+      overflow: 'hidden',
+    },
+
+    headerDrop: {
+      right: -40,
+    },
+
+    // ========================================================
+    // REQUEST CARD (floats over the header's wave)
+    // ========================================================
+
+    emergencySection: {
+      marginTop: -64,
+      marginHorizontal: 16,
+      padding: 16,
+      gap: 14,
+      borderRadius: 20,
+      backgroundColor: COLORS.white,
+      shadowColor: COLORS.redDark,
+      shadowOffset: {
+        width: 0,
+        height: 12,
+      },
+      shadowOpacity: 0.12,
+      shadowRadius: 20,
+      elevation: 6,
+    },
+
+    emergencyRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 12,
+    },
+
+    emergencyIcon: {
+      width: 44,
+      height: 44,
+      borderRadius: 12,
+      alignItems: 'center',
+      justifyContent: 'center',
+      backgroundColor: '#FDECEC',
+    },
+
+    emergencyContent: {
+      flex: 1,
+      minWidth: 0,
+    },
+
+    emergencyTitle: {
+      color: COLORS.black,
+      fontFamily: 'Poppins_600SemiBold',
+      fontSize: 15,
+      lineHeight: 21,
+    },
+
+    emergencyDescription: {
+      marginTop: 2,
+      color: COLORS.muted,
+      fontFamily: 'Inter_400Regular',
+      fontSize: 13,
+      lineHeight: 18,
+    },
+
+    emergencyButton: {
+      height: 44,
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: 8,
+      borderRadius: 12,
+      backgroundColor: COLORS.redButton,
+    },
+
+    emergencyButtonText: {
+      color: COLORS.white,
+      fontFamily: 'Poppins_600SemiBold',
+      fontSize: 14,
+    },
+
+    // "Create Blood Request": a bit larger, with a soft shadow.
+    emergencyButtonPrimary: {
+      height: 50,
+      borderRadius: 14,
+      shadowColor: COLORS.redButton,
+      shadowOffset: {
+        width: 0,
+        height: 8,
+      },
+      shadowOpacity: 0.28,
+      shadowRadius: 12,
+      elevation: 4,
+    },
+
+    emergencyButtonTextPrimary: {
+      fontSize: 15,
+    },
+
+    // Everything below the request card.
+    sections: {
+      paddingHorizontal: 16,
+      paddingTop: 20,
+    },
+
     donorTitleRow: {
       flexDirection: 'row',
       flexWrap: 'wrap',
@@ -4570,41 +4493,8 @@ const styles =
     // the status-bar height)
     // ========================================================
 
-    header: {
-      paddingHorizontal: 24,
 
-      overflow: 'hidden',
-    },
 
-    headerCircleLeft: {
-      position: 'absolute',
-
-      width: 165,
-      height: 165,
-
-      borderRadius: 83,
-
-      left: -100,
-      top: -70,
-
-      backgroundColor:
-        'rgba(255,255,255,0.06)',
-    },
-
-    headerCircleRight: {
-      position: 'absolute',
-
-      width: 170,
-      height: 170,
-
-      borderRadius: 85,
-
-      right: -75,
-      top: -82,
-
-      backgroundColor:
-        'rgba(255,255,255,0.08)',
-    },
 
     headerContent: {
       flexDirection: 'row',
@@ -4821,130 +4711,17 @@ const styles =
       height: '100%',
     },
 
-    // ========================================================
-    // EMERGENCY
-    // ========================================================
 
-    emergencySection: {
-      minHeight: 118,
 
-      paddingHorizontal: 20,
-      paddingTop: 13,
-      paddingBottom: 13,
 
-      shadowColor:
-        '#000000',
 
-      shadowOffset: {
-        width: 0,
-        height: 3,
-      },
 
-      shadowOpacity: 0.16,
-      shadowRadius: 6,
 
-      elevation: 6,
-    },
 
-    emergencyRow: {
-      flexDirection: 'row',
-      alignItems: 'center',
-    },
 
-    emergencyIcon: {
-      width: 44,
-      height: 44,
-
-      borderRadius: 12,
-
-      marginRight: 12,
-
-      alignItems: 'center',
-      justifyContent: 'center',
-
-      backgroundColor:
-        'rgba(255,255,255,0.16)',
-    },
-
-    emergencyContent: {
-      flex: 1,
-    },
-
-    emergencyTitle: {
-      color:
-        COLORS.white,
-
-      fontFamily:
-        'Poppins_700Bold',
-
-      fontSize: 14,
-    },
-
-    emergencyDescription: {
-      marginTop: 2,
-
-      color:
-        'rgba(255,255,255,0.94)',
-
-      fontFamily:
-        'Inter_400Regular',
-
-      fontSize: 12.5,
-      lineHeight: 18,
-    },
-
-    emergencyButton: {
-      height: 44,
-
-      marginTop: 10,
-      marginLeft: 56,
-
-      borderRadius: 12,
-
-      flexDirection: 'row',
-      alignItems: 'center',
-      justifyContent: 'center',
-
-      gap: 8,
-
-      backgroundColor:
-        COLORS.white,
-    },
-
-    emergencyButtonText: {
-      color:
-        COLORS.redDark,
-
-      fontFamily:
-        'Poppins_600SemiBold',
-
-      fontSize: 13,
-    },
 
     // Highlighted "Create Blood Request" call to action:
-    // full width, taller, with a soft glow.
-    emergencyButtonPrimary: {
-      height: 50,
-      marginLeft: 0,
-      marginTop: 13,
-      borderRadius: 12,
 
-      shadowColor: '#000000',
-      shadowOffset: {
-        width: 0,
-        height: 4,
-      },
-      shadowOpacity: 0.22,
-      shadowRadius: 8,
-      elevation: 5,
-    },
-
-    emergencyButtonTextPrimary: {
-      fontFamily:
-        'Poppins_700Bold',
-
-      fontSize: 15,
-    },
 
     // ========================================================
     // CONTENT
@@ -4960,8 +4737,8 @@ const styles =
     // paddingBottom is set inline: it includes the space the
     // floating bottom bar covers.
     contentContainer: {
-      paddingHorizontal: 16,
-      paddingTop: 20,
+      paddingHorizontal: 0,
+      paddingTop: 0,
     },
 
     sectionHeader: {
@@ -5225,73 +5002,43 @@ const styles =
         'Inter_500Medium',
     },
 
+    // Four bars with their labels under them.
     requestProgress: {
-      flexDirection: 'row',
-
-      alignItems:
-        'flex-start',
-
       marginBottom: 14,
-
-      paddingHorizontal: 3,
+      gap: 8,
     },
 
-    // Line + dot for every step after the first.
-    progressStep: {
-      flex: 1,
+    progressBars: {
       flexDirection: 'row',
-      alignItems: 'flex-start',
+      gap: 6,
     },
 
-    progressItem: {
-      alignItems: 'center',
-      minWidth: 60,
-    },
-
-    progressDotActive: {
-      width: 9,
-      height: 9,
-
-      borderRadius: 5,
-
-      marginBottom: 4,
-
-      backgroundColor:
-        COLORS.green,
-    },
-
-    progressDotInactive: {
-      width: 9,
-      height: 9,
-
-      borderRadius: 5,
-
-      marginBottom: 4,
-
-      borderWidth: 1,
-
-      borderColor:
-        '#C6C6C6',
-
-      backgroundColor:
-        COLORS.white,
-    },
-
-    progressLine: {
+    progressBar: {
       flex: 1,
-
-      height: 1,
-
-      marginTop: 4,
-
-      backgroundColor:
-        '#D8D8D8',
+      height: 4,
+      borderRadius: 2,
+      backgroundColor: '#EDE6E6',
     },
 
-    progressLineActive: {
-      backgroundColor:
-        COLORS.green,
+    progressBarDone: {
+      backgroundColor: COLORS.green,
     },
+
+    progressLabels: {
+      flexDirection: 'row',
+      gap: 6,
+    },
+
+    progressLabel: {
+      flex: 1,
+      textAlign: 'center',
+    },
+
+
+
+
+
+
 
     progressTextActive: {
       color:
@@ -5317,7 +5064,7 @@ const styles =
       minHeight: 39,
 
       marginTop: 0,
-      marginBottom: 16,
+      marginBottom: 0,
 
       paddingHorizontal: 12,
       paddingVertical: 10,
@@ -5377,32 +5124,7 @@ const styles =
         COLORS.green,
     },
 
-    viewRequestButton: {
-      height: 44,
 
-      flexDirection: 'row',
-      alignItems: 'center',
-
-      justifyContent:
-        'center',
-
-      gap: 4,
-
-      borderRadius: 12,
-
-      backgroundColor:
-        COLORS.redButton,
-    },
-
-    viewRequestButtonText: {
-      color:
-        COLORS.white,
-
-      fontFamily:
-        'Poppins_600SemiBold',
-
-      fontSize: 13,
-    },
 
     requestErrorCard: {
       minHeight: 55,
@@ -5718,41 +5440,8 @@ const styles =
       marginTop: 12,
     },
 
-    eligibilityRow: {
-      flexDirection: 'row',
-      alignItems: 'center',
 
-      gap: 8,
 
-      marginTop: 16,
-
-      paddingHorizontal: 12,
-      paddingVertical: 10,
-
-      backgroundColor:
-        '#EAF7EF',
-
-      borderRadius: 12,
-    },
-
-    eligibilityRowWaiting: {
-      backgroundColor:
-        '#FDF1E6',
-    },
-
-    eligibilityText: {
-      flex: 1,
-
-      color:
-        COLORS.black,
-
-      fontFamily:
-        'Inter_500Medium',
-
-      fontSize: 12,
-
-      lineHeight: 17,
-    },
 
     smallLabel: {
       color:
@@ -6275,7 +5964,7 @@ const styles =
 
       alignItems: 'center',
 
-      marginBottom: 12,
+      marginBottom: 0,
     },
 
     nearbyBloodBadge: {
@@ -6319,15 +6008,8 @@ const styles =
       fontSize: 13.5,
     },
 
-    nearbyDistanceRow: {
-      flexDirection: 'row',
-      alignItems: 'center',
-
-      marginTop: 4,
-    },
 
     nearbyDistanceText: {
-      marginLeft: 4,
 
       color:
         COLORS.muted,
@@ -6336,26 +6018,10 @@ const styles =
         'Inter_400Regular',
 
       fontSize: 12,
+      marginTop: 3,
     },
 
-    dotSeparator: {
-      marginHorizontal: 6,
 
-      color:
-        COLORS.lightMuted,
-
-      fontSize: 11,
-    },
-
-    nearbyTimeText: {
-      color:
-        COLORS.lightMuted,
-
-      fontFamily:
-        'Inter_400Regular',
-
-      fontSize: 12,
-    },
 
     urgencyPill: {
       minHeight: 24,
@@ -6400,78 +6066,12 @@ const styles =
         COLORS.orange,
     },
 
-    nearbyDetailsRow: {
-      flexDirection: 'row',
 
-      alignItems: 'center',
 
-      gap: 12,
 
-      paddingVertical: 10,
-      paddingHorizontal: 12,
 
-      borderRadius: 12,
 
-      backgroundColor:
-        '#FFF8F8',
-    },
 
-    nearbyDetail: {
-      flex: 1,
-
-      flexDirection: 'row',
-      alignItems: 'center',
-
-      gap: 6,
-    },
-
-    nearbyDetailText: {
-      flexShrink: 1,
-
-      color:
-        COLORS.muted,
-
-      fontFamily:
-        'Inter_500Medium',
-
-      fontSize: 12,
-    },
-
-    nearbyCardFooter: {
-      flexDirection: 'row',
-
-      alignItems: 'center',
-
-      justifyContent:
-        'space-between',
-
-      marginTop: 12,
-    },
-
-    nearbyHelpText: {
-      color:
-        COLORS.lightMuted,
-
-      fontFamily:
-        'Inter_400Regular',
-
-      fontSize: 12,
-    },
-
-    nearbyViewButton: {
-      flexDirection: 'row',
-      alignItems: 'center',
-    },
-
-    nearbyViewButtonText: {
-      color:
-        COLORS.redButton,
-
-      fontFamily:
-        'Inter_600SemiBold',
-
-      fontSize: 12.5,
-    },
 
     // ========================================================
     // DONOR
@@ -6548,6 +6148,19 @@ const styles =
         'Inter_400Regular',
 
       fontSize: 13,
+
+      lineHeight: 18,
+    },
+
+    // Approved: the eligibility line, green when they can
+    // donate again, orange while the 90 days run.
+    donorSubtitleReady: {
+      color: '#2F6B45',
+    },
+
+    donorSubtitleWaiting: {
+      color:
+        COLORS.orange,
     },
 
     pendingBadge: {
@@ -6588,33 +6201,7 @@ const styles =
       fontSize: 11.5,
     },
 
-    verifiedBadge: {
-      paddingHorizontal: 8,
-      paddingVertical: 0,
 
-      flexDirection: 'row',
-
-      alignItems: 'center',
-
-      gap: 4,
-
-      borderRadius: 11,
-
-      backgroundColor:
-        '#E8F6ED',
-
-      height: 22,
-    },
-
-    verifiedBadgeText: {
-      color:
-        COLORS.green,
-
-      fontFamily:
-        'Inter_600SemiBold',
-
-      fontSize: 11.5,
-    },
 
     // At least 200 wide, and wider when the label needs it.
     applyButton: {
@@ -6642,15 +6229,6 @@ const styles =
         COLORS.redButton,
     },
 
-    applyButtonApproved: {
-      borderWidth: 1,
-
-      borderColor:
-        COLORS.green,
-
-      backgroundColor:
-        COLORS.white,
-    },
 
     applyButtonDisabled: {
       opacity: 0.6,
@@ -6666,10 +6244,6 @@ const styles =
       fontSize: 13,
     },
 
-    applyButtonApprovedText: {
-      color:
-        COLORS.green,
-    },
 
     // Same orange as the Pending badge: nothing to do yet,
     // just a way to look at the application.

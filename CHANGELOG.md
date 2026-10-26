@@ -15,6 +15,12 @@ Write each change under **Unreleased** as you make it. `node scripts/version.js 
   - Outlined fields with a soft red ring while you type. Forgot Password, Reset Password and the Account & Security password fields use the same style.
   - Sign Up has a five-step password strength bar and rule chips that turn green.
   - Forgot Password, Reset Password and Verify Email have the same red top and wave, so the whole sign-in flow matches.
+- Mobile: new **Home** design to match. The red top has the same drop and wave, and it now scrolls with the page.
+  - The request banner is a white card floating over the wave: "Need blood now?" with Create Blood Request, or "Your blood request is active" with View My Request.
+  - Active Request shows its progress as four bars with labels. The whole card opens the request, so its own button is gone.
+  - Nearby requests are one compact row each: distance, bags and time on one line. Tap a row to open it.
+  - Verified donors see one green row with when they can donate next. Tap it to open the application. Pending, rejected and new donors keep their button.
+  - Find Donors names the chosen type, e.g. "Find O+ Donors".
 
 ## 1.2.0 - 2026-10-25
 
