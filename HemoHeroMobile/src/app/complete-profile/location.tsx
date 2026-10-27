@@ -12,9 +12,8 @@ import {
   View,
 } from 'react-native';
 
-import { Ionicons, MaterialIcons } from '@expo/vector-icons';
+import { Ionicons } from '@expo/vector-icons';
 import { ICON_TILE } from '../../constants/theme';
-import { LinearGradient } from 'expo-linear-gradient';
 
 import {
   router,
@@ -36,7 +35,9 @@ import {
 import {
   getAccessToken,
 } from '../../lib/session';
-import { ProgressFill } from '../../components/Motion';
+import AuthField from '../../components/AuthField';
+import SetupHeader from '../../components/SetupHeader';
+import { useKeyboardOpen } from '../../lib/useKeyboardOpen';
 
 const COLORS = {
   red: '#DB0A0A',
@@ -62,6 +63,11 @@ const COLORS = {
 
   green: '#2E7D32',
   greenLight: '#EAF5EB',
+
+  // Form (same as Sign Up's fields)
+  border: '#E4D7D7',
+  hint: '#666666',
+  greenBorder: '#CDEBD7',
 };
 
 type ActionPopupVariant =
@@ -81,6 +87,10 @@ export default function LocationScreen() {
   // The page runs to the bottom edge; its content ends above
   // the home bar.
   const insets = useSafeAreaInsets();
+
+  // The bottom bar hides while typing (see below).
+  const keyboardOpen =
+    useKeyboardOpen();
 
   const params =
     useLocalSearchParams<{
@@ -225,6 +235,20 @@ export default function LocationScreen() {
     }
 
     return 'info';
+  }
+
+  // Steps open with push. With no screen to go back to (a web
+  // reload), go to step 1.
+  function goBack() {
+    if (router.canGoBack()) {
+      router.back();
+
+      return;
+    }
+
+    router.replace(
+      '/complete-profile/personal'
+    );
   }
 
   function showMessage(
@@ -589,6 +613,11 @@ export default function LocationScreen() {
   // SCREEN
   // ==========================================================
 
+  const located =
+    locationDetected &&
+    latitude !== null &&
+    longitude !== null;
+
   return (
     <View
       style={
@@ -604,10 +633,11 @@ export default function LocationScreen() {
           style={
             styles.safeArea
           }
-          // The header scrolls with the page, so the top keeps its
-          // padding; the bottom is drawn edge to edge.
+          // The red top draws behind the status bar; the bottom
+          // bar keeps clear of the home indicator itself.
           edges={[
-            'top',
+            'left',
+            'right',
           ]}
         >
           <StatusBar
@@ -626,13 +656,9 @@ export default function LocationScreen() {
             }
           >
             <ScrollView
-              contentContainerStyle={[
-                styles.scroll,
-                {
-                  paddingBottom:
-                    insets.bottom,
-                },
-              ]}
+              contentContainerStyle={
+                styles.scroll
+              }
               keyboardShouldPersistTaps="handled"
               showsVerticalScrollIndicator={
                 false
@@ -641,500 +667,320 @@ export default function LocationScreen() {
                 false
               }
             >
-              {/* ==================================================
-                  HEADER
-              ================================================== */}
+              <SetupHeader
+                topInset={
+                  insets.top
+                }
+                step={2}
+                title="Where are you based?"
+                subtitle="We match you with requests near you."
+                onBack={
+                  goBack
+                }
+              />
 
-              <LinearGradient
-                colors={[
-                  COLORS.red,
-                  COLORS.redDark,
-                ]}
+              <View
                 style={
-                  styles.header
+                  styles.form
                 }
               >
+                {/* ==============================================
+                    CURRENT LOCATION
+                ============================================== */}
+
+                <TouchableOpacity
+                  style={[
+                    styles.locateCard,
+                    located &&
+                      styles.locateCardDone,
+                    locationLoading &&
+                      styles.disabledButton,
+                  ]}
+                  activeOpacity={
+                    0.85
+                  }
+                  disabled={
+                    locationLoading
+                  }
+                  accessibilityRole="button"
+                  onPress={
+                    handleCurrentLocation
+                  }
+                >
+                  <View
+                    style={[
+                      styles.locateIcon,
+                      located &&
+                        styles.locateIconDone,
+                    ]}
+                  >
+                    <Ionicons
+                      name={
+                        located
+                          ? 'checkmark'
+                          : 'locate'
+                      }
+                      size={24}
+                      color={
+                        COLORS.white
+                      }
+                    />
+                  </View>
+
+                  <View
+                    style={
+                      styles.locateText
+                    }
+                  >
+                    <Text
+                      style={[
+                        styles.locateTitle,
+                        located &&
+                          styles.locateTitleDone,
+                      ]}
+                    >
+                      {locationLoading
+                        ? 'Finding your location...'
+                        : located
+                          ? 'Location found'
+                          : 'Use my current location'}
+                    </Text>
+
+                    <Text
+                      style={
+                        styles.locateSubtitle
+                      }
+                    >
+                      {located
+                        ? addressFilled
+                          ? 'Filled in below. Check it before continuing.'
+                          : `GPS: ${latitude.toFixed(
+                              5
+                            )}, ${longitude.toFixed(
+                              5
+                            )}`
+                        : 'Fills in the fields below for you'}
+                    </Text>
+                  </View>
+
+                  <Ionicons
+                    name={
+                      located
+                        ? 'refresh'
+                        : 'chevron-forward'
+                    }
+                    size={18}
+                    color={
+                      located
+                        ? COLORS.green
+                        : COLORS.redButton
+                    }
+                  />
+                </TouchableOpacity>
+
+                {located &&
+                addressFromMap ? (
+                  <Text
+                    style={
+                      styles.credit
+                    }
+                  >
+                    Address data © OpenStreetMap contributors
+                  </Text>
+                ) : null}
+
                 <View
                   style={
-                    styles.headerDecoration
+                    styles.divider
                   }
+                >
+                  <View
+                    style={
+                      styles.dividerLine
+                    }
+                  />
+
+                  <Text
+                    style={
+                      styles.dividerText
+                    }
+                  >
+                    {located
+                      ? 'review your address'
+                      : 'or type it in'}
+                  </Text>
+
+                  <View
+                    style={
+                      styles.dividerLine
+                    }
+                  />
+                </View>
+
+                {errorMessage ? (
+                  <View
+                    style={
+                      styles.errorBox
+                    }
+                  >
+                    <Text
+                      style={
+                        styles.errorText
+                      }
+                    >
+                      {errorMessage}
+                    </Text>
+                  </View>
+                ) : null}
+
+                {/* ==============================================
+                    ADDRESS
+                ============================================== */}
+
+                <AuthField
+                  label="Barangay or street"
+                  icon="home-outline"
+                  placeholder="e.g. Diliman"
+                  value={
+                    barangay
+                  }
+                  autoCapitalize="words"
+                  autoCorrect={
+                    false
+                  }
+                  onChangeText={value => {
+                    setBarangay(
+                      value
+                    );
+                    clearError();
+                  }}
+                />
+
+                <AuthField
+                  label="City / municipality"
+                  icon="business-outline"
+                  placeholder="e.g. Quezon City"
+                  value={
+                    city
+                  }
+                  autoCapitalize="words"
+                  autoCorrect={
+                    false
+                  }
+                  onChangeText={value => {
+                    setCity(
+                      value
+                    );
+                    clearError();
+                  }}
+                />
+
+                <AuthField
+                  label="Province"
+                  icon="map-outline"
+                  placeholder="e.g. Metro Manila"
+                  value={
+                    province
+                  }
+                  autoCapitalize="words"
+                  autoCorrect={
+                    false
+                  }
+                  onChangeText={value => {
+                    setProvince(
+                      value
+                    );
+                    clearError();
+                  }}
                 />
 
                 <View
                   style={
-                    styles.headerRow
+                    styles.privacyNote
                   }
                 >
-                  <TouchableOpacity
-                    style={
-                      styles.backCircle
-                    }
-                    activeOpacity={
-                      0.75
-                    }
-                    onPress={() =>
-                      router.back()
-                    }
-                  >
-                    <MaterialIcons
-                      name="arrow-back"
-                      size={21}
-                      color={
-                        COLORS.white
-                      }
-                    />
-                  </TouchableOpacity>
-
-                  <Text
-                    style={
-                      styles.headerTitle
-                    }
-                  >
-                    Complete your Profile
-                  </Text>
-                </View>
-              </LinearGradient>
-
-              {/* ==================================================
-                  BODY
-              ================================================== */}
-
-              <View
-                style={
-                  styles.bodyBackground
-                }
-              >
-                <View
-                  style={
-                    styles.card
-                  }
-                >
-                  {/* ==============================================
-                      PROGRESS
-                  ============================================== */}
-
-                  <View
-                    style={
-                      styles.progressRow
-                    }
-                  >
-                    {/* Finished steps stay filled; this step fills in. */}
-                    {[0, 1, 2].map(
-                      index => (
-                        <ProgressFill
-                          key={index}
-                          filled={
-                            index <= 1
-                          }
-                          animate={
-                            index === 1
-                          }
-                          style={
-                            styles.progressLine
-                          }
-                          fillStyle={
-                            styles.progressActive
-                          }
-                        />
-                      )
-                    )}
-                  </View>
-
-                  <Text
-                    style={
-                      styles.sectionTitle
-                    }
-                  >
-                    Your Location
-                  </Text>
-
-                  {/* ==============================================
-                      MAP PREVIEW
-                  ============================================== */}
-
-                  <View
-                    style={
-                      styles.mapContainer
-                    }
-                  >
-                    <View
-                      style={
-                        styles.mapGreenOne
-                      }
-                    />
-
-                    <View
-                      style={
-                        styles.mapGreenTwo
-                      }
-                    />
-
-                    <View
-                      style={
-                        styles.roadHorizontal
-                      }
-                    />
-
-                    <View
-                      style={
-                        styles.roadHorizontalTwo
-                      }
-                    />
-
-                    <View
-                      style={
-                        styles.roadVertical
-                      }
-                    />
-
-                    <View
-                      style={
-                        styles.roadDiagonal
-                      }
-                    />
-
-                    <View
-                      style={
-                        styles.locationPin
-                      }
-                    >
-                      <MaterialIcons
-                        name="location-on"
-                        size={
-                          32
-                        }
-                        color={
-                          COLORS.redButton
-                        }
-                      />
-                    </View>
-                  </View>
-
-                  <Text
-                    style={
-                      styles.locationDescription
-                    }
-                  >
-                    We'll use your location to connect you with nearby donors
-                    and emergency blood requests.
-                  </Text>
-
-                  {/* ==============================================
-                      CURRENT LOCATION
-                  ============================================== */}
-
-                  <TouchableOpacity
-                    style={[
-                      styles.currentLocationButton,
-
-                      locationLoading &&
-                        styles.disabledButton,
-                    ]}
-                    activeOpacity={
-                      0.85
-                    }
-                    disabled={
-                      locationLoading
-                    }
-                    onPress={
-                      handleCurrentLocation
-                    }
-                  >
-                    <MaterialIcons
-                      name={
-                        locationDetected
-                          ? 'check-circle'
-                          : 'my-location'
-                      }
-                      size={
-                        17
-                      }
-                      color={
-                        COLORS.white
-                      }
-                    />
-
-                    <Text
-                      style={
-                        styles.currentLocationText
-                      }
-                    >
-                      {locationLoading
-                        ? 'Detecting Location...'
-                        : locationDetected
-                          ? 'Location Detected'
-                          : 'Use my Current Location'}
-                    </Text>
-                  </TouchableOpacity>
-
-                  {locationDetected &&
-                  latitude !==
-                    null &&
-                  longitude !==
-                    null ? (
-                    <View
-                      style={
-                        styles.detectedBox
-                      }
-                    >
-                      <View
-                        style={
-                          styles.detectedIcon
-                        }
-                      >
-                        <MaterialIcons
-                          name="check"
-                          size={
-                            12
-                          }
-                          color={
-                            COLORS.white
-                          }
-                        />
-                      </View>
-
-                      <View
-                        style={
-                          styles.detectedContent
-                        }
-                      >
-                        <Text
-                          style={
-                            styles.detectedTitle
-                          }
-                        >
-                          {addressFilled
-                            ? 'Address filled in from your location'
-                            : 'Current location found'}
-                        </Text>
-
-                        <Text
-                          style={
-                            styles.detectedCoordinates
-                          }
-                        >
-                          {addressFilled
-                            ? 'Check the details below before continuing.'
-                            : `GPS: ${latitude.toFixed(
-                                5
-                              )}, ${longitude.toFixed(
-                                5
-                              )}`}
-                        </Text>
-
-                        {addressFromMap ? (
-                          <Text
-                            style={
-                              styles.detectedCredit
-                            }
-                          >
-                            Address data © OpenStreetMap contributors
-                          </Text>
-                        ) : null}
-                      </View>
-                    </View>
-                  ) : null}
-
-                  {/* ==============================================
-                      LOCATION DETAILS
-                  ============================================== */}
-
-                  <Text
-                    style={
-                      styles.locationDetailsTitle
-                    }
-                  >
-                    Location Details
-                  </Text>
-
-                  <Text
-                    style={
-                      styles.locationHint
-                    }
-                  >
-                    Please review your location details before continuing.
-                  </Text>
-
-                  {errorMessage ? (
-                    <View
-                      style={
-                        styles.errorBox
-                      }
-                    >
-                      <Text
-                        style={
-                          styles.errorText
-                        }
-                      >
-                        {
-                          errorMessage
-                        }
-                      </Text>
-                    </View>
-                  ) : null}
-
-                  {/* ==============================================
-                      BARANGAY
-                  ============================================== */}
-
-                  <Text
-                    style={
-                      styles.label
-                    }
-                  >
-                    Barangay or Street
-                  </Text>
-
-                  <TextInput
-                    style={
-                      styles.input
-                    }
-                    placeholder="Enter Barangay or Street"
-                    placeholderTextColor={
-                      COLORS.placeholder
-                    }
-                    value={
-                      barangay
-                    }
-                    autoCapitalize="words"
-                    autoCorrect={
-                      false
-                    }
-                    onChangeText={
-                      value => {
-                        setBarangay(
-                          value
-                        );
-
-                        clearError();
-                      }
+                  <Ionicons
+                    name="lock-closed-outline"
+                    size={16}
+                    color={
+                      COLORS.hint
                     }
                   />
 
-                  {/* ==============================================
-                      CITY
-                  ============================================== */}
-
                   <Text
                     style={
-                      styles.label
+                      styles.privacyText
                     }
                   >
-                    City / Municipality
+                    Others never see your exact location, only how far away you are.
                   </Text>
-
-                  <TextInput
-                    style={
-                      styles.input
-                    }
-                    placeholder="Enter City or Municipality"
-                    placeholderTextColor={
-                      COLORS.placeholder
-                    }
-                    value={
-                      city
-                    }
-                    autoCapitalize="words"
-                    autoCorrect={
-                      false
-                    }
-                    onChangeText={
-                      value => {
-                        setCity(
-                          value
-                        );
-
-                        clearError();
-                      }
-                    }
-                  />
-
-                  {/* ==============================================
-                      PROVINCE
-                  ============================================== */}
-
-                  <Text
-                    style={
-                      styles.label
-                    }
-                  >
-                    Province
-                  </Text>
-
-                  <TextInput
-                    style={
-                      styles.input
-                    }
-                    placeholder="Enter Province"
-                    placeholderTextColor={
-                      COLORS.placeholder
-                    }
-                    value={
-                      province
-                    }
-                    autoCapitalize="words"
-                    autoCorrect={
-                      false
-                    }
-                    onChangeText={
-                      value => {
-                        setProvince(
-                          value
-                        );
-
-                        clearError();
-                      }
-                    }
-                  />
-
-                  <View
-                    style={
-                      styles.bottomButtons
-                    }
-                  >
-                    <TouchableOpacity
-                      style={
-                        styles.secondaryButton
-                      }
-                      activeOpacity={
-                        0.8
-                      }
-                      onPress={() =>
-                        router.back()
-                      }
-                    >
-                      <Text
-                        style={
-                          styles.secondaryButtonText
-                        }
-                      >
-                        Back
-                      </Text>
-                    </TouchableOpacity>
-
-                    <TouchableOpacity
-                      style={
-                        styles.nextButton
-                      }
-                      activeOpacity={
-                        0.85
-                      }
-                      onPress={
-                        handleNext
-                      }
-                    >
-                      <Text
-                        style={
-                          styles.nextButtonText
-                        }
-                      >
-                        Next
-                      </Text>
-                    </TouchableOpacity>
-                  </View>
                 </View>
               </View>
             </ScrollView>
+
+            {/* Stays at the bottom: hidden while the keyboard is
+                open instead of riding up on top of it. */}
+            {keyboardOpen ? null : (
+              <View
+                style={[
+                  styles.bottomBar,
+
+                  {
+                    paddingBottom:
+                      12 +
+                      insets.bottom,
+                  },
+                ]}
+              >
+                <TouchableOpacity
+                  style={
+                    styles.secondaryButton
+                  }
+                  activeOpacity={
+                    0.8
+                  }
+                  onPress={
+                    goBack
+                  }
+                >
+                  <Text
+                    style={
+                      styles.secondaryButtonText
+                    }
+                  >
+                    Back
+                  </Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={
+                    styles.nextButton
+                  }
+                  activeOpacity={
+                    0.85
+                  }
+                  onPress={
+                    handleNext
+                  }
+                >
+                  <Text
+                    style={
+                      styles.nextButtonText
+                    }
+                  >
+                    Next
+                  </Text>
+
+                  <Ionicons
+                    name="arrow-forward"
+                    size={18}
+                    color={
+                      COLORS.white
+                    }
+                  />
+                </TouchableOpacity>
+              </View>
+            )}
           </KeyboardAvoidingView>
         </SafeAreaView>
       </View>
@@ -1260,6 +1106,188 @@ export default function LocationScreen() {
 
 const styles =
   StyleSheet.create({
+    // ========================================================
+    // FORM (new look: same fields as Sign Up)
+    // ========================================================
+
+    safeArea: {
+      flex: 1,
+      backgroundColor: COLORS.white,
+    },
+
+    scroll: {
+      flexGrow: 1,
+      backgroundColor: COLORS.white,
+    },
+
+    form: {
+      paddingHorizontal: 20,
+      paddingTop: 4,
+      paddingBottom: 24,
+    },
+
+    locateCard: {
+      padding: 14,
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 14,
+      borderWidth: 1.5,
+      borderColor: COLORS.redButton,
+      borderRadius: 16,
+      backgroundColor: '#FFF6F6',
+    },
+
+    locateCardDone: {
+      borderColor: COLORS.greenBorder,
+      backgroundColor: COLORS.greenLight,
+    },
+
+    locateIcon: {
+      width: 48,
+      height: 48,
+      borderRadius: 14,
+      alignItems: 'center',
+      justifyContent: 'center',
+      backgroundColor: COLORS.redButton,
+    },
+
+    locateIconDone: {
+      backgroundColor: COLORS.green,
+    },
+
+    locateText: {
+      flex: 1,
+    },
+
+    locateTitle: {
+      color: COLORS.redButton,
+      fontFamily: 'Poppins_600SemiBold',
+      fontSize: 14.5,
+    },
+
+    locateTitleDone: {
+      color: COLORS.green,
+    },
+
+    locateSubtitle: {
+      marginTop: 2,
+      color: COLORS.hint,
+      fontFamily: 'Inter_400Regular',
+      fontSize: 12.5,
+      lineHeight: 17,
+    },
+
+    credit: {
+      marginTop: 6,
+      marginLeft: 4,
+      color: COLORS.hint,
+      fontFamily: 'Inter_400Regular',
+      fontSize: 11,
+    },
+
+    divider: {
+      marginTop: 18,
+      marginBottom: 16,
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 10,
+    },
+
+    dividerLine: {
+      flex: 1,
+      height: 1,
+      backgroundColor: '#F0E3E3',
+    },
+
+    dividerText: {
+      color: COLORS.hint,
+      fontFamily: 'Inter_500Medium',
+      fontSize: 12.5,
+    },
+
+    errorBox: {
+      marginBottom: 16,
+      paddingHorizontal: 12,
+      paddingVertical: 10,
+      borderRadius: 12,
+      backgroundColor: '#FDECEC',
+    },
+
+    errorText: {
+      color: COLORS.redButton,
+      fontFamily: 'Inter_500Medium',
+      fontSize: 12.5,
+      textAlign: 'center',
+    },
+
+    privacyNote: {
+      marginTop: 4,
+      padding: 12,
+      flexDirection: 'row',
+      alignItems: 'flex-start',
+      gap: 10,
+      borderRadius: 14,
+      backgroundColor: '#F7F2F2',
+    },
+
+    privacyText: {
+      flex: 1,
+      color: '#555555',
+      fontFamily: 'Inter_400Regular',
+      fontSize: 12.5,
+      lineHeight: 18,
+    },
+
+    bottomBar: {
+      paddingHorizontal: 20,
+      paddingTop: 12,
+      flexDirection: 'row',
+      gap: 10,
+      borderTopWidth: 1,
+      borderTopColor: '#F0E3E3',
+      backgroundColor: COLORS.white,
+    },
+
+    secondaryButton: {
+      flex: 1,
+      height: 52,
+      alignItems: 'center',
+      justifyContent: 'center',
+      borderRadius: 14,
+      backgroundColor: '#F2F2F4',
+    },
+
+    secondaryButtonText: {
+      color: '#333333',
+      fontFamily: 'Poppins_600SemiBold',
+      fontSize: 15,
+    },
+
+    nextButton: {
+      flex: 2,
+      height: 52,
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: 8,
+      borderRadius: 14,
+      backgroundColor: COLORS.redButton,
+      shadowColor: COLORS.redButton,
+      shadowOffset: {
+        width: 0,
+        height: 8,
+      },
+      shadowOpacity: 0.25,
+      shadowRadius: 12,
+      elevation: 4,
+    },
+
+    nextButtonText: {
+      color: COLORS.white,
+      fontFamily: 'Poppins_600SemiBold',
+      fontSize: 15,
+    },
+
     flex: {
       flex: 1,
     },
@@ -1300,792 +1328,13 @@ const styles =
         COLORS.backgroundBottom,
     },
 
-    safeArea: {
-      flex: 1,
-
-      backgroundColor:
-        COLORS.red,
-    },
-
-    scroll: {
-      flexGrow:
-        1,
-
-      // Same as the sheet, so the space under the form (home
-      // indicator) matches it.
-      backgroundColor:
-        '#FAFAFA',
-    },
-
-    // ========================================================
-    // HEADER
-    // ========================================================
-
-    // Bottom padding leaves room for the sheet, which overlaps
-    // the header by 22.
-    header: {
-      paddingHorizontal:
-        27,
-
-      paddingTop:
-        14,
-
-      paddingBottom:
-        40,
-
-      overflow:
-        'hidden',
-    },
-
-    headerDecoration: {
-      position:
-        'absolute',
-
-      width:
-        180,
-
-      height:
-        180,
-
-      borderRadius:
-        90,
-
-      right:
-        -82,
-
-      top:
-        -70,
-
-      backgroundColor:
-        'rgba(255,255,255,0.07)',
-    },
-
-    headerRow: {
-      flexDirection:
-        'row',
-
-      alignItems:
-        'center',
-    },
-
-    backCircle: {
-      width:
-        37,
-
-      height:
-        37,
-
-      borderRadius:
-        19,
-
-      borderWidth:
-        2,
-
-      borderColor:
-        COLORS.white,
-
-      alignItems:
-        'center',
-
-      justifyContent:
-        'center',
-
-      marginRight:
-        12,
-    },
-
-    headerTitle: {
-      color:
-        COLORS.white,
-
-      fontFamily:
-        'Poppins_700Bold',
-
-      fontSize:
-        20,
-    },
-
-    // ========================================================
-    // BODY
-    // ========================================================
-
-    // Rounded sheet over the header, as on Request Blood. A plain
-    // View: inside a gradient, the card pulled over the header was
-    // clipped on iPhone (its top was hidden behind the header).
-    // flexGrow (not flex: 1): fills the screen when the form is
-    // short but grows with it, so the page stays scrollable when
-    // the keyboard is open.
-    bodyBackground: {
-      flexGrow:
-        1,
-
-      marginTop:
-        -22,
-
-      borderTopLeftRadius:
-        22,
-
-      borderTopRightRadius:
-        22,
-
-      backgroundColor:
-        '#FAFAFA',
-    },
-
-    // ========================================================
-    // CARD
-    // ========================================================
-
-    card: {
-      flexGrow:
-        1,
-
-      paddingHorizontal:
-        20,
-
-      paddingTop:
-        20,
-
-      paddingBottom:
-        24,
-    },
-
-    // ========================================================
-    // PROGRESS
-    // ========================================================
-
-    progressRow: {
-      width:
-        155,
-
-      flexDirection:
-        'row',
-
-      alignSelf:
-        'center',
-
-      gap:
-        8,
-
-      marginBottom:
-        16,
-    },
-
-    progressLine: {
-      flex:
-        1,
-
-      height:
-        4,
-
-      borderRadius:
-        3,
-
-      backgroundColor:
-        COLORS.progressInactive,
-    },
-
-    progressActive: {
-      backgroundColor:
-        COLORS.redButton,
-    },
-
-    sectionTitle: {
-      color:
-        COLORS.black,
-
-      fontFamily:
-        'Inter_600SemiBold',
-
-      fontSize:
-        14.5,
-
-      marginBottom:
-        14,
-    },
-
-    // ========================================================
-    // MAP
-    // ========================================================
-
-    mapContainer: {
-      width:
-        180,
-
-      height:
-        100,
-
-      alignSelf:
-        'center',
-
-      position:
-        'relative',
-
-      overflow:
-        'hidden',
-
-      borderRadius:
-        8,
-
-      backgroundColor:
-        COLORS.mapBackground,
-
-      marginBottom:
-        14,
-    },
-
-    mapGreenOne: {
-      position:
-        'absolute',
-
-      width:
-        62,
-
-      height:
-        42,
-
-      left:
-        5,
-
-      top:
-        4,
-
-      borderRadius:
-        20,
-
-      backgroundColor:
-        COLORS.mapGreen,
-    },
-
-    mapGreenTwo: {
-      position:
-        'absolute',
-
-      width:
-        55,
-
-      height:
-        35,
-
-      right:
-        7,
-
-      bottom:
-        5,
-
-      borderRadius:
-        18,
-
-      backgroundColor:
-        COLORS.mapGreen,
-    },
-
-    roadHorizontal: {
-      position:
-        'absolute',
-
-      width:
-        220,
-
-      height:
-        12,
-
-      left:
-        -20,
-
-      top:
-        43,
-
-      backgroundColor:
-        COLORS.mapRoad,
-
-      transform: [
-        {
-          rotate:
-            '-7deg',
-        },
-      ],
-    },
-
-    roadHorizontalTwo: {
-      position:
-        'absolute',
-
-      width:
-        200,
-
-      height:
-        5,
-
-      left:
-        -10,
-
-      top:
-        70,
-
-      backgroundColor:
-        COLORS.mapRoadSecondary,
-
-      transform: [
-        {
-          rotate:
-            '9deg',
-        },
-      ],
-    },
-
-    roadVertical: {
-      position:
-        'absolute',
-
-      width:
-        10,
-
-      height:
-        130,
-
-      left:
-        72,
-
-      top:
-        -15,
-
-      backgroundColor:
-        COLORS.mapRoad,
-
-      transform: [
-        {
-          rotate:
-            '14deg',
-        },
-      ],
-    },
-
-    roadDiagonal: {
-      position:
-        'absolute',
-
-      width:
-        7,
-
-      height:
-        150,
-
-      right:
-        47,
-
-      top:
-        -25,
-
-      backgroundColor:
-        COLORS.mapRoadSecondary,
-
-      transform: [
-        {
-          rotate:
-            '-32deg',
-        },
-      ],
-    },
-
-    locationPin: {
-      position:
-        'absolute',
-
-      left:
-        74,
-
-      top:
-        32,
-    },
-
-    locationDescription: {
-      paddingHorizontal:
-        18,
-
-      color:
-        COLORS.muted,
-
-      fontFamily:
-        'Inter_400Regular',
-
-      fontSize:
-        12,
-
-      lineHeight:
-        18,
-
-      textAlign:
-        'center',
-
-      marginBottom:
-        18,
-    },
-
     // ========================================================
     // CURRENT LOCATION
     // ========================================================
 
-    currentLocationButton: {
-      height:
-        48,
-
-      flexDirection:
-        'row',
-
-      alignItems:
-        'center',
-
-      justifyContent:
-        'center',
-
-      gap:
-        8,
-
-      borderRadius:
-        8,
-
-      backgroundColor:
-        COLORS.redButton,
-    },
-
-    currentLocationText: {
-      color:
-        COLORS.white,
-
-      fontFamily:
-        'Inter_600SemiBold',
-
-      fontSize:
-        13.5,
-    },
-
     disabledButton: {
       opacity:
         0.65,
-    },
-
-    // ========================================================
-    // LOCATION DETECTED
-    // ========================================================
-
-    detectedBox: {
-      marginTop:
-        12,
-
-      marginBottom:
-        0,
-
-      minHeight:
-        48,
-
-      paddingVertical:
-        9,
-
-      flexDirection:
-        'row',
-
-      alignItems:
-        'center',
-
-      paddingHorizontal:
-        12,
-
-      borderRadius:
-        8,
-
-      backgroundColor:
-        COLORS.greenLight,
-
-      borderWidth:
-        1,
-
-      borderColor:
-        '#B9D9BC',
-    },
-
-    detectedIcon: {
-      width:
-        23,
-
-      height:
-        23,
-
-      borderRadius:
-        12,
-
-      backgroundColor:
-        COLORS.green,
-
-      alignItems:
-        'center',
-
-      justifyContent:
-        'center',
-
-      marginRight:
-        9,
-    },
-
-    detectedContent: {
-      flex:
-        1,
-    },
-
-    detectedTitle: {
-      color:
-        COLORS.green,
-
-      fontFamily:
-        'Inter_600SemiBold',
-
-      fontSize:
-        12.5,
-    },
-
-    detectedCoordinates: {
-      marginTop:
-        2,
-
-      color:
-        COLORS.muted,
-
-      fontFamily:
-        'Inter_400Regular',
-
-      fontSize:
-        11,
-    },
-
-    detectedCredit: {
-      marginTop:
-        3,
-
-      color:
-        COLORS.placeholder,
-
-      fontFamily:
-        'Inter_400Regular',
-
-      fontSize:
-        10.5,
-    },
-
-    // ========================================================
-    // OR
-    // ========================================================
-
-    // ========================================================
-    // SELECT MAP
-    // ========================================================
-
-    // ========================================================
-    // LOCATION DETAILS
-    // ========================================================
-
-    locationDetailsTitle: {
-      marginTop:
-        24,
-
-      color:
-        COLORS.black,
-
-      fontFamily:
-        'Inter_600SemiBold',
-
-      fontSize:
-        13.5,
-    },
-
-    locationHint: {
-      marginTop:
-        4,
-
-      marginBottom:
-        16,
-
-      color:
-        COLORS.muted,
-
-      fontFamily:
-        'Inter_400Regular',
-
-      fontSize:
-        12,
-    },
-
-    // ========================================================
-    // ERROR
-    // ========================================================
-
-    errorBox: {
-      marginBottom:
-        14,
-
-      paddingHorizontal:
-        10,
-
-      paddingVertical:
-        8,
-
-      borderWidth:
-        1,
-
-      borderColor:
-        '#E9AAAA',
-
-      borderRadius:
-        7,
-
-      backgroundColor:
-        '#FDECEC',
-    },
-
-    errorText: {
-      color:
-        COLORS.redButton,
-
-      fontFamily:
-        'Inter_500Medium',
-
-      fontSize:
-        12,
-
-      textAlign:
-        'center',
-    },
-
-    // ========================================================
-    // FORM
-    // ========================================================
-
-    label: {
-      color:
-        COLORS.black,
-
-      fontFamily:
-        'Inter_500Medium',
-
-      fontSize:
-        12.5,
-
-      marginBottom:
-        7,
-    },
-
-    input: {
-      height:
-        48,
-
-      marginBottom:
-        16,
-
-      paddingHorizontal:
-        13,
-
-      borderWidth:
-        1,
-
-      borderColor:
-        COLORS.inputBorder,
-
-      borderRadius:
-        8,
-
-      color:
-        COLORS.black,
-
-      backgroundColor:
-        COLORS.white,
-
-      fontFamily:
-        'Inter_400Regular',
-
-      fontSize:
-        13.5,
-
-      outlineStyle:
-        Platform.OS ===
-        'web'
-          ? 'none'
-          : undefined,
-    } as any,
-
-    // ========================================================
-    // BOTTOM BUTTONS
-    // ========================================================
-
-    bottomButtons: {
-      flexDirection:
-        'row',
-
-      gap:
-        12,
-
-      marginTop:
-        10,
-    },
-
-    secondaryButton: {
-      flex:
-        1,
-
-      height:
-        48,
-
-      borderRadius:
-        8,
-
-      backgroundColor:
-        '#E3E3E3',
-
-      alignItems:
-        'center',
-
-      justifyContent:
-        'center',
-    },
-
-    secondaryButtonText: {
-      color:
-        '#444444',
-
-      fontFamily:
-        'Poppins_600SemiBold',
-
-      fontSize:
-        14,
-    },
-
-    nextButton: {
-      flex:
-        1,
-
-      height:
-        48,
-
-      borderRadius:
-        8,
-
-      backgroundColor:
-        COLORS.redButton,
-
-      alignItems:
-        'center',
-
-      justifyContent:
-        'center',
-    },
-
-    nextButtonText: {
-      color:
-        COLORS.white,
-
-      fontFamily:
-        'Poppins_600SemiBold',
-
-      fontSize:
-        14.5,
     },
 
     // ========================================================

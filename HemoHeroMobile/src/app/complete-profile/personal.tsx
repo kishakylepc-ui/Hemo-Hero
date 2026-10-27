@@ -1,6 +1,7 @@
-import { useMemo, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 
 import {
+  BackHandler,
   Image,
   KeyboardAvoidingView,
   Modal,
@@ -13,10 +14,9 @@ import {
   View,
 } from 'react-native';
 
-import { Ionicons, MaterialIcons } from '@expo/vector-icons';
+import { Ionicons } from '@expo/vector-icons';
 import { ICON_TILE } from '../../constants/theme';
-import { LinearGradient } from 'expo-linear-gradient';
-import { router } from 'expo-router';
+import { router, useFocusEffect } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import {
   SafeAreaView,
@@ -29,7 +29,18 @@ import {
   normalizePhone,
   PHONE_ERROR,
 } from '../../lib/phone';
-import { ProgressFill } from '../../components/Motion';
+import AppModal from '../../components/AppModal';
+import AuthField from '../../components/AuthField';
+import SetupHeader from '../../components/SetupHeader';
+import { useKeyboardOpen } from '../../lib/useKeyboardOpen';
+import { logoutUser } from '../../lib/api';
+import { unregisterPushNotifications } from '../../lib/pushNotifications';
+import {
+  clearSession,
+  getAccessToken,
+  setLogoutReason,
+} from '../../lib/session';
+import { goToSignIn } from '../../lib/signInRoute';
 
 const COLORS = {
   red: '#DB0A0A',
@@ -50,6 +61,14 @@ const COLORS = {
   photoBackground: '#EFE3E3',
 
   selectedDate: '#B42323',
+
+  // Form (same as Sign Up's fields)
+  label: '#444449',
+  border: '#E4D7D7',
+  fill: '#FCFCFD',
+  icon: '#9A8C8C',
+  segment: '#F3EDED',
+  hint: '#666666',
 };
 
 const MONTH_NAMES = [
@@ -94,6 +113,10 @@ export default function PersonalInformationScreen() {
   // the home bar.
   const insets = useSafeAreaInsets();
 
+  // The bottom bar hides while typing (see below).
+  const keyboardOpen =
+    useKeyboardOpen();
+
   // ==========================================================
   // PERSONAL INFORMATION
   // ==========================================================
@@ -135,11 +158,6 @@ export default function PersonalInformationScreen() {
   ] =
     useState('');
 
-  const [
-    genderOpen,
-    setGenderOpen,
-  ] =
-    useState(false);
 
   const [
     errorMessage,
@@ -267,6 +285,79 @@ export default function PersonalInformationScreen() {
     return 'info';
   }
 
+  // ==========================================================
+  // LEAVE SETUP (back on step 1)
+  //
+  // Step 1 opens with replace after signing in, so there is no
+  // screen to go back to. Back offers to sign out instead; they
+  // finish the profile the next time they sign in.
+  // ==========================================================
+
+  const [
+    leaveVisible,
+    setLeaveVisible,
+  ] = useState(false);
+
+  const [
+    leaving,
+    setLeaving,
+  ] = useState(false);
+
+  // Android's back button asks too.
+  useFocusEffect(
+    useCallback(() => {
+      const subscription =
+        BackHandler.addEventListener(
+          'hardwareBackPress',
+          () => {
+            setLeaveVisible(true);
+
+            return true;
+          }
+        );
+
+      return () =>
+        subscription.remove();
+    }, [])
+  );
+
+  async function leaveSetup() {
+    setLeaving(true);
+
+    try {
+      const token =
+        await getAccessToken();
+
+      if (token) {
+        await unregisterPushNotifications(
+          token
+        );
+
+        try {
+          await logoutUser(token);
+        } catch (error) {
+          console.log(
+            'LEAVE SETUP LOGOUT ERROR:',
+            error
+          );
+        }
+      }
+
+      await setLogoutReason(
+        'signed_out'
+      );
+
+      await clearSession();
+
+      setLeaveVisible(false);
+
+      // Closes every screen, so Back can't return.
+      goToSignIn();
+    } finally {
+      setLeaving(false);
+    }
+  }
+
   function showMessage(
     title: string,
     message: string
@@ -361,10 +452,6 @@ export default function PersonalInformationScreen() {
   }
 
   function openCalendar() {
-    setGenderOpen(
-      false
-    );
-
     if (
       selectedDate
     ) {
@@ -686,10 +773,11 @@ export default function PersonalInformationScreen() {
           style={
             styles.safeArea
           }
-          // The header scrolls with the page, so the top keeps its
-          // padding; the bottom is drawn edge to edge.
+          // The red top draws behind the status bar; the bottom
+          // bar keeps clear of the home indicator itself.
           edges={[
-            'top',
+            'left',
+            'right',
           ]}
         >
           <StatusBar
@@ -708,13 +796,9 @@ export default function PersonalInformationScreen() {
             }
           >
             <ScrollView
-              contentContainerStyle={[
-                styles.scroll,
-                {
-                  paddingBottom:
-                    insets.bottom,
-                },
-              ]}
+              contentContainerStyle={
+                styles.scroll
+              }
               keyboardShouldPersistTaps="handled"
               showsVerticalScrollIndicator={
                 false
@@ -723,129 +807,44 @@ export default function PersonalInformationScreen() {
                 false
               }
             >
-              {/* ==================================================
-                  HEADER
-              ================================================== */}
-
-              <LinearGradient
-                colors={[
-                  COLORS.red,
-                  COLORS.redDark,
-                ]}
-                style={
-                  styles.header
+              <SetupHeader
+                topInset={
+                  insets.top
                 }
-              >
-                <View
-                  style={
-                    styles.headerDecoration
-                  }
-                />
-
-                <View
-                  style={
-                    styles.headerRow
-                  }
-                >
-                  <TouchableOpacity
-                    style={
-                      styles.backCircle
-                    }
-                    activeOpacity={
-                      0.75
-                    }
-                    onPress={() =>
-                      router.back()
-                    }
-                  >
-                    <MaterialIcons
-                      name="arrow-back"
-                      size={
-                        21
-                      }
-                      color={
-                        COLORS.white
-                      }
-                    />
-                  </TouchableOpacity>
-
-                  <Text
-                    style={
-                      styles.headerTitle
-                    }
-                  >
-                    Complete your Profile
-                  </Text>
-                </View>
-              </LinearGradient>
-
-              {/* ==================================================
-                  BODY
-              ================================================== */}
+                step={1}
+                title="Complete your profile"
+                subtitle="Tell us a bit about yourself."
+                onBack={() =>
+                  setLeaveVisible(true)
+                }
+              />
 
               <View
                 style={
-                  styles.bodyBackground
+                  styles.form
                 }
               >
+                {/* ==============================================
+                    PROFILE PHOTO (optional)
+                ============================================== */}
+
                 <View
                   style={
-                    styles.card
+                    styles.photoRow
                   }
                 >
-                  {/* ==============================================
-                      PROGRESS
-                  ============================================== */}
-
-                  <View
-                    style={
-                      styles.progressRow
-                    }
-                  >
-                    {/* Finished steps stay filled; this step fills in. */}
-                    {[0, 1, 2].map(
-                      index => (
-                        <ProgressFill
-                          key={index}
-                          filled={
-                            index <= 0
-                          }
-                          animate={
-                            index === 0
-                          }
-                          style={
-                            styles.progressLine
-                          }
-                          fillStyle={
-                            styles.progressActive
-                          }
-                        />
-                      )
-                    )}
-                  </View>
-
-                  {/* ==============================================
-                      TITLE
-                  ============================================== */}
-
-                  <Text
-                    style={
-                      styles.sectionTitle
-                    }
-                  >
-                    Personal Information
-                  </Text>
-
-                  {/* ==============================================
-                      PROFILE PHOTO
-                  ============================================== */}
-
                   <TouchableOpacity
                     style={
-                      styles.photoArea
+                      styles.photoMain
                     }
                     activeOpacity={
                       0.8
+                    }
+                    accessibilityRole="button"
+                    accessibilityLabel={
+                      profilePhoto
+                        ? 'Change profile photo'
+                        : 'Add a profile photo'
                     }
                     onPress={
                       handlePhotoPress
@@ -853,50 +852,41 @@ export default function PersonalInformationScreen() {
                   >
                     <View
                       style={
-                        styles.photoWrapper
+                        styles.photoCircle
                       }
                     >
-                      <View
-                        style={
-                          styles.photoCircle
-                        }
-                      >
-                        {profilePhoto ? (
-                          <Image
-                            source={{
-                              uri:
-                                profilePhoto,
-                            }}
-                            style={
-                              styles.profileImage
-                            }
-                            resizeMode="cover"
-                          />
-                        ) : (
-                          <MaterialIcons
-                            name="photo-camera"
-                            size={
-                              30
-                            }
-                            color="#444444"
-                          />
-                        )}
-                      </View>
+                      {profilePhoto ? (
+                        <Image
+                          source={{
+                            uri:
+                              profilePhoto,
+                          }}
+                          style={
+                            styles.profileImage
+                          }
+                        />
+                      ) : (
+                        <Ionicons
+                          name="camera-outline"
+                          size={26}
+                          color={
+                            COLORS.redButton
+                          }
+                        />
+                      )}
 
                       <View
                         style={
-                          styles.addPhotoBadge
+                          styles.photoBadge
                         }
                       >
-                        <MaterialIcons
+                        <Ionicons
                           name={
                             profilePhoto
-                              ? 'edit'
+                              ? 'pencil'
                               : 'add'
                           }
-                          size={
-                            12
-                          }
+                          size={13}
                           color={
                             COLORS.white
                           }
@@ -904,25 +894,31 @@ export default function PersonalInformationScreen() {
                       </View>
                     </View>
 
-                    <Text
+                    <View
                       style={
-                        styles.photoTitle
+                        styles.photoText
                       }
                     >
-                      {profilePhoto
-                        ? 'Change Profile Photo'
-                        : 'Add a Profile Photo'}
-                    </Text>
+                      <Text
+                        style={
+                          styles.photoTitle
+                        }
+                      >
+                        {profilePhoto
+                          ? 'Profile photo added'
+                          : 'Add a profile photo'}
+                      </Text>
 
-                    <Text
-                      style={
-                        styles.photoSubtitle
-                      }
-                    >
-                      {profilePhoto
-                        ? 'Tap the photo to choose another'
-                        : 'Help others recognize you'}
-                    </Text>
+                      <Text
+                        style={
+                          styles.photoSubtitle
+                        }
+                      >
+                        {profilePhoto
+                          ? 'Tap to choose another'
+                          : 'Optional · helps others recognize you'}
+                      </Text>
+                    </View>
                   </TouchableOpacity>
 
                   {profilePhoto ? (
@@ -933,406 +929,359 @@ export default function PersonalInformationScreen() {
                       activeOpacity={
                         0.7
                       }
+                      accessibilityRole="button"
+                      accessibilityLabel="Remove photo"
                       onPress={
                         handleRemovePhoto
                       }
                     >
-                      <MaterialIcons
-                        name="delete-outline"
-                        size={
-                          13
-                        }
+                      <Ionicons
+                        name="trash-outline"
+                        size={18}
                         color={
                           COLORS.redButton
                         }
                       />
-
-                      <Text
-                        style={
-                          styles.removePhotoText
-                        }
-                      >
-                        Remove Photo
-                      </Text>
                     </TouchableOpacity>
                   ) : null}
+                </View>
 
-                  {/* ==============================================
-                      ERROR
-                  ============================================== */}
-
-                  {errorMessage ? (
-                    <View
-                      style={
-                        styles.errorBox
-                      }
-                    >
-                      <Text
-                        style={
-                          styles.errorText
-                        }
-                      >
-                        {
-                          errorMessage
-                        }
-                      </Text>
-                    </View>
-                  ) : null}
-
-                  {/* ==============================================
-                      FIRST NAME
-                  ============================================== */}
-
-                  <Text
+                {errorMessage ? (
+                  <View
                     style={
-                      styles.label
+                      styles.errorBox
                     }
                   >
-                    First Name
-                  </Text>
+                    <Text
+                      style={
+                        styles.errorText
+                      }
+                    >
+                      {errorMessage}
+                    </Text>
+                  </View>
+                ) : null}
 
-                  <TextInput
+                {/* ==============================================
+                    NAME
+                ============================================== */}
+
+                <View
+                  style={
+                    styles.nameRow
+                  }
+                >
+                  <View
                     style={
-                      styles.input
+                      styles.nameField
                     }
-                    placeholder="Enter First Name"
-                    placeholderTextColor={
-                      COLORS.placeholder
-                    }
-                    value={
-                      firstName
-                    }
-                    autoCapitalize="words"
-                    autoCorrect={
-                      false
-                    }
-                    onChangeText={
-                      value => {
+                  >
+                    <AuthField
+                      label="First name"
+                      icon="person-outline"
+                      placeholder="e.g. Juan"
+                      value={
+                        firstName
+                      }
+                      autoCapitalize="words"
+                      autoCorrect={
+                        false
+                      }
+                      textContentType="givenName"
+                      autoComplete="name-given"
+                      onChangeText={value => {
                         setFirstName(
                           value
                         );
-
                         clearError();
-                      }
-                    }
-                  />
+                      }}
+                    />
+                  </View>
 
-                  {/* ==============================================
-                      LAST NAME
-                  ============================================== */}
-
-                  <Text
+                  <View
                     style={
-                      styles.label
+                      styles.nameField
                     }
                   >
-                    Last Name
-                  </Text>
-
-                  <TextInput
-                    style={
-                      styles.input
-                    }
-                    placeholder="Enter Last Name"
-                    placeholderTextColor={
-                      COLORS.placeholder
-                    }
-                    value={
-                      lastName
-                    }
-                    autoCapitalize="words"
-                    autoCorrect={
-                      false
-                    }
-                    onChangeText={
-                      value => {
+                    <AuthField
+                      label="Last name"
+                      icon="person-outline"
+                      placeholder="e.g. Dela Cruz"
+                      value={
+                        lastName
+                      }
+                      autoCapitalize="words"
+                      autoCorrect={
+                        false
+                      }
+                      textContentType="familyName"
+                      autoComplete="name-family"
+                      onChangeText={value => {
                         setLastName(
                           value
                         );
-
                         clearError();
-                      }
-                    }
-                  />
+                      }}
+                    />
+                  </View>
+                </View>
 
-                  {/* ==============================================
-                      MIDDLE NAME
-                  ============================================== */}
+                <AuthField
+                  label="Middle name (optional)"
+                  icon="person-outline"
+                  placeholder="e.g. Santos"
+                  value={
+                    middleName
+                  }
+                  autoCapitalize="words"
+                  autoCorrect={
+                    false
+                  }
+                  textContentType="middleName"
+                  autoComplete="name-middle"
+                  onChangeText={
+                    setMiddleName
+                  }
+                />
 
+                {/* ==============================================
+                    DATE OF BIRTH
+                ============================================== */}
+
+                <View
+                  style={
+                    styles.fieldWrap
+                  }
+                >
                   <Text
                     style={
-                      styles.label
+                      styles.fieldLabel
                     }
                   >
-                    Middle Name (Optional)
-                  </Text>
-
-                  <TextInput
-                    style={
-                      styles.input
-                    }
-                    placeholder="Enter Middle Name"
-                    placeholderTextColor={
-                      COLORS.placeholder
-                    }
-                    value={
-                      middleName
-                    }
-                    autoCapitalize="words"
-                    autoCorrect={
-                      false
-                    }
-                    onChangeText={
-                      setMiddleName
-                    }
-                  />
-
-                  {/* ==============================================
-                      DATE OF BIRTH
-                  ============================================== */}
-
-                  <Text
-                    style={
-                      styles.label
-                    }
-                  >
-                    Date of Birth
+                    Date of birth
                   </Text>
 
                   <TouchableOpacity
                     style={
-                      styles.dateSelector
+                      styles.fieldBox
                     }
                     activeOpacity={
                       0.8
+                    }
+                    accessibilityRole="button"
+                    accessibilityLabel={
+                      selectedDate
+                        ? `Date of birth, ${formatDisplayDate(
+                            selectedDate
+                          )}`
+                        : 'Select date of birth'
                     }
                     onPress={
                       openCalendar
                     }
                   >
-                    <View
-                      style={
-                        styles.dateLeft
-                      }
-                    >
-                      <MaterialIcons
-                        name="calendar-today"
-                        size={
-                          15
-                        }
-                        color={
-                          COLORS.muted
-                        }
-                      />
-
-                      <Text
-                        style={[
-                          styles.dateText,
-
-                          !selectedDate &&
-                            styles.placeholderText,
-                        ]}
-                      >
-                        {selectedDate
-                          ? formatDisplayDate(
-                              selectedDate
-                            )
-                          : 'Select Date of Birth'}
-                      </Text>
-                    </View>
-
-                    <MaterialIcons
-                      name="keyboard-arrow-down"
-                      size={
-                        19
-                      }
+                    <Ionicons
+                      name="calendar-outline"
+                      size={18}
                       color={
-                        COLORS.muted
+                        selectedDate
+                          ? COLORS.redButton
+                          : COLORS.icon
+                      }
+                    />
+
+                    <Text
+                      style={[
+                        styles.fieldValue,
+                        !selectedDate &&
+                          styles.fieldPlaceholder,
+                      ]}
+                    >
+                      {selectedDate
+                        ? formatDisplayDate(
+                            selectedDate
+                          )
+                        : 'Select your birthday'}
+                    </Text>
+
+                    <Ionicons
+                      name="chevron-down"
+                      size={18}
+                      color={
+                        COLORS.icon
                       }
                     />
                   </TouchableOpacity>
+                </View>
 
-                  {/* ==============================================
-                      GENDER
-                  ============================================== */}
+                {/* ==============================================
+                    GENDER (three-way switch)
+                ============================================== */}
 
+                <View
+                  style={
+                    styles.fieldWrap
+                  }
+                >
                   <Text
                     style={
-                      styles.label
+                      styles.fieldLabel
                     }
                   >
                     Gender
                   </Text>
 
-                  <TouchableOpacity
+                  <View
                     style={
-                      styles.genderSelector
+                      styles.segment
                     }
-                    activeOpacity={
-                      0.8
-                    }
-                    onPress={() => {
-                      setGenderOpen(
-                        current =>
-                          !current
-                      );
-                    }}
+                    accessibilityRole="radiogroup"
                   >
-                    <Text
-                      style={[
-                        styles.genderText,
+                    {genderOptions.map(
+                      option => {
+                        const selected =
+                          gender ===
+                          option;
 
-                        !gender &&
-                          styles.placeholderText,
-                      ]}
-                    >
-                      {gender ||
-                        'Select Gender'}
-                    </Text>
-
-                    <MaterialIcons
-                      name={
-                        genderOpen
-                          ? 'keyboard-arrow-up'
-                          : 'keyboard-arrow-down'
-                      }
-                      size={
-                        20
-                      }
-                      color="#555555"
-                    />
-                  </TouchableOpacity>
-
-                  {/* ==============================================
-                      GENDER DROPDOWN
-                  ============================================== */}
-
-                  {genderOpen ? (
-                    <View
-                      style={
-                        styles.genderDropdown
-                      }
-                    >
-                      {genderOptions.map(
-                        (
-                          option,
-                          index
-                        ) => (
+                        return (
                           <TouchableOpacity
                             key={
                               option
                             }
                             style={[
-                              styles.genderOption,
-
-                              index !==
-                                genderOptions.length -
-                                  1 &&
-                                styles.genderOptionBorder,
+                              styles.segmentOption,
+                              option ===
+                                'Prefer not to say' &&
+                                styles.segmentOptionWide,
+                              selected &&
+                                styles.segmentOptionActive,
                             ]}
                             activeOpacity={
-                              0.75
+                              0.8
                             }
+                            accessibilityRole="radio"
+                            accessibilityState={{
+                              checked:
+                                selected,
+                            }}
                             onPress={() => {
                               setGender(
                                 option
                               );
-
-                              setGenderOpen(
-                                false
-                              );
-
                               clearError();
                             }}
                           >
                             <Text
-                              style={
-                                styles.genderOptionText
+                              numberOfLines={
+                                1
                               }
+                              style={[
+                                styles.segmentText,
+                                selected &&
+                                  styles.segmentTextActive,
+                              ]}
                             >
-                              {
-                                option
-                              }
+                              {option}
                             </Text>
                           </TouchableOpacity>
-                        )
-                      )}
-                    </View>
-                  ) : null}
+                        );
+                      }
+                    )}
+                  </View>
+                </View>
 
-                  {/* ==============================================
-                      PHONE (OPTIONAL)
-                  ============================================== */}
+                {/* ==============================================
+                    PHONE (optional)
+                ============================================== */}
 
-                  <Text
-                    style={[
-                      styles.label,
-                      styles.phoneLabel,
-                    ]}
-                  >
-                    Phone Number (Optional)
-                  </Text>
-
-                  <TextInput
+                <AuthField
+                  label="Phone number (optional)"
+                  icon="call-outline"
+                  placeholder="0917 123 4567"
+                  value={
+                    phone
+                  }
+                  keyboardType="phone-pad"
+                  textContentType="telephoneNumber"
+                  autoComplete="tel"
+                  maxLength={
+                    17
+                  }
+                  onChangeText={value => {
+                    setPhone(
+                      value
+                    );
+                    clearError();
+                  }}
+                >
+                  <View
                     style={
-                      styles.input
-                    }
-                    placeholder="0917 123 4567"
-                    placeholderTextColor={
-                      COLORS.placeholder
-                    }
-                    value={
-                      phone
-                    }
-                    keyboardType="phone-pad"
-                    textContentType="telephoneNumber"
-                    autoComplete="tel"
-                    maxLength={
-                      17
-                    }
-                    onChangeText={value => {
-                      setPhone(
-                        value
-                      );
-
-                      clearError();
-                    }}
-                  />
-
-                  <Text
-                    style={
-                      styles.fieldHint
+                      styles.hintRow
                     }
                   >
-                    Only Hemo-Hero staff can see it. Other users never do.
-                  </Text>
+                    <Ionicons
+                      name="lock-closed-outline"
+                      size={12}
+                      color={
+                        COLORS.hint
+                      }
+                    />
 
-                  {/* ==============================================
-                      NEXT BUTTON
-                  ============================================== */}
-
-                  <TouchableOpacity
-                    style={
-                      styles.nextButton
-                    }
-                    activeOpacity={
-                      0.85
-                    }
-                    onPress={
-                      handleNext
-                    }
-                  >
                     <Text
                       style={
-                        styles.nextButtonText
+                        styles.fieldHint
                       }
                     >
-                      Next
+                      Only Hemo-Hero staff can see it. Other users never do.
                     </Text>
-                  </TouchableOpacity>
-                </View>
+                  </View>
+                </AuthField>
               </View>
             </ScrollView>
+
+            {/* Stays at the bottom: hidden while the keyboard is
+                open instead of riding up on top of it. */}
+            {keyboardOpen ? null : (
+              <View
+                style={[
+                  styles.bottomBar,
+
+                  {
+                    paddingBottom:
+                      12 +
+                      insets.bottom,
+                  },
+                ]}
+              >
+                <TouchableOpacity
+                  style={
+                    styles.nextButton
+                  }
+                  activeOpacity={
+                    0.85
+                  }
+                  onPress={
+                    handleNext
+                  }
+                >
+                  <Text
+                    style={
+                      styles.nextButtonText
+                    }
+                  >
+                    Next
+                  </Text>
+
+                  <Ionicons
+                    name="arrow-forward"
+                    size={18}
+                    color={
+                      COLORS.white
+                    }
+                  />
+                </TouchableOpacity>
+              </View>
+            )}
           </KeyboardAvoidingView>
         </SafeAreaView>
       </View>
@@ -1815,6 +1764,21 @@ export default function PersonalInformationScreen() {
           )
         }
       />
+
+      <AppModal
+        visible={leaveVisible}
+        variant="warning"
+        icon="log-out-outline"
+        title="Leave setup?"
+        message="You'll be signed out, and what you entered here won't be saved. You can finish your profile the next time you sign in."
+        confirmLabel="Sign Out"
+        cancelLabel="Stay"
+        loading={leaving}
+        onConfirm={leaveSetup}
+        onClose={() =>
+          setLeaveVisible(false)
+        }
+      />
     </View>
   );
 }
@@ -1825,6 +1789,251 @@ export default function PersonalInformationScreen() {
 
 const styles =
   StyleSheet.create({
+    // ========================================================
+    // FORM (new look: same fields as Sign Up)
+    // ========================================================
+
+    safeArea: {
+      flex: 1,
+      backgroundColor: COLORS.white,
+    },
+
+    scroll: {
+      flexGrow: 1,
+      backgroundColor: COLORS.white,
+    },
+
+    form: {
+      paddingHorizontal: 20,
+      paddingTop: 4,
+      paddingBottom: 24,
+    },
+
+    photoRow: {
+      marginBottom: 20,
+      padding: 12,
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 12,
+      borderWidth: 1,
+      borderStyle: 'dashed',
+      borderColor: COLORS.border,
+      borderRadius: 16,
+      backgroundColor: '#FFFBFB',
+    },
+
+    photoMain: {
+      flex: 1,
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 14,
+    },
+
+    photoCircle: {
+      width: 60,
+      height: 60,
+      borderRadius: 30,
+      alignItems: 'center',
+      justifyContent: 'center',
+      backgroundColor: '#FDECEC',
+    },
+
+    profileImage: {
+      width: 60,
+      height: 60,
+      borderRadius: 30,
+    },
+
+    photoBadge: {
+      position: 'absolute',
+      right: -2,
+      bottom: -2,
+      width: 22,
+      height: 22,
+      borderRadius: 11,
+      borderWidth: 2,
+      borderColor: COLORS.white,
+      alignItems: 'center',
+      justifyContent: 'center',
+      backgroundColor: COLORS.redButton,
+    },
+
+    photoText: {
+      flex: 1,
+    },
+
+    photoTitle: {
+      color: COLORS.black,
+      fontFamily: 'Poppins_600SemiBold',
+      fontSize: 14,
+    },
+
+    photoSubtitle: {
+      marginTop: 2,
+      color: COLORS.hint,
+      fontFamily: 'Inter_400Regular',
+      fontSize: 12.5,
+    },
+
+    removePhotoButton: {
+      width: 40,
+      height: 40,
+      borderRadius: 12,
+      alignItems: 'center',
+      justifyContent: 'center',
+      backgroundColor: '#FDECEC',
+    },
+
+    errorBox: {
+      marginBottom: 16,
+      paddingHorizontal: 12,
+      paddingVertical: 10,
+      borderRadius: 12,
+      backgroundColor: '#FDECEC',
+    },
+
+    errorText: {
+      color: COLORS.redButton,
+      fontFamily: 'Inter_500Medium',
+      fontSize: 12.5,
+      textAlign: 'center',
+    },
+
+    nameRow: {
+      flexDirection: 'row',
+      gap: 12,
+    },
+
+    nameField: {
+      flex: 1,
+      minWidth: 0,
+    },
+
+    // Same frame as AuthField, for the date and gender.
+    fieldWrap: {
+      marginBottom: 16,
+    },
+
+    fieldLabel: {
+      marginBottom: 8,
+      color: COLORS.label,
+      fontFamily: 'Inter_600SemiBold',
+      fontSize: 12.5,
+    },
+
+    fieldBox: {
+      height: 50,
+      paddingHorizontal: 14,
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 10,
+      borderWidth: 1,
+      borderColor: COLORS.border,
+      borderRadius: 12,
+      backgroundColor: COLORS.fill,
+    },
+
+    fieldValue: {
+      flex: 1,
+      color: COLORS.black,
+      fontFamily: 'Inter_400Regular',
+      fontSize: 14,
+    },
+
+    fieldPlaceholder: {
+      color: COLORS.placeholder,
+    },
+
+    segment: {
+      height: 46,
+      padding: 3,
+      flexDirection: 'row',
+      gap: 3,
+      borderRadius: 12,
+      backgroundColor: COLORS.segment,
+    },
+
+    segmentOption: {
+      flex: 1,
+      paddingHorizontal: 6,
+      alignItems: 'center',
+      justifyContent: 'center',
+      borderRadius: 10,
+    },
+
+    segmentOptionWide: {
+      flex: 1.6,
+    },
+
+    segmentOptionActive: {
+      backgroundColor: COLORS.white,
+      shadowColor: '#000000',
+      shadowOffset: {
+        width: 0,
+        height: 1,
+      },
+      shadowOpacity: 0.12,
+      shadowRadius: 3,
+      elevation: 2,
+    },
+
+    segmentText: {
+      color: '#555555',
+      fontFamily: 'Poppins_600SemiBold',
+      fontSize: 13,
+    },
+
+    segmentTextActive: {
+      color: COLORS.redButton,
+    },
+
+    hintRow: {
+      marginTop: 8,
+      marginLeft: 2,
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 6,
+    },
+
+    fieldHint: {
+      flex: 1,
+      color: COLORS.hint,
+      fontFamily: 'Inter_400Regular',
+      fontSize: 12,
+    },
+
+    bottomBar: {
+      paddingHorizontal: 20,
+      paddingTop: 12,
+      borderTopWidth: 1,
+      borderTopColor: '#F0E3E3',
+      backgroundColor: COLORS.white,
+    },
+
+    nextButton: {
+      height: 52,
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: 8,
+      borderRadius: 14,
+      backgroundColor: COLORS.redButton,
+      shadowColor: COLORS.redButton,
+      shadowOffset: {
+        width: 0,
+        height: 8,
+      },
+      shadowOpacity: 0.25,
+      shadowRadius: 12,
+      elevation: 4,
+    },
+
+    nextButtonText: {
+      color: COLORS.white,
+      fontFamily: 'Poppins_600SemiBold',
+      fontSize: 15,
+    },
+
     flex: {
       flex:
         1,
@@ -1875,700 +2084,6 @@ const styles =
         COLORS.backgroundBottom,
     },
 
-    safeArea: {
-      flex:
-        1,
-
-      backgroundColor:
-        COLORS.red,
-    },
-
-    scroll: {
-      flexGrow:
-        1,
-
-      // Same as the sheet, so the space under the form (home
-      // indicator) matches it.
-      backgroundColor:
-        '#FAFAFA',
-    },
-
-    // ==========================================================
-    // HEADER
-    // ==========================================================
-
-    // Bottom padding leaves room for the sheet, which overlaps
-    // the header by 22.
-    header: {
-      paddingHorizontal:
-        27,
-
-      paddingTop:
-        14,
-
-      paddingBottom:
-        40,
-
-      overflow:
-        'hidden',
-    },
-
-    headerDecoration: {
-      position:
-        'absolute',
-
-      width:
-        180,
-
-      height:
-        180,
-
-      borderRadius:
-        90,
-
-      right:
-        -82,
-
-      top:
-        -70,
-
-      backgroundColor:
-        'rgba(255,255,255,0.07)',
-    },
-
-    headerRow: {
-      flexDirection:
-        'row',
-
-      alignItems:
-        'center',
-    },
-
-    backCircle: {
-      width:
-        37,
-
-      height:
-        37,
-
-      borderRadius:
-        19,
-
-      borderWidth:
-        2,
-
-      borderColor:
-        COLORS.white,
-
-      alignItems:
-        'center',
-
-      justifyContent:
-        'center',
-
-      marginRight:
-        12,
-    },
-
-    headerTitle: {
-      color:
-        COLORS.white,
-
-      fontFamily:
-        'Poppins_700Bold',
-
-      fontSize:
-        20,
-    },
-
-    // ==========================================================
-    // BODY
-    // ==========================================================
-
-    // Rounded sheet over the header, as on Request Blood. A plain
-    // View: inside a gradient, the card pulled over the header was
-    // clipped on iPhone (its top was hidden behind the header).
-    // flexGrow (not flex: 1): fills the screen when the form is
-    // short but grows with it, so the page stays scrollable when
-    // the keyboard is open.
-    bodyBackground: {
-      flexGrow:
-        1,
-
-      marginTop:
-        -22,
-
-      borderTopLeftRadius:
-        22,
-
-      borderTopRightRadius:
-        22,
-
-      backgroundColor:
-        '#FAFAFA',
-    },
-
-    // ==========================================================
-    // CARD
-    // ==========================================================
-
-    card: {
-      flexGrow:
-        1,
-
-      paddingHorizontal:
-        20,
-
-      paddingTop:
-        20,
-
-      paddingBottom:
-        24,
-    },
-
-    // ==========================================================
-    // PROGRESS
-    // ==========================================================
-
-    progressRow: {
-      width:
-        155,
-
-      flexDirection:
-        'row',
-
-      alignSelf:
-        'center',
-
-      gap:
-        8,
-
-      marginBottom:
-        16,
-    },
-
-    progressLine: {
-      flex:
-        1,
-
-      height:
-        4,
-
-      borderRadius:
-        3,
-
-      backgroundColor:
-        COLORS.progressInactive,
-    },
-
-    progressActive: {
-      backgroundColor:
-        COLORS.redButton,
-    },
-
-    sectionTitle: {
-      color:
-        COLORS.black,
-
-      fontFamily:
-        'Inter_600SemiBold',
-
-      fontSize:
-        14.5,
-
-      marginBottom:
-        12,
-    },
-
-    // ==========================================================
-    // PROFILE PHOTO
-    // ==========================================================
-
-    photoArea: {
-      alignItems:
-        'center',
-
-      marginBottom:
-        8,
-    },
-
-    photoWrapper: {
-      width:
-        88,
-
-      height:
-        88,
-
-      position:
-        'relative',
-
-      alignItems:
-        'center',
-
-      justifyContent:
-        'center',
-
-      marginBottom:
-        8,
-
-      overflow:
-        'visible',
-    },
-
-    photoCircle: {
-      width:
-        80,
-
-      height:
-        80,
-
-      borderRadius:
-        40,
-
-      backgroundColor:
-        COLORS.photoBackground,
-
-      alignItems:
-        'center',
-
-      justifyContent:
-        'center',
-
-      overflow:
-        'hidden',
-
-      borderWidth:
-        2,
-
-      borderColor:
-        COLORS.white,
-    },
-
-    profileImage: {
-      width:
-        '100%',
-
-      height:
-        '100%',
-    },
-
-    addPhotoBadge: {
-      position:
-        'absolute',
-
-      right:
-        0,
-
-      bottom:
-        3,
-
-      width:
-        22,
-
-      height:
-        22,
-
-      borderRadius:
-        11,
-
-      backgroundColor:
-        COLORS.redButton,
-
-      alignItems:
-        'center',
-
-      justifyContent:
-        'center',
-
-      borderWidth:
-        2.5,
-
-      borderColor:
-        '#FAFAFA',
-
-      zIndex:
-        10,
-
-      elevation:
-        5,
-    },
-
-    photoTitle: {
-      color:
-        COLORS.black,
-
-      fontFamily:
-        'Inter_500Medium',
-
-      fontSize:
-        13.5,
-    },
-
-    photoSubtitle: {
-      color:
-        COLORS.muted,
-
-      fontFamily:
-        'Inter_400Regular',
-
-      fontSize:
-        12,
-
-      marginTop:
-        2,
-    },
-
-    removePhotoButton: {
-      flexDirection:
-        'row',
-
-      alignItems:
-        'center',
-
-      justifyContent:
-        'center',
-
-      alignSelf:
-        'center',
-
-      gap:
-        3,
-
-      marginTop:
-        2,
-
-      marginBottom:
-        8,
-    },
-
-    removePhotoText: {
-      color:
-        COLORS.redButton,
-
-      fontFamily:
-        'Inter_500Medium',
-
-      fontSize:
-        12,
-    },
-
-    // ==========================================================
-    // ERROR
-    // ==========================================================
-
-    errorBox: {
-      marginBottom:
-        11,
-
-      paddingHorizontal:
-        10,
-
-      paddingVertical:
-        8,
-
-      borderRadius:
-        7,
-
-      borderWidth:
-        1,
-
-      borderColor:
-        '#E9AAAA',
-
-      backgroundColor:
-        '#FDECEC',
-    },
-
-    errorText: {
-      color:
-        COLORS.redButton,
-
-      fontFamily:
-        'Inter_500Medium',
-
-      fontSize:
-        12,
-
-      textAlign:
-        'center',
-    },
-
-    // ==========================================================
-    // FORM
-    // ==========================================================
-
-    label: {
-      color:
-        COLORS.black,
-
-      fontFamily:
-        'Inter_500Medium',
-
-      fontSize:
-        12.5,
-
-      marginBottom:
-        6,
-    },
-
-    // The gender field above has no bottom margin.
-    phoneLabel: {
-      marginTop:
-        12,
-    },
-
-    fieldHint: {
-      marginTop:
-        -6,
-
-      marginBottom:
-        14,
-
-      color:
-        COLORS.placeholder,
-
-      fontFamily:
-        'Inter_400Regular',
-
-      fontSize:
-        11.5,
-
-      lineHeight:
-        16,
-    },
-
-    input: {
-      height:
-        44,
-
-      marginBottom:
-        12,
-
-      paddingHorizontal:
-        14,
-
-      borderWidth:
-        1,
-
-      borderColor:
-        COLORS.inputBorder,
-
-      borderRadius:
-        8,
-
-      color:
-        COLORS.black,
-
-      backgroundColor:
-        COLORS.white,
-
-      fontFamily:
-        'Inter_400Regular',
-
-      fontSize:
-        13.5,
-
-      outlineStyle:
-        Platform.OS ===
-        'web'
-          ? 'none'
-          : undefined,
-    } as any,
-
-    // ==========================================================
-    // DATE FIELD
-    // ==========================================================
-
-    dateSelector: {
-      height:
-        44,
-
-      marginBottom:
-        12,
-
-      paddingHorizontal:
-        13,
-
-      flexDirection:
-        'row',
-
-      alignItems:
-        'center',
-
-      justifyContent:
-        'space-between',
-
-      borderWidth:
-        1,
-
-      borderColor:
-        COLORS.inputBorder,
-
-      borderRadius:
-        8,
-
-      backgroundColor:
-        COLORS.white,
-    },
-
-    dateLeft: {
-      flex:
-        1,
-
-      flexDirection:
-        'row',
-
-      alignItems:
-        'center',
-    },
-
-    dateText: {
-      marginLeft:
-        8,
-
-      color:
-        COLORS.black,
-
-      fontFamily:
-        'Inter_400Regular',
-
-      fontSize:
-        13.5,
-    },
-
-    placeholderText: {
-      color:
-        COLORS.placeholder,
-    },
-
-    // ==========================================================
-    // GENDER
-    // ==========================================================
-
-    genderSelector: {
-      height:
-        44,
-
-      paddingHorizontal:
-        14,
-
-      flexDirection:
-        'row',
-
-      alignItems:
-        'center',
-
-      justifyContent:
-        'space-between',
-
-      borderWidth:
-        1,
-
-      borderColor:
-        COLORS.inputBorder,
-
-      borderRadius:
-        8,
-
-      backgroundColor:
-        COLORS.white,
-    },
-
-    genderText: {
-      color:
-        COLORS.black,
-
-      fontFamily:
-        'Inter_400Regular',
-
-      fontSize:
-        13.5,
-    },
-
-    genderDropdown: {
-      marginTop:
-        5,
-
-      borderWidth:
-        1,
-
-      borderColor:
-        COLORS.inputBorder,
-
-      borderRadius:
-        8,
-
-      backgroundColor:
-        COLORS.white,
-
-      overflow:
-        'hidden',
-    },
-
-    genderOption: {
-      height:
-        40,
-
-      paddingHorizontal:
-        14,
-
-      justifyContent:
-        'center',
-    },
-
-    genderOptionBorder: {
-      borderBottomWidth:
-        1,
-
-      borderBottomColor:
-        '#EEEEEE',
-    },
-
-    genderOptionText: {
-      color:
-        COLORS.black,
-
-      fontFamily:
-        'Inter_400Regular',
-
-      fontSize:
-        13.5,
-    },
-
-    // ==========================================================
-    // NEXT BUTTON
-    // ==========================================================
-
-    nextButton: {
-      height:
-        49,
-
-      marginTop:
-        24,
-
-      borderRadius:
-        8,
-
-      backgroundColor:
-        COLORS.redButton,
-
-      alignItems:
-        'center',
-
-      justifyContent:
-        'center',
-    },
-
-    nextButtonText: {
-      color:
-        COLORS.white,
-
-      fontFamily:
-        'Poppins_600SemiBold',
-
-      fontSize:
-        14.5,
-    },
 
     // ==========================================================
     // CALENDAR MODAL

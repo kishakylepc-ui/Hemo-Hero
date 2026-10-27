@@ -1,4 +1,7 @@
+import { useCallback } from 'react';
+
 import {
+  BackHandler,
   Platform,
   ScrollView,
   StyleSheet,
@@ -8,15 +11,14 @@ import {
 } from 'react-native';
 
 import {
-  MaterialIcons,
+  Ionicons,
 } from '@expo/vector-icons';
 
-import {
-  LinearGradient,
-} from 'expo-linear-gradient';
+import SetupHeader from '../../components/SetupHeader';
 
 import {
   router,
+  useFocusEffect,
   useLocalSearchParams,
 } from 'expo-router';
 
@@ -45,6 +47,14 @@ const COLORS = {
 
   privacyBackground: '#FFF1F1',
   privacyBorder: '#E9A8A8',
+
+  // New look
+  greenCheck: '#15803D',
+  greenLight: '#EAF7EF',
+  orange: '#B4570F',
+  orangeLight: '#FFF3E6',
+  hint: '#666666',
+  border: '#F0E3E3',
 };
 
 export default function ProfileSuccessScreen() {
@@ -95,6 +105,25 @@ export default function ProfileSuccessScreen() {
     );
   }
 
+  // The profile is saved, so there are no steps to go back to:
+  // Android's back button continues, like the button.
+  useFocusEffect(
+    useCallback(() => {
+      const subscription =
+        BackHandler.addEventListener(
+          'hardwareBackPress',
+          () => {
+            handleDashboard();
+
+            return true;
+          }
+        );
+
+      return () =>
+        subscription.remove();
+    }, [])
+  );
+
   // ==========================================================
   // DISPLAY NAME
   // ==========================================================
@@ -126,6 +155,12 @@ export default function ProfileSuccessScreen() {
   // SCREEN
   // ==========================================================
 
+  const firstName =
+    (
+      params.first_name ||
+      ''
+    ).trim();
+
   return (
     <View
       style={
@@ -141,10 +176,11 @@ export default function ProfileSuccessScreen() {
           style={
             styles.safeArea
           }
-          // The header scrolls with the page, so the top keeps its
-          // padding; the bottom is drawn edge to edge.
+          // The red top draws behind the status bar; the bottom
+          // bar keeps clear of the home indicator itself.
           edges={[
-            'top',
+            'left',
+            'right',
           ]}
         >
           <StatusBar
@@ -152,402 +188,291 @@ export default function ProfileSuccessScreen() {
           />
 
           <ScrollView
-            contentContainerStyle={[
-              styles.scroll,
-              {
-                paddingBottom:
-                  insets.bottom,
-              },
-            ]}
+            contentContainerStyle={
+              styles.scroll
+            }
             showsVerticalScrollIndicator={
               false
             }
             bounces={false}
           >
-            {/* ==================================================
-                HEADER
-            ================================================== */}
-
-            <LinearGradient
-              colors={[
-                COLORS.red,
-                COLORS.redDark,
-              ]}
-              style={
-                styles.header
+            {/* No back button: the profile is saved. */}
+            <SetupHeader
+              topInset={
+                insets.top
               }
-            >
-              <View
-                style={
-                  styles.headerDecoration
-                }
-              />
-
-              <View
-                style={
-                  styles.headerRow
-                }
-              >
-                <TouchableOpacity
+              title="You're all set!"
+              subtitle={
+                firstName
+                  ? `Welcome to Hemo-Hero, ${firstName}.`
+                  : 'Welcome to Hemo-Hero.'
+              }
+              badge={
+                <View
                   style={
-                    styles.backCircle
-                  }
-                  activeOpacity={
-                    0.75
-                  }
-                  onPress={() =>
-                    router.back()
+                    styles.checkBadge
                   }
                 >
-                  <MaterialIcons
-                    name="arrow-back"
-                    size={21}
+                  <Ionicons
+                    name="checkmark"
+                    size={40}
                     color={
-                      COLORS.white
+                      COLORS.greenCheck
                     }
                   />
-                </TouchableOpacity>
-
-                <Text
-                  style={
-                    styles.headerTitle
-                  }
-                >
-                  Complete your Profile
-                </Text>
-              </View>
-            </LinearGradient>
-
-            {/* ==================================================
-                BODY
-            ================================================== */}
+                </View>
+              }
+            />
 
             <View
               style={
-                styles.bodyBackground
+                styles.content
               }
             >
+              {/* ==============================================
+                  WHAT WAS SAVED
+              ============================================== */}
+
               <View
                 style={
-                  styles.card
+                  styles.summaryCard
                 }
               >
-                {/* ==============================================
-                    SUCCESS ICON
-                ============================================== */}
-
                 <View
-                  style={
-                    styles.successCircle
+                  style={[
+                    styles.summaryRow,
+                    styles.summaryRowBorder,
+                  ]
                   }
                 >
-                  <MaterialIcons
-                    name="check"
-                    size={46}
-                    color={
-                      COLORS.white
+                  <View
+                    style={
+                      styles.doneTile
                     }
-                  />
+                  >
+                    <Ionicons
+                      name="checkmark"
+                      size={16}
+                      color={
+                        COLORS.greenCheck
+                      }
+                    />
+                  </View>
+
+                  <View
+                    style={
+                      styles.rowText
+                    }
+                  >
+                    <Text
+                      style={
+                        styles.rowTitle
+                      }
+                    >
+                      Personal information
+                    </Text>
+
+                    <Text
+                      numberOfLines={1}
+                      style={
+                        styles.rowSubtitle
+                      }
+                    >
+                      {displayName}
+                    </Text>
+                  </View>
                 </View>
 
-                {/* ==============================================
-                    TITLE
-                ============================================== */}
-
-                <Text
-                  style={
-                    styles.successTitle
+                <View
+                  style={[
+                    styles.summaryRow,
+                    styles.summaryRowBorder,
+                  ]
                   }
                 >
-                  Thank You!
-                </Text>
+                  <View
+                    style={
+                      styles.doneTile
+                    }
+                  >
+                    <Ionicons
+                      name="checkmark"
+                      size={16}
+                      color={
+                        COLORS.greenCheck
+                      }
+                    />
+                  </View>
 
-                <Text
-                  style={
-                    styles.successSubtitle
-                  }
-                >
-                  Your profile information is ready.
-                </Text>
+                  <View
+                    style={
+                      styles.rowText
+                    }
+                  >
+                    <Text
+                      style={
+                        styles.rowTitle
+                      }
+                    >
+                      Location
+                    </Text>
 
-                {/* ==============================================
-                    COMPLETION ITEMS
-                ============================================== */}
+                    <Text
+                      numberOfLines={1}
+                      style={
+                        styles.rowSubtitle
+                      }
+                    >
+                      {displayLocation ||
+                        'Location saved'}
+                    </Text>
+                  </View>
+                </View>
 
                 <View
                   style={
-                    styles.completedSection
+                    styles.summaryRow
                   }
                 >
-                  {/* PERSONAL */}
-
-                  <View
-                    style={
-                      styles.completedRow
-                    }
-                  >
-                    <View
-                      style={
-                        styles.completedIcon
-                      }
-                    >
-                      <MaterialIcons
-                        name="check"
-                        size={15}
-                        color={
-                          COLORS.white
-                        }
-                      />
-                    </View>
-
-                    <View
-                      style={
-                        styles.rowText
-                      }
-                    >
-                      <Text
-                        style={
-                          styles.completedTitle
-                        }
-                      >
-                        Personal Information
-                      </Text>
-
-                      <Text
-                        style={
-                          styles.completedSubtitle
-                        }
-                      >
-                        Your basic profile information is complete
-                      </Text>
-                    </View>
-                  </View>
-
-                  {/* LOCATION */}
-
-                  <View
-                    style={
-                      styles.completedRow
-                    }
-                  >
-                    <View
-                      style={
-                        styles.completedIcon
-                      }
-                    >
-                      <MaterialIcons
-                        name="check"
-                        size={15}
-                        color={
-                          COLORS.white
-                        }
-                      />
-                    </View>
-
-                    <View
-                      style={
-                        styles.rowText
-                      }
-                    >
-                      <Text
-                        style={
-                          styles.completedTitle
-                        }
-                      >
-                        Location Information
-                      </Text>
-
-                      <Text
-                        style={
-                          styles.completedSubtitle
-                        }
-                      >
-                        Your location information has been added
-                      </Text>
-                    </View>
-                  </View>
-
-                  {/* MEDICAL */}
-
                   <View
                     style={[
-                      styles.completedRow,
-                      styles.lastCompletedRow,
-                    ]}
+                      styles.doneTile,
+                      !params.blood_type &&
+                        styles.laterTile,
+                    ]
+                    }
                   >
-                    <View
-                      style={[
-                        styles.completedIcon,
+                    <Ionicons
+                      name={
+                        params.blood_type
+                          ? 'checkmark'
+                          : 'time-outline'
+                      }
+                      size={16}
+                      color={
+                        params.blood_type
+                          ? COLORS.greenCheck
+                          : COLORS.orange
+                      }
+                    />
+                  </View>
 
-                        !params.blood_type &&
-                          styles.optionalCompletedIcon,
-                      ]}
-                    >
-                      <MaterialIcons
-                        name={
-                          params.blood_type
-                            ? 'check'
-                            : 'info-outline'
-                        }
-                        size={15}
-                        color={
-                          COLORS.white
-                        }
-                      />
-                    </View>
-
-                    <View
+                  <View
+                    style={
+                      styles.rowText
+                    }
+                  >
+                    <Text
                       style={
-                        styles.rowText
+                        styles.rowTitle
                       }
                     >
-                      <Text
-                        style={
-                          styles.completedTitle
-                        }
-                      >
-                        Medical Information
-                      </Text>
+                      Blood type
+                    </Text>
 
-                      <Text
-                        style={
-                          styles.completedSubtitle
-                        }
-                      >
-                        {params.blood_type
-                          ? `Blood type: ${params.blood_type}`
-                          : 'Blood type can be added later'}
-                      </Text>
-                    </View>
+                    <Text
+                      numberOfLines={1}
+                      style={
+                        styles.rowSubtitle
+                      }
+                    >
+                      {params.blood_type
+                        ? `${params.blood_type} added`
+                        : 'You can add it later from your profile'}
+                    </Text>
                   </View>
                 </View>
+              </View>
 
-                {/* ==============================================
-                    PROFILE SUMMARY
-                ============================================== */}
+              {/* ==============================================
+                  PRIVACY
+              ============================================== */}
 
+              <View
+                style={
+                  styles.privacyBox
+                }
+              >
                 <View
                   style={
-                    styles.profileSummary
+                    styles.privacyIcon
                   }
                 >
-                  <Text
-                    style={
-                      styles.summaryLabel
-                    }
-                  >
-                    Welcome to Hemo-Hero
-                  </Text>
-
-                  <Text
-                    style={
-                      styles.summaryName
-                    }
-                  >
-                    {displayName}
-                  </Text>
-
-                  {displayLocation ? (
-                    <View
-                      style={
-                        styles.summaryLocationRow
-                      }
-                    >
-                      <MaterialIcons
-                        name="location-on"
-                        size={14}
-                        color={
-                          COLORS.redButton
-                        }
-                      />
-
-                      <Text
-                        style={
-                          styles.summaryLocation
-                        }
-                      >
-                        {displayLocation}
-                      </Text>
-                    </View>
-                  ) : null}
-                </View>
-
-                {/* ==============================================
-                    PRIVACY
-                ============================================== */}
-
-                <View
-                  style={
-                    styles.privacyBox
-                  }
-                >
-                  <MaterialIcons
-                    name="lock-outline"
-                    size={21}
+                  <Ionicons
+                    name="lock-closed-outline"
+                    size={16}
                     color={
                       COLORS.redButton
                     }
                   />
-
-                  <View
-                    style={
-                      styles.privacyTextContainer
-                    }
-                  >
-                    <Text
-                      style={
-                        styles.privacyTitle
-                      }
-                    >
-                      Your privacy matters
-                    </Text>
-
-                    <Text
-                      style={
-                        styles.privacyText
-                      }
-                    >
-                      Your personal and medical information is kept secure and
-                      will only be used to support blood donor matching and
-                      emergency requests.
-                    </Text>
-                  </View>
                 </View>
 
-                {/* ==============================================
-                    DASHBOARD BUTTON
-                ============================================== */}
-
-                <TouchableOpacity
+                <View
                   style={
-                    styles.dashboardButton
-                  }
-                  activeOpacity={
-                    0.85
-                  }
-                  onPress={
-                    handleDashboard
+                    styles.privacyTextContainer
                   }
                 >
                   <Text
                     style={
-                      styles.dashboardButtonText
+                      styles.privacyTitle
                     }
                   >
-                    Continue
+                    Your privacy matters
                   </Text>
 
-                  <MaterialIcons
-                    name="arrow-forward"
-                    size={17}
-                    color={
-                      COLORS.white
+                  <Text
+                    style={
+                      styles.privacyText
                     }
-                  />
-                </TouchableOpacity>
+                  >
+                    Your personal and medical information is kept secure and
+                    will only be used to support blood donor matching and
+                    emergency requests.
+                  </Text>
+                </View>
               </View>
             </View>
           </ScrollView>
+
+          <View
+            style={[
+              styles.bottomBar,
+
+              {
+                paddingBottom:
+                  12 +
+                  insets.bottom,
+              },
+            ]}
+          >
+            <TouchableOpacity
+              style={
+                styles.dashboardButton
+              }
+              activeOpacity={
+                0.85
+              }
+              onPress={
+                handleDashboard
+              }
+            >
+              <Text
+                style={
+                  styles.dashboardButtonText
+                }
+              >
+                Continue
+              </Text>
+
+              <Ionicons
+                name="arrow-forward"
+                size={18}
+                color={
+                  COLORS.white
+                }
+              />
+            </TouchableOpacity>
+          </View>
         </SafeAreaView>
       </View>
     </View>
@@ -560,6 +485,163 @@ export default function ProfileSuccessScreen() {
 
 const styles =
   StyleSheet.create({
+    // ========================================================
+    // DONE (new look)
+    // ========================================================
+
+    safeArea: {
+      flex: 1,
+      backgroundColor: COLORS.white,
+    },
+
+    scroll: {
+      flexGrow: 1,
+      backgroundColor: COLORS.white,
+    },
+
+    checkBadge: {
+      width: 80,
+      height: 80,
+      borderRadius: 40,
+      alignItems: 'center',
+      justifyContent: 'center',
+      backgroundColor: COLORS.white,
+      shadowColor: '#000000',
+      shadowOffset: {
+        width: 0,
+        height: 10,
+      },
+      shadowOpacity: 0.18,
+      shadowRadius: 18,
+      elevation: 8,
+    },
+
+    content: {
+      paddingHorizontal: 20,
+      paddingTop: 4,
+      paddingBottom: 24,
+      gap: 14,
+    },
+
+    summaryCard: {
+      borderWidth: 1,
+      borderColor: COLORS.border,
+      borderRadius: 16,
+      overflow: 'hidden',
+    },
+
+    summaryRow: {
+      paddingHorizontal: 16,
+      paddingVertical: 14,
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 12,
+    },
+
+    summaryRowBorder: {
+      borderBottomWidth: 1,
+      borderBottomColor: '#F3EAEA',
+    },
+
+    doneTile: {
+      width: 30,
+      height: 30,
+      borderRadius: 8,
+      alignItems: 'center',
+      justifyContent: 'center',
+      backgroundColor: COLORS.greenLight,
+    },
+
+    laterTile: {
+      backgroundColor: COLORS.orangeLight,
+    },
+
+    rowText: {
+      flex: 1,
+      minWidth: 0,
+    },
+
+    rowTitle: {
+      color: COLORS.black,
+      fontFamily: 'Inter_600SemiBold',
+      fontSize: 14,
+    },
+
+    rowSubtitle: {
+      marginTop: 1,
+      color: COLORS.hint,
+      fontFamily: 'Inter_400Regular',
+      fontSize: 12.5,
+    },
+
+    privacyBox: {
+      padding: 14,
+      flexDirection: 'row',
+      alignItems: 'flex-start',
+      gap: 12,
+      borderRadius: 14,
+      backgroundColor: '#F7F2F2',
+    },
+
+    privacyIcon: {
+      width: 30,
+      height: 30,
+      borderRadius: 8,
+      alignItems: 'center',
+      justifyContent: 'center',
+      backgroundColor: COLORS.white,
+    },
+
+    privacyTextContainer: {
+      flex: 1,
+    },
+
+    privacyTitle: {
+      color: COLORS.black,
+      fontFamily: 'Inter_600SemiBold',
+      fontSize: 13.5,
+    },
+
+    privacyText: {
+      marginTop: 2,
+      color: '#555555',
+      fontFamily: 'Inter_400Regular',
+      fontSize: 12.5,
+      lineHeight: 18,
+    },
+
+    bottomBar: {
+      paddingHorizontal: 20,
+      paddingTop: 12,
+      borderTopWidth: 1,
+      borderTopColor: COLORS.border,
+      backgroundColor: COLORS.white,
+    },
+
+    dashboardButton: {
+      height: 52,
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: 8,
+      borderRadius: 14,
+      backgroundColor: COLORS.redButton,
+      shadowColor: COLORS.redButton,
+      shadowOffset: {
+        width: 0,
+        height: 8,
+      },
+      shadowOpacity: 0.25,
+      shadowRadius: 12,
+      elevation: 4,
+    },
+
+    dashboardButtonText: {
+      color: COLORS.white,
+      fontFamily: 'Poppins_600SemiBold',
+      fontSize: 15,
+    },
+
     desktopBackground: {
       flex: 1,
 
@@ -592,425 +674,4 @@ const styles =
         COLORS.backgroundBottom,
     },
 
-    safeArea: {
-      flex: 1,
-
-      backgroundColor:
-        COLORS.red,
-    },
-
-    scroll: {
-      flexGrow:
-        1,
-
-      // Same as the sheet, so the space under the form (home
-      // indicator) matches it.
-      backgroundColor:
-        '#FAFAFA',
-    },
-
-    // ========================================================
-    // HEADER
-    // ========================================================
-
-    // Bottom padding leaves room for the sheet, which overlaps
-    // the header by 22.
-    header: {
-      paddingHorizontal:
-        27,
-
-      paddingTop:
-        14,
-
-      paddingBottom:
-        40,
-
-      overflow:
-        'hidden',
-    },
-
-    headerDecoration: {
-      position: 'absolute',
-
-      width: 180,
-      height: 180,
-
-      borderRadius: 90,
-
-      right: -82,
-      top: -70,
-
-      backgroundColor:
-        'rgba(255,255,255,0.07)',
-    },
-
-    headerRow: {
-      flexDirection: 'row',
-
-      alignItems: 'center',
-    },
-
-    backCircle: {
-      width: 37,
-      height: 37,
-
-      borderRadius: 19,
-
-      borderWidth: 2,
-
-      borderColor:
-        COLORS.white,
-
-      alignItems: 'center',
-      justifyContent:
-        'center',
-
-      marginRight: 12,
-    },
-
-    headerTitle: {
-      color:
-        COLORS.white,
-
-      fontFamily:
-        'Poppins_700Bold',
-
-      fontSize: 20,
-    },
-
-    // ========================================================
-    // BODY
-    // ========================================================
-
-    // Rounded sheet over the header, as on Request Blood. A plain
-    // View: inside a gradient, the card pulled over the header was
-    // clipped on iPhone (its top was hidden behind the header).
-    bodyBackground: {
-      flexGrow:
-        1,
-
-      marginTop:
-        -22,
-
-      borderTopLeftRadius:
-        22,
-
-      borderTopRightRadius:
-        22,
-
-      backgroundColor:
-        '#FAFAFA',
-    },
-
-    // ========================================================
-    // CARD
-    // ========================================================
-
-    card: {
-      flexGrow:
-        1,
-
-      paddingHorizontal:
-        24,
-
-      paddingTop:
-        36,
-
-      paddingBottom:
-        24,
-    },
-
-    // ========================================================
-    // SUCCESS
-    // ========================================================
-
-    successCircle: {
-      width: 78,
-      height: 78,
-
-      alignSelf: 'center',
-
-      borderRadius: 39,
-
-      backgroundColor:
-        COLORS.green,
-
-      alignItems: 'center',
-      justifyContent:
-        'center',
-
-      marginBottom: 14,
-    },
-
-    successTitle: {
-      color:
-        COLORS.black,
-
-      fontFamily:
-        'Poppins_700Bold',
-
-      fontSize: 21,
-
-      textAlign: 'center',
-    },
-
-    successSubtitle: {
-      marginTop: 4,
-
-      paddingHorizontal: 15,
-
-      color:
-        COLORS.muted,
-
-      fontFamily:
-        'Inter_400Regular',
-
-      fontSize: 12.5,
-
-      lineHeight: 18,
-
-      textAlign: 'center',
-    },
-
-    // ========================================================
-    // COMPLETED SECTIONS
-    // ========================================================
-
-    completedSection: {
-      marginTop: 26,
-
-      borderWidth: 1,
-
-      borderColor:
-        '#E4E4E4',
-
-      borderRadius: 10,
-
-      backgroundColor:
-        COLORS.white,
-
-      overflow: 'hidden',
-    },
-
-    completedRow: {
-      minHeight: 62,
-
-      flexDirection: 'row',
-
-      alignItems: 'center',
-
-      paddingHorizontal: 14,
-
-      borderBottomWidth: 1,
-
-      borderBottomColor:
-        '#EEEEEE',
-    },
-
-    lastCompletedRow: {
-      borderBottomWidth: 0,
-    },
-
-    completedIcon: {
-      width: 27,
-      height: 27,
-
-      borderRadius: 14,
-
-      backgroundColor:
-        COLORS.green,
-
-      alignItems: 'center',
-      justifyContent:
-        'center',
-
-      marginRight: 11,
-    },
-
-    optionalCompletedIcon: {
-      backgroundColor:
-        COLORS.redButton,
-    },
-
-    rowText: {
-      flex: 1,
-    },
-
-    completedTitle: {
-      color:
-        COLORS.black,
-
-      fontFamily:
-        'Inter_600SemiBold',
-
-      fontSize: 13.5,
-    },
-
-    completedSubtitle: {
-      marginTop: 3,
-
-      color:
-        COLORS.muted,
-
-      fontFamily:
-        'Inter_400Regular',
-
-      fontSize: 12,
-
-      lineHeight: 17,
-    },
-
-    // ========================================================
-    // PROFILE SUMMARY
-    // ========================================================
-
-    profileSummary: {
-      alignItems: 'center',
-
-      marginTop: 20,
-    },
-
-    summaryLabel: {
-      color:
-        COLORS.muted,
-
-      fontFamily:
-        'Inter_400Regular',
-
-      fontSize: 11.5,
-    },
-
-    summaryName: {
-      marginTop: 4,
-
-      color:
-        COLORS.black,
-
-      fontFamily:
-        'Poppins_600SemiBold',
-
-      fontSize: 14.5,
-
-      textAlign: 'center',
-    },
-
-    summaryLocationRow: {
-      marginTop: 3,
-
-      flexDirection: 'row',
-
-      alignItems: 'center',
-
-      justifyContent:
-        'center',
-
-      paddingHorizontal: 15,
-    },
-
-    summaryLocation: {
-      flexShrink: 1,
-
-      marginLeft: 3,
-
-      color:
-        COLORS.muted,
-
-      fontFamily:
-        'Inter_400Regular',
-
-      fontSize: 12,
-
-      textAlign: 'center',
-    },
-
-    // ========================================================
-    // PRIVACY
-    // ========================================================
-
-    privacyBox: {
-      marginTop: 20,
-
-      minHeight: 78,
-
-      flexDirection: 'row',
-
-      alignItems:
-        'flex-start',
-
-      paddingHorizontal: 14,
-      paddingVertical: 13,
-
-      borderWidth: 1,
-
-      borderColor:
-        COLORS.privacyBorder,
-
-      borderRadius: 9,
-
-      backgroundColor:
-        COLORS.privacyBackground,
-    },
-
-    privacyTextContainer: {
-      flex: 1,
-
-      marginLeft: 10,
-    },
-
-    privacyTitle: {
-      color:
-        COLORS.redButton,
-
-      fontFamily:
-        'Inter_600SemiBold',
-
-      fontSize: 13,
-    },
-
-    privacyText: {
-      marginTop: 3,
-
-      color:
-        COLORS.muted,
-
-      fontFamily:
-        'Inter_400Regular',
-
-      fontSize: 12,
-
-      lineHeight: 17,
-    },
-
-    // ========================================================
-    // DASHBOARD BUTTON
-    // ========================================================
-
-    dashboardButton: {
-      height: 50,
-
-      marginTop: 25,
-
-      borderRadius: 8,
-
-      flexDirection: 'row',
-
-      alignItems: 'center',
-      justifyContent:
-        'center',
-
-      gap: 7,
-
-      backgroundColor:
-        COLORS.redButton,
-    },
-
-    dashboardButtonText: {
-      color:
-        COLORS.white,
-
-      fontFamily:
-        'Poppins_600SemiBold',
-
-      fontSize: 14.5,
-    },
   });

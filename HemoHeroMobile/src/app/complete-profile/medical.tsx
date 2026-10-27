@@ -10,9 +10,8 @@ import {
   View,
 } from 'react-native';
 
-import { Ionicons, MaterialIcons } from '@expo/vector-icons';
+import { Ionicons } from '@expo/vector-icons';
 import { ICON_TILE } from '../../constants/theme';
-import { LinearGradient } from 'expo-linear-gradient';
 
 import {
   router,
@@ -38,7 +37,7 @@ import type { PickedImage } from '../../lib/imageUpload';
 import {
   getAccessToken,
 } from '../../lib/session';
-import { ProgressFill } from '../../components/Motion';
+import SetupHeader from '../../components/SetupHeader';
 
 const COLORS = {
   red: '#DB0A0A',
@@ -57,6 +56,16 @@ const COLORS = {
 
   infoBackground: '#FFF1F1',
   infoBorder: '#E9A8A8',
+
+  // Form (same as Sign Up's fields)
+  label: '#444449',
+  border: '#E4D7D7',
+  hint: '#666666',
+  green: '#15803D',
+  greenLight: '#EAF7EF',
+  tip: '#FFF3E6',
+  tipText: '#6B3A0C',
+  tipIcon: '#B4570F',
 };
 
 const BLOOD_TYPES = [
@@ -193,6 +202,25 @@ export default function MedicalInformationScreen() {
     }
 
     return 'info';
+  }
+
+  // Steps open with push. With no screen to go back to (a web
+  // reload), go to step 2 with what step 1 sent.
+  function goBack() {
+    if (router.canGoBack()) {
+      router.back();
+
+      return;
+    }
+
+    router.replace({
+      pathname:
+        '/complete-profile/location',
+
+      params: {
+        ...params,
+      },
+    });
   }
 
   function showMessage(
@@ -537,10 +565,11 @@ export default function MedicalInformationScreen() {
           style={
             styles.safeArea
           }
-          // The header scrolls with the page, so the top keeps its
-          // padding; the bottom is drawn edge to edge.
+          // The red top draws behind the status bar; the bottom
+          // bar keeps clear of the home indicator itself.
           edges={[
-            'top',
+            'left',
+            'right',
           ]}
         >
           <StatusBar
@@ -548,298 +577,184 @@ export default function MedicalInformationScreen() {
           />
 
           <ScrollView
-            contentContainerStyle={[
-              styles.scroll,
-              {
-                paddingBottom:
-                  insets.bottom,
-              },
-            ]}
+            contentContainerStyle={
+              styles.scroll
+            }
             showsVerticalScrollIndicator={
               false
             }
             bounces={false}
           >
-            {/* ==================================================
-                HEADER
-            ================================================== */}
-
-            <LinearGradient
-              colors={[
-                COLORS.red,
-                COLORS.redDark,
-              ]}
-              style={
-                styles.header
+            <SetupHeader
+              topInset={
+                insets.top
               }
-            >
-              <View
-                style={
-                  styles.headerDecoration
+              step={3}
+              title="Your blood type"
+              subtitle="Optional. Add it only if you have proof."
+              onBack={() => {
+                if (!loading) {
+                  goBack();
                 }
-              />
-
-              <View
-                style={
-                  styles.headerRow
-                }
-              >
-                <TouchableOpacity
-                  style={
-                    styles.backCircle
-                  }
-                  activeOpacity={
-                    0.75
-                  }
-                  disabled={
-                    loading
-                  }
-                  onPress={() =>
-                    router.back()
-                  }
-                >
-                  <MaterialIcons
-                    name="arrow-back"
-                    size={21}
-                    color={
-                      COLORS.white
-                    }
-                  />
-                </TouchableOpacity>
-
-                <Text
-                  style={
-                    styles.headerTitle
-                  }
-                >
-                  Complete your Profile
-                </Text>
-              </View>
-            </LinearGradient>
-
-            {/* ==================================================
-                BODY
-            ================================================== */}
+              }}
+            />
 
             <View
               style={
-                styles.bodyBackground
+                styles.form
               }
             >
-              <View
+              {/* ==============================================
+                  BLOOD TYPE GRID
+              ============================================== */}
+
+              <Text
                 style={
-                  styles.card
+                  styles.fieldLabel
                 }
               >
-                {/* ==============================================
-                    PROGRESS
-                ============================================== */}
+                Select your blood type
+              </Text>
 
-                <View
-                  style={
-                    styles.progressRow
-                  }
-                >
-                  {/* Finished steps stay filled; this step fills in. */}
-                  {[0, 1, 2].map(
-                    index => (
-                      <ProgressFill
-                        key={index}
-                        filled={
-                          index <= 2
+              <View
+                style={
+                  styles.bloodGrid
+                }
+              >
+                {BLOOD_TYPES.map(
+                  type => {
+                    const selected =
+                      bloodType ===
+                      type;
+
+                    return (
+                      <TouchableOpacity
+                        key={type}
+                        style={[
+                          styles.bloodButton,
+                          selected &&
+                            styles.bloodButtonSelected,
+                          loading &&
+                            styles.disabledButton,
+                        ]}
+                        activeOpacity={
+                          0.8
                         }
-                        animate={
-                          index === 2
+                        disabled={
+                          loading
                         }
-                        style={
-                          styles.progressLine
+                        accessibilityRole="radio"
+                        accessibilityState={{
+                          checked:
+                            selected,
+                        }}
+                        onPress={() =>
+                          handleBloodTypeSelect(
+                            type
+                          )
                         }
-                        fillStyle={
-                          styles.progressActive
-                        }
-                      />
-                    )
-                  )}
-                </View>
-
-                {/* ==============================================
-                    TITLE
-                ============================================== */}
-
-                <Text
-                  style={
-                    styles.sectionTitle
-                  }
-                >
-                  Medical Information
-                </Text>
-
-                <Text
-                  style={
-                    styles.label
-                  }
-                >
-                  Select Blood Type
-                </Text>
-
-                <Text
-                  style={
-                    styles.optionalText
-                  }
-                >
-                  Optional — only with proof, like a blood donor card or lab result
-                </Text>
-
-                {/* ==============================================
-                    BLOOD TYPE GRID
-                ============================================== */}
-
-                <View
-                  style={
-                    styles.bloodGrid
-                  }
-                >
-                  {BLOOD_TYPES.map(
-                    type => {
-                      const selected =
-                        bloodType ===
-                        type;
-
-                      return (
-                        <TouchableOpacity
-                          key={type}
+                      >
+                        <Text
                           style={[
-                            styles.bloodButton,
-
+                            styles.bloodButtonText,
                             selected &&
-                              styles.bloodButtonSelected,
-
-                            loading &&
-                              styles.disabledButton,
+                              styles.bloodButtonTextSelected,
                           ]}
-                          activeOpacity={
-                            0.8
-                          }
-                          disabled={
-                            loading
-                          }
-                          onPress={() =>
-                            handleBloodTypeSelect(
-                              type
-                            )
-                          }
                         >
-                          <Text
-                            style={[
-                              styles.bloodButtonText,
+                          {type}
+                        </Text>
+                      </TouchableOpacity>
+                    );
+                  }
+                )}
+              </View>
 
-                              selected &&
-                                styles.bloodButtonTextSelected,
-                            ]}
-                          >
-                            {type}
-                          </Text>
-                        </TouchableOpacity>
-                      );
-                    }
-                  )}
-                </View>
+              {/* ==============================================
+                  SELECTION STATUS
+              ============================================== */}
 
-                {/* ==============================================
-                    SELECTION STATUS
-                ============================================== */}
-
-                {bloodType ? (
+              {bloodType ? (
+                <View
+                  style={
+                    styles.selectedBox
+                  }
+                >
                   <View
                     style={
-                      styles.selectedBox
+                      styles.selectedIcon
                     }
                   >
-                    <View
-                      style={
-                        styles.selectedIcon
-                      }
-                    >
-                      <MaterialIcons
-                        name="check"
-                        size={12}
-                        color={
-                          COLORS.white
-                        }
-                      />
-                    </View>
-
-                    <View
-                      style={
-                        styles.selectedContent
-                      }
-                    >
-                      <Text
-                        style={
-                          styles.selectedText
-                        }
-                      >
-                        Blood type selected
-                      </Text>
-
-                      <Text
-                        style={
-                          styles.selectedBloodType
-                        }
-                      >
-                        {bloodType}
-                      </Text>
-                    </View>
-
-                    <TouchableOpacity
-                      style={
-                        styles.clearSelectionButton
-                      }
-                      activeOpacity={
-                        0.7
-                      }
-                      disabled={
-                        loading
-                      }
-                      onPress={() => {
-                        setBloodType('');
-                        setBloodTypeProof(null);
-                      }}
-                    >
-                      <Text
-                        style={
-                          styles.clearSelectionText
-                        }
-                      >
-                        Clear
-                      </Text>
-                    </TouchableOpacity>
-                  </View>
-                ) : (
-                  <View
-                    style={
-                      styles.skipStatusBox
-                    }
-                  >
-                    <MaterialIcons
-                      name="info-outline"
-                      size={15}
+                    <Ionicons
+                      name="checkmark"
+                      size={14}
                       color={
-                        COLORS.muted
+                        COLORS.white
                       }
                     />
+                  </View>
 
+                  <Text
+                    style={
+                      styles.selectedText
+                    }
+                  >
+                    {bloodType} selected. Add your proof below.
+                  </Text>
+
+                  <TouchableOpacity
+                    style={
+                      styles.clearSelectionButton
+                    }
+                    activeOpacity={
+                      0.7
+                    }
+                    disabled={
+                      loading
+                    }
+                    onPress={() => {
+                      setBloodType('');
+                      setBloodTypeProof(null);
+                    }}
+                  >
                     <Text
                       style={
-                        styles.skipStatusText
+                        styles.clearSelectionText
                       }
                     >
-                      No blood type selected. You can safely continue.
+                      Clear
                     </Text>
-                  </View>
-                )}
+                  </TouchableOpacity>
+                </View>
+              ) : (
+                <View
+                  style={
+                    styles.skipStatusBox
+                  }
+                >
+                  <Ionicons
+                    name="information-circle-outline"
+                    size={16}
+                    color={
+                      COLORS.hint
+                    }
+                  />
 
-                {bloodType ? (
+                  <Text
+                    style={
+                      styles.skipStatusText
+                    }
+                  >
+                    No blood type selected. You can safely continue.
+                  </Text>
+                </View>
+              )}
+
+              {bloodType ? (
+                <View
+                  style={
+                    styles.proofWrap
+                  }
+                >
                   <BloodTypeProofField
                     image={bloodTypeProof}
                     disabled={loading}
@@ -854,164 +769,127 @@ export default function MedicalInformationScreen() {
                       )
                     }
                   />
-                ) : null}
+                </View>
+              ) : null}
 
-                {/* ==============================================
-                    ERROR
-                ============================================== */}
-
-                {errorMessage ? (
-                  <View
-                    style={
-                      styles.errorBox
-                    }
-                  >
-                    <Text
-                      style={
-                        styles.errorText
-                      }
-                    >
-                      {errorMessage}
-                    </Text>
-                  </View>
-                ) : null}
-
-                {/* ==============================================
-                    INFO CARD
-                ============================================== */}
-
+              {errorMessage ? (
                 <View
                   style={
-                    styles.infoBox
+                    styles.errorBox
                   }
                 >
-                  <View
-                    style={
-                      styles.infoIconContainer
-                    }
-                  >
-                    <MaterialIcons
-                      name="info-outline"
-                      size={18}
-                      color={
-                        COLORS.redButton
-                      }
-                    />
-                  </View>
-
                   <Text
                     style={
-                      styles.infoText
+                      styles.errorText
                     }
                   >
-                    <Text
-                      style={
-                        styles.infoHighlight
-                      }
-                    >
-                      Not tested yet?{' '}
-                    </Text>
-
-                    Skip this for now and get your blood typed at your local Red
-                    Cross chapter, hospital or health center. Then add it with a
-                    photo of the result from your profile. Please don't guess.
+                    {errorMessage}
                   </Text>
                 </View>
+              ) : null}
 
-                <View
-                  style={
-                    styles.flexSpacer
+              {/* ==============================================
+                  NOT TESTED YET
+              ============================================== */}
+
+              <View
+                style={
+                  styles.tipBox
+                }
+              >
+                <Ionicons
+                  name="information-circle-outline"
+                  size={18}
+                  color={
+                    COLORS.tipIcon
                   }
                 />
 
-                {/* ==============================================
-                    BOTTOM BUTTONS
-                ============================================== */}
-
-                <View
+                <Text
                   style={
-                    styles.bottomButtons
+                    styles.tipText
                   }
                 >
-                  <TouchableOpacity
-                    style={[
-                      styles.secondaryButton,
-
-                      loading &&
-                        styles.disabledButton,
-                    ]}
-                    activeOpacity={
-                      0.8
-                    }
-                    disabled={
-                      loading
-                    }
-                    onPress={() =>
-                      router.back()
+                  <Text
+                    style={
+                      styles.tipHighlight
                     }
                   >
-                    <Text
-                      style={
-                        styles.secondaryButtonText
-                      }
-                    >
-                      Back
-                    </Text>
-                  </TouchableOpacity>
-
-                  <TouchableOpacity
-                    style={[
-                      styles.completeButton,
-
-                      loading &&
-                        styles.disabledButton,
-                    ]}
-                    activeOpacity={
-                      0.85
-                    }
-                    disabled={
-                      loading
-                    }
-                    onPress={
-                      handleCompleteProfile
-                    }
-                  >
-                    {loading ? (
-                      <View
-                        style={
-                          styles.loadingRow
-                        }
-                      >
-                        <MaterialIcons
-                          name="hourglass-top"
-                          size={15}
-                          color={
-                            COLORS.white
-                          }
-                        />
-
-                        <Text
-                          style={
-                            styles.completeButtonText
-                          }
-                        >
-                          Saving Profile...
-                        </Text>
-                      </View>
-                    ) : (
-                      <Text
-                        style={
-                          styles.completeButtonText
-                        }
-                      >
-                        Complete Profile
-                      </Text>
-                    )}
-                  </TouchableOpacity>
-                </View>
+                    Not tested yet?{' '}
+                  </Text>
+                  Skip this for now and get your blood typed at your local Red
+                  Cross chapter, hospital or health center. Then add it with a
+                  photo of the result from your profile. Please don't guess.
+                </Text>
               </View>
             </View>
           </ScrollView>
+
+          {/* Back / Complete Profile stay in view, above the
+              home indicator. */}
+          <View
+            style={[
+              styles.bottomBar,
+
+              {
+                paddingBottom:
+                  12 +
+                  insets.bottom,
+              },
+            ]}
+          >
+            <TouchableOpacity
+              style={[
+                styles.secondaryButton,
+                loading &&
+                  styles.disabledButton,
+              ]}
+              activeOpacity={
+                0.8
+              }
+              disabled={
+                loading
+              }
+              onPress={
+                goBack
+              }
+            >
+              <Text
+                style={
+                  styles.secondaryButtonText
+                }
+              >
+                Back
+              </Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[
+                styles.completeButton,
+                loading &&
+                  styles.disabledButton,
+              ]}
+              activeOpacity={
+                0.85
+              }
+              disabled={
+                loading
+              }
+              onPress={
+                handleCompleteProfile
+              }
+            >
+              <Text
+                style={
+                  styles.completeButtonText
+                }
+              >
+                {loading
+                  ? 'Saving...'
+                  : 'Complete Profile'}
+              </Text>
+            </TouchableOpacity>
+          </View>
         </SafeAreaView>
       </View>
 
@@ -1136,6 +1014,214 @@ export default function MedicalInformationScreen() {
 
 const styles =
   StyleSheet.create({
+    // ========================================================
+    // FORM (new look: same fields as Sign Up)
+    // ========================================================
+
+    safeArea: {
+      flex: 1,
+      backgroundColor: COLORS.white,
+    },
+
+    scroll: {
+      flexGrow: 1,
+      backgroundColor: COLORS.white,
+    },
+
+    form: {
+      paddingHorizontal: 20,
+      paddingTop: 4,
+      paddingBottom: 24,
+    },
+
+    fieldLabel: {
+      marginBottom: 10,
+      color: COLORS.label,
+      fontFamily: 'Inter_600SemiBold',
+      fontSize: 12.5,
+    },
+
+    bloodGrid: {
+      flexDirection: 'row',
+      flexWrap: 'wrap',
+      gap: 8,
+    },
+
+    // Four to a row.
+    bloodButton: {
+      width: '23.2%',
+      flexGrow: 1,
+      height: 50,
+      alignItems: 'center',
+      justifyContent: 'center',
+      borderWidth: 1,
+      borderColor: COLORS.border,
+      borderRadius: 12,
+      backgroundColor: COLORS.white,
+    },
+
+    bloodButtonSelected: {
+      borderColor: COLORS.redButton,
+      backgroundColor: COLORS.redButton,
+    },
+
+    bloodButtonText: {
+      color: COLORS.black,
+      fontFamily: 'Poppins_600SemiBold',
+      fontSize: 15,
+    },
+
+    bloodButtonTextSelected: {
+      color: COLORS.white,
+    },
+
+    selectedBox: {
+      marginTop: 14,
+      marginBottom: 14,
+      paddingHorizontal: 12,
+      paddingVertical: 10,
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 10,
+      borderRadius: 12,
+      backgroundColor: COLORS.greenLight,
+    },
+
+    selectedIcon: {
+      width: 24,
+      height: 24,
+      borderRadius: 12,
+      alignItems: 'center',
+      justifyContent: 'center',
+      backgroundColor: COLORS.green,
+    },
+
+    selectedText: {
+      flex: 1,
+      color: COLORS.green,
+      fontFamily: 'Inter_600SemiBold',
+      fontSize: 13,
+    },
+
+    clearSelectionButton: {
+      paddingHorizontal: 10,
+      paddingVertical: 6,
+    },
+
+    clearSelectionText: {
+      color: COLORS.redButton,
+      fontFamily: 'Inter_600SemiBold',
+      fontSize: 13,
+    },
+
+    skipStatusBox: {
+      marginTop: 14,
+      marginBottom: 14,
+      paddingHorizontal: 12,
+      paddingVertical: 10,
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 8,
+      borderRadius: 12,
+      backgroundColor: '#F7F2F2',
+    },
+
+    skipStatusText: {
+      flex: 1,
+      color: '#555555',
+      fontFamily: 'Inter_400Regular',
+      fontSize: 12.5,
+    },
+
+    errorBox: {
+      marginBottom: 14,
+      paddingHorizontal: 12,
+      paddingVertical: 10,
+      borderRadius: 12,
+      backgroundColor: '#FDECEC',
+    },
+
+    errorText: {
+      color: COLORS.redButton,
+      fontFamily: 'Inter_500Medium',
+      fontSize: 12.5,
+      textAlign: 'center',
+    },
+
+    proofWrap: {
+      marginBottom: 14,
+    },
+
+    tipBox: {
+      marginTop: 0,
+      padding: 12,
+      flexDirection: 'row',
+      alignItems: 'flex-start',
+      gap: 10,
+      borderRadius: 14,
+      backgroundColor: COLORS.tip,
+    },
+
+    tipText: {
+      flex: 1,
+      color: COLORS.tipText,
+      fontFamily: 'Inter_400Regular',
+      fontSize: 12.5,
+      lineHeight: 18,
+    },
+
+    tipHighlight: {
+      fontFamily: 'Inter_600SemiBold',
+    },
+
+    bottomBar: {
+      paddingHorizontal: 20,
+      paddingTop: 12,
+      flexDirection: 'row',
+      gap: 10,
+      borderTopWidth: 1,
+      borderTopColor: '#F0E3E3',
+      backgroundColor: COLORS.white,
+    },
+
+    secondaryButton: {
+      flex: 1,
+      height: 52,
+      alignItems: 'center',
+      justifyContent: 'center',
+      borderRadius: 14,
+      backgroundColor: '#F2F2F4',
+    },
+
+    secondaryButtonText: {
+      color: '#333333',
+      fontFamily: 'Poppins_600SemiBold',
+      fontSize: 15,
+    },
+
+    completeButton: {
+      flex: 2,
+      height: 52,
+      alignItems: 'center',
+      justifyContent: 'center',
+      borderRadius: 14,
+      backgroundColor: COLORS.redButton,
+      shadowColor: COLORS.redButton,
+      shadowOffset: {
+        width: 0,
+        height: 8,
+      },
+      shadowOpacity: 0.25,
+      shadowRadius: 12,
+      elevation: 4,
+    },
+
+    completeButtonText: {
+      color: COLORS.white,
+      fontFamily: 'Poppins_600SemiBold',
+      fontSize: 15,
+    },
+
     desktopBackground: {
       flex: 1,
 
@@ -1168,575 +1254,9 @@ const styles =
         COLORS.backgroundBottom,
     },
 
-    safeArea: {
-      flex: 1,
-
-      backgroundColor:
-        COLORS.red,
-    },
-
-    scroll: {
-      flexGrow:
-        1,
-
-      // Same as the sheet, so the space under the form (home
-      // indicator) matches it.
-      backgroundColor:
-        '#FAFAFA',
-    },
-
-    // ========================================================
-    // HEADER
-    // ========================================================
-
-    // Bottom padding leaves room for the sheet, which overlaps
-    // the header by 22.
-    header: {
-      paddingHorizontal:
-        27,
-
-      paddingTop:
-        14,
-
-      paddingBottom:
-        40,
-
-      overflow:
-        'hidden',
-    },
-
-    headerDecoration: {
-      position: 'absolute',
-
-      width: 180,
-      height: 180,
-
-      borderRadius: 90,
-
-      right: -82,
-      top: -70,
-
-      backgroundColor:
-        'rgba(255,255,255,0.07)',
-    },
-
-    headerRow: {
-      flexDirection: 'row',
-
-      alignItems: 'center',
-    },
-
-    backCircle: {
-      width: 37,
-      height: 37,
-
-      borderRadius: 19,
-
-      borderWidth: 2,
-
-      borderColor:
-        COLORS.white,
-
-      alignItems: 'center',
-      justifyContent:
-        'center',
-
-      marginRight: 12,
-    },
-
-    headerTitle: {
-      color:
-        COLORS.white,
-
-      fontFamily:
-        'Poppins_700Bold',
-
-      fontSize: 20,
-    },
-
-    // ========================================================
-    // BODY
-    // ========================================================
-
-    // Rounded sheet over the header, as on Request Blood. A plain
-    // View: inside a gradient, the card pulled over the header was
-    // clipped on iPhone (its top was hidden behind the header).
-    bodyBackground: {
-      flexGrow:
-        1,
-
-      marginTop:
-        -22,
-
-      borderTopLeftRadius:
-        22,
-
-      borderTopRightRadius:
-        22,
-
-      backgroundColor:
-        '#FAFAFA',
-    },
-
-    // ========================================================
-    // CARD
-    // ========================================================
-
-    card: {
-      flexGrow:
-        1,
-
-      paddingHorizontal:
-        20,
-
-      paddingTop:
-        20,
-
-      paddingBottom:
-        24,
-    },
-
-    // ========================================================
-    // PROGRESS
-    // ========================================================
-
-    progressRow: {
-      width: 155,
-
-      flexDirection: 'row',
-
-      alignSelf: 'center',
-
-      gap: 8,
-
-      marginBottom: 16,
-    },
-
-    progressLine: {
-      flex: 1,
-
-      height: 4,
-
-      borderRadius: 3,
-
-      backgroundColor:
-        COLORS.progressInactive,
-    },
-
-    progressActive: {
-      backgroundColor:
-        COLORS.redButton,
-    },
-
-    // ========================================================
-    // TITLE
-    // ========================================================
-
-    sectionTitle: {
-      color:
-        COLORS.black,
-
-      fontFamily:
-        'Inter_600SemiBold',
-
-      fontSize: 14.5,
-
-      marginBottom: 15,
-    },
-
-    label: {
-      color:
-        COLORS.black,
-
-      fontFamily:
-        'Inter_500Medium',
-
-      fontSize: 12.5,
-
-      marginBottom: 3,
-    },
-
-    optionalText: {
-      color:
-        COLORS.muted,
-
-      fontFamily:
-        'Inter_400Regular',
-
-      fontSize: 11.5,
-
-      marginBottom: 12,
-    },
-
-    // ========================================================
-    // BLOOD TYPES
-    // ========================================================
-
-    bloodGrid: {
-      flexDirection: 'row',
-
-      flexWrap: 'wrap',
-
-      justifyContent:
-        'space-between',
-
-      rowGap: 12,
-
-      marginBottom: 16,
-    },
-
-    bloodButton: {
-      width: '22%',
-
-      height: 48,
-
-      borderWidth: 1,
-
-      borderColor:
-        '#C7C7C7',
-
-      borderRadius: 15,
-
-      backgroundColor:
-        COLORS.white,
-
-      alignItems: 'center',
-      justifyContent:
-        'center',
-    },
-
-    bloodButtonSelected: {
-      borderColor:
-        COLORS.redButton,
-
-      backgroundColor:
-        COLORS.redButton,
-
-      shadowColor:
-        COLORS.redButton,
-
-      shadowOffset: {
-        width: 0,
-        height: 2,
-      },
-
-      shadowOpacity: 0.18,
-
-      shadowRadius: 4,
-
-      elevation: 3,
-    },
-
-    bloodButtonText: {
-      color:
-        COLORS.black,
-
-      fontFamily:
-        'Inter_600SemiBold',
-
-      fontSize: 14,
-    },
-
-    bloodButtonTextSelected: {
-      color:
-        COLORS.white,
-    },
-
-    // ========================================================
-    // SELECTED
-    // ========================================================
-
-    selectedBox: {
-      minHeight: 48,
-
-      marginBottom: 14,
-
-      paddingHorizontal: 12,
-
-      flexDirection: 'row',
-
-      alignItems: 'center',
-
-      borderRadius: 8,
-
-      backgroundColor:
-        '#FDECEC',
-
-      borderWidth: 1,
-
-      borderColor:
-        '#F0C4C4',
-    },
-
-    selectedIcon: {
-      width: 23,
-      height: 23,
-
-      borderRadius: 12,
-
-      backgroundColor:
-        COLORS.redButton,
-
-      alignItems: 'center',
-      justifyContent:
-        'center',
-
-      marginRight: 8,
-    },
-
-    selectedContent: {
-      flex: 1,
-    },
-
-    selectedText: {
-      color:
-        COLORS.muted,
-
-      fontFamily:
-        'Inter_400Regular',
-
-      fontSize: 12,
-    },
-
-    selectedBloodType: {
-      marginTop: 1,
-
-      color:
-        COLORS.redButton,
-
-      fontFamily:
-        'Inter_600SemiBold',
-
-      fontSize: 13.5,
-    },
-
-    clearSelectionButton: {
-      paddingHorizontal: 8,
-      paddingVertical: 5,
-    },
-
-    clearSelectionText: {
-      color:
-        COLORS.redButton,
-
-      fontFamily:
-        'Inter_600SemiBold',
-
-      fontSize: 12,
-    },
-
-    // ========================================================
-    // SKIPPED BLOOD TYPE
-    // ========================================================
-
-    skipStatusBox: {
-      minHeight: 42,
-
-      marginBottom: 14,
-
-      paddingHorizontal: 12,
-
-      flexDirection: 'row',
-
-      alignItems: 'center',
-
-      borderRadius: 8,
-
-      backgroundColor:
-        '#F5F5F5',
-
-      borderWidth: 1,
-
-      borderColor:
-        '#E2E2E2',
-    },
-
-    skipStatusText: {
-      flex: 1,
-
-      marginLeft: 7,
-
-      color:
-        COLORS.muted,
-
-      fontFamily:
-        'Inter_400Regular',
-
-      fontSize: 12,
-
-      lineHeight: 17,
-    },
-
-    // ========================================================
-    // ERROR
-    // ========================================================
-
-    errorBox: {
-      marginBottom: 14,
-
-      paddingHorizontal: 10,
-      paddingVertical: 8,
-
-      borderWidth: 1,
-
-      borderColor:
-        '#E9AAAA',
-
-      borderRadius: 7,
-
-      backgroundColor:
-        '#FDECEC',
-    },
-
-    errorText: {
-      color:
-        COLORS.redButton,
-
-      fontFamily:
-        'Inter_500Medium',
-
-      fontSize: 12,
-
-      lineHeight: 17,
-
-      textAlign: 'center',
-    },
-
-    // ========================================================
-    // INFO
-    // ========================================================
-
-    infoBox: {
-      minHeight: 90,
-
-      flexDirection: 'row',
-
-      alignItems:
-        'flex-start',
-
-      paddingHorizontal: 14,
-      paddingVertical: 15,
-
-      borderWidth: 1,
-
-      borderColor:
-        COLORS.infoBorder,
-
-      borderRadius: 8,
-
-      backgroundColor:
-        COLORS.infoBackground,
-    },
-
-    infoIconContainer: {
-      width: 24,
-
-      alignItems: 'center',
-
-      marginRight: 7,
-    },
-
-    infoText: {
-      flex: 1,
-
-      color:
-        COLORS.muted,
-
-      fontFamily:
-        'Inter_400Regular',
-
-      fontSize: 12,
-
-      lineHeight: 17,
-    },
-
-    infoHighlight: {
-      color:
-        COLORS.redButton,
-
-      fontFamily:
-        'Inter_600SemiBold',
-    },
-
-    // ========================================================
-    // SPACER
-    // ========================================================
-
-    flexSpacer: {
-      flex: 1,
-
-      minHeight: 105,
-    },
-
     // ========================================================
     // BUTTONS
     // ========================================================
-
-    bottomButtons: {
-      flexDirection: 'row',
-
-      gap: 12,
-
-      marginTop: 20,
-    },
-
-    secondaryButton: {
-      flex: 1,
-
-      height: 48,
-
-      borderRadius: 8,
-
-      backgroundColor:
-        '#E3E3E3',
-
-      alignItems: 'center',
-      justifyContent:
-        'center',
-    },
-
-    secondaryButtonText: {
-      color:
-        '#444444',
-
-      fontFamily:
-        'Poppins_600SemiBold',
-
-      fontSize: 14,
-    },
-
-    completeButton: {
-      flex: 1.35,
-
-      height: 48,
-
-      borderRadius: 8,
-
-      backgroundColor:
-        COLORS.redButton,
-
-      alignItems: 'center',
-      justifyContent:
-        'center',
-    },
-
-    completeButtonText: {
-      color:
-        COLORS.white,
-
-      fontFamily:
-        'Poppins_600SemiBold',
-
-      fontSize: 14.5,
-    },
-
-    loadingRow: {
-      flexDirection: 'row',
-
-      alignItems: 'center',
-
-      gap: 7,
-    },
 
     disabledButton: {
       opacity: 0.6,
