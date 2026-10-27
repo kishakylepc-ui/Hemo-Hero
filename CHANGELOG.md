@@ -11,16 +11,18 @@ Write each change under **Unreleased** as you make it. `node scripts/version.js 
 ## Unreleased
 
 - Mobile: new **Sign In** and **Sign Up** design. A red top with a large see-through blood drop meets the white form with a liquid wave.
-  - Sign In says "Give blood. Save lives." and Sign Up says "Join Hemo-Hero". The Sign In / Sign Up switch is now a link under each form ("Create an account" / "Sign in").
+  - Sign In says "Give blood. Save lives." above a "Welcome back" form, and Sign Up says "Join Hemo-Hero". The Sign In / Sign Up switch is now a link under each form ("Create an account" / "Sign in").
   - Outlined fields with a soft red ring while you type. Forgot Password, Reset Password and the Account & Security password fields use the same style.
   - Sign Up has a five-step password strength bar and rule chips that turn green.
   - Forgot Password, Reset Password and Verify Email have the same red top and wave, so the whole sign-in flow matches.
 - Mobile: new **Home** design to match. The red top has the same drop and wave, and it now scrolls with the page.
   - The request banner is a white card floating over the wave: "Need blood now?" with Create Blood Request, or "Your blood request is active" with View My Request.
-  - Active Request shows its progress as four bars with labels. The whole card opens the request, so its own button is gone.
-  - Nearby requests are one compact row each: distance, bags and time on one line. Tap a row to open it.
+  - The greeting follows the time of day ("Good morning"), and the location chip shows just your city.
+  - Active Request only shows when you have a request. It shows the progress as four bars with labels. The whole card opens the request, so its own button is gone.
+  - Nearby requests are one compact row each: distance, bags, and when it's needed (or how long ago, for urgent ones). Tap a row to open it.
+  - Dates on Home leave out the year when it's this year.
   - Verified donors see one green row with when they can donate next. Tap it to open the application. Pending, rejected and new donors keep their button.
-  - Find Donors names the chosen type, e.g. "Find O+ Donors".
+  - Find Donors is a full-width button that names the chosen type, e.g. "Find O+ Donors".
 
 ## 1.2.0 - 2026-10-25
 

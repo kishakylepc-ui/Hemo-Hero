@@ -1676,7 +1676,7 @@ export default function SignInScreen() {
                         styles.sheetTitle
                       }
                     >
-                      Sign in
+                      Welcome back
                     </Text>
 
                     {/* ==============================================

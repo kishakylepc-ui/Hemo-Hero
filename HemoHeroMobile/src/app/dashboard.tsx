@@ -606,12 +606,41 @@ export default function DashboardScreen() {
     }, []);
 
   // ==========================================================
+  // GREETING
+  //
+  // Set on focus from the phone's clock. The web build is
+  // pre-rendered, so it starts as "Hello,".
+  // ==========================================================
+
+  const [
+    greeting,
+    setGreeting,
+  ] = useState('Hello,');
+
+  function getGreeting() {
+    const hour =
+      new Date().getHours();
+
+    if (hour < 12) {
+      return 'Good morning,';
+    }
+
+    if (hour < 18) {
+      return 'Good afternoon,';
+    }
+
+    return 'Good evening,';
+  }
+
+  // ==========================================================
   // REFRESH WHEN SCREEN FOCUSES
   // ==========================================================
 
   useFocusEffect(
     useCallback(() => {
       loadDashboard();
+
+      setGreeting(getGreeting());
 
       // Notifications for this phone (first visit after signing
       // in), then any notification tapped while the app was
@@ -830,13 +859,10 @@ export default function DashboardScreen() {
           .join(' ') ||
         'Hemo-Hero User';
 
+  // The chip under the name has room for the city only.
   const displayLocation =
-    [
-      profile?.city,
-      profile?.province,
-    ]
-      .filter(Boolean)
-      .join(', ') ||
+    profile?.city ||
+    profile?.province ||
     'Location not added';
 
   const profilePhotoUrl =
@@ -1011,14 +1037,24 @@ function showMessage(
         `${neededDate}T00:00:00`
       );
 
+    // The year only when it isn't this year.
+    const sameYear =
+      date.getFullYear() ===
+      new Date().getFullYear();
+
     const dateText =
       date.toLocaleDateString(
         'en-US',
-        {
-          month: 'short',
-          day: 'numeric',
-          year: 'numeric',
-        }
+        sameYear
+          ? {
+              month: 'short',
+              day: 'numeric',
+            }
+          : {
+              month: 'short',
+              day: 'numeric',
+              year: 'numeric',
+            }
       );
 
     if (!neededTime) {
@@ -2080,7 +2116,7 @@ function showMessage(
                     styles.helloText
                   }
                 >
-                  Hello,
+                  {greeting}
                 </Text>
 
                 <Text
@@ -2472,8 +2508,11 @@ function showMessage(
             ) : null}
 
             {/* ==================================================
-                ACTIVE REQUEST
+                ACTIVE REQUEST (only when there is one; the card
+                at the top covers "no request")
             ================================================== */}
+            {activeRequest ||
+            activeRequestError ? (
             <FadeInView delay={0}>
 
             <View
@@ -2523,49 +2562,7 @@ function showMessage(
               ) : null}
             </View>
 
-            {loadingActiveRequest ? (
-              <View
-                style={
-                  styles.emptyRequestCard
-                }
-              >
-                <View
-                  style={
-                    styles.emptyRequestIcon
-                  }
-                >
-                  <Ionicons
-                    name="hourglass-outline"
-                    size={25}
-                    color={
-                      COLORS.redButton
-                    }
-                  />
-                </View>
-
-                <View
-                  style={
-                    styles.emptyRequestText
-                  }
-                >
-                  <Text
-                    style={
-                      styles.emptyRequestTitle
-                    }
-                  >
-                    Loading request...
-                  </Text>
-
-                  <Text
-                    style={
-                      styles.emptyRequestDescription
-                    }
-                  >
-                    Checking your current blood request.
-                  </Text>
-                </View>
-              </View>
-            ) : activeRequest ? (
+            {activeRequest ? (
               <TouchableOpacity
                 style={
                   styles.activeRequestCard
@@ -2862,49 +2859,7 @@ function showMessage(
                   ) : null}
                 </FadeInView>
               </TouchableOpacity>
-            ) : (
-              <View
-                style={
-                  styles.emptyRequestCard
-                }
-              >
-                <View
-                  style={
-                    styles.emptyRequestIcon
-                  }
-                >
-                  <Ionicons
-                    name="water"
-                    size={26}
-                    color={
-                      COLORS.redButton
-                    }
-                  />
-                </View>
-
-                <View
-                  style={
-                    styles.emptyRequestText
-                  }
-                >
-                  <Text
-                    style={
-                      styles.emptyRequestTitle
-                    }
-                  >
-                    No active blood request
-                  </Text>
-
-                  <Text
-                    style={
-                      styles.emptyRequestDescription
-                    }
-                  >
-                    Your current emergency request will appear here.
-                  </Text>
-                </View>
-              </View>
-            )}
+            ) : null}
 
             {activeRequestError ? (
               <TouchableOpacity
@@ -2948,6 +2903,7 @@ function showMessage(
             ) : null}
 
             </FadeInView>
+            ) : null}
             {/* ==================================================
                 RESPONDED REQUESTS
             ================================================== */}
@@ -3089,8 +3045,8 @@ function showMessage(
                                 {item.request
                                   .units_needed ===
                                 1
-                                  ? 'unit'
-                                  : 'units'}{' '}
+                                  ? 'bag'
+                                  : 'bags'}{' '}
                                 •{' '}
                                 {item.request
                                   .urgency ===
@@ -3551,8 +3507,8 @@ function showMessage(
                             km ·{' '}
                             {request.units_needed}{' '}
                             {request.units_needed === 1
-                              ? 'unit'
-                              : 'units'}{' '}
+                              ? 'bag'
+                              : 'bags'}{' '}
                             ·{' '}
                             {request.urgency ===
                             'urgent'
@@ -3561,8 +3517,7 @@ function showMessage(
                                 )
                               : formatNeededBy(
                                   request.urgency,
-                                  request.needed_date,
-                                  request.needed_time
+                                  request.needed_date
                                 )}
                           </Text>
                         </View>
@@ -4778,73 +4733,11 @@ const styles =
       fontSize: 12.5,
     },
 
-    // ========================================================
-    // EMPTY ACTIVE REQUEST
-    // ========================================================
 
-    emptyRequestCard: {
-      minHeight: 82,
 
-      paddingHorizontal: 16,
-      paddingVertical: 16,
 
-      flexDirection: 'row',
-      alignItems: 'center',
 
-      borderWidth: 1,
 
-      borderColor:
-        COLORS.border,
-
-      borderRadius: 16,
-
-      backgroundColor:
-        COLORS.card,
-
-      marginBottom: 24,
-    },
-
-    emptyRequestIcon: {
-      width: 44,
-      height: 44,
-
-      borderRadius: 12,
-
-      alignItems: 'center',
-      justifyContent: 'center',
-
-      backgroundColor:
-        COLORS.pinkLight,
-
-      marginRight: 12,
-    },
-
-    emptyRequestText: {
-      flex: 1,
-    },
-
-    emptyRequestTitle: {
-      color:
-        COLORS.black,
-
-      fontFamily:
-        'Poppins_600SemiBold',
-
-      fontSize: 13.5,
-    },
-
-    emptyRequestDescription: {
-      marginTop: 4,
-
-      color:
-        COLORS.muted,
-
-      fontFamily:
-        'Inter_400Regular',
-
-      fontSize: 13,
-      lineHeight: 18,
-    },
 
     // ========================================================
     // ACTIVE REQUEST
@@ -5509,11 +5402,9 @@ const styles =
     },
 
     searchButton: {
-      width: 190,
-
       height: 44,
 
-      alignSelf: 'center',
+      alignSelf: 'stretch',
 
       marginTop: 16,
 
@@ -6115,6 +6006,9 @@ const styles =
       marginRight: 12,
 
       borderRadius: 12,
+
+      backgroundColor:
+        '#FDECEC',
     },
 
     heartIconApproved: {
