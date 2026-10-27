@@ -55,17 +55,25 @@ export function HeroDrop({
 // below it.
 export const HERO_WAVE_HEIGHT = 56;
 
+// The Profile and Notifications headers use a smaller wave.
+export const HEADER_WAVE_HEIGHT = 40;
+
 export function HeroWave({
   color,
+  height = HERO_WAVE_HEIGHT,
 }: {
   color: string;
+  height?: number;
 }) {
   // The View spans the container edge to edge. On phones a
   // 100% width on the Svg itself leaves out the container's
   // side padding, so the wave stopped short of the right edge.
   return (
     <View
-      style={styles.wave}
+      style={[
+        styles.wave,
+        { height },
+      ]}
       pointerEvents="none"
     >
       <Svg
@@ -93,6 +101,5 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     bottom: -1,
-    height: HERO_WAVE_HEIGHT,
   },
 });

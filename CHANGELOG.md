@@ -23,6 +23,7 @@ Write each change under **Unreleased** as you make it. `node scripts/version.js 
   - Dates on Home leave out the year when it's this year.
   - Verified donors see one green row with when they can donate next. Tap it to open the application. Pending, rejected and new donors keep their button.
   - Find Donors is a full-width button that names the chosen type, e.g. "Find O+ Donors".
+- Mobile: the Profile and Notifications headers end in the same curved wave as Home. Profile no longer has a back button, since it's a tab.
 
 ## 1.2.0 - 2026-10-25
 

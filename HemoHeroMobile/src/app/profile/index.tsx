@@ -3,6 +3,11 @@ import { ActivityIndicator, Image, Modal, Platform, ScrollView, StyleSheet, Swit
 import { Ionicons, MaterialIcons } from '@expo/vector-icons';
 import { ICON_TILE } from '../../constants/theme';
 import { LinearGradient, } from 'expo-linear-gradient';
+
+import {
+  HEADER_WAVE_HEIGHT,
+  HeroWave,
+} from '../../components/HeroArt';
 import { router, useFocusEffect, } from 'expo-router';
 import { StatusBar, } from 'expo-status-bar';
 import { SafeAreaView, useSafeAreaInsets, } from 'react-native-safe-area-context';
@@ -1003,32 +1008,23 @@ export default function ProfileScreen() {
                                 ]}
                             />
 
+                            {/* Curved bottom edge. */}
+                            <HeroWave
+                              color={COLORS.page}
+                              height={HEADER_WAVE_HEIGHT}
+                            />
+
                             <View
                                 style={
                                     styles.topBar
                                 }
                             >
-                                <TouchableOpacity
+                                {/* Spacer: keeps the title centered. */}
+                                <View
                                     style={
                                         styles.topButton
                                     }
-                                    activeOpacity={
-                                        0.7
-                                    }
-                                    onPress={() =>
-                                        router.replace(
-                                            '/dashboard'
-                                        )
-                                    }
-                                >
-                                    <MaterialIcons
-                                        name="arrow-back"
-                                        size={24}
-                                        color={
-                                            COLORS.white
-                                        }
-                                    />
-                                </TouchableOpacity>
+                                />
 
                                 <Text
                                     style={

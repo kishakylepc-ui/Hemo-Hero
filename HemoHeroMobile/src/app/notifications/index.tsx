@@ -23,6 +23,11 @@ import {
 } from 'expo-linear-gradient';
 
 import {
+  HEADER_WAVE_HEIGHT,
+  HeroWave,
+} from '../../components/HeroArt';
+
+import {
   router,
   useFocusEffect,
 } from 'expo-router';
@@ -533,10 +538,15 @@ export default function NotificationsScreen() {
               {
                 height:
                   88 +
+                  HEADER_WAVE_HEIGHT +
                   insets.top,
 
                 paddingTop:
                   insets.top,
+
+                // The row stays centered above the wave.
+                paddingBottom:
+                  HEADER_WAVE_HEIGHT,
               },
             ]}
           >
@@ -568,6 +578,12 @@ export default function NotificationsScreen() {
                   ],
                 },
               ]}
+            />
+
+            {/* Curved bottom edge. */}
+            <HeroWave
+              color={COLORS.page}
+              height={HEADER_WAVE_HEIGHT}
             />
 
             {/* BACK */}
