@@ -1565,7 +1565,7 @@ const styles =
       flex: 1,
 
       backgroundColor:
-        COLORS.red,
+        COLORS.white,
     },
 
     scroll: {

@@ -35,6 +35,8 @@ Write each change under **Unreleased** as you make it. `node scripts/version.js 
   - Admins get a notification. Users has a **Review Requests** filter, and the person's page shows their message with **Reactivate** (approves it) or **Decline** (with a note the person sees next time).
   - Signing in with the email of a deleted account shows that it was removed and why.
   - Sign-in only says an account is deactivated after the password is right, so nobody learns it from an email alone.
+- Fixed: Verify Email, Forgot Password and Reset Password showed a red band above the keyboard on phones.
+- Fixed: in Complete your Profile, tapping a day in the birthday calendar saved it and closed the calendar before you'd set the month and year. The day is now only highlighted; change the year or month in any order (the day carries over), then tap **Use This Date**.
 - Fixed: the admin portal on an iPad (Expo Go) couldn't reach the server, because `.env` pointed at `localhost` (the iPad itself). It now finds the server on the computer running Expo, like the mobile app, so no IP needs typing in.
 - Fixed: the back button on the first Complete your Profile step did nothing. It now asks "Leave setup?" and signs you out (Android's back button too); you finish the profile the next time you sign in. The "Thank You" screen no longer has a back button, since the profile is already saved.
 

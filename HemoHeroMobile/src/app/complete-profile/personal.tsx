@@ -235,6 +235,16 @@ export default function PersonalInformationScreen() {
       null
     );
 
+  // The day picked in the calendar, not saved until "Use This
+  // Date": the year and month can still change, in any order.
+  const [
+    draftDay,
+    setDraftDay,
+  ] =
+    useState<number | null>(
+      null
+    );
+
   const genderOptions = [
     'Male',
     'Female',
@@ -466,6 +476,12 @@ export default function PersonalInformationScreen() {
       );
     }
 
+    setDraftDay(
+      selectedDate
+        ? selectedDate.getDate()
+        : null
+    );
+
     setCalendarVisible(
       true
     );
@@ -567,27 +583,55 @@ export default function PersonalInformationScreen() {
   function selectCalendarDate(
     day: number
   ) {
-    const date =
-      new Date(
-        calendarYear,
-        calendarMonth,
-        day
-      );
+    setDraftDay(day);
+  }
 
-    if (
-      date >
-      today
-    ) {
+  // The picked day in the shown month (31 becomes 30, or 28/29
+  // in February); null when none is picked or it's in the future.
+  const draftDate =
+    useMemo(() => {
+      if (!draftDay) {
+        return null;
+      }
+
+      const daysInMonth =
+        new Date(
+          calendarYear,
+          calendarMonth + 1,
+          0
+        ).getDate();
+
+      const date =
+        new Date(
+          calendarYear,
+          calendarMonth,
+          Math.min(
+            draftDay,
+            daysInMonth
+          )
+        );
+
+      return date > today
+        ? null
+        : date;
+    }, [
+      draftDay,
+      calendarYear,
+      calendarMonth,
+    ]);
+
+  function confirmCalendarDate() {
+    if (!draftDate) {
       return;
     }
 
     setSelectedDate(
-      date
+      draftDate
     );
 
     setDateOfBirth(
       formatDatabaseDate(
-        date
+        draftDate
       )
     );
 
@@ -1335,11 +1379,11 @@ export default function PersonalInformationScreen() {
                     styles.calendarSelectedText
                   }
                 >
-                  {selectedDate
+                  {draftDate
                     ? formatDisplayDate(
-                        selectedDate
+                        draftDate
                       )
-                    : 'Select a date'}
+                    : 'Pick the year, month and day'}
                 </Text>
               </View>
 
@@ -1553,15 +1597,9 @@ export default function PersonalInformationScreen() {
                     today;
 
                   const isSelected =
-                    selectedDate !==
+                    draftDate !==
                       null &&
-                    selectedDate
-                      .getFullYear() ===
-                      calendarYear &&
-                    selectedDate
-                      .getMonth() ===
-                      calendarMonth &&
-                    selectedDate
+                    draftDate
                       .getDate() ===
                       day;
 
@@ -1619,24 +1657,52 @@ export default function PersonalInformationScreen() {
                 CANCEL
             ================================================ */}
 
-            <TouchableOpacity
+            <View
               style={
-                styles.cancelCalendarButton
-              }
-              onPress={() =>
-                setCalendarVisible(
-                  false
-                )
+                styles.calendarActions
               }
             >
-              <Text
+              <TouchableOpacity
                 style={
-                  styles.cancelCalendarText
+                  styles.cancelCalendarButton
+                }
+                onPress={() =>
+                  setCalendarVisible(
+                    false
+                  )
                 }
               >
-                Cancel
-              </Text>
-            </TouchableOpacity>
+                <Text
+                  style={
+                    styles.cancelCalendarText
+                  }
+                >
+                  Cancel
+                </Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[
+                  styles.confirmCalendarButton,
+                  !draftDate &&
+                    styles.confirmCalendarDisabled,
+                ]}
+                disabled={
+                  !draftDate
+                }
+                onPress={
+                  confirmCalendarDate
+                }
+              >
+                <Text
+                  style={
+                    styles.confirmCalendarText
+                  }
+                >
+                  Use This Date
+                </Text>
+              </TouchableOpacity>
+            </View>
           </View>
         </View>
       </Modal>
@@ -2395,10 +2461,35 @@ const styles =
     // CALENDAR CANCEL
     // ==========================================================
 
-    cancelCalendarButton: {
-      height: 48,
-
+    calendarActions: {
       marginTop: 16,
+      flexDirection: 'row',
+      gap: 10,
+    },
+
+    confirmCalendarButton: {
+      flex: 1.4,
+      height: 48,
+      borderRadius: 12,
+      alignItems: 'center',
+      justifyContent: 'center',
+      backgroundColor: COLORS.redButton,
+    },
+
+    confirmCalendarDisabled: {
+      opacity: 0.45,
+    },
+
+    confirmCalendarText: {
+      color: COLORS.white,
+      fontFamily: 'Poppins_600SemiBold',
+      fontSize: 14,
+    },
+
+    cancelCalendarButton: {
+      flex: 1,
+
+      height: 48,
 
       borderRadius: 12,
 

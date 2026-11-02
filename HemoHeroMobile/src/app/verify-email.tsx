@@ -1111,7 +1111,7 @@ const styles =
         1,
 
       backgroundColor:
-        COLORS.red,
+        COLORS.white,
     },
 
     scroll: {
