@@ -46,6 +46,10 @@ import {
 } from '../../lib/api';
 
 import {
+  useLiveRefresh,
+} from '../../lib/useLiveRefresh';
+
+import {
   clearAdminSession,
   getAdminAccessToken,
   getAdminProfile,
@@ -248,6 +252,10 @@ export default function ActivityLogsScreen() {
 
   const hasLoadedOnce = useRef(false);
 
+  // A live check that was overtaken by a newer load (e.g. after
+  // changing a filter) is dropped.
+  const loadGuard = useRef(0);
+
   // ==========================================================
   // LOAD
   //
@@ -268,15 +276,28 @@ export default function ActivityLogsScreen() {
     ])
   );
 
-  async function loadLogs() {
-    try {
-      if (hasLoadedOnce.current) {
-        setRefreshing(true);
-      } else {
-        setLoading(true);
-      }
+  useLiveRefresh(() =>
+    loadLogs(true)
+  );
 
-      setErrorMessage('');
+  async function loadLogs(live = false) {
+    if (!live) {
+      loadGuard.current += 1;
+    }
+
+    const thisLoad =
+      loadGuard.current;
+
+    try {
+      if (!live) {
+        if (hasLoadedOnce.current) {
+          setRefreshing(true);
+        } else {
+          setLoading(true);
+        }
+
+        setErrorMessage('');
+      }
 
       const token =
         await getAdminAccessToken();
@@ -323,6 +344,12 @@ export default function ActivityLogsScreen() {
         }),
       ]);
 
+      if (thisLoad !== loadGuard.current) {
+        return;
+      }
+
+      setErrorMessage('');
+
       setSummary(summaryResult);
 
       setLogs(
@@ -336,6 +363,11 @@ export default function ActivityLogsScreen() {
 
       hasLoadedOnce.current = true;
     } catch (error) {
+      // A failed live check keeps what's on screen.
+      if (live) {
+        return;
+      }
+
       console.log(
         'ADMIN ACTIVITY LOG ERROR:',
         error
@@ -347,8 +379,10 @@ export default function ActivityLogsScreen() {
           : 'Unable to load activity logs.'
       );
     } finally {
-      setLoading(false);
-      setRefreshing(false);
+      if (!live) {
+        setLoading(false);
+        setRefreshing(false);
+      }
     }
   }
 
@@ -520,7 +554,7 @@ export default function ActivityLogsScreen() {
 
                   <Pressable
                     disabled={loading || refreshing}
-                    onPress={loadLogs}
+                    onPress={() => loadLogs()}
                     style={({ pressed }) => [
                       styles.refreshButton,
 
@@ -1019,7 +1053,7 @@ export default function ActivityLogsScreen() {
                       title="Unable to Load Activity"
                       text={errorMessage}
                       actionLabel="Try Again"
-                      onAction={loadLogs}
+                      onAction={() => loadLogs()}
                     />
                   ) : logs.length === 0 ? (
                     <TableMessage

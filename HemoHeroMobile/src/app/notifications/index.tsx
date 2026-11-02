@@ -33,6 +33,10 @@ import {
 } from 'expo-router';
 
 import {
+  useLiveRefresh,
+} from '../../lib/useLiveRefresh';
+
+import {
   StatusBar,
 } from 'expo-status-bar';
 
@@ -167,7 +171,8 @@ export default function NotificationsScreen() {
   const loadNotifications =
     useCallback(
       async (
-        silent = false
+        silent = false,
+        live = false
       ) => {
         try {
           if (
@@ -178,9 +183,11 @@ export default function NotificationsScreen() {
             );
           }
 
-          setErrorMessage(
-            ''
-          );
+          if (!live) {
+            setErrorMessage(
+              ''
+            );
+          }
 
           const token =
             await getAccessToken();
@@ -209,6 +216,10 @@ export default function NotificationsScreen() {
               ? result.notifications
               : [];
 
+          setErrorMessage(
+            ''
+          );
+
           setNotifications(
             rows
           );
@@ -222,6 +233,10 @@ export default function NotificationsScreen() {
         } catch (
           error
         ) {
+          if (live) {
+            return;
+          }
+
           console.log(
             'LOAD NOTIFICATIONS ERROR:',
             error
@@ -258,6 +273,13 @@ export default function NotificationsScreen() {
       [
         loadNotifications,
       ]
+    )
+  );
+
+  useLiveRefresh(() =>
+    loadNotifications(
+      true,
+      true
     )
   );
 

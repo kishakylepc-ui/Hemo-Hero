@@ -101,6 +101,10 @@ import {
 import AppModal from '../../../components/AppModal';
 
 import {
+  useLiveRefresh,
+} from '../../../lib/useLiveRefresh';
+
+import {
   getCoordinationInbox,
   isScheduleAgreed,
   type CoordinationInboxItem,
@@ -577,9 +581,14 @@ export default function DonorBloodRequestScreen() {
   // LOAD
   // ==========================================================
 
+  // A live check that was overtaken by a newer load (e.g. after
+  // sending an offer) is dropped.
+  const loadGuard =
+    useRef(0);
+
   const loadData =
     useCallback(
-      async () => {
+      async (live = false) => {
         if (!requestId) {
           setErrorMessage(
             'Blood request ID is missing.'
@@ -590,13 +599,25 @@ export default function DonorBloodRequestScreen() {
           return;
         }
 
+        if (!live) {
+          loadGuard.current += 1;
+        }
+
+        const thisLoad =
+          loadGuard.current;
+
         try {
           // Returning from the chat refreshes quietly.
-          if (!hasLoadedOnce.current) {
+          if (
+            !hasLoadedOnce.current &&
+            !live
+          ) {
             setLoading(true);
           }
 
-          setErrorMessage('');
+          if (!live) {
+            setErrorMessage('');
+          }
 
           const token =
             await getAccessToken();
@@ -647,6 +668,15 @@ export default function DonorBloodRequestScreen() {
               'Blood request could not be found.'
             );
           }
+
+          if (
+            thisLoad !==
+            loadGuard.current
+          ) {
+            return;
+          }
+
+          setErrorMessage('');
 
           const currentRequest =
             requestData.request;
@@ -709,7 +739,9 @@ export default function DonorBloodRequestScreen() {
                   inboxError
                 );
 
-                setConversation(null);
+                if (!live) {
+                  setConversation(null);
+                }
               });
           } else {
             setConversation(null);
@@ -753,20 +785,20 @@ export default function DonorBloodRequestScreen() {
                 donationError
               );
 
-              setMyDonation(null);
+              if (!live) {
+                setMyDonation(null);
+              }
             }
           } else {
             setMyDonation(null);
           }
 
-          if (
-            currentResponse?.message
-          ) {
+          // A live check must not replace what's being typed.
+          if (!live) {
             setMessage(
-              currentResponse.message
+              currentResponse?.message ||
+                ''
             );
-          } else {
-            setMessage('');
           }
 
           // ================================================
@@ -820,6 +852,10 @@ export default function DonorBloodRequestScreen() {
             setInvitation(null);
           }
         } catch (error) {
+          if (live) {
+            return;
+          }
+
           console.log(
             'DONOR REQUEST LOAD ERROR:',
             error
@@ -831,7 +867,9 @@ export default function DonorBloodRequestScreen() {
               : 'Unable to load this blood request.'
           );
         } finally {
-          setLoading(false);
+          if (!live) {
+            setLoading(false);
+          }
         }
       },
       [
@@ -849,6 +887,10 @@ export default function DonorBloodRequestScreen() {
         loadData,
       ]
     )
+  );
+
+  useLiveRefresh(() =>
+    loadData(true)
   );
 
   // ==========================================================
@@ -2690,8 +2732,8 @@ export default function DonorBloodRequestScreen() {
                     activeOpacity={
                       0.85
                     }
-                    onPress={
-                      loadData
+                    onPress={() =>
+                      loadData()
                     }
                   >
                     <MaterialIcons

@@ -9,6 +9,7 @@ import {
   HeroWave,
 } from '../../components/HeroArt';
 import { router, useFocusEffect, } from 'expo-router';
+import { useLiveRefresh } from '../../lib/useLiveRefresh';
 import { StatusBar, } from 'expo-status-bar';
 import { SafeAreaView, useSafeAreaInsets, } from 'react-native-safe-area-context';
 import MainBottomNav, { useBottomNavSpace } from '../../components/MainBottomNav';
@@ -174,7 +175,7 @@ export default function ProfileScreen() {
 
     const loadProfile =
         useCallback(
-            async () => {
+            async (live = false) => {
                 const token =
                     await getAccessToken();
 
@@ -187,13 +188,15 @@ export default function ProfileScreen() {
                 }
 
                 try {
-                    setLoading(
-                        true
-                    );
+                    if (!live) {
+                        setLoading(
+                            true
+                        );
 
-                    setErrorMessage(
-                        ''
-                    );
+                        setErrorMessage(
+                            ''
+                        );
+                    }
 
                     const data =
                         await getCurrentUser(
@@ -208,6 +211,10 @@ export default function ProfileScreen() {
                         );
                     }
 
+                    setErrorMessage(
+                        ''
+                    );
+
                     setProfile(
                         data.user
                     );
@@ -217,21 +224,27 @@ export default function ProfileScreen() {
                         error
                     );
 
-                    setErrorMessage(
-                        error instanceof Error
-                            ? error.message
-                            : 'Unable to load your profile.'
-                    );
+                    if (!live) {
+                        setErrorMessage(
+                            error instanceof Error
+                                ? error.message
+                                : 'Unable to load your profile.'
+                        );
+                    }
                 } finally {
-                    setLoading(
-                        false
-                    );
+                    if (!live) {
+                        setLoading(
+                            false
+                        );
+                    }
                 }
 
                 try {
-                    setLoadingDonorStatus(
-                        true
-                    );
+                    if (!live) {
+                        setLoadingDonorStatus(
+                            true
+                        );
+                    }
 
                     const data =
                         await getMyDonorApplication(
@@ -253,13 +266,17 @@ export default function ProfileScreen() {
                         error
                     );
 
-                    setDonorApplication(
-                        null
-                    );
+                    if (!live) {
+                        setDonorApplication(
+                            null
+                        );
+                    }
                 } finally {
-                    setLoadingDonorStatus(
-                        false
-                    );
+                    if (!live) {
+                        setLoadingDonorStatus(
+                            false
+                        );
+                    }
                 }
             },
             []
@@ -274,6 +291,10 @@ export default function ProfileScreen() {
                 loadProfile,
             ]
         )
+    );
+
+    useLiveRefresh(() =>
+        loadProfile(true)
     );
 
     function closeActionPopup() {
@@ -1356,8 +1377,8 @@ export default function ProfileScreen() {
                                 activeOpacity={
                                     0.8
                                 }
-                                onPress={
-                                    loadProfile
+                                onPress={() =>
+                                    loadProfile()
                                 }
                             >
                                 <MaterialIcons

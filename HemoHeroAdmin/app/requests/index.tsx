@@ -41,6 +41,10 @@ import {
 } from '../../lib/api';
 
 import {
+  useLiveRefresh,
+} from '../../lib/useLiveRefresh';
+
+import {
   clearAdminSession,
   getAdminAccessToken,
   getAdminProfile,
@@ -184,19 +188,32 @@ export default function AdminBloodRequestsScreen() {
 
   const hasLoadedOnce = useRef(false);
 
+  // A live check that was overtaken by a newer load (e.g. after
+  // changing a filter) is dropped.
+  const loadGuard = useRef(0);
+
   // ==========================================================
   // LOAD
   // ==========================================================
 
-  const loadRequests = useCallback(async () => {
-    try {
-      if (hasLoadedOnce.current) {
-        setRefreshing(true);
-      } else {
-        setLoading(true);
-      }
+  const loadRequests = useCallback(async (live = false) => {
+    if (!live) {
+      loadGuard.current += 1;
+    }
 
-      setError('');
+    const thisLoad =
+      loadGuard.current;
+
+    try {
+      if (!live) {
+        if (hasLoadedOnce.current) {
+          setRefreshing(true);
+        } else {
+          setLoading(true);
+        }
+
+        setError('');
+      }
 
       const token =
         await getAdminAccessToken();
@@ -227,6 +244,12 @@ export default function AdminBloodRequestsScreen() {
           search,
         });
 
+      if (thisLoad !== loadGuard.current) {
+        return;
+      }
+
+      setError('');
+
       setRequests(
         result.requests ||
           []
@@ -251,6 +274,11 @@ export default function AdminBloodRequestsScreen() {
 
       hasLoadedOnce.current = true;
     } catch (loadError) {
+      // A failed live check keeps what's on screen.
+      if (live) {
+        return;
+      }
+
       console.log(
         'ADMIN BLOOD REQUESTS ERROR:',
         loadError
@@ -262,8 +290,10 @@ export default function AdminBloodRequestsScreen() {
           : 'Unable to load blood requests.'
       );
     } finally {
-      setLoading(false);
-      setRefreshing(false);
+      if (!live) {
+        setLoading(false);
+        setRefreshing(false);
+      }
     }
   }, [
     page,
@@ -277,6 +307,10 @@ export default function AdminBloodRequestsScreen() {
     useCallback(() => {
       loadRequests();
     }, [loadRequests])
+  );
+
+  useLiveRefresh(() =>
+    loadRequests(true)
   );
 
   // ==========================================================
@@ -371,7 +405,7 @@ export default function AdminBloodRequestsScreen() {
               refreshControl={
                 <RefreshControl
                   refreshing={refreshing}
-                  onRefresh={loadRequests}
+                  onRefresh={() => loadRequests()}
                   tintColor={COLORS.redBright}
                 />
               }
@@ -440,7 +474,7 @@ export default function AdminBloodRequestsScreen() {
 
                   <Pressable
                     disabled={loading || refreshing}
-                    onPress={loadRequests}
+                    onPress={() => loadRequests()}
                     style={({ pressed }) => [
                       styles.refreshButton,
 
@@ -872,7 +906,7 @@ export default function AdminBloodRequestsScreen() {
                       title="Unable to Load Requests"
                       text={error}
                       actionLabel="Try Again"
-                      onAction={loadRequests}
+                      onAction={() => loadRequests()}
                     />
                   ) : requests.length === 0 ? (
                     <TableMessage

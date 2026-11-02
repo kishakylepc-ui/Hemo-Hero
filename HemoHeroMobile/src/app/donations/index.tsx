@@ -56,6 +56,10 @@ import {
   getAccessToken,
 } from '../../lib/session';
 
+import {
+  useLiveRefresh,
+} from '../../lib/useLiveRefresh';
+
 // ============================================================
 // COLORS
 // ============================================================
@@ -229,14 +233,17 @@ export default function DonationHistoryScreen() {
   const loadHistory =
     useCallback(
       async (
-        silent = false
+        silent = false,
+        live = false
       ) => {
         try {
           if (!silent) {
             setLoading(true);
           }
 
-          setErrorMessage('');
+          if (!live) {
+            setErrorMessage('');
+          }
 
           const token =
             await getAccessToken();
@@ -252,6 +259,8 @@ export default function DonationHistoryScreen() {
               token
             );
 
+          setErrorMessage('');
+
           setDonations(
             result.donations ||
               []
@@ -262,6 +271,10 @@ export default function DonationHistoryScreen() {
               null
           );
         } catch (error) {
+          if (live) {
+            return;
+          }
+
           console.log(
             'DONATION HISTORY ERROR:',
             error
@@ -287,6 +300,13 @@ export default function DonationHistoryScreen() {
     }, [
       loadHistory,
     ])
+  );
+
+  useLiveRefresh(() =>
+    loadHistory(
+      true,
+      true
+    )
   );
 
   async function handleRefresh() {

@@ -3,6 +3,7 @@ import {
   type ReactNode,
   useCallback,
   useState,
+  useRef,
 } from 'react';
 
 import {
@@ -43,6 +44,10 @@ import {
   type AdminProfile,
   type DonorApplication,
 } from '../../lib/api';
+
+import {
+  useLiveRefresh,
+} from '../../lib/useLiveRefresh';
 
 import {
   clearAdminSession,
@@ -246,21 +251,35 @@ export default function ApplicationReviewScreen() {
   // LOAD APPLICATION
   // ==========================================================
 
+  // A live check that was overtaken by a newer load (e.g. after
+  // approving) is dropped.
+  const loadGuard =
+    useRef(0);
+
   const loadApplication =
     useCallback(
-      async () => {
+      async (live = false) => {
         if (!id) {
           return;
         }
 
-        try {
-          setLoading(
-            true
-          );
+        if (!live) {
+          loadGuard.current += 1;
+        }
 
-          setError(
-            ''
-          );
+        const thisLoad =
+          loadGuard.current;
+
+        try {
+          if (!live) {
+            setLoading(
+              true
+            );
+
+            setError(
+              ''
+            );
+          }
 
           const token =
             await getAdminAccessToken();
@@ -291,18 +310,36 @@ export default function ApplicationReviewScreen() {
               id
             );
 
+          if (
+            thisLoad !==
+            loadGuard.current
+          ) {
+            return;
+          }
+
+          setError(
+            ''
+          );
+
           setApplication(
             result.application
           );
 
-          setAdminNote(
-            result.application
-              ?.admin_note ||
-              ''
-          );
+          // A live check must not replace what's being typed.
+          if (!live) {
+            setAdminNote(
+              result.application
+                ?.admin_note ||
+                ''
+            );
+          }
         } catch (
           loadError
         ) {
+          if (live) {
+            return;
+          }
+
           console.log(
             'ADMIN APPLICATION DETAIL ERROR:',
             loadError
@@ -315,9 +352,11 @@ export default function ApplicationReviewScreen() {
               : 'Unable to load donor application.'
           );
         } finally {
-          setLoading(
-            false
-          );
+          if (!live) {
+            setLoading(
+              false
+            );
+          }
         }
       },
       [
@@ -334,6 +373,10 @@ export default function ApplicationReviewScreen() {
         loadApplication,
       ]
     )
+  );
+
+  useLiveRefresh(() =>
+    loadApplication(true)
   );
 
   // ==========================================================
@@ -950,8 +993,8 @@ export default function ApplicationReviewScreen() {
                         18 * s,
                     },
                   ]}
-                  onPress={
-                    loadApplication
+                  onPress={() =>
+                    loadApplication()
                   }
                 >
                   <Text

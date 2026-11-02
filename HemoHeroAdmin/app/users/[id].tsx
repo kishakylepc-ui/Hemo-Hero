@@ -3,6 +3,7 @@ import {
   type ReactNode,
   useCallback,
   useState,
+  useRef,
 } from 'react';
 
 import {
@@ -58,6 +59,10 @@ import {
   type AdminReport,
   type AdminReportStatus,
 } from '../../lib/api';
+
+import {
+  useLiveRefresh,
+} from '../../lib/useLiveRefresh';
 
 import {
   clearAdminSession,
@@ -209,9 +214,22 @@ export default function AdminUserDetailsScreen() {
   // LOAD USER
   // ==========================================================
 
-  const loadUser = useCallback(async () => {
+  // A live check that started before an action finished (e.g.
+  // deactivating) is dropped, so the old status can't come back.
+  const loadGuard = useRef(0);
+
+  const loadUser = useCallback(async (live = false) => {
+    if (!live) {
+      loadGuard.current += 1;
+    }
+
+    const thisLoad =
+      loadGuard.current;
+
     try {
-      setErrorMessage('');
+      if (!live) {
+        setErrorMessage('');
+      }
 
       const token =
         await getAdminAccessToken();
@@ -244,11 +262,19 @@ export default function AdminUserDetailsScreen() {
       const result =
         await getAdminUserById(token, id);
 
+      if (thisLoad !== loadGuard.current) {
+        return;
+      }
+
       setUser(result.user);
       setReview(result.review ?? null);
 
-      void loadIssues(token, id);
+      void loadIssues(token, id, live);
     } catch (error) {
+      if (live) {
+        return;
+      }
+
       console.log(
         'ADMIN USER DETAILS ERROR:',
         error
@@ -266,11 +292,14 @@ export default function AdminUserDetailsScreen() {
 
   async function loadIssues(
     token: string,
-    userId: string
+    userId: string,
+    live = false
   ) {
     try {
-      setIssuesLoading(true);
-      setIssuesError('');
+      if (!live) {
+        setIssuesLoading(true);
+        setIssuesError('');
+      }
 
       const result =
         await getAdminReports(token, {
@@ -283,13 +312,17 @@ export default function AdminUserDetailsScreen() {
           []
       );
     } catch (error) {
-      setIssuesError(
-        error instanceof Error
-          ? error.message
-          : 'Unable to load issues for this user.'
-      );
+      if (!live) {
+        setIssuesError(
+          error instanceof Error
+            ? error.message
+            : 'Unable to load issues for this user.'
+        );
+      }
     } finally {
-      setIssuesLoading(false);
+      if (!live) {
+        setIssuesLoading(false);
+      }
     }
   }
 
@@ -297,6 +330,10 @@ export default function AdminUserDetailsScreen() {
     useCallback(() => {
       loadUser();
     }, [loadUser])
+  );
+
+  useLiveRefresh(() =>
+    loadUser(true)
   );
 
   // ==========================================================
@@ -405,6 +442,8 @@ export default function AdminUserDetailsScreen() {
           )
         : await activateAdminUser(token, user.id);
 
+      loadGuard.current += 1;
+
       setUser(result.user);
 
       // Reactivating answers an open review request.
@@ -496,6 +535,8 @@ export default function AdminUserDetailsScreen() {
             lockReason
           );
 
+      loadGuard.current += 1;
+
       setUser(result.user);
       setSuccessMessage(result.message);
     } catch (error) {
@@ -570,6 +611,8 @@ export default function AdminUserDetailsScreen() {
           user.id,
           selectedRole
         );
+
+      loadGuard.current += 1;
 
       setUser(result.user);
       setSuccessMessage(result.message);
@@ -727,6 +770,8 @@ export default function AdminUserDetailsScreen() {
           declineNote.trim()
         );
 
+      loadGuard.current += 1;
+
       setReview(result.review);
       setSuccessMessage(result.message);
     } catch (error) {
@@ -868,7 +913,7 @@ export default function AdminUserDetailsScreen() {
                     tone="primary"
                     scale={s}
                     fontScale={fs}
-                    onPress={loadUser}
+                    onPress={() => loadUser()}
                   />
                 </View>
               </View>

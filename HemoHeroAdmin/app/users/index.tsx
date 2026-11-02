@@ -48,6 +48,10 @@ import {
 } from '../../lib/api';
 
 import {
+  useLiveRefresh,
+} from '../../lib/useLiveRefresh';
+
+import {
   clearAdminSession,
   getAdminAccessToken,
   getAdminProfile,
@@ -171,6 +175,10 @@ export default function AdminUsersScreen() {
 
   const hasLoadedOnce = useRef(false);
 
+  // A live check that was overtaken by a newer load (e.g. after
+  // changing a filter) is dropped.
+  const loadGuard = useRef(0);
+
   // ==========================================================
   // LOAD
   //
@@ -189,15 +197,28 @@ export default function AdminUsersScreen() {
     ])
   );
 
-  async function loadUsers() {
-    try {
-      if (hasLoadedOnce.current) {
-        setRefreshing(true);
-      } else {
-        setLoading(true);
-      }
+  useLiveRefresh(() =>
+    loadUsers(true)
+  );
 
-      setErrorMessage('');
+  async function loadUsers(live = false) {
+    if (!live) {
+      loadGuard.current += 1;
+    }
+
+    const thisLoad =
+      loadGuard.current;
+
+    try {
+      if (!live) {
+        if (hasLoadedOnce.current) {
+          setRefreshing(true);
+        } else {
+          setLoading(true);
+        }
+
+        setErrorMessage('');
+      }
 
       const token =
         await getAdminAccessToken();
@@ -237,6 +258,14 @@ export default function AdminUsersScreen() {
         }),
       ]);
 
+      if (thisLoad !== loadGuard.current) {
+        return;
+      }
+
+      if (!hasLoadedOnce.current) {
+        setErrorMessage('');
+      }
+
       setSummary(summaryResult.summary);
 
       setUsers(
@@ -265,6 +294,11 @@ export default function AdminUsersScreen() {
 
       hasLoadedOnce.current = true;
     } catch (error) {
+      // A failed live check keeps what's on screen.
+      if (live) {
+        return;
+      }
+
       console.log(
         'ADMIN USERS ERROR:',
         error
@@ -276,8 +310,10 @@ export default function AdminUsersScreen() {
           : 'Unable to load users.'
       );
     } finally {
-      setLoading(false);
-      setRefreshing(false);
+      if (!live) {
+        setLoading(false);
+        setRefreshing(false);
+      }
     }
   }
 
@@ -563,7 +599,7 @@ export default function AdminUsersScreen() {
 
                     <Pressable
                       disabled={loading || refreshing}
-                      onPress={loadUsers}
+                      onPress={() => loadUsers()}
                       style={({ pressed }) => [
                         styles.refreshButton,
 
@@ -878,7 +914,7 @@ export default function AdminUsersScreen() {
                       title="Unable to Load Users"
                       text={errorMessage}
                       actionLabel="Try Again"
-                      onAction={loadUsers}
+                      onAction={() => loadUsers()}
                     />
                   ) : users.length === 0 ? (
                     <TableMessage

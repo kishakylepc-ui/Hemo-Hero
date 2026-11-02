@@ -99,6 +99,11 @@ import {
   getNearbyBloodRequests,
 } from '../lib/nearbyRequests';
 
+import {
+  LIVE_REFRESH_SLOW_MS,
+  useLiveRefresh,
+} from '../lib/useLiveRefresh';
+
 import type {
   NearbyBloodRequest,
 } from '../lib/nearbyRequests';
@@ -390,12 +395,19 @@ export default function DashboardScreen() {
   // Ask for location permission at most once per app visit.
   const askedForLocation =
     useRef(false);
+
+  // Where nearby requests were last looked up (live checks reuse it).
+  const lastPosition =
+    useRef<{
+      latitude: number;
+      longitude: number;
+    } | null>(null);
   // ==========================================================
   // LOAD DASHBOARD
   // ==========================================================
 
   const loadDashboard =
-    useCallback(async () => {
+    useCallback(async (live = false) => {
       const token =
         await getAccessToken();
 
@@ -409,13 +421,15 @@ export default function DashboardScreen() {
       const firstLoad =
         !hasLoadedOnce.current;
 
-      if (firstLoad) {
+      if (firstLoad && !live) {
         setLoadingProfile(true);
         setLoadingActiveRequest(true);
         setLoadingDonorApplication(true);
       }
 
-      setActiveRequestError('');
+      if (!live) {
+        setActiveRequestError('');
+      }
 
       // ======================================================
       // LOAD INDEPENDENT SECTIONS IN PARALLEL
@@ -461,14 +475,21 @@ export default function DashboardScreen() {
       // NOTIFICATION COUNT
       // ------------------------------------------------------
 
-      setUnreadNotifications(
-        notificationResult.status === 'fulfilled'
-          ? Number(
-              notificationResult.value
-                ?.unread_count
-            ) || 0
-          : 0
-      );
+      // A failed live check keeps what's on screen, here and
+      // in the sections below.
+      if (
+        notificationResult.status === 'fulfilled' ||
+        !live
+      ) {
+        setUnreadNotifications(
+          notificationResult.status === 'fulfilled'
+            ? Number(
+                notificationResult.value
+                  ?.unread_count
+              ) || 0
+            : 0
+        );
+      }
 
       // ------------------------------------------------------
       // DONOR APPLICATION
@@ -485,7 +506,9 @@ export default function DashboardScreen() {
           donorResult.reason
         );
 
-        setDonorApplication(null);
+        if (!live) {
+          setDonorApplication(null);
+        }
       }
 
       setLoadingDonorApplication(false);
@@ -494,14 +517,19 @@ export default function DashboardScreen() {
       // PENDING DONOR INVITATIONS
       // ------------------------------------------------------
 
-      setPendingInvitations(
-        invitationResult.status === 'fulfilled'
-          ? Number(
-              invitationResult.value?.counts
-                ?.pending
-            ) || 0
-          : 0
-      );
+      if (
+        invitationResult.status === 'fulfilled' ||
+        !live
+      ) {
+        setPendingInvitations(
+          invitationResult.status === 'fulfilled'
+            ? Number(
+                invitationResult.value?.counts
+                  ?.pending
+              ) || 0
+            : 0
+        );
+      }
 
       // ------------------------------------------------------
       // ACTIVE REQUEST + DONOR OFFER COUNTS
@@ -522,6 +550,8 @@ export default function DashboardScreen() {
 
         setActiveRequest(currentRequest);
 
+        setActiveRequestError('');
+
         if (currentRequest) {
           // Conversations only add detail; a failure here just
           // falls back to the offer counts.
@@ -541,7 +571,9 @@ export default function DashboardScreen() {
                 inboxError
               );
 
-              setActiveRequestConversations([]);
+              if (!live) {
+                setActiveRequestConversations([]);
+              }
             });
 
           try {
@@ -569,7 +601,9 @@ export default function DashboardScreen() {
               responseError
             );
 
-            setActiveRequestResponseCounts(emptyCounts);
+            if (!live) {
+              setActiveRequestResponseCounts(emptyCounts);
+            }
           }
         } else {
           setActiveRequestResponseCounts(emptyCounts);
@@ -582,14 +616,16 @@ export default function DashboardScreen() {
           activeRequestResult.reason
         );
 
-        setActiveRequest(null);
-        setActiveRequestResponseCounts(emptyCounts);
+        if (!live) {
+          setActiveRequest(null);
+          setActiveRequestResponseCounts(emptyCounts);
 
-        setActiveRequestError(
-          activeRequestResult.reason instanceof Error
-            ? activeRequestResult.reason.message
-            : 'Unable to load active request.'
-        );
+          setActiveRequestError(
+            activeRequestResult.reason instanceof Error
+              ? activeRequestResult.reason.message
+              : 'Unable to load active request.'
+          );
+        }
       }
 
       setLoadingActiveRequest(false);
@@ -600,9 +636,12 @@ export default function DashboardScreen() {
       // NEARBY REQUESTS (needs location)
       // ======================================================
 
-      await loadNearbyRequests(
-        token
-      );
+      // Live checks do this on their own, slower timer.
+      if (!live) {
+        await loadNearbyRequests(
+          token
+        );
+      }
     }, []);
 
   // ==========================================================
@@ -651,17 +690,41 @@ export default function DashboardScreen() {
     }, [loadDashboard])
   );
 
+  useLiveRefresh(() =>
+    loadDashboard(true)
+  );
+
+  useLiveRefresh(
+    () =>
+      loadNearbyRequests(
+        undefined,
+        true
+      ),
+    LIVE_REFRESH_SLOW_MS
+  );
+
   // ==========================================================
   // LOAD NEARBY REQUESTS
   // ==========================================================
 
   async function loadNearbyRequests(
-    token?: string
+    token?: string,
+    live = false
   ) {
     try {
+      // Live checks only follow a normal load, which has the
+      // location and has already asked for permission.
+      if (
+        live &&
+        !lastPosition.current
+      ) {
+        return;
+      }
+
       // Show the "finding requests" card only until the first
       // result; later refreshes update the list in place.
       if (
+        !live &&
         nearbyRequests.length === 0 &&
         respondedRequests.length === 0
       ) {
@@ -670,9 +733,11 @@ export default function DashboardScreen() {
         );
       }
 
-      setNearbyRequestError(
-        ''
-      );
+      if (!live) {
+        setNearbyRequestError(
+          ''
+        );
+      }
 
       const accessToken =
         token ||
@@ -684,54 +749,73 @@ export default function DashboardScreen() {
         return;
       }
 
-      let permission =
-        await Location
-          .getForegroundPermissionsAsync();
+      // A live check reuses the last position instead of asking
+      // the phone's GPS every time.
+      let position =
+        live
+          ? lastPosition.current
+          : null;
 
-      // Ask once; do not re-prompt every time Home is opened.
-      if (
-        permission.status !==
-          'granted' &&
-        !askedForLocation.current
-      ) {
-        askedForLocation.current =
-          true;
-
-        permission =
+      if (!position) {
+        let permission =
           await Location
-            .requestForegroundPermissionsAsync();
+            .getForegroundPermissionsAsync();
+
+        // Ask once; do not re-prompt every time Home is opened.
+        if (
+          permission.status !==
+            'granted' &&
+          !askedForLocation.current
+        ) {
+          askedForLocation.current =
+            true;
+
+          permission =
+            await Location
+              .requestForegroundPermissionsAsync();
+        }
+
+        if (
+          permission.status !==
+          'granted'
+        ) {
+          setNearbyRequestError(
+            'Allow location access to see blood requests near you.'
+          );
+
+          setNearbyRequests(
+            []
+          );
+
+          return;
+        }
+
+        const location =
+          await Location
+            .getCurrentPositionAsync({
+              accuracy:
+                Location.Accuracy
+                  .Balanced,
+            });
+
+        position = {
+          latitude:
+            location.coords
+              .latitude,
+
+          longitude:
+            location.coords
+              .longitude,
+        };
+
+        lastPosition.current =
+          position;
       }
 
-      if (
-        permission.status !==
-        'granted'
-      ) {
-        setNearbyRequestError(
-          'Allow location access to see blood requests near you.'
-        );
-
-        setNearbyRequests(
-          []
-        );
-
-        return;
-      }
-
-      const location =
-        await Location
-          .getCurrentPositionAsync({
-            accuracy:
-              Location.Accuracy
-                .Balanced,
-          });
-
-      const latitude =
-        location.coords
-          .latitude;
-
-      const longitude =
-        location.coords
-          .longitude;
+      const {
+        latitude,
+        longitude,
+      } = position;
 
       const data =
         await getNearbyBloodRequests(
@@ -760,6 +844,12 @@ export default function DashboardScreen() {
                     null,
                 };
               } catch (error) {
+                // Without this answer a request you offered on
+                // would look new, so skip this live check.
+                if (live) {
+                  throw error;
+                }
+
                 console.log(
                   'DASHBOARD RESPONSE CHECK ERROR:',
                   request.id,
@@ -805,6 +895,10 @@ export default function DashboardScreen() {
               item.request
           );
 
+      setNearbyRequestError(
+        ''
+      );
+
       setRespondedRequests(
         responded.slice(
           0,
@@ -819,6 +913,10 @@ export default function DashboardScreen() {
         )
       );
     } catch (error) {
+      if (live) {
+        return;
+      }
+
       console.log(
         'DASHBOARD NEARBY REQUEST ERROR:',
         error
@@ -2866,8 +2964,8 @@ function showMessage(
                 style={
                   styles.requestErrorCard
                 }
-                onPress={
-                  loadDashboard
+                onPress={() =>
+                  loadDashboard()
                 }
               >
                 <Ionicons

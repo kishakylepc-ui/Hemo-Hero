@@ -39,6 +39,10 @@ import {
 } from '../../lib/api';
 
 import {
+  useLiveRefresh,
+} from '../../lib/useLiveRefresh';
+
+import {
   clearAdminSession,
   getAdminAccessToken,
   getAdminProfile,
@@ -156,6 +160,10 @@ export default function AdminDonationsScreen() {
   // table visible and only spin the Refresh button.
   const hasLoadedOnce = useRef(false);
 
+  // A live check that was overtaken by a newer load (e.g. after
+  // changing a filter) is dropped.
+  const loadGuard = useRef(0);
+
   // ==========================================================
   // LOAD
   //
@@ -173,15 +181,28 @@ export default function AdminDonationsScreen() {
     ])
   );
 
-  async function loadDonations() {
-    try {
-      if (hasLoadedOnce.current) {
-        setRefreshing(true);
-      } else {
-        setLoading(true);
-      }
+  useLiveRefresh(() =>
+    loadDonations(true)
+  );
 
-      setErrorMessage('');
+  async function loadDonations(live = false) {
+    if (!live) {
+      loadGuard.current += 1;
+    }
+
+    const thisLoad =
+      loadGuard.current;
+
+    try {
+      if (!live) {
+        if (hasLoadedOnce.current) {
+          setRefreshing(true);
+        } else {
+          setLoading(true);
+        }
+
+        setErrorMessage('');
+      }
 
       const token =
         await getAdminAccessToken();
@@ -210,6 +231,12 @@ export default function AdminDonationsScreen() {
           search: searchFilter || undefined,
         });
 
+      if (thisLoad !== loadGuard.current) {
+        return;
+      }
+
+      setErrorMessage('');
+
       setSummary(
         result.summary ||
           EMPTY_SUMMARY
@@ -235,6 +262,11 @@ export default function AdminDonationsScreen() {
 
       hasLoadedOnce.current = true;
     } catch (error) {
+      // A failed live check keeps what's on screen.
+      if (live) {
+        return;
+      }
+
       console.log(
         'ADMIN DONATIONS ERROR:',
         error
@@ -246,8 +278,10 @@ export default function AdminDonationsScreen() {
           : 'Unable to load donations.'
       );
     } finally {
-      setLoading(false);
-      setRefreshing(false);
+      if (!live) {
+        setLoading(false);
+        setRefreshing(false);
+      }
     }
   }
 
@@ -389,7 +423,7 @@ export default function AdminDonationsScreen() {
 
                   <Pressable
                     disabled={loading || refreshing}
-                    onPress={loadDonations}
+                    onPress={() => loadDonations()}
                     style={({ pressed }) => [
                       styles.refreshButton,
 
@@ -781,7 +815,7 @@ export default function AdminDonationsScreen() {
                       </Text>
 
                       <Pressable
-                        onPress={loadDonations}
+                        onPress={() => loadDonations()}
                         style={({ pressed }) => [
                           styles.searchButton,
 

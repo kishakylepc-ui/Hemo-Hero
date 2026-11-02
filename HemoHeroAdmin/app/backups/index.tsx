@@ -43,6 +43,11 @@ import {
 } from '../../lib/api';
 
 import {
+  LIVE_REFRESH_SLOW_MS,
+  useLiveRefresh,
+} from '../../lib/useLiveRefresh';
+
+import {
   clearAdminSession,
   getAdminAccessToken,
   getAdminProfile,
@@ -183,9 +188,11 @@ export default function AdminBackupsScreen() {
   // LOAD
   // ==========================================================
 
-  const loadBackups = useCallback(async () => {
+  const loadBackups = useCallback(async (live = false) => {
     try {
-      setLoadError('');
+      if (!live) {
+        setLoadError('');
+      }
 
       const token =
         await getAdminAccessToken();
@@ -213,9 +220,15 @@ export default function AdminBackupsScreen() {
       const result =
         await getAdminBackups(token);
 
+      setLoadError('');
+
       setBackups(result.backups);
       setSummary(result.summary);
     } catch (error) {
+      if (live) {
+        return;
+      }
+
       console.log(
         'ADMIN BACKUPS LOAD ERROR:',
         error
@@ -235,6 +248,11 @@ export default function AdminBackupsScreen() {
     useCallback(() => {
       loadBackups();
     }, [loadBackups])
+  );
+
+  useLiveRefresh(
+    () => loadBackups(true),
+    LIVE_REFRESH_SLOW_MS
   );
 
   function refresh() {

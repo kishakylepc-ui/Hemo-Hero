@@ -3,6 +3,7 @@ import {
   type ReactNode,
   useCallback,
   useState,
+  useRef,
 } from 'react';
 
 import {
@@ -48,6 +49,10 @@ import {
   type AdminReportStatus,
   type AdminReportUser,
 } from '../../lib/api';
+
+import {
+  useLiveRefresh,
+} from '../../lib/useLiveRefresh';
 
 import {
   clearAdminSession,
@@ -269,14 +274,27 @@ export default function IssueReviewScreen() {
   // LOAD ISSUE
   // ==========================================================
 
-  const loadIssue = useCallback(async () => {
+  // A live check that was overtaken by a newer load (e.g. after
+  // resolving the issue) is dropped.
+  const loadGuard = useRef(0);
+
+  const loadIssue = useCallback(async (live = false) => {
     if (!id) {
       return;
     }
 
+    if (!live) {
+      loadGuard.current += 1;
+    }
+
+    const thisLoad =
+      loadGuard.current;
+
     try {
-      setLoading(true);
-      setError('');
+      if (!live) {
+        setLoading(true);
+        setError('');
+      }
 
       const token =
         await getAdminAccessToken();
@@ -303,13 +321,26 @@ export default function IssueReviewScreen() {
           id
         );
 
+      if (thisLoad !== loadGuard.current) {
+        return;
+      }
+
+      setError('');
+
       setReport(result.report);
 
-      setAdminNote(
-        result.report?.admin_note ||
-          ''
-      );
+      // A live check must not replace what's being typed.
+      if (!live) {
+        setAdminNote(
+          result.report?.admin_note ||
+            ''
+        );
+      }
     } catch (loadError) {
+      if (live) {
+        return;
+      }
+
       console.log(
         'ADMIN ISSUE DETAIL ERROR:',
         loadError
@@ -321,7 +352,9 @@ export default function IssueReviewScreen() {
           : 'Unable to load issue.'
       );
     } finally {
-      setLoading(false);
+      if (!live) {
+        setLoading(false);
+      }
     }
   }, [id]);
 
@@ -329,6 +362,10 @@ export default function IssueReviewScreen() {
     useCallback(() => {
       loadIssue();
     }, [loadIssue])
+  );
+
+  useLiveRefresh(() =>
+    loadIssue(true)
   );
 
   // ==========================================================
@@ -490,6 +527,8 @@ export default function IssueReviewScreen() {
           report.id,
           input
         );
+
+      loadGuard.current += 1;
 
       setReport(result.report);
 
@@ -840,6 +879,8 @@ export default function IssueReviewScreen() {
           note
         );
 
+      loadGuard.current += 1;
+
       setReport(result.report);
 
       setAdminNote(
@@ -1013,7 +1054,7 @@ export default function IssueReviewScreen() {
                   </Pressable>
 
                   <Pressable
-                    onPress={loadIssue}
+                    onPress={() => loadIssue()}
                     style={({ pressed }) => [
                       styles.retryButton,
 

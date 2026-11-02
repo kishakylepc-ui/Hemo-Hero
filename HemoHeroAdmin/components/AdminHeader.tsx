@@ -40,6 +40,11 @@ import {
   getAdminAccessToken,
 } from '../lib/session';
 
+import {
+  LIVE_REFRESH_MS,
+  useLiveRefresh,
+} from '../lib/useLiveRefresh';
+
 import { isSuperAdmin } from '../lib/roles';
 
 // ============================================================
@@ -83,7 +88,7 @@ const COLORS = {
 
 // Refresh the unread badge while a screen stays open.
 const UNREAD_REFRESH_MS =
-  60 * 1000;
+  LIVE_REFRESH_MS;
 
 type IconName =
   ComponentProps<
@@ -266,11 +271,22 @@ export default function AdminHeader({
   // PANEL
   // ==========================================================
 
-  async function loadNotifications() {
-    try {
-      setPanelLoading(true);
+  // The open panel stays current too.
+  useLiveRefresh(() =>
+    panelVisible
+      ? loadNotifications(true)
+      : undefined
+  );
 
-      setPanelError('');
+  async function loadNotifications(
+    live = false
+  ) {
+    try {
+      if (!live) {
+        setPanelLoading(true);
+
+        setPanelError('');
+      }
 
       const token =
         await getAdminAccessToken();
@@ -299,13 +315,17 @@ export default function AdminHeader({
         )
       );
     } catch (error) {
-      setPanelError(
-        error instanceof Error
-          ? error.message
-          : 'Unable to load notifications.'
-      );
+      if (!live) {
+        setPanelError(
+          error instanceof Error
+            ? error.message
+            : 'Unable to load notifications.'
+        );
+      }
     } finally {
-      setPanelLoading(false);
+      if (!live) {
+        setPanelLoading(false);
+      }
     }
   }
 
@@ -1056,8 +1076,8 @@ export default function AdminHeader({
               </Text>
 
               <Pressable
-                onPress={
-                  loadNotifications
+                onPress={() =>
+                  loadNotifications()
                 }
                 style={({
                   pressed,

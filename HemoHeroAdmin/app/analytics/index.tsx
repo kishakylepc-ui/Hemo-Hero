@@ -52,6 +52,11 @@ import {
 } from '../../lib/api';
 
 import {
+  LIVE_REFRESH_SLOW_MS,
+  useLiveRefresh,
+} from '../../lib/useLiveRefresh';
+
+import {
   clearAdminSession,
   getAdminAccessToken,
   getAdminProfile,
@@ -225,14 +230,26 @@ export default function AdminAnalyticsScreen() {
     loadAnalytics(false);
   }, []);
 
+  useLiveRefresh(
+    () =>
+      loadAnalytics(
+        true,
+        true
+      ),
+    LIVE_REFRESH_SLOW_MS
+  );
+
   async function loadAnalytics(
-    isRefresh: boolean
+    isRefresh: boolean,
+    live = false
   ) {
     try {
-      if (isRefresh) {
-        setRefreshing(true);
-      } else {
-        setLoading(true);
+      if (!live) {
+        if (isRefresh) {
+          setRefreshing(true);
+        } else {
+          setLoading(true);
+        }
       }
 
       const token =
@@ -480,10 +497,22 @@ export default function AdminAnalyticsScreen() {
         );
       }
 
-      setErrors(nextErrors);
+      // A failed live check leaves each card as it is.
+      if (
+        !live ||
+        Object.values(nextErrors).every(
+          value => !value
+        )
+      ) {
+        setErrors(nextErrors);
+      }
 
       setLastUpdated(new Date());
     } catch (error) {
+      if (live) {
+        return;
+      }
+
       console.log(
         'ADMIN ANALYTICS ERROR:',
         error
@@ -500,8 +529,10 @@ export default function AdminAnalyticsScreen() {
         donations: 'Unable to load analytics.',
       });
     } finally {
-      setLoading(false);
-      setRefreshing(false);
+      if (!live) {
+        setLoading(false);
+        setRefreshing(false);
+      }
     }
   }
 

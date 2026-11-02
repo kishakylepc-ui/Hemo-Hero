@@ -65,6 +65,10 @@ import {
 } from '../../components/Motion';
 
 import AppModal from '../../components/AppModal';
+
+import {
+  useLiveRefresh,
+} from '../../lib/useLiveRefresh';
 import DonorTrust from '../../components/DonorTrust';
 
 import {
@@ -432,9 +436,17 @@ export default function BloodRequestDetailsScreen() {
   // LOAD REQUEST
   // ==========================================================
 
+  // A live check that was overtaken by a newer load (e.g. after
+  // accepting a donor) is dropped.
+  const requestGuard =
+    useRef(0);
+
+  const responsesGuard =
+    useRef(0);
+
   const loadRequest =
     useCallback(
-      async () => {
+      async (live = false) => {
         if (!requestId) {
           setErrorMessage(
             'Blood request ID is missing.'
@@ -445,14 +457,26 @@ export default function BloodRequestDetailsScreen() {
           return;
         }
 
+        if (!live) {
+          requestGuard.current += 1;
+        }
+
+        const thisLoad =
+          requestGuard.current;
+
         try {
           // Only the first load shows the full loader; returning
           // from a donor chat refreshes quietly.
-          if (!hasLoadedOnce.current) {
+          if (
+            !hasLoadedOnce.current &&
+            !live
+          ) {
             setLoading(true);
           }
 
-          setErrorMessage('');
+          if (!live) {
+            setErrorMessage('');
+          }
 
           const token =
             await getAccessToken();
@@ -477,12 +501,25 @@ export default function BloodRequestDetailsScreen() {
             );
           }
 
+          if (
+            thisLoad !==
+            requestGuard.current
+          ) {
+            return;
+          }
+
+          setErrorMessage('');
+
           setRequest(
             data.request
           );
 
           hasLoadedOnce.current = true;
         } catch (error) {
+          if (live) {
+            return;
+          }
+
           console.log(
             'LOAD BLOOD REQUEST ERROR:',
             error
@@ -494,7 +531,9 @@ export default function BloodRequestDetailsScreen() {
               : 'Unable to load this blood request.'
           );
         } finally {
-          setLoading(false);
+          if (!live) {
+            setLoading(false);
+          }
         }
       },
       [
@@ -508,19 +547,31 @@ export default function BloodRequestDetailsScreen() {
 
   const loadDonorResponses =
     useCallback(
-      async () => {
+      async (live = false) => {
         if (!requestId) {
           return;
         }
 
+        if (!live) {
+          responsesGuard.current += 1;
+        }
+
+        const thisLoad =
+          responsesGuard.current;
+
         try {
-          if (!hasLoadedOnce.current) {
+          if (
+            !hasLoadedOnce.current &&
+            !live
+          ) {
             setLoadingResponses(
               true
             );
           }
 
-          setResponseError('');
+          if (!live) {
+            setResponseError('');
+          }
 
           const token =
             await getAccessToken();
@@ -537,6 +588,15 @@ export default function BloodRequestDetailsScreen() {
               requestId
             );
 
+          if (
+            thisLoad !==
+            responsesGuard.current
+          ) {
+            return;
+          }
+
+          setResponseError('');
+
           setDonorResponses(
             result.responses ||
               []
@@ -547,6 +607,10 @@ export default function BloodRequestDetailsScreen() {
               EMPTY_RESPONSE_COUNTS
           );
         } catch (error) {
+          if (live) {
+            return;
+          }
+
           console.log(
             'LOAD DONOR RESPONSES ERROR:',
             error
@@ -558,9 +622,11 @@ export default function BloodRequestDetailsScreen() {
               : 'Unable to load donor offers.'
           );
         } finally {
-          setLoadingResponses(
-            false
-          );
+          if (!live) {
+            setLoadingResponses(
+              false
+            );
+          }
         }
       },
       [
@@ -675,6 +741,15 @@ export default function BloodRequestDetailsScreen() {
         loadConversations,
       ]
     )
+  );
+
+  useLiveRefresh(() =>
+    Promise.all([
+      loadRequest(true),
+      loadDonorResponses(true),
+      loadDonations(),
+      loadConversations(),
+    ])
   );
 
   async function handleRefresh() {

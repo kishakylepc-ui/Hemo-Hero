@@ -66,6 +66,10 @@ import {
   getMyDonorInvitations,
 } from '../../lib/donorInvitations';
 
+import {
+  useLiveRefresh,
+} from '../../lib/useLiveRefresh';
+
 import type {
   DonorInvitation,
 } from '../../lib/donorInvitations';
@@ -432,11 +436,23 @@ export default function RequestsScreen() {
   // LOAD DATA
   // ==========================================================
 
+  // A live check that was overtaken by a newer load is dropped.
+  const loadGuard =
+    useRef(0);
+
   const loadData =
     useCallback(
       async (
-        silent = false
+        silent = false,
+        live = false
       ) => {
+        if (!live) {
+          loadGuard.current += 1;
+        }
+
+        const thisLoad =
+          loadGuard.current;
+
         try {
           if (
             !silent
@@ -446,13 +462,15 @@ export default function RequestsScreen() {
             );
           }
 
-          setErrorMessage(
-            ''
-          );
+          if (!live) {
+            setErrorMessage(
+              ''
+            );
 
-          setInvitationErrorMessage(
-            ''
-          );
+            setInvitationErrorMessage(
+              ''
+            );
+          }
 
           const token =
             await getAccessToken();
@@ -487,6 +505,13 @@ export default function RequestsScreen() {
                 token
               ),
             ]);
+
+          if (
+            thisLoad !==
+            loadGuard.current
+          ) {
+            return;
+          }
 
           if (
             inboxResult.status ===
@@ -563,8 +588,12 @@ export default function RequestsScreen() {
           }
 
           if (
-            failedSections.length > 0
+            failedSections.length === 0
           ) {
+            setErrorMessage(
+              ''
+            );
+          } else if (!live) {
             setErrorMessage(
               `We couldn't load ${failedSections.join(
                 ' and '
@@ -589,7 +618,11 @@ export default function RequestsScreen() {
                     .invitations
                 : []
             );
-          } else {
+
+            setInvitationErrorMessage(
+              ''
+            );
+          } else if (!live) {
             console.log(
               'DONOR INVITATIONS LOAD ERROR:',
               invitationResult.reason
@@ -609,6 +642,10 @@ export default function RequestsScreen() {
         } catch (
           error
         ) {
+          if (live) {
+            return;
+          }
+
           console.log(
             'REQUESTS SCREEN LOAD ERROR:',
             error
@@ -662,6 +699,13 @@ export default function RequestsScreen() {
       [
         loadData,
       ]
+    )
+  );
+
+  useLiveRefresh(() =>
+    loadData(
+      true,
+      true
     )
   );
 

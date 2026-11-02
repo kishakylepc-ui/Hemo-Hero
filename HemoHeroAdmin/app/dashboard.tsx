@@ -47,6 +47,10 @@ import {
 } from '../lib/api';
 
 import {
+  useLiveRefresh,
+} from '../lib/useLiveRefresh';
+
+import {
   clearAdminSession,
   getAdminAccessToken,
   getAdminProfile,
@@ -172,12 +176,18 @@ export default function AdminDashboardScreen() {
     }, [])
   );
 
-  async function loadDashboard() {
+  useLiveRefresh(() =>
+    loadDashboard(true)
+  );
+
+  async function loadDashboard(live = false) {
     try {
-      if (hasLoadedOnce.current) {
-        setRefreshing(true);
-      } else {
-        setLoading(true);
+      if (!live) {
+        if (hasLoadedOnce.current) {
+          setRefreshing(true);
+        } else {
+          setLoading(true);
+        }
       }
 
       const token =
@@ -295,17 +305,31 @@ export default function AdminDashboardScreen() {
         );
       }
 
-      setErrors(nextErrors);
+      // A failed live check leaves each card as it is.
+      if (
+        !live ||
+        Object.values(nextErrors).every(
+          value => !value
+        )
+      ) {
+        setErrors(nextErrors);
+      }
 
       hasLoadedOnce.current = true;
     } catch (error) {
+      if (live) {
+        return;
+      }
+
       console.log(
         'ADMIN DASHBOARD ERROR:',
         error
       );
     } finally {
-      setLoading(false);
-      setRefreshing(false);
+      if (!live) {
+        setLoading(false);
+        setRefreshing(false);
+      }
     }
   }
 
@@ -456,7 +480,7 @@ export default function AdminDashboardScreen() {
 
                   <Pressable
                     disabled={loading || refreshing}
-                    onPress={loadDashboard}
+                    onPress={() => loadDashboard()}
                     style={({ pressed }) => [
                       styles.refreshButton,
 

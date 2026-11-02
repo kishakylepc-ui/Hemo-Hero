@@ -129,15 +129,50 @@ app.use(
 // REQUEST LOGGER
 // ============================================================
 
+// Screens refresh themselves every few seconds, so the same GET
+// is only printed once a minute.
+const REPEAT_LOG_MS =
+  60 * 1000;
+
+const lastLogged =
+  new Map();
+
 app.use(
   (
     req,
     res,
     next
   ) => {
-    console.log(
-      `${req.method} ${req.originalUrl}`
-    );
+    const line =
+      `${req.method} ${req.originalUrl}`;
+
+    const now =
+      Date.now();
+
+    if (
+      req.method !== 'GET' ||
+      now - (lastLogged.get(line) || 0) >=
+        REPEAT_LOG_MS
+    ) {
+      console.log(
+        line
+      );
+
+      if (
+        req.method === 'GET'
+      ) {
+        if (
+          lastLogged.size > 500
+        ) {
+          lastLogged.clear();
+        }
+
+        lastLogged.set(
+          line,
+          now
+        );
+      }
+    }
 
     next();
   }

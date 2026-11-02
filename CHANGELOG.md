@@ -43,6 +43,12 @@ Write each change under **Unreleased** as you make it. `node scripts/version.js 
   - The donor's view of a request no longer has **Rate the Requester** or **Report a problem**. It still shows the record and ratings, and says to use the chat. **Report a problem** is now also in the chat's menu.
   - Donation notifications open the chat with the other person, for both sides.
   - **Mark as Fulfilled** and **Cancel Request** stay on the request page, because they apply to the whole request and it can have several donors.
+- **Live statuses in both apps.** Screens that show a status now update by themselves while they're open.
+  - Mobile: Home, Requests, your request, the donor's view of a request, donor profiles, Donation History, Notifications and Profile check every 10 seconds. Search and the nearby requests on Home check every 30 seconds, using your last location instead of the GPS each time. Every screen also checks right away when a notification arrives.
+  - Admin: Dashboard, Applications, Users, Requests, Donations, Issues and Log Trails, with their detail pages, check every 10 seconds. Analytics and Backups check every 30 seconds. The bell checks every 10 seconds instead of every minute, and its open panel stays current.
+  - Both apps check when you come back to the app or tab, and stop checking when you leave the screen.
+  - Updates are quiet: no spinners, nothing you're typing gets replaced (offer messages, admin notes), and a failed check leaves the screen as it was. Checks don't count as activity, so the inactivity sign-out still works.
+  - The server terminal prints a repeated GET once a minute, so the checks don't flood it.
 - Mobile: the **Chat** tab shows how many unread chat alerts you have, on every screen that has the bottom bar. It updates every 15 seconds, when an alert arrives, and when you come back to a screen or the app. Chats that can no longer be opened aren't counted.
 - Fixed: a donation could be confirmed before a meeting was agreed. Accepting an offer showed **Confirm Donation** right away, and the chat's Details section always offered it. Confirming now needs an agreed meeting time or a donor who has arrived. A record that was not accepted can still be confirmed again. The server checks this too.
 - Fixed: you could invite a donor who had already offered to help with the same request. The server now refuses with a message that their offer is on your request.

@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useMemo, useState, useRef } from 'react';
 
 import {
   ActivityIndicator,
@@ -29,6 +29,10 @@ import MainBottomNav, { useBottomNavSpace } from '../../components/MainBottomNav
 import { shiftedDown, withStatusBar } from '../../lib/fullScreen';
 
 import * as Location from 'expo-location';
+
+import {
+  useLiveRefresh,
+} from '../../lib/useLiveRefresh';
 
 import {
   getPublicDonorProfile,
@@ -365,12 +369,36 @@ export default function DonorDetailsScreen() {
   // LOAD DONOR
   // ==========================================================
 
+  // Live checks reuse the last position instead of asking the
+  // phone's GPS every time.
+  const lastPosition =
+    useRef<{
+      latitude: number | null;
+      longitude: number | null;
+    }>({
+      latitude: null,
+      longitude: null,
+    });
+
+  // A live check that was overtaken by a newer load is dropped.
+  const loadGuard =
+    useRef(0);
+
   const loadDonor =
     useCallback(
-      async () => {
+      async (live = false) => {
+        if (!live) {
+          loadGuard.current += 1;
+        }
+
+        const thisLoad =
+          loadGuard.current;
+
         try {
-          setLoading(true);
-          setErrorMessage('');
+          if (!live) {
+            setLoading(true);
+            setErrorMessage('');
+          }
 
           if (!donorId) {
             throw new Error(
@@ -389,53 +417,60 @@ export default function DonorDetailsScreen() {
 
           let latitude:
             number | null =
-            null;
+            lastPosition.current.latitude;
 
           let longitude:
             number | null =
-            null;
+            lastPosition.current.longitude;
 
-          try {
-            let permission =
-              await Location
-                .getForegroundPermissionsAsync();
-
-            if (
-              permission.status !==
-              'granted'
-            ) {
-              permission =
+          if (!live) {
+            try {
+              let permission =
                 await Location
-                  .requestForegroundPermissionsAsync();
+                  .getForegroundPermissionsAsync();
+
+              if (
+                permission.status !==
+                'granted'
+              ) {
+                permission =
+                  await Location
+                    .requestForegroundPermissionsAsync();
+              }
+
+              if (
+                permission.status ===
+                'granted'
+              ) {
+                const position =
+                  await Location
+                    .getCurrentPositionAsync({
+                      accuracy:
+                        Location.Accuracy
+                          .Balanced,
+                    });
+
+                latitude =
+                  position
+                    .coords
+                    .latitude;
+
+                longitude =
+                  position
+                    .coords
+                    .longitude;
+
+                lastPosition.current = {
+                  latitude,
+                  longitude,
+                };
+              }
+            } catch (error) {
+              console.log(
+                'DONOR DETAILS LOCATION ERROR:',
+                error
+              );
             }
-
-            if (
-              permission.status ===
-              'granted'
-            ) {
-              const position =
-                await Location
-                  .getCurrentPositionAsync({
-                    accuracy:
-                      Location.Accuracy
-                        .Balanced,
-                  });
-
-              latitude =
-                position
-                  .coords
-                  .latitude;
-
-              longitude =
-                position
-                  .coords
-                  .longitude;
-            }
-          } catch (error) {
-            console.log(
-              'DONOR DETAILS LOCATION ERROR:',
-              error
-            );
           }
 
           const result =
@@ -448,6 +483,15 @@ export default function DonorDetailsScreen() {
               }
             );
 
+          if (
+            thisLoad !==
+            loadGuard.current
+          ) {
+            return;
+          }
+
+          setErrorMessage('');
+
           setDonor(
             result.donor
           );
@@ -456,6 +500,10 @@ export default function DonorDetailsScreen() {
             result.connection
           );
         } catch (error) {
+          if (live) {
+            return;
+          }
+
           console.log(
             'DONOR DETAILS ERROR:',
             error
@@ -469,7 +517,9 @@ export default function DonorDetailsScreen() {
               : 'Unable to load donor profile.'
           );
         } finally {
-          setLoading(false);
+          if (!live) {
+            setLoading(false);
+          }
         }
       },
       [
@@ -490,6 +540,10 @@ export default function DonorDetailsScreen() {
         loadDonor,
       ]
     )
+  );
+
+  useLiveRefresh(() =>
+    loadDonor(true)
   );
 
   // ==========================================================
@@ -1434,8 +1488,8 @@ export default function DonorDetailsScreen() {
                   activeOpacity={
                     0.8
                   }
-                  onPress={
-                    loadDonor
+                  onPress={() =>
+                    loadDonor()
                   }
                 >
                   <MaterialIcons

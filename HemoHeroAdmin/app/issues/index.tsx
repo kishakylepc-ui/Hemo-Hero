@@ -42,6 +42,10 @@ import {
 } from '../../lib/api';
 
 import {
+  useLiveRefresh,
+} from '../../lib/useLiveRefresh';
+
+import {
   clearAdminSession,
   getAdminAccessToken,
   getAdminProfile,
@@ -162,6 +166,10 @@ export default function AdminIssuesScreen() {
   // table visible and only spin the Refresh button.
   const hasLoadedOnce = useRef(false);
 
+  // A live check that was overtaken by a newer load (e.g. after
+  // changing a filter) is dropped.
+  const loadGuard = useRef(0);
+
   // ==========================================================
   // LOAD
   //
@@ -180,15 +188,28 @@ export default function AdminIssuesScreen() {
     ])
   );
 
-  async function loadIssues() {
-    try {
-      if (hasLoadedOnce.current) {
-        setRefreshing(true);
-      } else {
-        setLoading(true);
-      }
+  useLiveRefresh(() =>
+    loadIssues(true)
+  );
 
-      setErrorMessage('');
+  async function loadIssues(live = false) {
+    if (!live) {
+      loadGuard.current += 1;
+    }
+
+    const thisLoad =
+      loadGuard.current;
+
+    try {
+      if (!live) {
+        if (hasLoadedOnce.current) {
+          setRefreshing(true);
+        } else {
+          setLoading(true);
+        }
+
+        setErrorMessage('');
+      }
 
       const token =
         await getAdminAccessToken();
@@ -218,6 +239,12 @@ export default function AdminIssuesScreen() {
           search: searchFilter || undefined,
         });
 
+      if (thisLoad !== loadGuard.current) {
+        return;
+      }
+
+      setErrorMessage('');
+
       setSummary(
         result.summary ||
           EMPTY_SUMMARY
@@ -243,6 +270,11 @@ export default function AdminIssuesScreen() {
 
       hasLoadedOnce.current = true;
     } catch (error) {
+      // A failed live check keeps what's on screen.
+      if (live) {
+        return;
+      }
+
       console.log(
         'ADMIN ISSUES ERROR:',
         error
@@ -254,8 +286,10 @@ export default function AdminIssuesScreen() {
           : 'Unable to load issues.'
       );
     } finally {
-      setLoading(false);
-      setRefreshing(false);
+      if (!live) {
+        setLoading(false);
+        setRefreshing(false);
+      }
     }
   }
 
@@ -405,7 +439,7 @@ export default function AdminIssuesScreen() {
 
                   <Pressable
                     disabled={loading || refreshing}
-                    onPress={loadIssues}
+                    onPress={() => loadIssues()}
                     style={({ pressed }) => [
                       styles.refreshButton,
 
@@ -806,7 +840,7 @@ export default function AdminIssuesScreen() {
                       </Text>
 
                       <Pressable
-                        onPress={loadIssues}
+                        onPress={() => loadIssues()}
                         style={({ pressed }) => [
                           styles.searchButton,
 

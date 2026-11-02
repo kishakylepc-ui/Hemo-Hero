@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState, } from 'react';
+import { useCallback, useEffect, useMemo, useState, useRef } from 'react';
 import { ActivityIndicator, Image, Platform, RefreshControl, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View, } from 'react-native';
 import { MaterialIcons, } from '@expo/vector-icons';
 import { LinearGradient, } from 'expo-linear-gradient';
@@ -16,6 +16,7 @@ import { getNearbyDonors, } from '../lib/nearbyDonors';
 import type { NearbyDonor, } from '../lib/nearbyDonors';
 import { getMyDonorApplication, } from '../lib/donorApplication';
 import { getAccessToken, } from '../lib/session';
+import { LIVE_REFRESH_SLOW_MS, useLiveRefresh, } from '../lib/useLiveRefresh';
 import { type BloodType, getCompatibleRecipientTypes, isBloodType, } from '../lib/bloodCompatibility';
 // ============================================================
 // COLORS
@@ -223,14 +224,29 @@ export default function SearchScreen() {
     // ==========================================================
     // LOAD DATA
     // ==========================================================
-    const loadSearchData = useCallback(async (silent = false) => {
+    // Live checks reuse the last position instead of asking the
+    // phone's GPS every time.
+    const lastPosition = useRef<{
+        latitude: number;
+        longitude: number;
+    } | null>(null);
+    // A live check that was overtaken by a newer load (e.g. after
+    // changing a filter) is dropped.
+    const loadGuard = useRef(0);
+    const loadSearchData = useCallback(async (silent = false, live = false) => {
+        if (!live) {
+            loadGuard.current += 1;
+        }
+        const thisLoad = loadGuard.current;
         try {
             if (!silent) {
                 setLoading(true);
             }
-            setErrorMessage('');
-            setLocationPermissionDenied(false);
-            setDonorEligibilityMessage('');
+            if (!live) {
+                setErrorMessage('');
+                setLocationPermissionDenied(false);
+                setDonorEligibilityMessage('');
+            }
             const token = await getAccessToken();
             if (!token) {
                 router.replace('/');
@@ -261,8 +277,12 @@ export default function SearchScreen() {
                     currentDonorBloodType =
                         normalizeBloodType(application.blood_type);
                     setVerifiedDonorBloodType(currentDonorBloodType);
+                    setDonorEligibilityMessage('');
                 }
                 catch (donorError) {
+                    if (live) {
+                        throw donorError;
+                    }
                     console.log('SEARCH DONOR VERIFICATION ERROR:', donorError);
                     setVerifiedDonorBloodType(null);
                     setRequests([]);
@@ -276,36 +296,49 @@ export default function SearchScreen() {
             // ==================================================
             // LOCATION PERMISSION
             // ==================================================
-            let permission = await Location
-                .getForegroundPermissionsAsync();
-            if (permission.status !==
-                'granted') {
-                permission =
-                    await Location
-                        .requestForegroundPermissionsAsync();
+            let position = live
+                ? lastPosition.current
+                : null;
+            if (!position) {
+                let permission = await Location
+                    .getForegroundPermissionsAsync();
+                // A live check never pops up the permission prompt.
+                if (permission.status !==
+                    'granted' &&
+                    !live) {
+                    permission =
+                        await Location
+                            .requestForegroundPermissionsAsync();
+                }
+                if (permission.status !==
+                    'granted') {
+                    if (!live) {
+                        setErrorMessage('Location access is needed to find nearby donors and blood requests.');
+                        setLocationPermissionDenied(true);
+                    }
+                    return;
+                }
+                // ==============================================
+                // CURRENT LOCATION
+                // ==============================================
+                const currentLocation = await Location
+                    .getCurrentPositionAsync({
+                    accuracy: Location
+                        .Accuracy
+                        .Balanced,
+                });
+                position = {
+                    latitude: currentLocation
+                        .coords
+                        .latitude,
+                    longitude: currentLocation
+                        .coords
+                        .longitude,
+                };
+                lastPosition.current = position;
+                void resolveLocationLabel(position.latitude, position.longitude);
             }
-            if (permission.status !==
-                'granted') {
-                setErrorMessage('Location access is needed to find nearby donors and blood requests.');
-                setLocationPermissionDenied(true);
-                return;
-            }
-            // ==================================================
-            // CURRENT LOCATION
-            // ==================================================
-            const currentLocation = await Location
-                .getCurrentPositionAsync({
-                accuracy: Location
-                    .Accuracy
-                    .Balanced,
-            });
-            const latitude = currentLocation
-                .coords
-                .latitude;
-            const longitude = currentLocation
-                .coords
-                .longitude;
-            void resolveLocationLabel(latitude, longitude);
+            const { latitude, longitude, } = position;
             // ==================================================
             // DONORS TAB
             // ==================================================
@@ -322,6 +355,10 @@ export default function SearchScreen() {
                     urgentOnly: urgentReadyOnly,
                     limit: 100,
                 });
+                if (thisLoad !== loadGuard.current) {
+                    return;
+                }
+                setErrorMessage('');
                 setDonors(donorResult
                     .donors ||
                     []);
@@ -346,9 +383,16 @@ export default function SearchScreen() {
                 []).filter(request => request.status ===
                 'active' &&
                 compatibleRequestTypes.includes(normalizeBloodType(request.blood_type) || ''));
+            if (thisLoad !== loadGuard.current) {
+                return;
+            }
+            setErrorMessage('');
             setRequests(matchingRequests);
         }
         catch (error) {
+            if (live) {
+                return;
+            }
             console.log('SEARCH LOAD ERROR:', error);
             setErrorMessage(error instanceof
                 Error
@@ -374,6 +418,7 @@ export default function SearchScreen() {
     }, [
         loadSearchData,
     ]));
+    useLiveRefresh(() => loadSearchData(true, true), LIVE_REFRESH_SLOW_MS);
     // ==========================================================
     // REFRESH
     // ==========================================================

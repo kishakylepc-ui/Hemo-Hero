@@ -40,6 +40,10 @@ import {
 } from '../../lib/api';
 
 import {
+  useLiveRefresh,
+} from '../../lib/useLiveRefresh';
+
+import {
   clearAdminSession,
   getAdminAccessToken,
   getAdminProfile,
@@ -140,6 +144,10 @@ export default function ApplicationsScreen() {
   // visible instead of flashing a full spinner.
   const hasLoadedOnce = useRef(false);
 
+  // A live check that was overtaken by a newer load (e.g. after
+  // changing a filter) is dropped.
+  const loadGuard = useRef(0);
+
   // ==========================================================
   // LOAD
   //
@@ -153,15 +161,28 @@ export default function ApplicationsScreen() {
     }, [filter])
   );
 
-  async function loadApplications() {
-    try {
-      if (hasLoadedOnce.current) {
-        setRefreshing(true);
-      } else {
-        setLoading(true);
-      }
+  useLiveRefresh(() =>
+    loadApplications(true)
+  );
 
-      setError('');
+  async function loadApplications(live = false) {
+    if (!live) {
+      loadGuard.current += 1;
+    }
+
+    const thisLoad =
+      loadGuard.current;
+
+    try {
+      if (!live) {
+        if (hasLoadedOnce.current) {
+          setRefreshing(true);
+        } else {
+          setLoading(true);
+        }
+
+        setError('');
+      }
 
       const token =
         await getAdminAccessToken();
@@ -196,6 +217,12 @@ export default function ApplicationsScreen() {
         getAdminDonorSummary(token),
       ]);
 
+      if (thisLoad !== loadGuard.current) {
+        return;
+      }
+
+      setError('');
+
       setApplications(
         applicationResult?.applications ||
           []
@@ -208,6 +235,11 @@ export default function ApplicationsScreen() {
 
       hasLoadedOnce.current = true;
     } catch (loadError) {
+      // A failed live check keeps what's on screen.
+      if (live) {
+        return;
+      }
+
       console.log(
         'ADMIN APPLICATIONS ERROR:',
         loadError
@@ -219,8 +251,10 @@ export default function ApplicationsScreen() {
           : 'Unable to load donor applications.'
       );
     } finally {
-      setLoading(false);
-      setRefreshing(false);
+      if (!live) {
+        setLoading(false);
+        setRefreshing(false);
+      }
     }
   }
 
@@ -337,7 +371,7 @@ export default function ApplicationsScreen() {
               refreshControl={
                 <RefreshControl
                   refreshing={refreshing}
-                  onRefresh={loadApplications}
+                  onRefresh={() => loadApplications()}
                   tintColor={COLORS.redBright}
                 />
               }
@@ -402,7 +436,7 @@ export default function ApplicationsScreen() {
 
                   <Pressable
                     disabled={loading || refreshing}
-                    onPress={loadApplications}
+                    onPress={() => loadApplications()}
                     style={({ pressed }) => [
                       styles.refreshButton,
 
@@ -683,7 +717,7 @@ export default function ApplicationsScreen() {
                       title="Unable to Load Applications"
                       text={error}
                       actionLabel="Try Again"
-                      onAction={loadApplications}
+                      onAction={() => loadApplications()}
                     />
                   ) : visibleApplications.length === 0 ? (
                     <TableMessage

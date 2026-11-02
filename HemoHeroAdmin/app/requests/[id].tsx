@@ -43,6 +43,10 @@ import {
 } from '../../lib/api';
 
 import {
+  useLiveRefresh,
+} from '../../lib/useLiveRefresh';
+
+import {
   clearAdminSession,
   getAdminAccessToken,
   getAdminProfile,
@@ -142,13 +146,15 @@ export default function AdminBloodRequestDetailScreen() {
   // request has been shown.
   // ==========================================================
 
-  const loadRequest = useCallback(async () => {
+  const loadRequest = useCallback(async (live = false) => {
     if (!id) {
       return;
     }
 
     try {
-      setError('');
+      if (!live) {
+        setError('');
+      }
 
       const token =
         await getAdminAccessToken();
@@ -175,6 +181,8 @@ export default function AdminBloodRequestDetailScreen() {
           id
         );
 
+      setError('');
+
       setRequest(result.request);
 
       setResponses(
@@ -187,6 +195,10 @@ export default function AdminBloodRequestDetailScreen() {
           DEFAULT_RESPONSE_SUMMARY
       );
     } catch (loadError) {
+      if (live) {
+        return;
+      }
+
       console.log(
         'ADMIN BLOOD REQUEST DETAIL ERROR:',
         loadError
@@ -206,6 +218,10 @@ export default function AdminBloodRequestDetailScreen() {
     useCallback(() => {
       loadRequest();
     }, [loadRequest])
+  );
+
+  useLiveRefresh(() =>
+    loadRequest(true)
   );
 
   // ==========================================================
@@ -359,7 +375,7 @@ export default function AdminBloodRequestDetailScreen() {
                     primary
                     scale={s}
                     fontScale={fs}
-                    onPress={loadRequest}
+                    onPress={() => loadRequest()}
                   />
                 </View>
               </View>

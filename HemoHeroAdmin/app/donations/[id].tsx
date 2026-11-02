@@ -4,6 +4,7 @@ import {
   useCallback,
   useMemo,
   useState,
+  useRef,
 } from 'react';
 
 import {
@@ -46,6 +47,10 @@ import {
   type AdminProfile,
   type AdminReportUser,
 } from '../../lib/api';
+
+import {
+  useLiveRefresh,
+} from '../../lib/useLiveRefresh';
 
 import {
   clearAdminSession,
@@ -197,14 +202,27 @@ export default function DonationReviewScreen() {
   // LOAD DONATION
   // ==========================================================
 
-  const loadDonation = useCallback(async () => {
+  // A live check that was overtaken by a newer load (e.g. after
+  // reviewing the record) is dropped.
+  const loadGuard = useRef(0);
+
+  const loadDonation = useCallback(async (live = false) => {
     if (!id) {
       return;
     }
 
+    if (!live) {
+      loadGuard.current += 1;
+    }
+
+    const thisLoad =
+      loadGuard.current;
+
     try {
-      setLoading(true);
-      setError('');
+      if (!live) {
+        setLoading(true);
+        setError('');
+      }
 
       const token =
         await getAdminAccessToken();
@@ -231,8 +249,18 @@ export default function DonationReviewScreen() {
           id
         );
 
+      if (thisLoad !== loadGuard.current) {
+        return;
+      }
+
+      setError('');
+
       setDetail(result);
     } catch (loadError) {
+      if (live) {
+        return;
+      }
+
       console.log(
         'ADMIN DONATION DETAIL ERROR:',
         loadError
@@ -244,7 +272,9 @@ export default function DonationReviewScreen() {
           : 'Unable to load donation.'
       );
     } finally {
-      setLoading(false);
+      if (!live) {
+        setLoading(false);
+      }
     }
   }, [id]);
 
@@ -252,6 +282,10 @@ export default function DonationReviewScreen() {
     useCallback(() => {
       loadDonation();
     }, [loadDonation])
+  );
+
+  useLiveRefresh(() =>
+    loadDonation(true)
   );
 
   // ==========================================================
@@ -749,7 +783,7 @@ export default function DonationReviewScreen() {
                   </Pressable>
 
                   <Pressable
-                    onPress={loadDonation}
+                    onPress={() => loadDonation()}
                     style={({ pressed }) => [
                       styles.retryButton,
 
