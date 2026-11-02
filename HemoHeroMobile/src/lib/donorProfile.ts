@@ -59,8 +59,33 @@ export type PublicDonorProfile = Partial<DonorStats> & {
   updated_at?: string | null;
 };
 
+// The donor and your active request: their latest offer and
+// your latest invitation to them (null when there is none).
+export type DonorConnection = {
+  request_id: string;
+
+  blood_type: string;
+
+  facility_name: string | null;
+
+  offer: {
+    id: string;
+    status: string;
+    created_at: string;
+  } | null;
+
+  invitation: {
+    id: string;
+    status: string;
+    created_at: string;
+  } | null;
+};
+
 export type PublicDonorProfileResponse = {
   donor: PublicDonorProfile;
+
+  // Null without an active request.
+  connection: DonorConnection | null;
 };
 
 // ============================================================
@@ -367,6 +392,28 @@ export async function getPublicDonorProfile(
       updated_at:
         data.donor.updated_at ||
         null,
+
+      // Completed donations and requester ratings.
+      ...(typeof data.donor.donations_count ===
+      'number'
+        ? {
+            donations_count:
+              data.donor.donations_count,
+
+            ratings_count:
+              Number(
+                data.donor.ratings_count
+              ) || 0,
+
+            average_rating:
+              typeof data.donor
+                .average_rating ===
+              'number'
+                ? data.donor
+                    .average_rating
+                : null,
+          }
+        : {}),
     };
 
   // ==========================================================
@@ -375,5 +422,10 @@ export async function getPublicDonorProfile(
 
   return {
     donor,
+
+    connection:
+      data.connection?.request_id
+        ? data.connection
+        : null,
   };
 }

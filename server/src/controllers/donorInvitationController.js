@@ -878,6 +878,77 @@ async function sendDonorInvitation(
     }
 
     // --------------------------------------------------------
+    // ALREADY OFFERED
+    //
+    // The donor already offered to help with this request: their
+    // offer is on the request, so there is nothing to invite.
+    // --------------------------------------------------------
+
+    const {
+      data:
+        existingOffer,
+      error:
+        offerError,
+    } =
+      await supabaseAdmin
+        .from(
+          'blood_request_responses'
+        )
+        .select(
+          'id, status'
+        )
+        .eq(
+          'request_id',
+          requestId
+        )
+        .eq(
+          'donor_id',
+          donorId
+        )
+        .in(
+          'status',
+          [
+            'pending',
+            'accepted',
+          ]
+        )
+        .limit(1)
+        .maybeSingle();
+
+    if (
+      offerError
+    ) {
+      console.error(
+        'CHECK DONOR OFFER ERROR:',
+        offerError
+      );
+
+      return res
+        .status(500)
+        .json({
+          error:
+            'Unable to check whether this donor already offered.',
+        });
+    }
+
+    if (
+      existingOffer
+    ) {
+      return res
+        .status(409)
+        .json({
+          error:
+            existingOffer.status ===
+            'accepted'
+              ? 'You already accepted this donor\'s offer for this request.'
+              : 'This donor already offered to help with this request. Their offer is on your request.',
+
+          code:
+            'DONOR_ALREADY_OFFERED',
+        });
+    }
+
+    // --------------------------------------------------------
     // EXISTING INVITATION ENTITY
     // --------------------------------------------------------
 

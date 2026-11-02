@@ -36,6 +36,8 @@ Write each change under **Unreleased** as you make it. `node scripts/version.js 
   - Signing in with the email of a deleted account shows that it was removed and why.
   - Sign-in only says an account is deactivated after the password is right, so nobody learns it from an email alone.
 - Mobile: the donor application status screen updates by itself when an admin approves or rejects it. While pending it checks every 10 seconds, right away when the notification arrives or the app comes back, and you can pull down to refresh.
+- Mobile, donor profile: when the donor already offered to help with your active request, the profile says so with **View Their Offer** (or **Open Chat** once accepted) instead of **Request Help**. After you ask a donor, it shows "Request sent". The header has the curved edge, and the donations and rating card shows again (the app had been dropping those figures).
+- Fixed: you could invite a donor who had already offered to help with the same request. The server now refuses with a message that their offer is on your request.
 - Fixed: **Browse Blood Requests** on the approved donor application opened your own Requests tab. It now opens Search on the Requests tab, showing requests near you.
 - Fixed: Verify Email, Forgot Password and Reset Password showed a red band above the keyboard on phones.
 - Fixed: in Complete your Profile, tapping a day in the birthday calendar saved it and closed the calendar before you'd set the month and year. The day is now only highlighted; change the year or month in any order (the day carries over), then tap **Use This Date**.

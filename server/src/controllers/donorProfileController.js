@@ -181,6 +181,135 @@ function buildFullName(
 // donor distance without exposing the donor's coordinates.
 // ============================================================
 
+// ============================================================
+// YOUR REQUEST AND THIS DONOR
+//
+// On the viewer's active request: the donor's latest offer and
+// the viewer's latest invitation to them. The profile then shows
+// "offered to help" or "invitation sent" instead of a button to
+// send another request. Null without an active request.
+// ============================================================
+
+async function getViewerConnection(
+  viewerId,
+  donorId
+) {
+  try {
+    const {
+      data:
+        request,
+      error:
+        requestError
+    } =
+      await supabaseAdmin
+        .from(
+          'blood_requests'
+        )
+        .select(
+          'id, blood_type, facility_name'
+        )
+        .eq(
+          'requester_id',
+          viewerId
+        )
+        .eq(
+          'status',
+          'active'
+        )
+        .order(
+          'created_at',
+          {
+            ascending:
+              false
+          }
+        )
+        .limit(1)
+        .maybeSingle();
+
+    if (requestError) {
+      console.error(
+        'DONOR PROFILE CONNECTION ERROR:',
+        requestError
+      );
+
+      return null;
+    }
+
+    if (!request) {
+      return null;
+    }
+
+    const latest =
+      table =>
+        supabaseAdmin
+          .from(
+            table
+          )
+          .select(
+            'id, status, created_at'
+          )
+          .eq(
+            'request_id',
+            request.id
+          )
+          .eq(
+            'donor_id',
+            donorId
+          )
+          .order(
+            'created_at',
+            {
+              ascending:
+                false
+            }
+          )
+          .limit(1)
+          .maybeSingle();
+
+    const [
+      offerResult,
+      invitationResult
+    ] =
+      await Promise.all([
+        latest(
+          'blood_request_responses'
+        ),
+        latest(
+          'blood_request_invitations'
+        )
+      ]);
+
+    return {
+      request_id:
+        request.id,
+
+      blood_type:
+        request.blood_type,
+
+      facility_name:
+        request.facility_name ||
+        null,
+
+      offer:
+        offerResult.data ||
+        null,
+
+      invitation:
+        invitationResult.data ||
+        null
+    };
+  } catch (
+    error
+  ) {
+    console.error(
+      'DONOR PROFILE CONNECTION ERROR:',
+      error
+    );
+
+    return null;
+  }
+}
+
 async function getPublicDonorProfile(
   req,
   res
@@ -508,6 +637,12 @@ async function getPublicDonorProfile(
         ])
       ).get(user.id);
 
+    const connection =
+      await getViewerConnection(
+        currentUserId,
+        user.id
+      );
+
     return res
       .status(200)
       .json({
@@ -612,7 +747,10 @@ async function getPublicDonorProfile(
             donorApplication
               .updated_at ||
             null
-        }
+        },
+
+        // Their offer / your invitation on your active request.
+        connection
       });
   } catch (
     error

@@ -35,8 +35,14 @@ import {
 } from '../../lib/donorProfile';
 
 import type {
+  DonorConnection,
   PublicDonorProfile,
 } from '../../lib/donorProfile';
+
+import {
+  HEADER_WAVE_HEIGHT,
+  HeroWave,
+} from '../../components/HeroArt';
 
 import {
   getMyBloodRequests,
@@ -183,6 +189,15 @@ export default function DonorDetailsScreen() {
   // ==========================================================
   // DONOR
   // ==========================================================
+
+  // Their offer, or your invitation, on your active request.
+  const [
+    connection,
+    setConnection,
+  ] =
+    useState<DonorConnection | null>(
+      null
+    );
 
   const [
     donor,
@@ -435,6 +450,10 @@ export default function DonorDetailsScreen() {
 
           setDonor(
             result.donor
+          );
+
+          setConnection(
+            result.connection
           );
         } catch (error) {
           console.log(
@@ -710,6 +729,36 @@ export default function DonorDetailsScreen() {
         donor.id
       );
 
+      const sentFor =
+        activeRequests.find(
+          request =>
+            request.id ===
+            selectedRequestId
+        );
+
+      setConnection({
+        request_id:
+          selectedRequestId,
+
+        blood_type:
+          sentFor?.blood_type ||
+          '',
+
+        facility_name:
+          sentFor?.facility_name ||
+          null,
+
+        offer:
+          null,
+
+        invitation: {
+          id: '',
+          status: 'pending',
+          created_at:
+            new Date().toISOString(),
+        },
+      });
+
       setRequestModalVisible(
         false
       );
@@ -755,6 +804,92 @@ export default function DonorDetailsScreen() {
 
     router.push(
       '/blood-request/create' as any
+    );
+  }
+
+  // ==========================================================
+  // YOUR REQUEST AND THIS DONOR
+  //
+  // When they already offered on your active request (or you
+  // already asked them), say so instead of offering "Request
+  // Help" again.
+  // ==========================================================
+
+  const activeOffer =
+    connection?.offer &&
+    (connection.offer.status ===
+      'pending' ||
+      connection.offer.status ===
+        'accepted')
+      ? connection.offer
+      : null;
+
+  const pendingInvitation =
+    !activeOffer &&
+    connection?.invitation?.status ===
+      'pending'
+      ? connection.invitation
+      : null;
+
+  function formatSentDate(
+    value: string
+  ) {
+    const date =
+      new Date(value);
+
+    if (Number.isNaN(date.getTime())) {
+      return '';
+    }
+
+    return date.toLocaleDateString(
+      'en-US',
+      {
+        month: 'short',
+        day: 'numeric',
+      }
+    );
+  }
+
+  function describeYourRequest() {
+    if (!connection) {
+      return '';
+    }
+
+    return [
+      connection.blood_type
+        ? `your ${connection.blood_type} request`
+        : 'your request',
+
+      connection.facility_name
+        ? `at ${connection.facility_name}`
+        : '',
+    ]
+      .filter(Boolean)
+      .join(' ');
+  }
+
+  function openConnection() {
+    if (
+      !connection ||
+      !activeOffer
+    ) {
+      return;
+    }
+
+    if (
+      activeOffer.status ===
+      'accepted'
+    ) {
+      router.push(
+        `/blood-request/${connection.request_id}/coordination/${activeOffer.id}` as any
+      );
+
+      return;
+    }
+
+    // Back to the request when they came from it.
+    router.dismissTo(
+      `/blood-request/${connection.request_id}` as any
     );
   }
 
@@ -959,6 +1094,12 @@ export default function DonorDetailsScreen() {
                 styles.headerCircleRight,
                 insets.top
               )}
+            />
+
+            {/* Curved bottom edge, like Profile. */}
+            <HeroWave
+              color={COLORS.page}
+              height={HEADER_WAVE_HEIGHT}
             />
 
             <View
@@ -1423,6 +1564,121 @@ export default function DonorDetailsScreen() {
                   />
                 </View>
 
+                {activeOffer ||
+                pendingInvitation ? (
+                  <View
+                    style={[
+                      styles.connectionCard,
+                      activeOffer?.status ===
+                        'accepted' &&
+                        styles.connectionCardAccepted,
+                    ]}
+                  >
+                    <View
+                      style={
+                        styles.connectionRow
+                      }
+                    >
+                      <View
+                        style={[
+                          styles.connectionIcon,
+                          activeOffer?.status ===
+                            'accepted' &&
+                            styles.connectionIconAccepted,
+                        ]}
+                      >
+                        <MaterialIcons
+                          name={
+                            activeOffer?.status ===
+                            'accepted'
+                              ? 'check-circle'
+                              : activeOffer
+                                ? 'volunteer-activism'
+                                : 'schedule'
+                          }
+                          size={22}
+                          color={
+                            activeOffer?.status ===
+                            'accepted'
+                              ? COLORS.green
+                              : COLORS.redButton
+                          }
+                        />
+                      </View>
+
+                      <View
+                        style={
+                          styles.connectionText
+                        }
+                      >
+                        <Text
+                          style={
+                            styles.connectionTitle
+                          }
+                        >
+                          {activeOffer?.status ===
+                          'accepted'
+                            ? 'You accepted their offer'
+                            : activeOffer
+                              ? 'They offered to help'
+                              : 'Request sent'}
+                        </Text>
+
+                        <Text
+                          style={
+                            styles.connectionSubtitle
+                          }
+                        >
+                          {activeOffer
+                            ? `For ${describeYourRequest()}, ${formatSentDate(activeOffer.created_at)}.`
+                            : `You asked them to help with ${describeYourRequest()}. Waiting for their answer.`}
+                        </Text>
+                      </View>
+                    </View>
+
+                    {activeOffer ? (
+                      <TouchableOpacity
+                        style={[
+                          styles.connectionButton,
+                          activeOffer.status ===
+                            'accepted' &&
+                            styles.connectionButtonAccepted,
+                        ]}
+                        activeOpacity={
+                          0.85
+                        }
+                        onPress={
+                          openConnection
+                        }
+                      >
+                        <MaterialIcons
+                          name={
+                            activeOffer.status ===
+                            'accepted'
+                              ? 'chat'
+                              : 'visibility'
+                          }
+                          size={18}
+                          color={
+                            COLORS.white
+                          }
+                        />
+
+                        <Text
+                          style={
+                            styles.requestHelpText
+                          }
+                        >
+                          {activeOffer.status ===
+                          'accepted'
+                            ? 'Open Chat'
+                            : 'View Their Offer'}
+                        </Text>
+                      </TouchableOpacity>
+                    ) : null}
+                  </View>
+                ) : (
+                <>
                 <TouchableOpacity
                   style={[
                     styles.requestHelpButton,
@@ -1483,6 +1739,8 @@ export default function DonorDetailsScreen() {
                     Sends your active request if their blood type matches.
                   </Text>
                 </View>
+                </>
+                )}
 
                 <View
                   style={
@@ -2540,7 +2798,7 @@ const styles =
         16,
 
       paddingBottom:
-        13,
+        13 + HEADER_WAVE_HEIGHT,
 
       overflow:
         'hidden',
@@ -3038,6 +3296,74 @@ const styles =
 
       backgroundColor:
         COLORS.border,
+    },
+
+    // Their offer / your invitation, instead of Request Help.
+    connectionCard: {
+      marginTop: 16,
+      padding: 16,
+      gap: 14,
+      borderRadius: 16,
+      borderWidth: 1,
+      borderColor: '#F0D2D2',
+      backgroundColor: '#FFF6F6',
+    },
+
+    connectionCardAccepted: {
+      borderColor: '#CDEBD7',
+      backgroundColor: '#F1FAF4',
+    },
+
+    connectionRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 12,
+    },
+
+    connectionIcon: {
+      width: 44,
+      height: 44,
+      borderRadius: 12,
+      alignItems: 'center',
+      justifyContent: 'center',
+      backgroundColor: '#FDECEC',
+    },
+
+    connectionIconAccepted: {
+      backgroundColor: '#E2F5E9',
+    },
+
+    connectionText: {
+      flex: 1,
+      minWidth: 0,
+    },
+
+    connectionTitle: {
+      color: COLORS.black,
+      fontFamily: 'Poppins_600SemiBold',
+      fontSize: 15,
+    },
+
+    connectionSubtitle: {
+      marginTop: 2,
+      color: COLORS.muted,
+      fontFamily: 'Inter_400Regular',
+      fontSize: 13,
+      lineHeight: 18,
+    },
+
+    connectionButton: {
+      height: 48,
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: 8,
+      borderRadius: 12,
+      backgroundColor: COLORS.redButton,
+    },
+
+    connectionButtonAccepted: {
+      backgroundColor: COLORS.green,
     },
 
     requestHelpButton: {
