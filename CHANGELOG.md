@@ -29,6 +29,7 @@ Write each change under **Unreleased** as you make it. `node scripts/version.js 
   - Same outlined fields as Sign Up. First and last name sit side by side, and gender is a three-way switch.
   - "Use my current location" is a large card that shows what it found. Back and Next stay in a bar at the bottom on every step; it hides while the keyboard is open.
   - The last screen says "You're all set!" with a summary of what was saved.
+- Fixed: the admin portal on an iPad (Expo Go) couldn't reach the server, because `.env` pointed at `localhost` (the iPad itself). It now finds the server on the computer running Expo, like the mobile app, so no IP needs typing in.
 - Fixed: the back button on the first Complete your Profile step did nothing. It now asks "Leave setup?" and signs you out (Android's back button too); you finish the profile the next time you sign in. The "Thank You" screen no longer has a back button, since the profile is already saved.
 
 ## 1.2.0 - 2026-10-25

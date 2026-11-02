@@ -3,18 +3,90 @@
 // API CLIENT
 // ============================================================
 
+import { Platform } from 'react-native';
+
+import Constants from 'expo-constants';
+
 import { clearAdminSession } from './session';
 
 import { goToAdminSignIn } from './signInRoute';
 
 import { isAdminRole } from './roles';
 
-const RAW_API_URL =
-  process.env.EXPO_PUBLIC_API_URL ||
-  'http://localhost:5000';
+// ============================================================
+// API ADDRESS
+//
+// The API server runs on the same computer as Expo, on port
+// 5000. In a browser that is the computer that served the
+// page; in Expo Go (an iPad) it is the computer Expo Go loaded
+// the portal from. So the iPad finds the server on any Wi-Fi
+// without editing .env (same as the mobile app).
+//
+// EXPO_PUBLIC_API_URL still wins when it names a real server
+// (e.g. a deployed API). A localhost value is treated like
+// "not set": on an iPad, localhost is the iPad itself.
+// ============================================================
+
+const DEFAULT_API_PORT = '5000';
+
+function isLocalhostUrl(url: string) {
+  return /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?(\/|$)/i.test(
+    url
+  );
+}
+
+function resolveApiUrl() {
+  const configured =
+    process.env.EXPO_PUBLIC_API_URL?.trim() ||
+    '';
+
+  if (
+    configured &&
+    !isLocalhostUrl(configured)
+  ) {
+    return configured;
+  }
+
+  // Keep the port from a localhost setting (e.g. :5001).
+  const port =
+    configured.match(
+      /:(\d+)(\/|$)/
+    )?.[1] ||
+    DEFAULT_API_PORT;
+
+  if (Platform.OS === 'web') {
+    const host =
+      typeof window !== 'undefined' &&
+      window.location?.hostname
+        ? window.location.hostname
+        : 'localhost';
+
+    return `http://${host}:${port}`;
+  }
+
+  // "192.168.1.5:8082" -> "192.168.1.5"
+  const devServer =
+    Constants.expoConfig?.hostUri ||
+    Constants.expoGoConfig?.debuggerHost ||
+    '';
+
+  const host =
+    devServer
+      .split(':')[0]
+      ?.trim();
+
+  return `http://${host || 'localhost'}:${port}`;
+}
 
 export const API_URL =
-  RAW_API_URL.replace(/\/+$/, '');
+  resolveApiUrl().replace(/\/+$/, '');
+
+if (__DEV__) {
+  console.log(
+    '[Hemo-Hero Admin] API server:',
+    API_URL
+  );
+}
 
 // ============================================================
 // GENERAL AUTH TYPES
