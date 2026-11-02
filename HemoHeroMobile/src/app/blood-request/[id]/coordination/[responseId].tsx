@@ -3308,6 +3308,16 @@ export default function DonationCoordinationScreen() {
   const canRate =
     donationActive;
 
+  // A donation can be confirmed once a meeting time is agreed or
+  // the donor has arrived (the server checks this too).
+  const canConfirmNow =
+    scheduleAgreed ||
+    Boolean(
+      tripInfo?.can_track &&
+        tripInfo.trip?.status ===
+          'arrived'
+    );
+
   // The agreed meeting time passed and nothing was recorded:
   // either side can report that the other didn't come.
   const canReportNoShow =
@@ -4343,16 +4353,22 @@ export default function DonationCoordinationScreen() {
                                     myRole ===
                                       'donor'
                                   ? 'The requester confirms it after you donate.'
-                                  : undefined
+                                  : !donation &&
+                                      !canConfirmNow &&
+                                      !isClosed &&
+                                      !isReleased
+                                    ? 'Agree on a meeting time first, then confirm it here.'
+                                    : undefined
                           }
                           actionLabel={
                             myRole ===
                               'requester' &&
                             !isClosed &&
                             !isReleased &&
-                            (!donation ||
-                              donation.status ===
-                                'rejected')
+                            (donation
+                              ? donation.status ===
+                                'rejected'
+                              : canConfirmNow)
                               ? 'Confirm'
                               : undefined
                           }
@@ -5039,6 +5055,26 @@ export default function DonationCoordinationScreen() {
                         () =>
                           setRatingMode(
                             'feedback'
+                          ),
+                        300
+                      );
+                    }}
+                  />
+                ) : null}
+
+                {canDispute ? (
+                  <OptionRow
+                    icon="alert-circle-outline"
+                    title="Report a problem"
+                    subtitle="Something is wrong with this donation record"
+                    danger
+                    onPress={() => {
+                      closeSupport();
+
+                      setTimeout(
+                        () =>
+                          setRatingMode(
+                            'dispute'
                           ),
                         300
                       );

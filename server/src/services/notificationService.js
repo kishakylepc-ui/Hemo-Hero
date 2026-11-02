@@ -16,6 +16,15 @@ const {
   './pushService'
 );
 
+// Notifications that belong to one conversation (unread badges).
+const CHAT_NOTIFICATION_TYPES = [
+  'coordination_message',
+  'coordination_schedule',
+  'coordination_trip_started',
+  'coordination_trip_near',
+  'coordination_trip_arrived'
+];
+
 // ============================================================
 // HELPERS
 // ============================================================
@@ -368,6 +377,7 @@ async function notifyAdmins({
 // ============================================================
 
 module.exports = {
+  CHAT_NOTIFICATION_TYPES,
   createNotification,
   createNotifications,
   notifyAdmins

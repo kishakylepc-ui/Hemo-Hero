@@ -1010,6 +1010,140 @@ async function recordDonation(
     }
 
     // --------------------------------------------------------
+    // MEETING TIME AGREED
+    //
+    // Accepting an offer only opens the chat; a donation can be
+    // confirmed once both agreed on when to meet there.
+    // --------------------------------------------------------
+
+    const {
+      data:
+        schedule,
+      error:
+        scheduleError
+    } =
+      await supabaseAdmin
+        .from(
+          'blood_request_coordination_schedules'
+        )
+        .select(
+          'id,status,scheduled_at'
+        )
+        .eq(
+          'request_id',
+          requestId
+        )
+        .eq(
+          'response_id',
+          responseId
+        )
+        .maybeSingle();
+
+    if (scheduleError) {
+      console.error(
+        'RECORD DONATION SCHEDULE LOOKUP ERROR:',
+        scheduleError
+      );
+
+      return res
+        .status(500)
+        .json({
+          error:
+            'Unable to check the meeting time.'
+        });
+    }
+
+    // Also allowed, because the chat offers Confirm for both: the
+    // donor already arrived, or a rejected record is confirmed again.
+    let mayConfirm =
+      isScheduleAgreed(
+        schedule
+      );
+
+    if (!mayConfirm) {
+      const [
+        {
+          data:
+            arrivedTrip,
+          error:
+            tripError
+        },
+        {
+          data:
+            rejectedDonation,
+          error:
+            rejectedError
+        }
+      ] =
+        await Promise.all([
+          supabaseAdmin
+            .from(
+              'blood_request_trips'
+            )
+            .select(
+              'id'
+            )
+            .eq(
+              'response_id',
+              responseId
+            )
+            .eq(
+              'status',
+              'arrived'
+            )
+            .limit(1)
+            .maybeSingle(),
+
+          supabaseAdmin
+            .from(
+              'blood_donations'
+            )
+            .select(
+              'id'
+            )
+            .eq(
+              'response_id',
+              responseId
+            )
+            .eq(
+              'status',
+              'rejected'
+            )
+            .limit(1)
+            .maybeSingle()
+        ]);
+
+      if (
+        tripError ||
+        rejectedError
+      ) {
+        console.error(
+          'RECORD DONATION MEETING CHECK ERROR:',
+          tripError ||
+            rejectedError
+        );
+      }
+
+      mayConfirm =
+        Boolean(
+          arrivedTrip ||
+            rejectedDonation
+        );
+    }
+
+    if (!mayConfirm) {
+      return res
+        .status(409)
+        .json({
+          error:
+            'Agree on a meeting time in the chat first. You can confirm the donation after that.',
+
+          code:
+            'SCHEDULE_NOT_AGREED'
+        });
+    }
+
+    // --------------------------------------------------------
     // ALREADY CONFIRMED?
     // --------------------------------------------------------
 
@@ -1732,6 +1866,9 @@ async function submitDonationFeedback(
           request_id:
             donation.request_id,
 
+          response_id:
+            donation.response_id,
+
           donation_id:
             donation.id,
 
@@ -1941,6 +2078,9 @@ async function disputeDonation(
       data: {
         request_id:
           updated.request_id,
+
+        response_id:
+          updated.response_id,
 
         donation_id:
           updated.id,

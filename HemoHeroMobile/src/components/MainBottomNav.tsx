@@ -23,6 +23,10 @@ import {
   useSafeAreaInsets,
 } from 'react-native-safe-area-context';
 
+import {
+  useUnreadMessages,
+} from '../lib/useUnreadMessages';
+
 // ============================================================
 // FLOATING PILL
 //
@@ -143,6 +147,9 @@ export default function MainBottomNav({
 
   const pathname =
     usePathname();
+
+  const unreadMessages =
+    useUnreadMessages();
 
   // ==========================================================
   // NAVIGATION
@@ -284,6 +291,18 @@ export default function MainBottomNav({
             activeTab ===
             item.key;
 
+          const badge =
+            item.key ===
+              'chat' &&
+            unreadMessages >
+              0
+              ? unreadMessages > 9
+                ? '9+'
+                : String(
+                    unreadMessages
+                  )
+              : '';
+
           return (
             <TouchableOpacity
               key={
@@ -303,7 +322,9 @@ export default function MainBottomNav({
               }
               accessibilityRole="button"
               accessibilityLabel={
-                item.label
+                badge
+                  ? `${item.label}, ${unreadMessages} unread`
+                  : item.label
               }
               accessibilityState={{
                 selected:
@@ -315,24 +336,43 @@ export default function MainBottomNav({
                 )
               }
             >
-              <MaterialIcons
-                name={
-                  active
-                    ? item.activeIcon
-                    : item.inactiveIcon
-                }
-                size={
-                  item.key ===
-                  'search'
-                    ? 24
-                    : 25
-                }
-                color={
-                  active
-                    ? COLORS.white
-                    : COLORS.inactive
-                }
-              />
+              <View>
+                <MaterialIcons
+                  name={
+                    active
+                      ? item.activeIcon
+                      : item.inactiveIcon
+                  }
+                  size={
+                    item.key ===
+                    'search'
+                      ? 24
+                      : 25
+                  }
+                  color={
+                    active
+                      ? COLORS.white
+                      : COLORS.inactive
+                  }
+                />
+
+                {badge ? (
+                  <View
+                    style={
+                      styles.badge
+                    }
+                  >
+                    <Text
+                      numberOfLines={1}
+                      style={
+                        styles.badgeText
+                      }
+                    >
+                      {badge}
+                    </Text>
+                  </View>
+                ) : null}
+              </View>
 
               <Text
                 numberOfLines={1}
@@ -435,6 +475,59 @@ const styles =
 
       borderRadius:
         (PILL_HEIGHT - 12) / 2,
+    },
+
+    // Unread messages on the Chat tab.
+    badge: {
+      position:
+        'absolute',
+
+      top:
+        -4,
+
+      right:
+        -9,
+
+      minWidth:
+        17,
+
+      height:
+        17,
+
+      paddingHorizontal:
+        4,
+
+      alignItems:
+        'center',
+
+      justifyContent:
+        'center',
+
+      borderRadius:
+        8.5,
+
+      borderWidth:
+        1.5,
+
+      borderColor:
+        COLORS.redDark,
+
+      backgroundColor:
+        COLORS.white,
+    },
+
+    badgeText: {
+      color:
+        COLORS.redDark,
+
+      fontFamily:
+        'Inter_700Bold',
+
+      fontSize:
+        10,
+
+      lineHeight:
+        12,
     },
 
     navItemActive: {

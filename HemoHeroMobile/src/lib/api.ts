@@ -1515,6 +1515,26 @@ export type NotificationPreferences = {
   donations: boolean;
 };
 
+// Unread chat notifications only (the Chat tab's badge).
+export async function getUnreadMessageCount(
+  accessToken: string
+): Promise<{
+  unread_count: number;
+}> {
+  return request(
+    '/api/notifications/unread-count?group=messages',
+    {
+      method:
+        'GET',
+
+      headers: {
+        Authorization:
+          `Bearer ${accessToken}`,
+      },
+    }
+  );
+}
+
 export async function getNotificationPreferences(
   accessToken: string
 ): Promise<{

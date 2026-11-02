@@ -37,6 +37,14 @@ Write each change under **Unreleased** as you make it. `node scripts/version.js 
   - Sign-in only says an account is deactivated after the password is right, so nobody learns it from an email alone.
 - Mobile: the donor application status screen updates by itself when an admin approves or rejects it. While pending it checks every 10 seconds, right away when the notification arrives or the app comes back, and you can pull down to refresh.
 - Mobile, donor profile: when the donor already offered to help with your active request, the profile says so with **View Their Offer** (or **Open Chat** once accepted) instead of **Request Help**. After you ask a donor, it shows "Request sent". The header has the curved edge, and the donations and rating card shows again (the app had been dropping those figures).
+- Mobile: confirming and rating a donation now happen only in the chat.
+  - The request page no longer has **Confirm Donation** or **Rate Donor**. Each accepted donor's card has **Open Chat** and a line saying what to do next, and still shows the donation record and ratings.
+  - Accepting an offer asks you to **Open Chat**.
+  - The donor's view of a request no longer has **Rate the Requester** or **Report a problem**. It still shows the record and ratings, and says to use the chat. **Report a problem** is now also in the chat's menu.
+  - Donation notifications open the chat with the other person, for both sides.
+  - **Mark as Fulfilled** and **Cancel Request** stay on the request page, because they apply to the whole request and it can have several donors.
+- Mobile: the **Chat** tab shows how many unread chat alerts you have, on every screen that has the bottom bar. It updates every 15 seconds, when an alert arrives, and when you come back to a screen or the app. Chats that can no longer be opened aren't counted.
+- Fixed: a donation could be confirmed before a meeting was agreed. Accepting an offer showed **Confirm Donation** right away, and the chat's Details section always offered it. Confirming now needs an agreed meeting time or a donor who has arrived. A record that was not accepted can still be confirmed again. The server checks this too.
 - Fixed: you could invite a donor who had already offered to help with the same request. The server now refuses with a message that their offer is on your request.
 - Fixed: **Browse Blood Requests** on the approved donor application opened your own Requests tab. It now opens Search on the Requests tab, showing requests near you.
 - Fixed: Verify Email, Forgot Password and Reset Password showed a red band above the keyboard on phones.

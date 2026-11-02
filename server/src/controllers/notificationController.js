@@ -15,6 +15,12 @@ const {
 );
 
 const {
+  CHAT_NOTIFICATION_TYPES
+} = require(
+  '../services/notificationService'
+);
+
+const {
   getPreferences,
   isMissingTable,
   readPreferenceUpdates,
@@ -213,6 +219,107 @@ async function getMyNotifications(
 // GET /api/notifications/unread-count
 // ============================================================
 
+// Unread alerts from chats the person can still open. A chat closes
+// when its offer is withdrawn (e.g. the donor's account was
+// deactivated); its alerts would otherwise keep the Chat tab's badge
+// on with nothing to open.
+async function countUnreadChatNotifications(
+  userId
+) {
+  const {
+    data:
+      rows,
+    error
+  } =
+    await supabaseAdmin
+      .from(
+        'notifications'
+      )
+      .select(
+        'data'
+      )
+      .eq(
+        'user_id',
+        userId
+      )
+      .eq(
+        'is_read',
+        false
+      )
+      .in(
+        'type',
+        CHAT_NOTIFICATION_TYPES
+      );
+
+  if (error) {
+    throw error;
+  }
+
+  const responseIds = [
+    ...new Set(
+      (rows || [])
+        .map(
+          row =>
+            row.data
+              ?.response_id
+        )
+        .filter(Boolean)
+    )
+  ];
+
+  if (
+    !responseIds.length
+  ) {
+    return 0;
+  }
+
+  const {
+    data:
+      openResponses,
+    error:
+      responseError
+  } =
+    await supabaseAdmin
+      .from(
+        'blood_request_responses'
+      )
+      .select(
+        'id'
+      )
+      .in(
+        'id',
+        responseIds
+      )
+      .in(
+        'status',
+        [
+          'accepted',
+          'no_show'
+        ]
+      );
+
+  if (responseError) {
+    throw responseError;
+  }
+
+  const openIds =
+    new Set(
+      (openResponses || [])
+        .map(
+          response =>
+            response.id
+        )
+    );
+
+  return rows.filter(
+    row =>
+      openIds.has(
+        row.data
+          ?.response_id
+      )
+  ).length;
+}
+
 async function getUnreadNotificationCount(
   req,
   res
@@ -229,6 +336,21 @@ async function getUnreadNotificationCount(
         .json({
           error:
             'Unauthorized'
+        });
+    }
+
+    // ?group=messages: the Chat tab's badge.
+    if (
+      req.query?.group ===
+      'messages'
+    ) {
+      return res
+        .status(200)
+        .json({
+          unread_count:
+            await countUnreadChatNotifications(
+              userId
+            )
         });
     }
 

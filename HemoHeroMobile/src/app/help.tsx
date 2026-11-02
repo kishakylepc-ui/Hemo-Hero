@@ -96,12 +96,12 @@ const STEPS: {
   {
     icon: 'task-alt',
     title: 'Confirm the donation',
-    text: 'After the donor donates, confirm it on your request. It is saved to both of your donation histories.',
+    text: 'After the donor donates, confirm it in your chat with them. It is saved to both of your donation histories.',
   },
   {
     icon: 'star-outline',
     title: 'Rate each other',
-    text: 'Both of you can leave a rating and a short note about how it went.',
+    text: 'In the chat, both of you can leave a rating and a short note about how it went.',
   },
 ];
 

@@ -269,8 +269,8 @@ export function openNotificationDestination(
   // DONATION RECORD (confirmed / verified / not verified)
   //
   // Sent to both sides; data.recipient_role says which.
-  // Donor -> their view of the request.
-  // Requester -> their request (donor cards show status).
+  // Opens the chat, where confirming, rating and reporting happen.
+  // Without a response ID, opens that side's view of the request.
   // ========================================================
 
   if (
@@ -289,10 +289,12 @@ export function openNotificationDestination(
       requestId
     ) {
       router.push(
-        (data.recipient_role ===
-        'requester'
-          ? `/blood-request/${requestId}`
-          : `/blood-request/donor/${requestId}`) as any
+        (responseId
+          ? `/blood-request/${requestId}/coordination/${responseId}`
+          : data.recipient_role ===
+              'requester'
+            ? `/blood-request/${requestId}`
+            : `/blood-request/donor/${requestId}`) as any
       );
 
       return;

@@ -1,7 +1,6 @@
 import {
   type ReactNode,
   useCallback,
-  useEffect,
   useRef,
   useState,
 } from 'react';
@@ -67,7 +66,6 @@ import {
 
 import AppModal from '../../components/AppModal';
 import DonorTrust from '../../components/DonorTrust';
-import ConfirmDonationSheet from '../../components/ConfirmDonationSheet';
 
 import {
   getCoordinationInbox,
@@ -83,23 +81,11 @@ import {
 import {
   getFeedbackFrom,
   getRequestDonations,
-  recordDonation,
-  submitDonationFeedback,
 } from '../../lib/donations';
 
 import type {
   BloodDonation,
 } from '../../lib/donations';
-
-import DonationFeedbackModal from '../../components/DonationFeedbackModal';
-
-// One-tap phrases for rating a donor.
-const DONOR_FEEDBACK_NOTES = [
-  'Arrived on time',
-  'Very kind and helpful',
-  'Easy to coordinate with',
-  'Would recommend',
-];
 
 function bagsLabel(
   units?: number | null
@@ -316,20 +302,12 @@ export default function BloodRequestDetailsScreen() {
   const params =
     useLocalSearchParams<{
       id?: string | string[];
-      confirmDonation?: string | string[];
     }>();
 
   const requestId =
     Array.isArray(params.id)
       ? params.id[0]
       : params.id;
-
-  // Response ID passed from the donor chat's "Confirm Donation"
-  // button; opens the confirm dialog for that donor once.
-  const confirmDonationFor =
-    Array.isArray(params.confirmDonation)
-      ? params.confirmDonation[0]
-      : params.confirmDonation;
 
   // ==========================================================
   // STATE
@@ -437,30 +415,6 @@ export default function BloodRequestDetailsScreen() {
       BloodDonation[]
     >([]);
 
-  // Accepted donor whose donation is being confirmed.
-  const [
-    confirmResponse,
-    setConfirmResponse,
-  ] =
-    useState<RequestDonorResponse | null>(
-      null
-    );
-
-  // Donation the requester is rating (feedback dialog).
-  const [
-    feedbackDonation,
-    setFeedbackDonation,
-  ] =
-    useState<BloodDonation | null>(
-      null
-    );
-
-  const [
-    donationsLoaded,
-    setDonationsLoaded,
-  ] =
-    useState(false);
-
   // Chats with this request's donors: meeting time and unread
   // messages for each donor card.
   const [
@@ -470,9 +424,6 @@ export default function BloodRequestDetailsScreen() {
     useState<
       CoordinationInboxItem[]
     >([]);
-
-  const autoConfirmHandled =
-    useRef(false);
 
   const insets =
     useSafeAreaInsets();
@@ -654,8 +605,6 @@ export default function BloodRequestDetailsScreen() {
             'LOAD DONATIONS ERROR:',
             error
           );
-        } finally {
-          setDonationsLoaded(true);
         }
       },
       [
@@ -727,55 +676,6 @@ export default function BloodRequestDetailsScreen() {
       ]
     )
   );
-
-  // Opened from the donor chat: show the confirm dialog for that
-  // donor once everything has loaded, unless a donation for them
-  // is already recorded.
-  useEffect(() => {
-    if (
-      autoConfirmHandled.current ||
-      !confirmDonationFor ||
-      !request ||
-      !donationsLoaded
-    ) {
-      return;
-    }
-
-    const response =
-      donorResponses.find(
-        item =>
-          item.id ===
-            confirmDonationFor &&
-          item.status ===
-            'accepted'
-      );
-
-    if (!response) {
-      return;
-    }
-
-    autoConfirmHandled.current = true;
-
-    const existing =
-      getDonationForResponse(
-        response.id
-      );
-
-    if (
-      !existing ||
-      existing.status ===
-        'rejected'
-    ) {
-      openDonationModal(
-        response
-      );
-    }
-  }, [
-    confirmDonationFor,
-    request,
-    donorResponses,
-    donationsLoaded,
-  ]);
 
   async function handleRefresh() {
     setRefreshing(true);
@@ -1224,12 +1124,21 @@ export default function BloodRequestDetailsScreen() {
 
       await loadDonorResponses();
 
-      showMessage(
+      // Next step is the chat: agree on when to meet there,
+      // and confirm the donation there later.
+      confirmAction(
         'Donor Accepted',
-
-        `${getDonorName(
+        `Open the chat with ${getDonorName(
           response
-        )}'s offer has been accepted.`
+        )} to agree on when to meet. You'll confirm the donation there too.`,
+        'Open Chat',
+        false,
+        () =>
+          handleCoordinate({
+            ...response,
+            status:
+              'accepted',
+          })
       );
     } catch (error) {
       showMessage(
@@ -1345,9 +1254,8 @@ export default function BloodRequestDetailsScreen() {
   // ==========================================================
   // DONATIONS
   //
-  // Requester confirms each accepted donor's donation; an
-  // admin then verifies it. Rejected records can be confirmed
-  // again with corrected details.
+  // Confirming and rating happen in the chat with each donor.
+  // This page only shows the records and what to do next.
   // ==========================================================
 
   const activeDonations =
@@ -1412,169 +1320,6 @@ export default function BloodRequestDetailsScreen() {
     );
   }
 
-  function openDonationModal(
-    response:
-      RequestDonorResponse
-  ) {
-    if (
-      !request ||
-      request.status !==
-        'active'
-    ) {
-      return;
-    }
-
-    setConfirmResponse(
-      response
-    );
-  }
-
-  // Throws on failure so the sheet can show the message and
-  // keep what was entered.
-  async function submitConfirmedDonation(
-    value: {
-      donatedAt: string;
-      note: string | null;
-    }
-  ) {
-    const response =
-      confirmResponse;
-
-    if (
-      !request ||
-      !response
-    ) {
-      return;
-    }
-
-    const token =
-      await getAccessToken();
-
-    if (!token) {
-      router.replace('/');
-
-      return;
-    }
-
-    const result =
-      await recordDonation(
-        token,
-        request.id,
-        response.id,
-        {
-          donated_at:
-            value.donatedAt,
-
-          note:
-            value.note,
-        }
-      );
-
-    setConfirmResponse(
-      null
-    );
-
-    await loadDonations();
-
-    const donorName =
-      getDonorName(
-        response
-      );
-
-    if (
-      result.donation?.status ===
-      'needs_review'
-    ) {
-      showMessage(
-        'Donation Confirmed',
-
-        `${donorName} was notified. Hemo-Hero will take a quick look before it is added to their history.`
-      );
-
-      return;
-    }
-
-    // Recorded right away: invite the requester to rate it.
-    confirmAction(
-      'Donation Recorded',
-
-      `Thank you! It's on record and ${donorName} was notified. Rate how it went?`,
-
-      'Rate Donor',
-
-      false,
-
-      () => {
-        if (result.donation) {
-          // Let the popup finish closing first.
-          setTimeout(
-            () =>
-              setFeedbackDonation(
-                result.donation
-              ),
-            350
-          );
-        }
-      }
-    );
-  }
-
-  // ==========================================================
-  // TRANSACTION FEEDBACK
-  // ==========================================================
-
-  async function sendDonorFeedback(value: {
-    rating: number;
-    comment: string;
-  }) {
-    const donation =
-      feedbackDonation;
-
-    if (
-      !request ||
-      !donation
-    ) {
-      return;
-    }
-
-    const token =
-      await getAccessToken();
-
-    if (!token) {
-      router.replace('/');
-
-      return;
-    }
-
-    // Errors are shown inside the feedback dialog.
-    await submitDonationFeedback(
-      token,
-      request.id,
-      donation.id,
-      {
-        rating:
-          value.rating,
-
-        comment:
-          value.comment ||
-          null,
-      }
-    );
-
-    setFeedbackDonation(null);
-
-    await loadDonations();
-
-    showMessage(
-      'Feedback Sent',
-
-      `Thank you! ${
-        donation.donor_name ||
-        'Your donor'
-      } will see your feedback.`
-    );
-  }
-
   // ==========================================================
   // FULFILL
   // ==========================================================
@@ -1599,7 +1344,7 @@ export default function BloodRequestDetailsScreen() {
       showMessage(
         'Confirm a Donation First',
 
-        'After your donor donates, tap “Confirm Donation” on their card. Then you can mark this request as fulfilled.'
+        'After your donor donates, confirm it in your chat with them. Then you can mark this request as fulfilled.'
       );
 
       return;
@@ -2011,7 +1756,7 @@ export default function BloodRequestDetailsScreen() {
         ? {
             icon: 'star-outline',
             tone: 'orange',
-            text: 'Fulfilled · rate your donor below',
+            text: 'Fulfilled · rate your donor in the chat',
           }
         : {
             icon: 'task-alt',
@@ -2050,7 +1795,7 @@ export default function BloodRequestDetailsScreen() {
             tone: 'blue',
             text: `Meet ${formatMeeting(
               nextMeeting
-            )} · confirm after they donate`,
+            )} · confirm in the chat`,
           }
         : {
             icon: 'forum',
@@ -3037,11 +2782,29 @@ export default function BloodRequestDetailsScreen() {
                               )
                             : null;
 
-                        const canConfirm =
+                        // The next step, which happens in the chat.
+                        const chatHint =
+                          response.status !==
+                          'accepted'
+                            ? ''
+                            : donationActive
+                              ? myFeedback
+                                ? ''
+                                : 'Rate your donor in the chat.'
+                              : !isActive
+                                ? ''
+                                : donation?.status ===
+                                    'rejected'
+                                  ? 'Confirm it again in the chat.'
+                                  : isScheduleAgreed(
+                                        conversation?.schedule
+                                      )
+                                    ? 'After they donate, confirm the donation in the chat.'
+                                    : 'Agree on a meeting time in the chat. You confirm the donation there too.';
+
+                        const chatIsMainAction =
                           response.status ===
-                            'accepted' &&
-                          isActive &&
-                          !donationActive;
+                          'accepted';
 
                         const meeting =
                           response.status ===
@@ -3087,7 +2850,9 @@ export default function BloodRequestDetailsScreen() {
                             <TouchableOpacity
                               style={[
                                 styles.actionButton,
-                                styles.actionOutline,
+                                chatIsMainAction
+                                  ? styles.actionFilled
+                                  : styles.actionOutline,
                               ]}
                               activeOpacity={
                                 0.85
@@ -3102,29 +2867,37 @@ export default function BloodRequestDetailsScreen() {
                                 name="forum"
                                 size={17}
                                 color={
-                                  COLORS.redButton
+                                  chatIsMainAction
+                                    ? COLORS.white
+                                    : COLORS.redButton
                                 }
                               />
 
                               <Text
                                 style={
-                                  styles.actionOutlineText
+                                  chatIsMainAction
+                                    ? styles.actionFilledText
+                                    : styles.actionOutlineText
                                 }
                               >
-                                Chat
+                                Open Chat
                               </Text>
 
                               {unread >
                               0 ? (
                                 <View
-                                  style={
-                                    styles.badge
-                                  }
+                                  style={[
+                                    styles.badge,
+                                    chatIsMainAction &&
+                                      styles.badgeOnFilled,
+                                  ]}
                                 >
                                   <Text
-                                    style={
-                                      styles.badgeText
-                                    }
+                                    style={[
+                                      styles.badgeText,
+                                      chatIsMainAction &&
+                                        styles.badgeTextOnFilled,
+                                    ]}
                                   >
                                     {unread > 9
                                       ? '9+'
@@ -3364,7 +3137,7 @@ export default function BloodRequestDetailsScreen() {
                                 >
                                   Record not accepted:{' '}
                                   {donation.admin_note ||
-                                    'please confirm it again.'}
+                                    'please check the details.'}
                                 </Text>
                               </View>
                             ) : null}
@@ -3448,18 +3221,9 @@ export default function BloodRequestDetailsScreen() {
                                 </View>
 
                                 {myFeedback ? (
-                                  <TouchableOpacity
+                                  <View
                                     style={
                                       styles.ratingRow
-                                    }
-                                    activeOpacity={
-                                      0.75
-                                    }
-                                    accessibilityLabel="Edit your rating"
-                                    onPress={() =>
-                                      setFeedbackDonation(
-                                        donation
-                                      )
                                     }
                                   >
                                     <Text
@@ -3475,15 +3239,7 @@ export default function BloodRequestDetailsScreen() {
                                         myFeedback.rating
                                       }
                                     />
-
-                                    <MaterialIcons
-                                      name="edit"
-                                      size={14}
-                                      color={
-                                        COLORS.lightMuted
-                                      }
-                                    />
-                                  </TouchableOpacity>
+                                  </View>
                                 ) : null}
 
                                 {donorFeedback ? (
@@ -3608,75 +3364,30 @@ export default function BloodRequestDetailsScreen() {
                                 }
                               >
                                 {chatButton}
+                              </View>
+                            ) : null}
 
-                                {canConfirm ? (
-                                  <TouchableOpacity
-                                    style={[
-                                      styles.actionButton,
-                                      styles.actionFilled,
-                                    ]}
-                                    activeOpacity={
-                                      0.85
-                                    }
-                                    onPress={() =>
-                                      openDonationModal(
-                                        response
-                                      )
-                                    }
-                                  >
-                                    <MaterialIcons
-                                      name="task-alt"
-                                      size={17}
-                                      color={
-                                        COLORS.white
-                                      }
-                                    />
+                            {chatHint ? (
+                              <View
+                                style={
+                                  styles.chatHint
+                                }
+                              >
+                                <MaterialIcons
+                                  name="chat-bubble-outline"
+                                  size={14}
+                                  color={
+                                    COLORS.muted
+                                  }
+                                />
 
-                                    <Text
-                                      style={
-                                        styles.actionFilledText
-                                      }
-                                    >
-                                      {donation?.status ===
-                                      'rejected'
-                                        ? 'Confirm Again'
-                                        : 'Confirm Donation'}
-                                    </Text>
-                                  </TouchableOpacity>
-                                ) : donation &&
-                                  donationActive &&
-                                  !myFeedback ? (
-                                  <TouchableOpacity
-                                    style={[
-                                      styles.actionButton,
-                                      styles.actionFilled,
-                                    ]}
-                                    activeOpacity={
-                                      0.85
-                                    }
-                                    onPress={() =>
-                                      setFeedbackDonation(
-                                        donation
-                                      )
-                                    }
-                                  >
-                                    <MaterialIcons
-                                      name="star-outline"
-                                      size={17}
-                                      color={
-                                        COLORS.white
-                                      }
-                                    />
-
-                                    <Text
-                                      style={
-                                        styles.actionFilledText
-                                      }
-                                    >
-                                      Rate Donor
-                                    </Text>
-                                  </TouchableOpacity>
-                                ) : null}
+                                <Text
+                                  style={
+                                    styles.chatHintText
+                                  }
+                                >
+                                  {chatHint}
+                                </Text>
                               </View>
                             ) : null}
                           </FadeInView>
@@ -3858,84 +3569,6 @@ export default function BloodRequestDetailsScreen() {
             ) : null}
           </View>
         </SafeAreaView>
-
-        {/* ====================================================
-            CONFIRM DONATION
-        ==================================================== */}
-
-        <ConfirmDonationSheet
-          visible={Boolean(
-            confirmResponse
-          )}
-          donorName={
-            confirmResponse
-              ? getDonorName(
-                  confirmResponse
-                )
-              : ''
-          }
-          bloodType={
-            request?.blood_type ||
-            ''
-          }
-          requestCreatedAt={
-            request?.created_at
-          }
-          onClose={() =>
-            setConfirmResponse(
-              null
-            )
-          }
-          onSubmit={
-            submitConfirmedDonation
-          }
-        />
-
-        {/* ====================================================
-            RATE THE DONATION
-        ==================================================== */}
-
-        <DonationFeedbackModal
-          visible={Boolean(
-            feedbackDonation
-          )}
-          mode="feedback"
-          title={
-            getFeedbackFrom(
-              feedbackDonation,
-              'requester'
-            )
-              ? 'Update Your Feedback'
-              : 'Rate This Donation'
-          }
-          subtitle={`How was your experience with ${
-            feedbackDonation?.donor_name ||
-            'your donor'
-          }? They will see your feedback.`}
-          initialRating={
-            getFeedbackFrom(
-              feedbackDonation,
-              'requester'
-            )?.rating || 0
-          }
-          initialComment={
-            getFeedbackFrom(
-              feedbackDonation,
-              'requester'
-            )?.comment || ''
-          }
-          quickNotes={
-            DONOR_FEEDBACK_NOTES
-          }
-          onClose={() =>
-            setFeedbackDonation(
-              null
-            )
-          }
-          onSubmit={
-            sendDonorFeedback
-          }
-        />
 
         {/* ====================================================
             IN-APP ACTION POPUP
@@ -4845,6 +4478,22 @@ const styles =
       gap: 8,
     },
 
+    // The next step, which happens in the chat.
+    chatHint: {
+      marginTop: 10,
+      flexDirection: 'row',
+      alignItems: 'flex-start',
+      gap: 6,
+    },
+
+    chatHintText: {
+      flex: 1,
+      color: COLORS.muted,
+      fontFamily: 'Inter_400Regular',
+      fontSize: 12,
+      lineHeight: 17,
+    },
+
     actionButton: {
       flex: 1,
       height: 40,
@@ -4891,6 +4540,14 @@ const styles =
       color: COLORS.white,
       fontFamily: 'Inter_700Bold',
       fontSize: 11,
+    },
+
+    badgeOnFilled: {
+      backgroundColor: COLORS.white,
+    },
+
+    badgeTextOnFilled: {
+      color: COLORS.redButton,
     },
 
     // ==========================================================

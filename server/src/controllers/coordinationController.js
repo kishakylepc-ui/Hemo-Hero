@@ -3,6 +3,7 @@ const {
 } = require('../config/supabase');
 
 const {
+  CHAT_NOTIFICATION_TYPES,
   createNotification
 } = require('../services/notificationService');
 
@@ -2102,15 +2103,6 @@ const INBOX_SCHEDULE_FIELDS =
 const INBOX_DONATION_FIELDS =
   'id,response_id,status,units_donated,donated_at,created_at';
 
-// Notifications that belong to one conversation (unread badge).
-const COORDINATION_NOTIFICATION_TYPES = [
-  'coordination_message',
-  'coordination_schedule',
-  'coordination_trip_started',
-  'coordination_trip_near',
-  'coordination_trip_arrived'
-];
-
 const INBOX_TRIP_FIELDS =
   'response_id,status,distance_m,eta_seconds,started_at,location_updated_at,arrived_at';
 
@@ -2741,7 +2733,7 @@ async function getCoordinationInbox(
               )
               .in(
                 'type',
-                COORDINATION_NOTIFICATION_TYPES
+                CHAT_NOTIFICATION_TYPES
               )
               .order(
                 'id',
@@ -3332,7 +3324,7 @@ async function markCoordinationRead(
         )
         .in(
           'type',
-          COORDINATION_NOTIFICATION_TYPES
+          CHAT_NOTIFICATION_TYPES
         )
         .eq(
           'data->>response_id',

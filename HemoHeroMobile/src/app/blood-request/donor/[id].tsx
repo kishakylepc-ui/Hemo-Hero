@@ -89,10 +89,8 @@ import {
 } from '../../../lib/bloodCompatibility';
 
 import {
-  disputeDonation,
   getFeedbackFrom,
   getRequestDonations,
-  submitDonationFeedback,
 } from '../../../lib/donations';
 
 import {
@@ -108,17 +106,7 @@ import {
   type CoordinationInboxItem,
 } from '../../../lib/coordination';
 
-import DonationFeedbackModal from '../../../components/DonationFeedbackModal';
-
 import ReportRequestSheet from '../../../components/ReportRequestSheet';
-
-// One-tap phrases for rating the requester.
-const REQUESTER_FEEDBACK_NOTES = [
-  'Clear instructions',
-  'Easy to coordinate with',
-  'Very thankful',
-  'Smooth donation',
-];
 
 import type {
   BloodDonation,
@@ -493,15 +481,6 @@ export default function DonorBloodRequestScreen() {
   ] =
     useState<
       BloodDonation | null
-    >(null);
-
-  // Open dialog: rate the transaction or report a problem.
-  const [
-    donationDialog,
-    setDonationDialog,
-  ] =
-    useState<
-      'feedback' | 'dispute' | null
     >(null);
 
   // "Report this request" sheet (false request, asking for money).
@@ -1318,7 +1297,7 @@ export default function DonorBloodRequestScreen() {
                     ? `: ${myDonation.admin_note}`
                     : '. The requester can confirm it again.'
                 }`
-              : 'After you donate, the requester confirms it here.'}
+              : 'After you donate, the requester confirms it in your chat.'}
           </Text>
         </View>
       );
@@ -1339,6 +1318,16 @@ export default function DonorBloodRequestScreen() {
         myDonation,
         'donor'
       );
+
+    // Rating and reporting happen in the chat.
+    const chatHint =
+      myFeedback
+        ? recorded
+          ? 'To report a problem with this record, use the chat.'
+          : ''
+        : recorded
+          ? 'Rate the requester in the chat. You can report a problem there too.'
+          : 'Rate the requester in the chat.';
 
     return (
       <FadeInView
@@ -1473,16 +1462,9 @@ export default function DonorBloodRequestScreen() {
         ) : null}
 
         {myFeedback ? (
-          <TouchableOpacity
+          <View
             style={
               styles.ratingRow
-            }
-            activeOpacity={0.75}
-            accessibilityLabel="Edit your rating"
-            onPress={() =>
-              setDonationDialog(
-                'feedback'
-              )
             }
           >
             <Text
@@ -1498,60 +1480,17 @@ export default function DonorBloodRequestScreen() {
                 myFeedback.rating
               }
             />
+          </View>
+        ) : null}
 
-            <MaterialIcons
-              name="edit"
-              size={14}
-              color={
-                COLORS.lightMuted
-              }
-            />
-          </TouchableOpacity>
-        ) : (
-          <TouchableOpacity
+        {chatHint ? (
+          <View
             style={
-              styles.rateButton
-            }
-            activeOpacity={0.85}
-            onPress={() =>
-              setDonationDialog(
-                'feedback'
-              )
+              styles.recordHint
             }
           >
             <MaterialIcons
-              name="star-outline"
-              size={17}
-              color={
-                COLORS.white
-              }
-            />
-
-            <Text
-              style={
-                styles.rateButtonText
-              }
-            >
-              Rate the Requester
-            </Text>
-          </TouchableOpacity>
-        )}
-
-        {/* Only a recorded donation can be disputed */}
-        {recorded ? (
-          <TouchableOpacity
-            style={
-              styles.disputeLink
-            }
-            activeOpacity={0.7}
-            onPress={() =>
-              setDonationDialog(
-                'dispute'
-              )
-            }
-          >
-            <MaterialIcons
-              name="flag"
+              name="chat-bubble-outline"
               size={14}
               color={
                 COLORS.muted
@@ -1560,19 +1499,19 @@ export default function DonorBloodRequestScreen() {
 
             <Text
               style={
-                styles.disputeLinkText
+                styles.recordHintText
               }
             >
-              Report a problem with this record
+              {chatHint}
             </Text>
-          </TouchableOpacity>
+          </View>
         ) : null}
       </FadeInView>
     );
   }
 
   // ==========================================================
-  // DONATION FEEDBACK / REPORT
+  // REPORT THIS REQUEST
   // ==========================================================
 
   // Throws on failure so the sheet can show the message.
@@ -1613,69 +1552,6 @@ export default function DonorBloodRequestScreen() {
     if (result.flagged) {
       loadData();
     }
-  }
-
-  async function submitDonationDialog(value: {
-    rating: number;
-    comment: string;
-  }) {
-    const mode =
-      donationDialog;
-
-    if (
-      !requestId ||
-      !myDonation ||
-      !mode
-    ) {
-      return;
-    }
-
-    const token =
-      await getAccessToken();
-
-    if (!token) {
-      router.replace('/');
-
-      return;
-    }
-
-    // Errors are shown inside the dialog.
-    if (mode === 'feedback') {
-      await submitDonationFeedback(
-        token,
-        requestId,
-        myDonation.id,
-        {
-          rating:
-            value.rating,
-
-          comment:
-            value.comment ||
-            null,
-        }
-      );
-    } else {
-      await disputeDonation(
-        token,
-        requestId,
-        myDonation.id,
-        value.comment
-      );
-    }
-
-    setDonationDialog(null);
-
-    await loadData();
-
-    showMessage(
-      mode === 'feedback'
-        ? 'Feedback Sent'
-        : 'Problem Reported',
-
-      mode === 'feedback'
-        ? 'Thank you! The requester will see your feedback.'
-        : 'Thanks for letting us know. Hemo-Hero will review this record and notify you.'
-    );
   }
 
   // ==========================================================
@@ -4184,66 +4060,6 @@ export default function DonorBloodRequestScreen() {
         />
 
         {/* ====================================================
-            RATE THE DONATION / REPORT A PROBLEM
-        ==================================================== */}
-
-        <DonationFeedbackModal
-          visible={Boolean(
-            donationDialog
-          )}
-          mode={
-            donationDialog ||
-            'feedback'
-          }
-          title={
-            donationDialog ===
-            'dispute'
-              ? 'Report a Problem'
-              : getFeedbackFrom(
-                    myDonation,
-                    'donor'
-                  )
-                ? 'Update Your Feedback'
-                : 'Rate Your Experience'
-          }
-          subtitle={
-            donationDialog ===
-            'dispute'
-              ? 'Tell us what is wrong with this donation record. Hemo-Hero will review it.'
-              : `How was your experience with ${
-                  myDonation?.requester_name ||
-                  'the requester'
-                }? They will see your feedback.`
-          }
-          initialRating={
-            getFeedbackFrom(
-              myDonation,
-              'donor'
-            )?.rating || 0
-          }
-          initialComment={
-            donationDialog ===
-            'dispute'
-              ? ''
-              : getFeedbackFrom(
-                  myDonation,
-                  'donor'
-                )?.comment || ''
-          }
-          quickNotes={
-            REQUESTER_FEEDBACK_NOTES
-          }
-          onClose={() =>
-            setDonationDialog(
-              null
-            )
-          }
-          onSubmit={
-            submitDonationDialog
-          }
-        />
-
-        {/* ====================================================
             IN-APP ACTION POPUP
         ==================================================== */}
 
@@ -5072,36 +4888,19 @@ const styles =
       gap: 1,
     },
 
-    rateButton: {
-      marginTop: 3,
-      height: 40,
-      flexDirection: 'row',
-      alignItems: 'center',
-      justifyContent: 'center',
-      gap: 6,
-      borderRadius: 11,
-      backgroundColor: COLORS.redButton,
-    },
-
-    rateButtonText: {
-      color: COLORS.white,
-      fontFamily: 'Poppins_600SemiBold',
-      fontSize: 13.5,
-    },
-
-    disputeLink: {
+    recordHint: {
       marginTop: 2,
-      alignSelf: 'flex-start',
       flexDirection: 'row',
-      alignItems: 'center',
-      gap: 5,
+      alignItems: 'flex-start',
+      gap: 6,
     },
 
-    disputeLinkText: {
+    recordHintText: {
+      flex: 1,
       color: COLORS.muted,
-      fontFamily: 'Inter_500Medium',
+      fontFamily: 'Inter_400Regular',
       fontSize: 12,
-      textDecorationLine: 'underline',
+      lineHeight: 17,
     },
 
     // Offer note
