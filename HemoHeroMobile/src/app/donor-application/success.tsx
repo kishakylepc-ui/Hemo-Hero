@@ -1,13 +1,17 @@
 import {
   type ComponentProps,
   useCallback,
+  useEffect,
+  useRef,
   useState,
 } from 'react';
 
 import {
   ActivityIndicator,
+  AppState,
   Platform,
   Pressable,
+  RefreshControl,
   ScrollView,
   StyleSheet,
   Text,
@@ -24,6 +28,7 @@ import {
 } from 'expo-router';
 
 import { StatusBar } from 'expo-status-bar';
+import * as Notifications from 'expo-notifications';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { shiftedDown, withStatusBar } from '../../lib/fullScreen';
@@ -79,6 +84,10 @@ type ModalState = {
   cancelLabel?: string;
   onConfirm?: () => void;
 };
+
+// How often a pending application is checked while this
+// screen is open.
+const LIVE_REFRESH_MS = 10 * 1000;
 
 const CLOSED_MODAL: ModalState = {
   visible: false,
@@ -257,6 +266,8 @@ export default function DonorApplicationStatusScreen() {
     useState<DonorApplication | null>(null);
 
   const [loading, setLoading] = useState(true);
+
+  const [refreshing, setRefreshing] = useState(false);
   const [loadError, setLoadError] = useState('');
   const [withdrawing, setWithdrawing] = useState(false);
 
@@ -305,11 +316,82 @@ export default function DonorApplicationStatusScreen() {
     }
   }, []);
 
+  // ==========================================================
+  // LIVE UPDATES
+  //
+  // An admin may decide while this screen is open. While the
+  // application is pending it checks again every 10 seconds;
+  // it also checks as soon as an application notification
+  // arrives, when the app comes back to the front, and on
+  // pull-to-refresh.
+  // ==========================================================
+
+  const pendingRef = useRef(true);
+
+  useEffect(() => {
+    pendingRef.current =
+      !application ||
+      application.status === 'pending';
+  }, [application]);
+
   useFocusEffect(
     useCallback(() => {
       loadApplication();
+
+      const timer = setInterval(() => {
+        if (
+          pendingRef.current &&
+          AppState.currentState === 'active'
+        ) {
+          loadApplication();
+        }
+      }, LIVE_REFRESH_MS);
+
+      const appState =
+        AppState.addEventListener(
+          'change',
+          state => {
+            if (state === 'active') {
+              loadApplication();
+            }
+          }
+        );
+
+      const received =
+        Platform.OS === 'web'
+          ? null
+          : Notifications.addNotificationReceivedListener(
+              notification => {
+                const type =
+                  notification.request.content
+                    .data?.type;
+
+                if (
+                  typeof type === 'string' &&
+                  type.startsWith(
+                    'donor_application'
+                  )
+                ) {
+                  loadApplication();
+                }
+              }
+            );
+
+      return () => {
+        clearInterval(timer);
+        appState.remove();
+        received?.remove();
+      };
     }, [loadApplication])
   );
+
+  async function handleRefresh() {
+    setRefreshing(true);
+
+    await loadApplication();
+
+    setRefreshing(false);
+  }
 
   // ==========================================================
   // STATUS
@@ -458,6 +540,14 @@ export default function DonorApplicationStatusScreen() {
             style={styles.body}
             contentContainerStyle={styles.content}
             showsVerticalScrollIndicator={false}
+            refreshControl={
+              <RefreshControl
+                refreshing={refreshing}
+                onRefresh={handleRefresh}
+                tintColor={COLORS.red}
+                colors={[COLORS.red]}
+              />
+            }
           >
             {loading && !application ? (
               <View style={styles.loadingArea}>
@@ -817,10 +907,18 @@ export default function DonorApplicationStatusScreen() {
                       <PrimaryButton
                         label="Browse Blood Requests"
                         icon="bloodtype"
+                        // Other people's requests near them (Search
+                        // → Requests), not their own Requests tab.
                         onPress={() =>
-                          router.replace(
-                            '/requests' as any
-                          )
+                          router.replace({
+                            pathname:
+                              '/search',
+
+                            params: {
+                              mode:
+                                'requests',
+                            },
+                          } as any)
                         }
                       />
                     ) : null}
