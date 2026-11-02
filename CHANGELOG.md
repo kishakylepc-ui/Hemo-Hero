@@ -29,6 +29,12 @@ Write each change under **Unreleased** as you make it. `node scripts/version.js 
   - Same outlined fields as Sign Up. First and last name sit side by side, and gender is a three-way switch.
   - "Use my current location" is a large card that shows what it found. Back and Next stay in a bar at the bottom on every step; it hides while the keyboard is open.
   - The last screen says "You're all set!" with a summary of what was saved.
+- **Deactivation reasons and account reviews.** Needs migration `20261102_account_reviews.sql`.
+  - Admins must give a reason to deactivate or delete an account, and can tap a common one to fill it in. Deactivating from a report uses the admin note as the reason.
+  - When a deactivated person signs in, they see when it happened and why (or "you deactivated your account"), and can send a **review request**.
+  - Admins get a notification. Users has a **Review Requests** filter, and the person's page shows their message with **Reactivate** (approves it) or **Decline** (with a note the person sees next time).
+  - Signing in with the email of a deleted account shows that it was removed and why.
+  - Sign-in only says an account is deactivated after the password is right, so nobody learns it from an email alone.
 - Fixed: the admin portal on an iPad (Expo Go) couldn't reach the server, because `.env` pointed at `localhost` (the iPad itself). It now finds the server on the computer running Expo, like the mobile app, so no IP needs typing in.
 - Fixed: the back button on the first Complete your Profile step did nothing. It now asks "Leave setup?" and signs you out (Android's back button too); you finish the profile the next time you sign in. The "Thank You" screen no longer has a back button, since the profile is already saved.
 

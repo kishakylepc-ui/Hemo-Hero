@@ -69,6 +69,9 @@ import {
   whenIntroDone,
 } from '../lib/appIntro';
 
+import AccountStatusSheet, {
+  type AccountStatus,
+} from '../components/AccountStatusSheet';
 import AuthField from '../components/AuthField';
 import AuthHero from '../components/AuthHero';
 import CaptchaField from '../components/CaptchaField';
@@ -189,6 +192,16 @@ export default function SignInScreen() {
     setLoading,
   ] =
     useState(false);
+
+  // Deactivated or removed by Hemo-Hero: why, and a way to
+  // ask for a review (AccountStatusSheet).
+  const [
+    accountStatus,
+    setAccountStatus,
+  ] =
+    useState<AccountStatus | null>(
+      null
+    );
 
   const [
     errorMessage,
@@ -1254,6 +1267,58 @@ export default function SignInScreen() {
           {};
 
         // ----------------------------------------------------
+        // DEACTIVATED (password confirmed) OR REMOVED
+        // ----------------------------------------------------
+
+        if (
+          apiData.code ===
+            'ACCOUNT_DEACTIVATED' &&
+          apiData.review_token
+        ) {
+          setAccountStatus({
+            kind:
+              'deactivated',
+
+            deactivation:
+              apiData.deactivation || {
+                deactivated_at:
+                  null,
+
+                by_self:
+                  false,
+
+                reason:
+                  null,
+              },
+
+            review:
+              apiData.review ||
+              null,
+
+            reviewToken:
+              apiData.review_token,
+          });
+
+          return;
+        }
+
+        if (
+          apiData.code ===
+            'ACCOUNT_REMOVED' &&
+          apiData.removal
+        ) {
+          setAccountStatus({
+            kind:
+              'removed',
+
+            removal:
+              apiData.removal,
+          });
+
+          return;
+        }
+
+        // ----------------------------------------------------
         // ACCOUNT DOES NOT EXIST
         // ----------------------------------------------------
 
@@ -2130,6 +2195,17 @@ export default function SignInScreen() {
           </KeyboardAvoidingView>
         </SafeAreaView>
       </View>
+
+      <AccountStatusSheet
+        status={
+          accountStatus
+        }
+        onClose={() =>
+          setAccountStatus(
+            null
+          )
+        }
+      />
     </View>
   );
 }

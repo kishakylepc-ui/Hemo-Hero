@@ -16,6 +16,7 @@ const {
   verifyEmail,
   resendVerification,
   login,
+  requestAccountReview,
   getLoginCaptcha,
   getUsernameAvailability,
   refreshSession,
@@ -92,6 +93,28 @@ const {
 } = require(
   '../middleware/loginIdentifier'
 );
+
+// Account review requests from deactivated people: 5 an hour
+// per network (each also needs a token from a real sign-in).
+const accountReviewLimiter =
+  rateLimit({
+    windowMs:
+      60 * 60 * 1000,
+
+    limit:
+      5,
+
+    standardHeaders:
+      false,
+
+    legacyHeaders:
+      false,
+
+    message: {
+      error:
+        'Too many review requests. Please try again later.',
+    },
+  });
 
 // Username checks while typing: 60 a minute per network.
 const usernameCheckLimiter =
@@ -430,6 +453,35 @@ router.post(
   loginLimiter,
 
   login
+);
+
+// ------------------------------------------------------------
+// REQUEST AN ACCOUNT REVIEW (deactivated accounts)
+// ------------------------------------------------------------
+
+router.post(
+  '/account-review',
+
+  activityLog({
+    action:
+      'REQUEST_ACCOUNT_REVIEW',
+
+    module:
+      'Authentication',
+
+    successDescription:
+      'A deactivated user asked for their account to be reviewed.',
+
+    failureDescription:
+      'Account review request failed.',
+
+    entityType:
+      'user_account',
+  }),
+
+  accountReviewLimiter,
+
+  requestAccountReview
 );
 
 // ------------------------------------------------------------

@@ -659,6 +659,15 @@ export type AdminManagedUser = {
 
   deactivated_at?: string | null;
 
+  // Why an admin deactivated it (the person sees it too).
+  deactivation_reason?: string | null;
+
+  // They deactivated it themselves.
+  deactivated_by_self?: boolean;
+
+  // Users list: waiting on a review of the deactivation.
+  review_pending?: boolean;
+
   // Locked by an admin (can't sign in until unlocked).
   is_locked?: boolean;
 
@@ -713,7 +722,9 @@ export type AdminUserStatusFilter =
   | 'all'
   | 'active'
   | 'inactive'
-  | 'locked';
+  | 'locked'
+  // Deactivated people who asked for a review.
+  | 'review';
 
 export type AdminUserFilters = {
   page?: number;
@@ -735,11 +746,36 @@ export type AdminUsersResponse = {
 
   pagination:
     AdminUserPagination;
+
+  // Deactivated people waiting on a review.
+  review_count?: number;
+};
+
+// A deactivated person's "please review my account" request.
+export type AdminAccountReview = {
+  id: string;
+
+  status:
+    | 'pending'
+    | 'approved'
+    | 'declined';
+
+  message: string;
+
+  // Shown to the person when declined.
+  admin_note?: string | null;
+
+  created_at: string;
+
+  reviewed_at?: string | null;
 };
 
 export type AdminUserDetailResponse = {
   user:
     AdminManagedUser;
+
+  // Their latest review request, if any.
+  review?: AdminAccountReview | null;
 };
 
 export type AdminUserActionResponse = {
@@ -2567,9 +2603,12 @@ export async function updateAdminUser(
 // DEACTIVATE USER
 // ============================================================
 
+// The reason is required; the person sees it when they try
+// to sign in.
 export async function deactivateAdminUser(
   token: string,
-  userId: string
+  userId: string,
+  reason: string
 ): Promise<AdminUserActionResponse> {
   const response =
     await fetch(
@@ -2587,6 +2626,11 @@ export async function deactivateAdminUser(
           'Content-Type':
             'application/json',
         },
+
+        body:
+          JSON.stringify({
+            reason,
+          }),
       }
     );
 
@@ -2716,9 +2760,12 @@ export function changeAdminUserRole(
 // PERMANENTLY DELETE USER
 // ============================================================
 
+// The reason is required; it is shown if someone signs in with
+// that email again.
 export async function deleteAdminUser(
   token: string,
-  userId: string
+  userId: string,
+  reason: string
 ): Promise<AdminDeleteUserResponse> {
   const response =
     await fetch(
@@ -2736,6 +2783,55 @@ export async function deleteAdminUser(
           'Content-Type':
             'application/json',
         },
+
+        body:
+          JSON.stringify({
+            reason,
+          }),
+      }
+    );
+
+  return parseResponse(
+    response
+  );
+}
+
+// ============================================================
+// DECLINE AN ACCOUNT REVIEW
+//
+// The account stays deactivated; the person sees the note.
+// (Activating the account approves the request.)
+// ============================================================
+
+export async function declineAccountReview(
+  token: string,
+  userId: string,
+  note: string
+): Promise<{
+  message: string;
+  review: AdminAccountReview;
+}> {
+  const response =
+    await fetch(
+      `${API_URL}/api/admin/users/${encodeURIComponent(
+        userId
+      )}/review/decline`,
+      {
+        method:
+          'PATCH',
+
+        headers: {
+          Authorization:
+            `Bearer ${token}`,
+
+          'Content-Type':
+            'application/json',
+        },
+
+        body:
+          JSON.stringify({
+            note,
+          }),
       }
     );
 

@@ -471,6 +471,68 @@ export async function getLoginCaptcha(): Promise<LoginCaptcha> {
 }
 
 // ------------------------------------------------------------
+// DEACTIVATED OR REMOVED ACCOUNTS
+//
+// Sign-in answers ACCOUNT_DEACTIVATED (after the password is
+// confirmed) with when and why, any review request already
+// sent, and a short-lived token for sending one. A deleted
+// account answers ACCOUNT_REMOVED with when and why.
+// ------------------------------------------------------------
+
+export type AccountDeactivation = {
+  deactivated_at: string | null;
+
+  // They deactivated it themselves (no admin reason).
+  by_self: boolean;
+
+  reason: string | null;
+};
+
+export type AccountReviewStatus = {
+  status:
+    | 'pending'
+    | 'approved'
+    | 'declined';
+
+  created_at: string;
+
+  reviewed_at: string | null;
+
+  // The admin's note, when declined.
+  admin_note: string | null;
+};
+
+export type AccountRemoval = {
+  removed_at: string;
+  reason: string;
+};
+
+export async function requestAccountReview(
+  reviewToken: string,
+  message: string
+): Promise<{
+  message: string;
+  review: AccountReviewStatus;
+}> {
+  return request(
+    '/api/auth/account-review',
+    {
+      method:
+        'POST',
+
+      body:
+        JSON.stringify({
+          review_token:
+            reviewToken,
+
+          message:
+            message.trim(),
+        }),
+    }
+  );
+}
+
+// ------------------------------------------------------------
 // REGISTER
 // ------------------------------------------------------------
 

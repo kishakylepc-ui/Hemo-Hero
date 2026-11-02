@@ -1457,6 +1457,14 @@ function getNotificationVisual(
         tint: 'rgba(243,163,74,0.12)',
       };
 
+    // A deactivated person asked for a review.
+    case 'admin_account_review':
+      return {
+        icon: 'rate-review',
+        color: COLORS.blue,
+        tint: 'rgba(74,140,255,0.12)',
+      };
+
     // A blood request hidden after several reports.
     case 'admin_request_flagged':
       return {
@@ -1492,6 +1500,9 @@ function getFallbackRoute(
     case 'admin_donation_recorded':
     case 'admin_donation_flagged':
       return '/donations';
+
+    case 'admin_account_review':
+      return '/users';
 
     default:
       return null;

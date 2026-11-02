@@ -3,6 +3,12 @@ const {
 } = require('../config/supabase');
 
 const {
+  isMissingMigration
+} = require(
+  '../services/accountReviewService'
+);
+
+const {
   setActivityEntity
 } = require(
   '../middleware/activityLogMiddleware'
@@ -2087,32 +2093,59 @@ async function takeAdminReportAction(
         target.is_active !==
         false
       ) {
-        const {
+        // The admin note is the reason the person sees when
+        // they try to sign in (migration 20261102).
+        const deactivate =
+          fields =>
+            supabaseAdmin
+              .from(
+                'users'
+              )
+              .update({
+                is_active:
+                  false,
+
+                deactivated_at:
+                  now,
+
+                updated_at:
+                  now,
+
+                ...fields
+              })
+              .eq(
+                'id',
+                target.id
+              )
+              .eq(
+                'role',
+                'user'
+              );
+
+        let {
           error:
             deactivateError
         } =
-          await supabaseAdmin
-            .from(
-              'users'
-            )
-            .update({
-              is_active:
-                false,
+          await deactivate({
+            deactivation_reason:
+              note,
 
-              deactivated_at:
-                now,
+            deactivated_by:
+              req.dbUser?.id ||
+              null
+          });
 
-              updated_at:
-                now
-            })
-            .eq(
-              'id',
-              target.id
-            )
-            .eq(
-              'role',
-              'user'
-            );
+        if (
+          isMissingMigration(
+            deactivateError
+          )
+        ) {
+          ({
+            error:
+              deactivateError
+          } =
+            await deactivate({}));
+        }
 
         if (deactivateError) {
           console.error(

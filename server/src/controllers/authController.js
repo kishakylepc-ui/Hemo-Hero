@@ -67,6 +67,27 @@ const {
   '../utils/username'
 );
 
+const {
+  MIN_MESSAGE_LENGTH,
+  MAX_MESSAGE_LENGTH,
+  MIGRATION_MESSAGE,
+  createReviewToken,
+  verifyReviewToken,
+  isMissingMigration,
+  getLatestReview,
+  getRemovalRecord,
+  describeDeactivation,
+  reviewForClient,
+} = require(
+  '../services/accountReviewService'
+);
+
+const {
+  notifyAdmins,
+} = require(
+  '../services/notificationService'
+);
+
 // The profile plus whether a blood type proof is on file.
 async function withBloodTypeProof(
   user
@@ -1606,6 +1627,35 @@ async function login(
     if (
       !existingAccount
     ) {
+      // Deleted by an admin: say why (the reason was written for
+      // the person, migration 20261102).
+      const removal =
+        await getRemovalRecord(
+          cleanEmail
+        );
+
+      if (removal) {
+        return res
+          .status(
+            404
+          )
+          .json({
+            error:
+              'This account was removed by Hemo-Hero.',
+
+            code:
+              'ACCOUNT_REMOVED',
+
+            removal: {
+              removed_at:
+                removal.removed_at,
+
+              reason:
+                removal.reason,
+            },
+          });
+      }
+
       return res
         .status(
           404
@@ -1646,27 +1696,10 @@ async function login(
       existingAccount.id
     );
 
-    // --------------------------------------------------------
-    // ACCOUNT DEACTIVATED
-    // --------------------------------------------------------
-
-    if (
-      existingAccount
-        .is_active ===
-      false
-    ) {
-      return res
-        .status(
-          403
-        )
-        .json({
-          error:
-            'Your account has been deactivated. Please contact an administrator.',
-
-          code:
-            'ACCOUNT_DEACTIVATED',
-        });
-    }
+    // A deactivated account is told so only after its password
+    // is confirmed (below), so nobody learns it from an email
+    // alone; that answer also carries the reason and a way to
+    // ask for a review.
 
     // --------------------------------------------------------
     // ACCOUNT LOCKED BY AN ADMIN
@@ -1981,6 +2014,75 @@ async function login(
       'user_account',
       dbUser.id
     );
+
+    // --------------------------------------------------------
+    // ACCOUNT DEACTIVATED
+    //
+    // The password was right, so the person learns when and
+    // why, sees any review request they sent, and gets a short-
+    // lived token to send one. The new session is ended at once.
+    // --------------------------------------------------------
+
+    if (
+      dbUser.is_active ===
+      false
+    ) {
+      try {
+        await supabaseAdmin
+          .auth
+          .admin
+          .signOut(
+            data.session
+              .access_token,
+            'local'
+          );
+      } catch (signOutError) {
+        console.error(
+          'DEACTIVATED LOGIN SIGNOUT ERROR:',
+          signOutError
+        );
+      }
+
+      setActivityOutcome(
+        res,
+        {
+          description:
+            'Sign-in blocked: the account is deactivated.',
+        }
+      );
+
+      const review =
+        await getLatestReview(
+          dbUser.id
+        );
+
+      return res
+        .status(
+          403
+        )
+        .json({
+          error:
+            'Your account has been deactivated.',
+
+          code:
+            'ACCOUNT_DEACTIVATED',
+
+          deactivation:
+            describeDeactivation(
+              dbUser
+            ),
+
+          review:
+            reviewForClient(
+              review
+            ),
+
+          review_token:
+            createReviewToken(
+              dbUser.id
+            ),
+        });
+    }
 
     // --------------------------------------------------------
     // ADMIN PORTAL: ADMINS ONLY
@@ -4035,10 +4137,299 @@ async function updateProfile(
 }
 
 // ============================================================
+// REQUEST AN ACCOUNT REVIEW
+//
+// POST /api/auth/account-review { review_token, message }
+//
+// For a deactivated person, who can't sign in. The token comes
+// from their sign-in attempt, after the password was confirmed
+// (login). One open request at a time; admins are notified and
+// answer it on the person's page in the Admin Portal.
+// ============================================================
+
+async function requestAccountReview(
+  req,
+  res
+) {
+  try {
+    const userId =
+      verifyReviewToken(
+        req.body?.review_token
+      );
+
+    if (!userId) {
+      return res
+        .status(401)
+        .json({
+          error:
+            'This page has expired. Sign in again to send your request.',
+
+          code:
+            'REVIEW_TOKEN_INVALID',
+        });
+    }
+
+    const message =
+      String(
+        req.body?.message ??
+          ''
+      ).trim();
+
+    if (
+      message.length <
+      MIN_MESSAGE_LENGTH
+    ) {
+      return res
+        .status(400)
+        .json({
+          error:
+            `Tell the admins a bit more (at least ${MIN_MESSAGE_LENGTH} characters).`,
+
+          code:
+            'REVIEW_MESSAGE_SHORT',
+        });
+    }
+
+    if (
+      message.length >
+      MAX_MESSAGE_LENGTH
+    ) {
+      return res
+        .status(400)
+        .json({
+          error:
+            `Your message must not exceed ${MAX_MESSAGE_LENGTH} characters.`,
+
+          code:
+            'REVIEW_MESSAGE_LONG',
+        });
+    }
+
+    const {
+      data:
+        user,
+      error:
+        userError,
+    } =
+      await supabaseAdmin
+        .from(
+          'users'
+        )
+        .select(
+          'id, email, role, username, first_name, last_name, is_active'
+        )
+        .eq(
+          'id',
+          userId
+        )
+        .maybeSingle();
+
+    if (userError) {
+      console.error(
+        'ACCOUNT REVIEW USER LOOKUP ERROR:',
+        userError
+      );
+
+      return res
+        .status(500)
+        .json({
+          error:
+            'Unable to send your request. Please try again.',
+        });
+    }
+
+    if (!user) {
+      return res
+        .status(404)
+        .json({
+          error:
+            'Account not found.',
+        });
+    }
+
+    setActivityUser(
+      res,
+      {
+        id:
+          user.id,
+
+        email:
+          user.email,
+
+        role:
+          user.role,
+      }
+    );
+
+    setActivityEntity(
+      res,
+      'user_account',
+      user.id
+    );
+
+    if (
+      user.is_active !==
+      false
+    ) {
+      return res
+        .status(409)
+        .json({
+          error:
+            'Your account is active again. You can sign in.',
+
+          code:
+            'ACCOUNT_ACTIVE',
+        });
+    }
+
+    const latest =
+      await getLatestReview(
+        user.id
+      );
+
+    if (
+      latest?.status ===
+      'pending'
+    ) {
+      return res
+        .status(409)
+        .json({
+          error:
+            'Your request is already waiting for an admin.',
+
+          code:
+            'REVIEW_PENDING',
+
+          review:
+            reviewForClient(
+              latest
+            ),
+        });
+    }
+
+    const {
+      data:
+        review,
+      error:
+        insertError,
+    } =
+      await supabaseAdmin
+        .from(
+          'account_reviews'
+        )
+        .insert({
+          user_id:
+            user.id,
+
+          message,
+        })
+        .select(
+          'id, status, message, admin_note, created_at, reviewed_at'
+        )
+        .single();
+
+    if (insertError) {
+      if (
+        insertError.code ===
+        '23505'
+      ) {
+        return res
+          .status(409)
+          .json({
+            error:
+              'Your request is already waiting for an admin.',
+
+            code:
+              'REVIEW_PENDING',
+          });
+      }
+
+      console.error(
+        'ACCOUNT REVIEW INSERT ERROR:',
+        isMissingMigration(
+          insertError
+        )
+          ? MIGRATION_MESSAGE
+          : insertError
+      );
+
+      return res
+        .status(500)
+        .json({
+          error:
+            'Unable to send your request. Please try again later.',
+        });
+    }
+
+    const name =
+      [
+        user.first_name,
+        user.last_name,
+      ]
+        .filter(Boolean)
+        .join(' ') ||
+      (user.username
+        ? `@${user.username}`
+        : user.email) ||
+      'A user';
+
+    await notifyAdmins({
+      type:
+        'admin_account_review',
+
+      title:
+        'Account review requested',
+
+      message:
+        `${name} asked for their deactivated account to be reviewed.`,
+
+      data: {
+        user_id:
+          user.id,
+
+        review_id:
+          review.id,
+
+        // Opens the person's page in the Admin Portal.
+        route:
+          `/users/${user.id}`,
+      },
+    });
+
+    return res
+      .status(201)
+      .json({
+        message:
+          'Your request was sent. An admin will review it.',
+
+        review:
+          reviewForClient(
+            review
+          ),
+      });
+  } catch (
+    error
+  ) {
+    console.error(
+      'ACCOUNT REVIEW SERVER ERROR:',
+      error
+    );
+
+    return res
+      .status(500)
+      .json({
+        error:
+          'Internal server error.',
+      });
+  }
+}
+
+// ============================================================
 // EXPORTS
 // ============================================================
 
 module.exports = {
+  requestAccountReview,
   register,
   verifyEmail,
   resendVerification,

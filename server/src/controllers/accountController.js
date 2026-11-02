@@ -11,6 +11,12 @@ const {
   '../config/supabase'
 );
 
+const {
+  isMissingMigration,
+} = require(
+  '../services/accountReviewService'
+);
+
 // ============================================================
 // ACTIVITY LOG HELPERS
 // ============================================================
@@ -1614,46 +1620,75 @@ async function deactivateAccount(
     // SOFT DELETE
     // --------------------------------------------------------
 
-    const {
+    // deactivated_by = themselves, so sign-in says "you
+    // deactivated your account" (migration 20261102).
+    const deactivate =
+      fields =>
+        supabaseAdmin
+          .from(
+            'users'
+          )
+          .update({
+            is_active:
+              false,
+
+            deactivated_at:
+              now,
+
+            updated_at:
+              now,
+
+            ...fields,
+          })
+          .eq(
+            'id',
+            userId
+          )
+          .eq(
+            'is_active',
+            true
+          )
+          .select(
+            `
+              id,
+              email,
+              role,
+              is_active,
+              deactivated_at,
+              updated_at
+            `
+          )
+          .maybeSingle();
+
+    let {
       data:
         deactivatedUser,
 
       error:
         updateError,
     } =
-      await supabaseAdmin
-        .from(
-          'users'
-        )
-        .update({
-          is_active:
-            false,
+      await deactivate({
+        deactivated_by:
+          userId,
 
-          deactivated_at:
-            now,
+        deactivation_reason:
+          null,
+      });
 
-          updated_at:
-            now,
-        })
-        .eq(
-          'id',
-          userId
-        )
-        .eq(
-          'is_active',
-          true
-        )
-        .select(
-          `
-            id,
-            email,
-            role,
-            is_active,
-            deactivated_at,
-            updated_at
-          `
-        )
-        .maybeSingle();
+    if (
+      isMissingMigration(
+        updateError
+      )
+    ) {
+      ({
+        data:
+          deactivatedUser,
+
+        error:
+          updateError,
+      } =
+        await deactivate({}));
+    }
 
     if (
       updateError

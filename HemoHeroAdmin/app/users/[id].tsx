@@ -31,6 +31,12 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { useAdminCanvas } from '../../components/AdminCanvas';
 
+import ReasonPicker, {
+  DEACTIVATE_REASONS,
+  DECLINE_REASONS,
+  DELETE_REASONS,
+} from '../../components/ReasonPicker';
+
 import AdminHeader from '../../components/AdminHeader';
 
 import { FadeInView } from '../../components/AdminMotion';
@@ -39,12 +45,14 @@ import {
   activateAdminUser,
   changeAdminUserRole,
   deactivateAdminUser,
+  declineAccountReview,
   deleteAdminUser,
   getAdminReports,
   getAdminUserById,
   isUserLocked,
   lockAdminUser,
   unlockAdminUser,
+  type AdminAccountReview,
   type AdminManagedUser,
   type AdminProfile,
   type AdminReport,
@@ -123,6 +131,26 @@ export default function AdminUserDetailsScreen() {
 
   const [user, setUser] =
     useState<AdminManagedUser | null>(null);
+
+  // Their latest "please review my account" request.
+  const [review, setReview] =
+    useState<AdminAccountReview | null>(null);
+
+  // Reasons the person sees (deactivate, delete, decline).
+  const [deactivateReason, setDeactivateReason] =
+    useState('');
+
+  const [deleteReason, setDeleteReason] =
+    useState('');
+
+  const [declineModalVisible, setDeclineModalVisible] =
+    useState(false);
+
+  const [declineNote, setDeclineNote] =
+    useState('');
+
+  const [processingDecline, setProcessingDecline] =
+    useState(false);
 
   const [loading, setLoading] = useState(true);
 
@@ -217,6 +245,7 @@ export default function AdminUserDetailsScreen() {
         await getAdminUserById(token, id);
 
       setUser(result.user);
+      setReview(result.review ?? null);
 
       void loadIssues(token, id);
     } catch (error) {
@@ -334,6 +363,7 @@ export default function AdminUserDetailsScreen() {
 
     setErrorMessage('');
     setSuccessMessage('');
+    setDeactivateReason('');
     setActionModalVisible(true);
   }
 
@@ -367,12 +397,29 @@ export default function AdminUserDetailsScreen() {
       }
 
       const wasActive = user.is_active;
-
       const result = wasActive
-        ? await deactivateAdminUser(token, user.id)
+        ? await deactivateAdminUser(
+            token,
+            user.id,
+            deactivateReason.trim()
+          )
         : await activateAdminUser(token, user.id);
 
       setUser(result.user);
+
+      // Reactivating answers an open review request.
+      if (!wasActive) {
+        setReview(current =>
+          current?.status === 'pending'
+            ? {
+                ...current,
+                status: 'approved',
+                reviewed_at:
+                  new Date().toISOString(),
+              }
+            : current
+        );
+      }
 
       setSuccessMessage(
         result.message ||
@@ -548,6 +595,7 @@ export default function AdminUserDetailsScreen() {
     }
 
     setDeleteConfirmation('');
+    setDeleteReason('');
     setErrorMessage('');
     setSuccessMessage('');
     setDeleteModalVisible(true);
@@ -565,7 +613,8 @@ export default function AdminUserDetailsScreen() {
   const deleteConfirmed =
     deleteConfirmation
       .trim()
-      .toUpperCase() === 'DELETE';
+      .toUpperCase() === 'DELETE' &&
+    deleteReason.trim().length > 0;
 
   async function confirmDeleteUser() {
     if (
@@ -591,7 +640,11 @@ export default function AdminUserDetailsScreen() {
         return;
       }
 
-      await deleteAdminUser(token, user.id);
+      await deleteAdminUser(
+        token,
+        user.id,
+        deleteReason.trim()
+      );
 
       setDeleteModalVisible(false);
       setDeleteConfirmation('');
@@ -615,6 +668,86 @@ export default function AdminUserDetailsScreen() {
       setProcessingDelete(false);
     }
   }
+
+  // ==========================================================
+  // DECLINE A REVIEW REQUEST
+  //
+  // The account stays deactivated; the person sees the note
+  // the next time they try to sign in. (Reactivating approves
+  // the request instead.)
+  // ==========================================================
+
+  function openDeclineModal() {
+    if (!user || busy) {
+      return;
+    }
+
+    setErrorMessage('');
+    setSuccessMessage('');
+    setDeclineNote('');
+    setDeclineModalVisible(true);
+  }
+
+  function closeDeclineModal() {
+    if (processingDecline) {
+      return;
+    }
+
+    setDeclineModalVisible(false);
+  }
+
+  async function confirmDeclineReview() {
+    if (
+      !user ||
+      processingDecline ||
+      !declineNote.trim()
+    ) {
+      return;
+    }
+
+    try {
+      setProcessingDecline(true);
+      setErrorMessage('');
+
+      const token =
+        await getAdminAccessToken();
+
+      if (!token) {
+        await clearAdminSession();
+
+        router.replace('/');
+
+        return;
+      }
+
+      const result =
+        await declineAccountReview(
+          token,
+          user.id,
+          declineNote.trim()
+        );
+
+      setReview(result.review);
+      setSuccessMessage(result.message);
+    } catch (error) {
+      console.log(
+        'ADMIN DECLINE REVIEW ERROR:',
+        error
+      );
+
+      setErrorMessage(
+        error instanceof Error
+          ? error.message
+          : 'Unable to decline the request.'
+      );
+    } finally {
+      setDeclineModalVisible(false);
+      setProcessingDecline(false);
+    }
+  }
+
+  const reviewPending =
+    review?.status === 'pending';
 
   // ==========================================================
   // UI
@@ -1021,6 +1154,78 @@ export default function AdminUserDetailsScreen() {
                 </FadeInView>
 
                 {/* ==================================================
+                    REVIEW REQUESTED (deactivated, asked for a review)
+                ================================================== */}
+
+                {reviewPending && review ? (
+                  <FadeInView delay={30}>
+                    <SectionCard
+                      scale={s}
+                      fontScale={fs}
+                      icon="rate-review"
+                      title="Review Requested"
+                    >
+                      <Text
+                        style={[
+                          styles.reviewMeta,
+                          {
+                            fontSize: 12.5 * fs,
+                          },
+                        ]}
+                      >
+                        Sent {formatDateTime(review.created_at)}. They can't sign in until you reactivate the account.
+                      </Text>
+
+                      <Text
+                        style={[
+                          styles.reviewMessage,
+                          {
+                            fontSize: 14 * fs,
+                            lineHeight: 21 * fs,
+                            marginTop: 12 * s,
+                            padding: 14 * s,
+                            borderRadius: 10 * s,
+                          },
+                        ]}
+                      >
+                        {review.message}
+                      </Text>
+
+                      <View
+                        style={[
+                          styles.row,
+                          {
+                            gap: 10 * s,
+                            marginTop: 14 * s,
+                            justifyContent: 'flex-end',
+                          },
+                        ]}
+                      >
+                        <ActionButton
+                          label="Decline"
+                          icon="block"
+                          tone="outline"
+                          scale={s}
+                          fontScale={fs}
+                          disabled={busy}
+                          onPress={openDeclineModal}
+                        />
+
+                        <ActionButton
+                          label="Reactivate"
+                          icon="person-add"
+                          tone="success"
+                          scale={s}
+                          fontScale={fs}
+                          disabled={busy}
+                          onPress={openActionModal}
+                        />
+                      </View>
+                    </SectionCard>
+                  </FadeInView>
+                ) : null}
+
+                {/* ==================================================
                     MAIN GRID
                 ================================================== */}
 
@@ -1085,6 +1290,39 @@ export default function AdminUserDetailsScreen() {
                           value={user.is_active ? 'Active' : 'Inactive'}
                           color={user.is_active ? COLORS.green : COLORS.redBright}
                         />
+                        {!user.is_active ? (
+                          <InfoItem
+                            fontScale={fs}
+                            label="Deactivated"
+                            value={formatDateTime(user.deactivated_at)}
+                            color={COLORS.redBright}
+                          />
+                        ) : null}
+                        {!user.is_active ? (
+                          <InfoItem
+                            fontScale={fs}
+                            label="Deactivation Reason"
+                            value={
+                              user.deactivated_by_self
+                                ? 'They deactivated their own account.'
+                                : user.deactivation_reason ||
+                                  'No reason recorded'
+                            }
+                            wide
+                          />
+                        ) : null}
+                        {review && review.status !== 'pending' ? (
+                          <InfoItem
+                            fontScale={fs}
+                            label="Last Review Request"
+                            value={
+                              review.status === 'approved'
+                                ? `Reactivated ${formatDateTime(review.reviewed_at)}`
+                                : `Declined ${formatDateTime(review.reviewed_at)}: ${review.admin_note || ''}`
+                            }
+                            wide
+                          />
+                        ) : null}
                         <InfoItem fontScale={fs} label="Joined" value={formatDateTime(user.created_at)} />
                         <InfoItem fontScale={fs} label="Last Updated" value={formatDateTime(user.updated_at)} />
                         <InfoItem
@@ -1446,9 +1684,38 @@ export default function AdminUserDetailsScreen() {
             : 'Activate'
         }
         processing={processingAction}
+        confirmDisabled={
+          Boolean(user?.is_active) &&
+          !deactivateReason.trim()
+        }
         onClose={closeActionModal}
         onConfirm={confirmAccountAction}
-      />
+      >
+        {user?.is_active ? (
+          <ReasonPicker
+            value={deactivateReason}
+            onChange={setDeactivateReason}
+            presets={DEACTIVATE_REASONS}
+            hint="Why? The person sees this when they try to sign in, and can ask for a review."
+            editable={!processingAction}
+            scale={s}
+            fontScale={fs}
+          />
+        ) : reviewPending ? (
+          <Text
+            style={[
+              styles.reviewMeta,
+              {
+                fontSize: 12.5 * fs,
+                marginTop: 14 * s,
+                textAlign: 'center',
+              },
+            ]}
+          >
+            This also approves their review request.
+          </Text>
+        ) : null}
+      </ConfirmModal>
 
       {/* ========================================================
           LOCK / UNLOCK MODAL
@@ -1592,7 +1859,7 @@ export default function AdminUserDetailsScreen() {
         tone="danger"
         icon="delete-forever"
         title="Permanently Delete User?"
-        message="This removes the account and its sign-in permanently. Type DELETE to confirm."
+        message="This removes the account and its sign-in permanently. Give a reason, then type DELETE to confirm."
         userName={userName}
         userEmail={user?.email || ''}
         confirmLabel="Delete Permanently"
@@ -1601,6 +1868,16 @@ export default function AdminUserDetailsScreen() {
         onClose={closeDeleteModal}
         onConfirm={confirmDeleteUser}
       >
+        <ReasonPicker
+          value={deleteReason}
+          onChange={setDeleteReason}
+          presets={DELETE_REASONS}
+          hint="Why? It is shown if someone signs in with this email again."
+          editable={!processingDelete}
+          scale={s}
+          fontScale={fs}
+        />
+
         <TextInput
           value={deleteConfirmation}
           onChangeText={setDeleteConfirmation}
@@ -1623,6 +1900,38 @@ export default function AdminUserDetailsScreen() {
             deleteConfirmed &&
               styles.deleteInputReady,
           ]}
+        />
+      </ConfirmModal>
+
+      {/* ========================================================
+          DECLINE REVIEW MODAL
+      ======================================================== */}
+
+      <ConfirmModal
+        visible={declineModalVisible}
+        scale={s}
+        fontScale={fs}
+        tone="warning"
+        icon="block"
+        title="Decline Review Request?"
+        message="The account stays deactivated. They see your note the next time they try to sign in, and can ask again."
+        userName={userName}
+        userEmail={user?.email || ''}
+        confirmLabel="Decline Request"
+        processing={processingDecline}
+        confirmDisabled={!declineNote.trim()}
+        onClose={closeDeclineModal}
+        onConfirm={confirmDeclineReview}
+      >
+        <ReasonPicker
+          value={declineNote}
+          onChange={setDeclineNote}
+          presets={DECLINE_REASONS}
+          hint="Your note to them:"
+          placeholder="Write a note"
+          editable={!processingDecline}
+          scale={s}
+          fontScale={fs}
         />
       </ConfirmModal>
     </View>
@@ -3171,6 +3480,19 @@ const styles = StyleSheet.create({
   },
 
   // Lock reason (optional).
+  reviewMeta: {
+    color: COLORS.soft,
+    fontFamily: 'Inter_400Regular',
+  },
+
+  reviewMessage: {
+    color: COLORS.white,
+    fontFamily: 'Inter_400Regular',
+    backgroundColor: COLORS.cardLight,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+  },
+
   reasonInput: {
     width: '100%',
     borderWidth: 1,

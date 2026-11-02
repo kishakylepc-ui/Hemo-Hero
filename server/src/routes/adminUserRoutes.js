@@ -11,6 +11,7 @@ const {
 
   deactivateAdminUser,
   activateAdminUser,
+  declineAccountReview,
 
   lockAdminUser,
   unlockAdminUser,
@@ -179,6 +180,37 @@ router.patch(
   }),
 
   activateAdminUser
+);
+
+// ============================================================
+// DECLINE AN ACCOUNT REVIEW
+//
+// PATCH /api/admin/users/:id/review/decline
+//
+// (Reactivating the account approves it.) Keep BEFORE /:id.
+// ============================================================
+
+router.patch(
+  '/:id/review/decline',
+
+  activityLog({
+    action:
+      'ADMIN_DECLINE_ACCOUNT_REVIEW',
+
+    module:
+      'User Management',
+
+    successDescription:
+      'Administrator declined an account review request.',
+
+    failureDescription:
+      'Administrator attempt to decline an account review request failed.',
+
+    entityType:
+      'user_account',
+  }),
+
+  declineAccountReview
 );
 
 // ============================================================

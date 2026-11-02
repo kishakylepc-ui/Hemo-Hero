@@ -25,6 +25,10 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { useAdminCanvas } from '../../components/AdminCanvas';
 
+import ReasonPicker, {
+  DEACTIVATE_REASONS,
+} from '../../components/ReasonPicker';
+
 import AdminBottomNav from '../../components/AdminBottomNav';
 import AdminHeader from '../../components/AdminHeader';
 
@@ -80,6 +84,7 @@ const COLORS = {
 
   green: '#35C982',
   orange: '#F3A34A',
+  blue: '#4A8CFF',
 
   rowBorder: 'rgba(36,53,84,0.78)',
 };
@@ -155,6 +160,14 @@ export default function AdminUsersScreen() {
 
   const [processingAction, setProcessingAction] =
     useState(false);
+
+  // Why (the person sees it when they try to sign in).
+  const [deactivateReason, setDeactivateReason] =
+    useState('');
+
+  // Deactivated people waiting on a review.
+  const [reviewCount, setReviewCount] =
+    useState(0);
 
   const hasLoadedOnce = useRef(false);
 
@@ -234,6 +247,12 @@ export default function AdminUsersScreen() {
       setPagination(
         usersResult.pagination
       );
+
+      if (!showAdmins) {
+        setReviewCount(
+          usersResult.review_count ?? 0
+        );
+      }
 
       if (
         usersResult.pagination.page !==
@@ -318,6 +337,7 @@ export default function AdminUsersScreen() {
     }
 
     setSelectedUser(user);
+    setDeactivateReason('');
     setActionModalVisible(true);
     setErrorMessage('');
     setSuccessMessage('');
@@ -360,7 +380,8 @@ export default function AdminUsersScreen() {
         selectedUser.is_active
           ? await deactivateAdminUser(
               token,
-              selectedUser.id
+              selectedUser.id,
+              deactivateReason.trim()
             )
           : await activateAdminUser(
               token,
@@ -652,6 +673,18 @@ export default function AdminUsersScreen() {
                     warning
                     onPress={() =>
                       changeStatusFilter('locked')
+                    }
+                  />
+                  {/* Deactivated people who asked for a review */}
+                  <FilterButton
+                    scale={s}
+                    fontScale={fs}
+                    label="Review Requests"
+                    count={reviewCount}
+                    active={!showAdmins && statusFilter === 'review'}
+                    warning
+                    onPress={() =>
+                      changeStatusFilter('review')
                     }
                   />
 
@@ -1117,6 +1150,31 @@ export default function AdminUsersScreen() {
               </View>
             ) : null}
 
+            {selectedUser?.is_active ? (
+              <ReasonPicker
+                value={deactivateReason}
+                onChange={setDeactivateReason}
+                presets={DEACTIVATE_REASONS}
+                hint="Why? The person sees this when they try to sign in, and can ask for a review."
+                editable={!processingAction}
+                scale={s}
+                fontScale={fs}
+              />
+            ) : selectedUser?.review_pending ? (
+              <Text
+                style={[
+                  styles.cellMuted,
+                  styles.centerText,
+                  {
+                    fontSize: 12.5 * fs,
+                    marginTop: 14 * s,
+                  },
+                ]}
+              >
+                This also approves their review request.
+              </Text>
+            ) : null}
+
             <View
               style={[
                 styles.modalButtons,
@@ -1156,7 +1214,11 @@ export default function AdminUsersScreen() {
               </Pressable>
 
               <Pressable
-                disabled={processingAction}
+                disabled={
+                  processingAction ||
+                  (Boolean(selectedUser?.is_active) &&
+                  !deactivateReason.trim())
+                }
                 onPress={confirmAccountAction}
                 style={({ pressed }) => [
                   styles.confirmButton,
@@ -1173,7 +1235,9 @@ export default function AdminUsersScreen() {
                   pressed &&
                     styles.pressed,
 
-                  processingAction &&
+                  (processingAction ||
+                    (Boolean(selectedUser?.is_active) &&
+                  !deactivateReason.trim())) &&
                     styles.disabled,
                 ]}
               >
@@ -1848,6 +1912,26 @@ function UserRow({
             />
           </View>
         ) : null}
+        {user.review_pending ? (
+          <View
+            accessibilityLabel="Review requested"
+            style={[
+              styles.reviewBadge,
+              {
+                width: 30 * scale,
+                height: 30 * scale,
+                borderRadius: 15 * scale,
+                marginLeft: 6 * scale,
+              },
+            ]}
+          >
+            <MaterialIcons
+              name="rate-review"
+              size={15 * scale}
+              color={COLORS.blue}
+            />
+          </View>
+        ) : null}
       </View>
 
       {/* ACTION */}
@@ -2367,6 +2451,14 @@ const styles = StyleSheet.create({
   },
 
   // Small lock beside Active/Inactive.
+  reviewBadge: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(74,140,255,0.45)',
+    backgroundColor: 'rgba(74,140,255,0.10)',
+  },
+
   lockedBadge: {
     alignItems: 'center',
     justifyContent: 'center',

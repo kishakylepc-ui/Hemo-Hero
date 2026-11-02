@@ -45,6 +45,53 @@ const {
 );
 
 // Regular users can be managed by any admin, admin accounts only
+const {
+  MIGRATION_MESSAGE,
+  readReason,
+  emailHash,
+  isMissingMigration,
+  getLatestReview,
+} = require(
+  '../services/accountReviewService'
+);
+
+// People waiting on a review of their deactivated account.
+async function getPendingReviewUserIds() {
+  const {
+    data,
+    error,
+  } =
+    await supabaseAdmin
+      .from(
+        'account_reviews'
+      )
+      .select(
+        'user_id'
+      )
+      .eq(
+        'status',
+        'pending'
+      );
+
+  if (error) {
+    if (!isMissingMigration(error)) {
+      console.error(
+        'ADMIN PENDING REVIEWS ERROR:',
+        error
+      );
+    }
+
+    return new Set();
+  }
+
+  return new Set(
+    (data || []).map(
+      row =>
+        row.user_id
+    )
+  );
+}
+
 // by the super admin, and super admin accounts not from the app.
 function getManageError(
   req,
@@ -708,6 +755,24 @@ function buildSafeUser(
       user.deactivated_at ??
       null,
 
+    // Why an admin deactivated it, shown to the person too
+    // (migration 20261102_account_reviews).
+    deactivation_reason:
+      user.is_active ===
+      false
+        ? user.deactivation_reason ??
+          null
+        : null,
+
+    deactivated_by_self:
+      user.is_active ===
+        false &&
+      Boolean(
+        user.deactivated_by
+      ) &&
+      user.deactivated_by ===
+        user.id,
+
     // Locked by an admin (migration 20261022_account_lock).
     is_locked:
       user.is_locked ===
@@ -1101,6 +1166,7 @@ async function getAdminUsers(
         'active',
         'inactive',
         'locked',
+        'review',
       ].includes(
         status
       )
@@ -1193,6 +1259,30 @@ async function getAdminUsers(
     let filteredUsers =
       allUsers ||
       [];
+
+    const pendingReviewIds =
+      await getPendingReviewUserIds();
+
+    const reviewCount =
+      filteredUsers.filter(
+        user =>
+          pendingReviewIds.has(
+            user.id
+          )
+      ).length;
+
+    if (
+      status ===
+      'review'
+    ) {
+      filteredUsers =
+        filteredUsers.filter(
+          user =>
+            pendingReviewIds.has(
+              user.id
+            )
+        );
+    }
 
     // --------------------------------------------------------
     // STATUS
@@ -1339,8 +1429,8 @@ async function getAdminUsers(
 
     const users =
       pagedUsers.map(
-        user =>
-          buildSafeUser(
+        user => ({
+          ...buildSafeUser(
             user,
             donorMap.get(
               user.id
@@ -1350,13 +1440,23 @@ async function getAdminUsers(
               lockouts,
               user
             )
-          )
+          ),
+
+          review_pending:
+            pendingReviewIds.has(
+              user.id
+            ),
+        })
       );
 
     return res
       .status(200)
       .json({
         users,
+
+        // Deactivated people waiting on a review.
+        review_count:
+          reviewCount,
 
         pagination: {
           page:
@@ -1481,6 +1581,11 @@ async function getAdminUserById(
         ]
       );
 
+    const review =
+      await getLatestReview(
+        user.id
+      );
+
     return res
       .status(200)
       .json({
@@ -1496,6 +1601,9 @@ async function getAdminUserById(
               user
             )
           ),
+
+        // The person's latest "please review my account" request.
+        review,
       });
   } catch (
     error
@@ -3126,6 +3234,24 @@ async function deactivateAdminUser(
         });
     }
 
+    const {
+      reason,
+      error:
+        reasonError,
+    } =
+      readReason(
+        req.body?.reason
+      );
+
+    if (reasonError) {
+      return res
+        .status(400)
+        .json({
+          error:
+            reasonError,
+        });
+    }
+
     const now =
       new Date()
         .toISOString();
@@ -3146,6 +3272,12 @@ async function deactivateAdminUser(
 
           deactivated_at:
             now,
+
+          deactivation_reason:
+            reason,
+
+          deactivated_by:
+            adminId,
 
           updated_at:
             now,
@@ -3173,7 +3305,11 @@ async function deactivateAdminUser(
         .status(500)
         .json({
           error:
-            'Unable to deactivate user account.',
+            isMissingMigration(
+              updateError
+            )
+              ? MIGRATION_MESSAGE
+              : 'Unable to deactivate user account.',
         });
     }
 
@@ -3335,36 +3471,63 @@ async function activateAdminUser(
       new Date()
         .toISOString();
 
-    const {
+    const activate =
+      fields =>
+        supabaseAdmin
+          .from(
+            'users'
+          )
+          .update({
+            is_active:
+              true,
+
+            deactivated_at:
+              null,
+
+            updated_at:
+              now,
+
+            ...fields,
+          })
+          .eq(
+            'id',
+            targetUserId
+          )
+          .eq(
+            'role',
+            targetUser.role
+          )
+          .select('*')
+          .single();
+
+    let {
       data:
         updatedUser,
       error:
         updateError,
     } =
-      await supabaseAdmin
-        .from(
-          'users'
-        )
-        .update({
-          is_active:
-            true,
+      await activate({
+        deactivation_reason:
+          null,
 
-          deactivated_at:
-            null,
+        deactivated_by:
+          null,
+      });
 
-          updated_at:
-            now,
-        })
-        .eq(
-          'id',
-          targetUserId
-        )
-        .eq(
-          'role',
-          targetUser.role
-        )
-        .select('*')
-        .single();
+    // Before migration 20261102 there is no reason to clear.
+    if (
+      isMissingMigration(
+        updateError
+      )
+    ) {
+      ({
+        data:
+          updatedUser,
+        error:
+          updateError,
+      } =
+        await activate({}));
+    }
 
     if (
       updateError
@@ -3387,6 +3550,47 @@ async function activateAdminUser(
       'user_account',
       updatedUser.id
     );
+
+    // Reactivating answers an open review request.
+    const {
+      error:
+        reviewError,
+    } =
+      await supabaseAdmin
+        .from(
+          'account_reviews'
+        )
+        .update({
+          status:
+            'approved',
+
+          reviewed_by:
+            req.dbUser?.id ||
+            null,
+
+          reviewed_at:
+            now,
+        })
+        .eq(
+          'user_id',
+          updatedUser.id
+        )
+        .eq(
+          'status',
+          'pending'
+        );
+
+    if (
+      reviewError &&
+      !isMissingMigration(
+        reviewError
+      )
+    ) {
+      console.error(
+        'ADMIN APPROVE REVIEW ERROR:',
+        reviewError
+      );
+    }
 
     return res
       .status(200)
@@ -3515,6 +3719,70 @@ async function deleteAdminUser(
               manageError,
           });
       }
+
+    // --------------------------------------------------------
+    // REASON (kept by a hash of the email, so it can be shown
+    // if someone signs in with that email again)
+    // --------------------------------------------------------
+
+    const {
+      reason,
+      error:
+        reasonError,
+    } =
+      readReason(
+        req.body?.reason
+      );
+
+    if (reasonError) {
+      return res
+        .status(400)
+        .json({
+          error:
+            reasonError,
+        });
+    }
+
+    if (targetUser.email) {
+      const {
+        error:
+          removalError,
+      } =
+        await supabaseAdmin
+          .from(
+            'removed_accounts'
+          )
+          .insert({
+            email_hash:
+              emailHash(
+                targetUser.email
+              ),
+
+            reason,
+
+            removed_by:
+              req.dbUser?.id ||
+              null,
+          });
+
+      if (removalError) {
+        console.error(
+          'ADMIN DELETE USER REASON ERROR:',
+          removalError
+        );
+
+        return res
+          .status(500)
+          .json({
+            error:
+              isMissingMigration(
+                removalError
+              )
+                ? MIGRATION_MESSAGE
+                : 'Unable to save the reason. The account was not deleted.',
+          });
+      }
+    }
 
     // --------------------------------------------------------
     // RELEASE OPEN OFFERS AND REQUESTS
@@ -3713,6 +3981,148 @@ const MAX_LOCK_REASON_LENGTH =
   300;
 
 // The account to act on, or null after sending the error.
+// ============================================================
+// DECLINE AN ACCOUNT REVIEW
+//
+// PATCH /api/admin/users/:id/review/decline { note }
+//
+// The account stays deactivated. The note is shown to the
+// person the next time they sign in; they can ask again.
+// (Reactivating the account approves the request instead.)
+// ============================================================
+
+async function declineAccountReview(
+  req,
+  res
+) {
+  try {
+    const targetUserId =
+      cleanText(
+        req.params.id
+      );
+
+    if (!targetUserId) {
+      return res
+        .status(400)
+        .json({
+          error:
+            'User ID is required.',
+        });
+    }
+
+    setActivityEntity(
+      res,
+      'user_account',
+      targetUserId
+    );
+
+    const {
+      reason:
+        note,
+      error:
+        noteError,
+    } =
+      readReason(
+        req.body?.note
+      );
+
+    if (noteError) {
+      return res
+        .status(400)
+        .json({
+          error:
+            'Write a note. The person sees it when they try to sign in.',
+        });
+    }
+
+    const {
+      data:
+        review,
+      error:
+        updateError,
+    } =
+      await supabaseAdmin
+        .from(
+          'account_reviews'
+        )
+        .update({
+          status:
+            'declined',
+
+          admin_note:
+            note,
+
+          reviewed_by:
+            req.dbUser?.id ||
+            null,
+
+          reviewed_at:
+            new Date()
+              .toISOString(),
+        })
+        .eq(
+          'user_id',
+          targetUserId
+        )
+        .eq(
+          'status',
+          'pending'
+        )
+        .select(
+          'id, status, message, admin_note, created_at, reviewed_at'
+        )
+        .maybeSingle();
+
+    if (updateError) {
+      console.error(
+        'ADMIN DECLINE REVIEW ERROR:',
+        updateError
+      );
+
+      return res
+        .status(500)
+        .json({
+          error:
+            isMissingMigration(
+              updateError
+            )
+              ? MIGRATION_MESSAGE
+              : 'Unable to decline the request.',
+        });
+    }
+
+    if (!review) {
+      return res
+        .status(404)
+        .json({
+          error:
+            'There is no open review request for this account.',
+        });
+    }
+
+    return res
+      .status(200)
+      .json({
+        message:
+          'Review request declined. The account stays deactivated.',
+
+        review,
+      });
+  } catch (error) {
+    console.error(
+      'ADMIN DECLINE REVIEW SERVER ERROR:',
+      error
+    );
+
+    return res
+      .status(500)
+      .json({
+        error:
+          'Internal server error.',
+      });
+  }
+}
+
 async function loadTargetForAction(
   req,
   res,
@@ -4339,6 +4749,7 @@ async function changeAdminUserRole(
 }
 
 module.exports = {
+  declineAccountReview,
   getAdminUserSummary,
   getAdminUsers,
   getAdminUserById,
