@@ -126,6 +126,14 @@ type MessageState = {
   title: string;
   message: string;
   variant: MessageVariant;
+  // A second button, like Download File.
+  action?: {
+    label: string;
+    icon: ComponentProps<
+      typeof MaterialIcons
+    >['name'];
+    onPress: () => void;
+  };
 } | null;
 
 type ConfirmState =
@@ -295,7 +303,13 @@ export default function AdminBackupsScreen() {
           ).length
         } tables were saved (${formatSize(
           result.backup.size_bytes
-        )}).`,
+        )}). You can download it as a file now, or any time from the list.`,
+        action: {
+          label: 'Download File',
+          icon: 'file-download',
+          onPress: () =>
+            downloadBackup(result.backup),
+        },
       });
 
       await loadBackups();
@@ -338,7 +352,28 @@ export default function AdminBackupsScreen() {
           backup.id
         );
 
-      await Linking.openURL(link.url);
+      if (Platform.OS === 'web') {
+        // Saves in place. The link sends the file as a download,
+        // so the page stays open, and unlike a new tab, a popup
+        // blocker can't stop it after waiting on the server.
+        const saveLink =
+          document.createElement('a');
+
+        saveLink.href = link.url;
+        saveLink.download = link.file_name;
+
+        document.body.appendChild(saveLink);
+        saveLink.click();
+        saveLink.remove();
+
+        setMessage({
+          variant: 'success',
+          title: 'Download Started',
+          message: `Your browser is saving ${link.file_name}. Check your Downloads folder. It holds every user's personal data, so keep it somewhere safe.`,
+        });
+      } else {
+        await Linking.openURL(link.url);
+      }
     } catch (error) {
       setMessage({
         variant: 'error',
@@ -1317,37 +1352,112 @@ export default function AdminBackupsScreen() {
                   },
                 ]}
               >
-                <Pressable
-                  onPress={() => setMessage(null)}
-                  style={({ pressed }) => [
-                    styles.modalPrimaryButton,
-                    styles.modalSingleButton,
+                {message.action ? (
+                  <>
+                    <Pressable
+                      onPress={() => setMessage(null)}
+                      style={({ pressed }) => [
+                        styles.modalCancelButton,
 
-                    {
-                      height: 48 * s,
-                      borderRadius: 10 * s,
-                      backgroundColor:
-                        message.variant === 'success'
-                          ? COLORS.green
-                          : COLORS.red,
-                    },
+                        {
+                          height: 48 * s,
+                          borderRadius: 10 * s,
+                          marginRight: 10 * s,
+                        },
 
-                    pressed &&
-                      styles.pressed,
-                  ]}
-                >
-                  <Text
-                    style={[
-                      styles.modalPrimaryText,
+                        pressed &&
+                          styles.pressed,
+                      ]}
+                    >
+                      <Text
+                        style={[
+                          styles.modalCancelText,
+
+                          {
+                            fontSize: 13 * fs,
+                          },
+                        ]}
+                      >
+                        Close
+                      </Text>
+                    </Pressable>
+
+                    <Pressable
+                      onPress={() => {
+                        const action =
+                          message.action;
+
+                        setMessage(null);
+
+                        action?.onPress();
+                      }}
+                      style={({ pressed }) => [
+                        styles.modalPrimaryButton,
+
+                        {
+                          height: 48 * s,
+                          borderRadius: 10 * s,
+                          gap: 8 * s,
+                          backgroundColor:
+                            COLORS.red,
+                        },
+
+                        pressed &&
+                          styles.pressed,
+                      ]}
+                    >
+                      <MaterialIcons
+                        name={message.action.icon}
+                        size={19 * s}
+                        color={COLORS.white}
+                      />
+
+                      <Text
+                        style={[
+                          styles.modalPrimaryText,
+
+                          {
+                            fontSize: 13 * fs,
+                          },
+                        ]}
+                      >
+                        {message.action.label}
+                      </Text>
+                    </Pressable>
+                  </>
+                ) : (
+                  <Pressable
+                    onPress={() => setMessage(null)}
+                    style={({ pressed }) => [
+                      styles.modalPrimaryButton,
+                      styles.modalSingleButton,
 
                       {
-                        fontSize: 13 * fs,
+                        height: 48 * s,
+                        borderRadius: 10 * s,
+                        backgroundColor:
+                          message.variant === 'success'
+                            ? COLORS.green
+                            : COLORS.red,
                       },
+
+                      pressed &&
+                        styles.pressed,
                     ]}
                   >
-                    OK
-                  </Text>
-                </Pressable>
+                    <Text
+                      style={[
+                        styles.modalPrimaryText,
+
+                        {
+                          fontSize: 13 * fs,
+                        },
+                      ]}
+                    >
+                      OK
+                    </Text>
+                  </Pressable>
+                )}
               </View>
             </View>
           ) : null}
