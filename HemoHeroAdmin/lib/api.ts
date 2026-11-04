@@ -1360,6 +1360,83 @@ export async function loginAdmin(
 }
 
 // ============================================================
+// FIRST SIGN-IN: VERIFY EMAIL
+//
+// An account made by an administrator confirms its email with a
+// code the first time it signs in. The right code signs in.
+// ============================================================
+
+export type AdminEmailVerification = {
+  message: string;
+  session?: AdminLoginResponse['session'];
+  profile?: AdminLoginResponse['profile'];
+};
+
+export async function verifyAdminEmail(
+  email: string,
+  code: string
+): Promise<AdminEmailVerification> {
+  const response =
+    await fetch(
+      `${API_URL}/api/auth/verify-email`,
+      {
+        method:
+          'POST',
+
+        headers: {
+          'Content-Type':
+            'application/json',
+        },
+
+        body:
+          JSON.stringify({
+            email:
+              email.trim(),
+
+            code,
+
+            portal:
+              'admin',
+          }),
+      }
+    );
+
+  return parseResponse(
+    response
+  );
+}
+
+export async function resendAdminVerification(
+  email: string
+): Promise<{
+  message: string;
+}> {
+  const response =
+    await fetch(
+      `${API_URL}/api/auth/resend-verification`,
+      {
+        method:
+          'POST',
+
+        headers: {
+          'Content-Type':
+            'application/json',
+        },
+
+        body:
+          JSON.stringify({
+            email:
+              email.trim(),
+          }),
+      }
+    );
+
+  return parseResponse(
+    response
+  );
+}
+
+// ============================================================
 // SIGN-IN CAPTCHA
 //
 // A new picture to solve; the answer stays on the server.
@@ -2499,6 +2576,12 @@ export async function createAdminUser(
               input.email
                 .trim()
                 .toLowerCase(),
+
+            username:
+              input.username,
+
+            role:
+              input.role,
 
             password:
               input.password,

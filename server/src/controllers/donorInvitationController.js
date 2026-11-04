@@ -1164,8 +1164,7 @@ async function sendDonorInvitation(
       .status(500)
       .json({
         error:
-          error.message ||
-          'Internal server error',
+          'Unable to send this invitation.',
       });
   }
 }
@@ -1318,8 +1317,7 @@ async function getMyDonorInvitations(
       .status(500)
       .json({
         error:
-          error.message ||
-          'Internal server error',
+          'Unable to load your invitations.',
       });
   }
 }
@@ -1858,8 +1856,7 @@ async function acceptDonorInvitation(
       .status(500)
       .json({
         error:
-          error.message ||
-          'Internal server error',
+          'Unable to accept this invitation.',
       });
   }
 }
@@ -2116,8 +2113,7 @@ async function declineDonorInvitation(
       .status(500)
       .json({
         error:
-          error.message ||
-          'Internal server error',
+          'Unable to decline this invitation.',
       });
   }
 }

@@ -51,6 +51,11 @@ Write each change under **Unreleased** as you make it. `node scripts/version.js 
   - The server terminal prints a repeated GET once a minute, so the checks don't flood it.
 - Mobile: the **Chat** tab shows how many unread chat alerts you have, on every screen that has the bottom bar. It updates every 15 seconds, when an alert arrives, and when you come back to a screen or the app. Chats that can no longer be opened aren't counted.
 - Fixed: a donation could be confirmed before a meeting was agreed. Accepting an offer showed **Confirm Donation** right away, and the chat's Details section always offered it. Confirming now needs an agreed meeting time or a donor who has arrived. A record that was not accepted can still be confirmed again. The server checks this too.
+- **First sign-in code for accounts made by an admin.** Accounts from Create User now confirm their email like any new account: the first sign-in with the right password emails a 6-digit code. The Admin Portal has a new **Verify Your Email** popup for it. In both apps, signing in with an unverified email now sends a code and opens the code screen right away.
+- Admin accounts sign in only through the Admin Portal. In the user app they see a message pointing there, and the attempt is logged as unauthorized access.
+- Admin: the Log Trails table has an **IP Address** column.
+- Fixed: **Create User** in the Admin Portal always failed with "Please enter a username", and choosing **Admin** would have made a regular user. The portal wasn't sending the username or the role to the server.
+- Fixed: server errors could expose internal details. A malformed request returned a page with a stack trace and file paths, and 17 error replies passed on raw internal messages. Replies now use plain messages, and the details stay in the server log.
 - Fixed: you could invite a donor who had already offered to help with the same request. The server now refuses with a message that their offer is on your request.
 - Fixed: **Browse Blood Requests** on the approved donor application opened your own Requests tab. It now opens Search on the Requests tab, showing requests near you.
 - Fixed: Verify Email, Forgot Password and Reset Password showed a red band above the keyboard on phones.

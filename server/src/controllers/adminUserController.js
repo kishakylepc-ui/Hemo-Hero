@@ -2007,9 +2007,9 @@ async function createAdminUser(
     // --------------------------------------------------------
     // CREATE SUPABASE AUTH USER
     //
-    // Admin-created accounts are confirmed immediately so the
-    // user can sign in using the temporary password supplied by
-    // the administrator.
+    // The email isn't confirmed yet: the first sign-in with the
+    // password from the administrator emails a code, the same
+    // as any new account.
     // --------------------------------------------------------
 
     const {
@@ -2028,7 +2028,7 @@ async function createAdminUser(
           password,
 
           email_confirm:
-            true,
+            false,
 
           user_metadata: {
             onboarding_complete:
@@ -2081,8 +2081,6 @@ async function createAdminUser(
         .status(400)
         .json({
           error:
-            authCreateError
-              ?.message ||
             'Unable to create user account.',
         });
     }

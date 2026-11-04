@@ -49,10 +49,12 @@ import {
   AdminApiError,
   getLoginCaptcha,
   loginAdmin,
+  type AdminEmailVerification,
   type LoginCaptcha,
 } from '../lib/api';
 
 import ResetPasswordModal from '../components/ResetPasswordModal';
+import VerifyEmailModal from '../components/VerifyEmailModal';
 
 import {
   clearAdminLoginLock,
@@ -240,6 +242,16 @@ export default function AdminLoginScreen() {
     setResettingPassword,
   ] =
     useState(false);
+
+  // First sign-in: the email waiting for its code.
+  const [
+    verifying,
+    setVerifying,
+  ] =
+    useState<{
+      email: string;
+      codeSent: boolean;
+    } | null>(null);
 
   const [
     checkingSession,
@@ -1084,10 +1096,46 @@ export default function AdminLoginScreen() {
   // LOGIN
   // ==========================================================
 
+  // First sign-in: the code was right.
+  async function handleEmailVerified(
+    result: AdminEmailVerification
+  ) {
+    setVerifying(null);
+
+    if (
+      !result.session?.access_token ||
+      !result.profile ||
+      !isAdminRole(result.profile.role)
+    ) {
+      setPassword('');
+
+      setSuccessMessage(
+        result.message ||
+          'Your email is verified. You can now sign in.'
+      );
+
+      return;
+    }
+
+    await saveAdminSession(
+      result.session,
+      result.profile,
+      rememberMe
+    );
+
+    setError('');
+    setSuccessMessage('');
+
+    router.replace(
+      '/dashboard'
+    );
+  }
+
   async function handleSignIn() {
     if (
       loading ||
       resettingPassword ||
+      verifying ||
       cooldownSeconds > 0
     ) {
       return;
@@ -1252,6 +1300,27 @@ export default function AdminLoginScreen() {
           signInError.data ||
           {};
 
+        // First sign-in: the password was right, and the email
+        // needs its code before there's a session.
+        if (
+          signInError.code ===
+          'EMAIL_NOT_VERIFIED'
+        ) {
+          applyLock(null);
+
+          setVerifying({
+            email:
+              data.email ||
+              cleanEmail,
+
+            codeSent:
+              data.code_sent ===
+              true,
+          });
+
+          return;
+        }
+
         // Locked: countdown from the server's exact time.
         if (
           signInError.code ===
@@ -1361,7 +1430,8 @@ export default function AdminLoginScreen() {
   function handleForgotPassword() {
     if (
       loading ||
-      resettingPassword
+      resettingPassword ||
+      verifying
     ) {
       return;
     }
@@ -2621,6 +2691,20 @@ export default function AdminLoginScreen() {
           setResettingPassword(false)
         }
         onDone={handlePasswordReset}
+      />
+
+      {/* First sign-in: the code sent to the email */}
+
+      <VerifyEmailModal
+        visible={Boolean(verifying)}
+        scale={s}
+        fontScale={Math.max(tablet.scale, 0.92)}
+        email={verifying?.email || ''}
+        codeSent={verifying?.codeSent !== false}
+        onClose={() =>
+          setVerifying(null)
+        }
+        onVerified={handleEmailVerified}
       />
     </View>
   );

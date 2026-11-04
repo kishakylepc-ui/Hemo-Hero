@@ -716,7 +716,6 @@ async function getNearbyBloodRequests(
       .status(500)
       .json({
         error:
-          error.message ||
           'Unable to load nearby blood requests.',
       });
   }

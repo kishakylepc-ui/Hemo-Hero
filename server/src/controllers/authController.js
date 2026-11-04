@@ -803,13 +803,26 @@ async function register(
         error.message
       );
 
+      const tooManyEmails =
+        error.status === 429 ||
+        /rate limit/i.test(
+          error.message ||
+            ''
+        );
+
       return res
         .status(
-          400
+          tooManyEmails
+            ? 429
+            : 400
         )
         .json({
           error:
-            error.message,
+            tooManyEmails
+              ? 'Too many emails were sent just now. Please wait a while and try again.'
+              : error.code === 'weak_password'
+                ? 'Please choose a stronger password.'
+                : 'Unable to create your account. Please check your details and try again.',
         });
     }
 
@@ -944,6 +957,117 @@ async function register(
 // ============================================================
 // POST /api/auth/verify-email
 // ============================================================
+
+// The right app for the account: admin accounts use the Admin
+// Portal (which sends { portal: 'admin' }), everyone else the
+// app. Says why not, or null when it's fine.
+function getPortalRefusal(
+  role,
+  portal
+) {
+  const adminAccount =
+    isAdminRole(
+      role
+    );
+
+  if (
+    portal === 'admin' &&
+    !adminAccount
+  ) {
+    return {
+      description:
+        `Blocked: an account with the ${role || 'unknown'} role tried to sign in to the Admin Portal.`,
+
+      error:
+        'This account is not authorized to access the Hemo-Hero Admin Portal.',
+
+      code:
+        'ADMIN_REQUIRED',
+    };
+  }
+
+  if (
+    portal !== 'admin' &&
+    adminAccount
+  ) {
+    return {
+      description:
+        `Blocked: an account with the ${role} role tried to sign in to the user app.`,
+
+      error:
+        'Admin accounts sign in through the Hemo-Hero Admin Portal.',
+
+      code:
+        'USE_ADMIN_PORTAL',
+    };
+  }
+
+  return null;
+}
+
+// Ends only this new session; other sessions stay.
+async function endNewSession(
+  accessToken
+) {
+  try {
+    await supabaseAdmin
+      .auth
+      .admin
+      .signOut(
+        accessToken,
+        'local'
+      );
+  } catch (signOutError) {
+    console.error(
+      'END NEW SESSION ERROR:',
+      signOutError
+    );
+  }
+}
+
+// Emails a new verification code. False if it couldn't be sent.
+async function sendVerificationCode(
+  cleanEmail
+) {
+  const frontendUrl =
+    process.env
+      .FRONTEND_URL ||
+    'http://localhost:8081';
+
+  const {
+    error,
+  } =
+    await supabaseAnon
+      .auth
+      .resend({
+        type:
+          'signup',
+
+        email:
+          cleanEmail,
+
+        options: {
+          emailRedirectTo:
+            `${frontendUrl}/`,
+        },
+      });
+
+  if (error) {
+    console.error(
+      'RESEND VERIFICATION SUPABASE ERROR:',
+      error.message
+    );
+
+    return false;
+  }
+
+  await recordCodeSent(
+    'signup',
+    cleanEmail
+  );
+
+  return true;
+}
 
 async function verifyEmail(
   req,
@@ -1184,8 +1308,25 @@ async function verifyEmail(
         );
       }
 
+      // Verified, but this isn't their app: they sign in at the
+      // right one instead.
+      const wrongApp =
+        dbUser &&
+        getPortalRefusal(
+          dbUser.role,
+          req.body?.portal
+        );
+
+      if (wrongApp) {
+        await endNewSession(
+          data.session
+            .access_token
+        );
+      }
+
       if (
         dbUser &&
+        !wrongApp &&
         dbUser.is_active !==
           false &&
         dbUser.is_locked !==
@@ -1338,35 +1479,12 @@ async function resendVerification(
         );
     }
 
-    const frontendUrl =
-      process.env
-        .FRONTEND_URL ||
-      'http://localhost:8081';
-
-    const {
-      error,
-    } =
-      await supabaseAnon
-        .auth
-        .resend({
-          type:
-            'signup',
-
-          email:
-            cleanEmail,
-
-          options: {
-            emailRedirectTo:
-              `${frontendUrl}/`,
-          },
-        });
-
-    if (error) {
-      console.error(
-        'RESEND VERIFICATION SUPABASE ERROR:',
-        error.message
+    const sent =
+      await sendVerificationCode(
+        cleanEmail
       );
 
+    if (!sent) {
       return res
         .status(
           400
@@ -1376,11 +1494,6 @@ async function resendVerification(
             'Unable to resend verification code. Please wait and try again.',
         });
     }
-
-    await recordCodeSent(
-      'signup',
-      cleanEmail
-    );
 
     return res
       .status(
@@ -1770,6 +1883,74 @@ async function login(
             'email not confirmed'
           )
       ) {
+        // Supabase only says this when the password is right.
+        if (
+          typeof req
+            .resetLoginAttempts ===
+          'function'
+        ) {
+          req.resetLoginAttempts();
+        }
+
+        const wrongApp =
+          getPortalRefusal(
+            existingAccount.role,
+            req.body?.portal
+          );
+
+        if (wrongApp) {
+          setActivityOutcome(
+            res,
+            {
+              action:
+                'UNAUTHORIZED_ACCESS',
+
+              module:
+                'Access Control',
+
+              description:
+                wrongApp.description,
+            }
+          );
+
+          return res
+            .status(
+              403
+            )
+            .json({
+              error:
+                wrongApp.error,
+
+              code:
+                wrongApp.code,
+            });
+        }
+
+        // First sign-in: email the code now, so it's fresh. A
+        // code sent under a minute ago still works.
+        const recentCode =
+          await getResendBlock(
+            'signup',
+            cleanEmail
+          );
+
+        const codeSent =
+          recentCode
+            ? true
+            : await sendVerificationCode(
+                cleanEmail
+              );
+
+        setActivityOutcome(
+          res,
+          {
+            description:
+              codeSent
+                ? 'Sign-in needs email verification: a code was sent.'
+                : 'Sign-in needs email verification: the code could not be sent.',
+          }
+        );
+
         return res
           .status(
             403
@@ -1780,6 +1961,13 @@ async function login(
 
             code:
               'EMAIL_NOT_VERIFIED',
+
+            // They may have typed a username.
+            email:
+              cleanEmail,
+
+            code_sent:
+              codeSent,
           });
       }
 
@@ -2085,35 +2273,22 @@ async function login(
     }
 
     // --------------------------------------------------------
-    // ADMIN PORTAL: ADMINS ONLY
+    // THE RIGHT APP FOR THE ACCOUNT
     //
-    // The Admin Portal sends { portal: 'admin' }. Other accounts
-    // get no session there, and the attempt is recorded.
+    // No session in the wrong app, and the attempt is recorded.
     // --------------------------------------------------------
 
-    if (
-      req.body?.portal ===
-        'admin' &&
-      !isAdminRole(
-        dbUser.role
-      )
-    ) {
-      // Only this new session; their app sessions stay.
-      try {
-        await supabaseAdmin
-          .auth
-          .admin
-          .signOut(
-            data.session
-              .access_token,
-            'local'
-          );
-      } catch (signOutError) {
-        console.error(
-          'ADMIN PORTAL SIGNOUT ERROR:',
-          signOutError
-        );
-      }
+    const wrongApp =
+      getPortalRefusal(
+        dbUser.role,
+        req.body?.portal
+      );
+
+    if (wrongApp) {
+      await endNewSession(
+        data.session
+          .access_token
+      );
 
       setActivityOutcome(
         res,
@@ -2125,7 +2300,7 @@ async function login(
             'Access Control',
 
           description:
-            `Blocked: an account with the ${dbUser.role || 'unknown'} role tried to sign in to the Admin Portal.`,
+            wrongApp.description,
         }
       );
 
@@ -2135,10 +2310,10 @@ async function login(
         )
         .json({
           error:
-            'This account is not authorized to access the Hemo-Hero Admin Portal.',
+            wrongApp.error,
 
           code:
-            'ADMIN_REQUIRED',
+            wrongApp.code,
         });
     }
 

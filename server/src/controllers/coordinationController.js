@@ -757,8 +757,7 @@ async function getCoordination(
       .status(500)
       .json({
         error:
-          error.message ||
-          'Internal server error'
+          'Unable to load this conversation.'
       });
   }
 }
@@ -913,8 +912,7 @@ async function getCoordinationMessages(
       .status(500)
       .json({
         error:
-          error.message ||
-          'Internal server error'
+          'Unable to load the messages.'
       });
   }
 }
@@ -1181,8 +1179,7 @@ async function sendCoordinationMessage(
       .status(500)
       .json({
         error:
-          error.message ||
-          'Internal server error'
+          'Unable to send your message.'
       });
   }
 }
@@ -1690,8 +1687,7 @@ async function setCoordinationSchedule(
       .status(500)
       .json({
         error:
-          error.message ||
-          'Internal server error'
+          'Unable to save the meeting time.'
       });
   }
 }
@@ -2071,8 +2067,7 @@ async function agreeCoordinationSchedule(
       .status(500)
       .json({
         error:
-          error.message ||
-          'Internal server error'
+          'Unable to agree to the meeting time.'
       });
   }
 }

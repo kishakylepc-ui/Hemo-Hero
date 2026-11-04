@@ -1155,6 +1155,20 @@ export default function AdminCreateUserScreen() {
                         >
                           {createdUser.email}
                         </Text>
+
+                        <Text
+                          style={[
+                            styles.createdEmail,
+                            {
+                              fontSize:
+                                12.5 * fs,
+                              marginTop:
+                                3 * s,
+                            },
+                          ]}
+                        >
+                          Their first sign-in needs a code sent to this email.
+                        </Text>
                       </View>
                     </View>
 

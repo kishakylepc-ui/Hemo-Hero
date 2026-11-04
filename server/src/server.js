@@ -63,6 +63,12 @@ const adminBackupRoutes =
 // ============================================================
 
 const {
+  errorHandler
+} = require(
+  './middleware/errorHandler'
+);
+
+const {
   startRequestExpiry
 } = require(
   './services/requestExpiryService'
@@ -409,6 +415,11 @@ app.use(
           'Route not found',
       });
   }
+);
+
+// Goes last: answers errors no controller caught.
+app.use(
+  errorHandler
 );
 
 // ============================================================

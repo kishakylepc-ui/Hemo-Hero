@@ -362,8 +362,7 @@ async function getDonorApplications(
       .status(500)
       .json({
         error:
-          error.message ||
-          'Internal server error.',
+          'Unable to load donor applications.',
       });
   }
 }

@@ -1015,6 +1015,7 @@ export default function ActivityLogsScreen() {
                         ['User', styles.colUser],
                         ['Module', styles.colModule],
                         ['Result', styles.colStatus],
+                        ['IP Address', styles.colIp],
                         ['Date', styles.colDate],
                       ] as [string, object][]
                     ).map(([label, colStyle]) => (
@@ -1698,6 +1699,23 @@ function ActivityRow({
         </View>
       </View>
 
+      {/* IP ADDRESS */}
+
+      <View style={styles.colIp}>
+        <Text
+          numberOfLines={1}
+          style={[
+            styles.cellText,
+
+            {
+              fontSize: 12.5 * fontScale,
+            },
+          ]}
+        >
+          {formatIp(log.ip_address)}
+        </Text>
+      </View>
+
       {/* DATE */}
 
       <View style={styles.colDate}>
@@ -1918,7 +1936,7 @@ function LogDetailsModal({
                       : '—'
                   }
                 />
-                <DetailRow fontScale={fontScale} label="IP address" value={log.ip_address || '—'} mono />
+                <DetailRow fontScale={fontScale} label="IP address" value={formatIp(log.ip_address)} mono />
                 <DetailRow fontScale={fontScale} label="Device" value={log.user_agent || '—'} />
               </DetailGroup>
 
@@ -2163,6 +2181,15 @@ function formatMetadataValue(
   }
 
   return String(value);
+}
+
+// IPv4 addresses reach the server as "::ffff:192.168.1.5".
+function formatIp(
+  ip?: string | null
+) {
+  return ip
+    ? ip.replace(/^::ffff:/i, '')
+    : '—';
 }
 
 function formatDate(
@@ -2478,23 +2505,27 @@ const styles = StyleSheet.create({
   },
 
   colActivity: {
-    width: '33%',
+    width: '28%',
   },
 
   colUser: {
-    width: '22%',
+    width: '19%',
   },
 
   colModule: {
-    width: '15%',
+    width: '13%',
   },
 
   colStatus: {
-    width: '11%',
+    width: '10%',
+  },
+
+  colIp: {
+    width: '13%',
   },
 
   colDate: {
-    width: '15%',
+    width: '13%',
   },
 
   colAction: {

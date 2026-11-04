@@ -1079,8 +1079,7 @@ async function respondToBloodRequest(
       .status(500)
       .json({
         error:
-          error.message ||
-          'Internal server error'
+          'Unable to send your offer.'
       });
   }
 }
@@ -1636,8 +1635,7 @@ async function getResponsesForMyBloodRequest(
       .status(500)
       .json({
         error:
-          error.message ||
-          'Internal server error'
+          'Unable to load donor offers.'
       });
   }
 }
@@ -1996,8 +1994,7 @@ async function acceptDonorResponse(
       .status(500)
       .json({
         error:
-          error.message ||
-          'Internal server error'
+          'Unable to accept this offer.'
       });
   }
 }
@@ -2282,8 +2279,7 @@ async function rejectDonorResponse(
       .status(500)
       .json({
         error:
-          error.message ||
-          'Internal server error'
+          'Unable to reject this offer.'
       });
   }
 }

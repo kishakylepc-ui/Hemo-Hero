@@ -47,6 +47,7 @@ import {
 } from '../lib/api';
 
 import {
+  clearSession,
   getAccessToken,
   saveSession,
 } from '../lib/session';
@@ -523,6 +524,18 @@ export default function SignInScreen() {
             !active ||
             !data?.user
           ) {
+            return;
+          }
+
+          // Admin accounts use the Admin Portal, not this app.
+          if (
+            data.user.role ===
+              'admin' ||
+            data.user.role ===
+              'super_admin'
+          ) {
+            await clearSession();
+
             return;
           }
 
@@ -1459,8 +1472,31 @@ export default function SignInScreen() {
           apiData.code ===
           'EMAIL_NOT_VERIFIED'
         ) {
+          // They may have typed a username.
+          const openVerifyEmail = () =>
+            router.push({
+              pathname:
+                '/verify-email',
+
+              params: {
+                email:
+                  apiData.email ||
+                  cleanEmail,
+              },
+            });
+
+          // The password was right and the code is on its way.
+          if (
+            apiData.code_sent ===
+            true
+          ) {
+            openVerifyEmail();
+
+            return;
+          }
+
           message =
-            'Please verify your email before signing in.';
+            'Please verify your email before signing in. We could not send a code just now.';
 
           field = 'email';
 
@@ -1468,16 +1504,8 @@ export default function SignInScreen() {
             label:
               'Verify email',
 
-            onPress: () =>
-              router.push({
-                pathname:
-                  '/verify-email',
-
-                params: {
-                  email:
-                    cleanEmail,
-                },
-              }),
+            onPress:
+              openVerifyEmail,
           };
         }
 
