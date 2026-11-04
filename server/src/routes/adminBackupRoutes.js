@@ -1,6 +1,9 @@
 const express =
   require('express');
 
+const multer =
+  require('multer');
+
 const router =
   express.Router();
 
@@ -13,9 +16,16 @@ const {
   postBackup,
   getBackupDownload,
   postRestore,
+  postRestoreFile,
   removeBackup
 } = require(
   '../controllers/adminBackupController'
+);
+
+const {
+  MAX_BACKUP_FILE_BYTES
+} = require(
+  '../services/backupService'
 );
 
 // ============================================================
@@ -119,6 +129,90 @@ router.post(
       'data_backup'
   }),
   postRestore
+);
+
+// ------------------------------------------------------------
+// POST /api/admin/backups/restore-file
+//
+// Sent as a form because the JSON body limit is far smaller than
+// a backup. The file is only held in memory.
+// ------------------------------------------------------------
+
+const backupFileUploader =
+  multer({
+    storage:
+      multer.memoryStorage(),
+    limits: {
+      fileSize:
+        MAX_BACKUP_FILE_BYTES,
+      files:
+        1
+    }
+  });
+
+function handleBackupFileUpload(
+  req,
+  res,
+  next
+) {
+  const middleware =
+    backupFileUploader.single(
+      'backup'
+    );
+
+  middleware(
+    req,
+    res,
+    error => {
+      if (!error) {
+        return next();
+      }
+
+      if (
+        error instanceof
+          multer.MulterError &&
+        error.code ===
+          'LIMIT_FILE_SIZE'
+      ) {
+        return res
+          .status(413)
+          .json({
+            error:
+              'That file is too large to be a Hemo-Hero backup. Nothing was changed.'
+          });
+      }
+
+      console.error(
+        'BACKUP FILE UPLOAD ERROR:',
+        error
+      );
+
+      return res
+        .status(400)
+        .json({
+          error:
+            'The backup file could not be read. Nothing was changed.'
+        });
+    }
+  );
+}
+
+router.post(
+  '/restore-file',
+  activityLog({
+    action:
+      'RESTORE_BACKUP_FILE',
+    module:
+      'Backups',
+    successDescription:
+      'Super admin restored the database from an uploaded backup file.',
+    failureDescription:
+      'Restoring the database from an uploaded backup file failed.',
+    entityType:
+      'data_backup'
+  }),
+  handleBackupFileUpload,
+  postRestoreFile
 );
 
 // ------------------------------------------------------------

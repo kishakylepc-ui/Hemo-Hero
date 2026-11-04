@@ -10,7 +10,8 @@ const {
   createBackup,
   getDownloadLink,
   deleteBackup,
-  restoreBackup
+  restoreBackup,
+  restoreBackupFile
 } = require(
   '../services/backupService'
 );
@@ -22,6 +23,7 @@ const {
 // POST   /api/admin/backups               back up now
 // GET    /api/admin/backups/:id/download  5-minute download link
 // POST   /api/admin/backups/:id/restore   body { confirm: 'RESTORE' }
+// POST   /api/admin/backups/restore-file  form: confirm, backup (file)
 // DELETE /api/admin/backups/:id
 // ============================================================
 
@@ -252,6 +254,66 @@ async function postRestore(
   }
 }
 
+async function postRestoreFile(
+  req,
+  res
+) {
+  if (
+    req.body?.confirm !==
+    'RESTORE'
+  ) {
+    return res
+      .status(400)
+      .json({
+        error:
+          'Type RESTORE to confirm.'
+      });
+  }
+
+  if (!req.file?.buffer) {
+    return res
+      .status(400)
+      .json({
+        error:
+          'Choose a backup file to restore.'
+      });
+  }
+
+  try {
+    const result =
+      await restoreBackupFile(
+        req.file.buffer.toString(
+          'utf8'
+        ),
+        req.dbUser.id
+      );
+
+    // The file isn't in the list, but this backup, the way to
+    // undo the restore, is.
+    setActivityEntity(
+      res,
+      'data_backup',
+      result.safety_backup.id
+    );
+
+    return res
+      .status(200)
+      .json({
+        message:
+          'Backup restored.',
+
+        ...result
+      });
+  } catch (error) {
+    return sendError(
+      res,
+      error,
+      'RESTORE BACKUP FILE ERROR',
+      'Unable to restore this file. Nothing was changed.'
+    );
+  }
+}
+
 async function removeBackup(
   req,
   res
@@ -298,5 +360,6 @@ module.exports = {
   postBackup,
   getBackupDownload,
   postRestore,
+  postRestoreFile,
   removeBackup
 };

@@ -36,6 +36,7 @@ import {
   getAdminBackupDownload,
   getAdminBackups,
   restoreAdminBackup,
+  restoreAdminBackupFile,
   type AdminBackup,
   type AdminBackupKind,
   type AdminBackupSummary,
@@ -64,6 +65,7 @@ import { isAdminRole, isSuperAdmin } from '../../lib/roles';
 //   POST   /api/admin/backups               back up now
 //   GET    /api/admin/backups/:id/download  download link
 //   POST   /api/admin/backups/:id/restore   restore
+//   POST   /api/admin/backups/restore-file  restore from a file
 //   DELETE /api/admin/backups/:id           delete
 // ============================================================
 
@@ -105,6 +107,10 @@ const KIND_LABELS: Record<
   before_restore: 'Before restore',
 };
 
+// Same limit as the server (backupService.js).
+const MAX_BACKUP_FILE_BYTES =
+  50 * 1024 * 1024;
+
 const EMPTY_SUMMARY: AdminBackupSummary = {
   total: 0,
   total_size_bytes: 0,
@@ -141,6 +147,12 @@ type ConfirmState =
   | {
       type: 'restore' | 'delete';
       backup: AdminBackup;
+    }
+  | {
+      type: 'restore_file';
+      file: File;
+      createdAt: string;
+      totalRows: number;
     };
 
 // ============================================================
@@ -388,6 +400,86 @@ export default function AdminBackupsScreen() {
     }
   }
 
+  // Web only. The file is read here so the popup can say what's
+  // in it. The server checks it again before restoring.
+  function chooseBackupFile() {
+    const input =
+      document.createElement('input');
+
+    input.type = 'file';
+    input.accept = '.json,application/json';
+    input.style.display = 'none';
+
+    input.onchange = () => {
+      const file = input.files?.[0];
+
+      input.remove();
+
+      if (file) {
+        openFileConfirm(file);
+      }
+    };
+
+    input.oncancel = () => input.remove();
+
+    document.body.appendChild(input);
+    input.click();
+  }
+
+  async function openFileConfirm(file: File) {
+    const wrongFile = {
+      variant: 'error' as const,
+      title: 'Wrong File',
+      message: `${file.name} is not a Hemo-Hero backup. Choose a .json file downloaded from this page.`,
+    };
+
+    if (file.size > MAX_BACKUP_FILE_BYTES) {
+      setMessage(wrongFile);
+
+      return;
+    }
+
+    try {
+      const backup =
+        JSON.parse(
+          (await file.text()).replace(
+            /^\uFEFF/,
+            ''
+          )
+        );
+
+      if (
+        backup?.app !== 'hemo-hero' ||
+        !backup.tables ||
+        typeof backup.tables !== 'object' ||
+        typeof backup.created_at !== 'string'
+      ) {
+        setMessage(wrongFile);
+
+        return;
+      }
+
+      setConfirmText('');
+      setConfirm({
+        type: 'restore_file',
+        file,
+        createdAt: backup.created_at,
+        totalRows: Object.values(
+          backup.tables
+        ).reduce<number>(
+          (sum, rows) =>
+            sum +
+            (Array.isArray(rows)
+              ? rows.length
+              : 0),
+          0
+        ),
+      });
+    } catch {
+      setMessage(wrongFile);
+    }
+  }
+
   function openConfirm(
     type: 'restore' | 'delete',
     backup: AdminBackup
@@ -414,13 +506,13 @@ export default function AdminBackupsScreen() {
     }
 
     if (
-      confirm.type === 'restore' &&
+      confirm.type !== 'delete' &&
       confirmText.trim() !== 'RESTORE'
     ) {
       return;
     }
 
-    const { type, backup } = confirm;
+    const current = confirm;
 
     try {
       setWorking(true);
@@ -434,12 +526,17 @@ export default function AdminBackupsScreen() {
         return;
       }
 
-      if (type === 'restore') {
+      if (current.type !== 'delete') {
         const result =
-          await restoreAdminBackup(
-            token,
-            backup.id
-          );
+          current.type === 'restore_file'
+            ? await restoreAdminBackupFile(
+                token,
+                current.file
+              )
+            : await restoreAdminBackup(
+                token,
+                current.backup.id
+              );
 
         const restoredRows =
           Object.values(
@@ -456,7 +553,9 @@ export default function AdminBackupsScreen() {
           variant: 'success',
           title: 'Backup Restored',
           message: `The data is back to ${formatDateTime(
-            backup.created_at
+            current.type === 'restore_file'
+              ? current.createdAt
+              : current.backup.created_at
           )} (${formatNumber(
             restoredRows
           )} rows). A "Before restore" backup of the data you had was saved first, so you can undo this.`,
@@ -464,7 +563,7 @@ export default function AdminBackupsScreen() {
       } else {
         await deleteAdminBackup(
           token,
-          backup.id
+          current.backup.id
         );
 
         setConfirm(null);
@@ -473,7 +572,7 @@ export default function AdminBackupsScreen() {
           variant: 'success',
           title: 'Backup Deleted',
           message: `The backup from ${formatDateTime(
-            backup.created_at
+            current.backup.created_at
           )} was deleted.`,
         });
       }
@@ -485,9 +584,9 @@ export default function AdminBackupsScreen() {
       setMessage({
         variant: 'error',
         title:
-          type === 'restore'
-            ? 'Restore Failed'
-            : 'Delete Failed',
+          current.type === 'delete'
+            ? 'Delete Failed'
+            : 'Restore Failed',
         message:
           error instanceof Error
             ? error.message
@@ -688,6 +787,44 @@ export default function AdminBackupsScreen() {
                           Refresh
                         </Text>
                       </Pressable>
+
+                      {Platform.OS === 'web' ? (
+                        <Pressable
+                          accessibilityRole="button"
+                          onPress={chooseBackupFile}
+                          style={({ pressed }) => [
+                            styles.secondaryButton,
+
+                            {
+                              height: 46 * s,
+                              paddingHorizontal: 18 * s,
+                              borderRadius: 10 * s,
+                              gap: 7 * s,
+                            },
+
+                            pressed &&
+                              styles.pressed,
+                          ]}
+                        >
+                          <MaterialIcons
+                            name="upload-file"
+                            size={19 * s}
+                            color={COLORS.white}
+                          />
+
+                          <Text
+                            style={[
+                              styles.secondaryButtonText,
+
+                              {
+                                fontSize: 13 * fs,
+                              },
+                            ]}
+                          >
+                            Restore from File
+                          </Text>
+                        </Pressable>
+                      ) : null}
 
                       <Pressable
                         accessibilityRole="button"
@@ -1026,7 +1163,7 @@ export default function AdminBackupsScreen() {
                   borderRadius: 18 * s,
                   padding: 26 * s,
                   borderColor:
-                    confirm.type === 'restore'
+                    confirm.type !== 'delete'
                       ? COLORS.orange
                       : COLORS.redBright,
                 },
@@ -1041,7 +1178,7 @@ export default function AdminBackupsScreen() {
                     height: 56 * s,
                     borderRadius: 28 * s,
                     backgroundColor:
-                      confirm.type === 'restore'
+                      confirm.type !== 'delete'
                         ? 'rgba(243,163,74,0.12)'
                         : 'rgba(239,51,64,0.12)',
                   },
@@ -1049,13 +1186,13 @@ export default function AdminBackupsScreen() {
               >
                 <MaterialIcons
                   name={
-                    confirm.type === 'restore'
+                    confirm.type !== 'delete'
                       ? 'settings-backup-restore'
                       : 'delete-outline'
                   }
                   size={29 * s}
                   color={
-                    confirm.type === 'restore'
+                    confirm.type !== 'delete'
                       ? COLORS.orange
                       : COLORS.redBright
                   }
@@ -1073,9 +1210,11 @@ export default function AdminBackupsScreen() {
                   },
                 ]}
               >
-                {confirm.type === 'restore'
-                  ? 'Restore This Backup?'
-                  : 'Delete This Backup?'}
+                {confirm.type === 'restore_file'
+                  ? 'Restore From This File?'
+                  : confirm.type === 'restore'
+                    ? 'Restore This Backup?'
+                    : 'Delete This Backup?'}
               </Text>
 
               <Text
@@ -1089,16 +1228,22 @@ export default function AdminBackupsScreen() {
                   },
                 ]}
               >
-                {confirm.type === 'restore'
-                  ? `The app's data goes back to how it was on ${formatDateTime(
-                      confirm.backup.created_at
-                    )}. Requests, chats, donations, reports and notifications made after that are replaced. Accounts made since then are kept, and the log trail is never deleted. A backup of the current data is made first, so you can undo this.`
-                  : `The backup from ${formatDateTime(
-                      confirm.backup.created_at
-                    )} will be deleted for good.`}
+                {confirm.type === 'restore_file'
+                  ? `${confirm.file.name} was made on ${formatDateTime(
+                      confirm.createdAt
+                    )} and has ${formatNumber(
+                      confirm.totalRows
+                    )} rows. The app's data goes back to how it was then. Requests, chats, donations, reports and notifications made after that are replaced. Accounts made since then are kept, and the log trail is never deleted. A backup of the current data is made first, so you can undo this.`
+                  : confirm.type === 'restore'
+                    ? `The app's data goes back to how it was on ${formatDateTime(
+                        confirm.backup.created_at
+                      )}. Requests, chats, donations, reports and notifications made after that are replaced. Accounts made since then are kept, and the log trail is never deleted. A backup of the current data is made first, so you can undo this.`
+                    : `The backup from ${formatDateTime(
+                        confirm.backup.created_at
+                      )} will be deleted for good.`}
               </Text>
 
-              {confirm.type === 'restore' ? (
+              {confirm.type !== 'delete' ? (
                 <View
                   style={[
                     styles.confirmField,
@@ -1194,7 +1339,7 @@ export default function AdminBackupsScreen() {
                 {(() => {
                   const blocked =
                     working ||
-                    (confirm.type === 'restore' &&
+                    (confirm.type !== 'delete' &&
                       confirmText.trim() !==
                         'RESTORE');
 
@@ -1210,7 +1355,7 @@ export default function AdminBackupsScreen() {
                           borderRadius: 10 * s,
                           gap: 7 * s,
                           backgroundColor:
-                            confirm.type === 'restore'
+                            confirm.type !== 'delete'
                               ? COLORS.orange
                               : COLORS.red,
                         },
@@ -1237,7 +1382,7 @@ export default function AdminBackupsScreen() {
                             },
                           ]}
                         >
-                          {confirm.type === 'restore'
+                          {confirm.type !== 'delete'
                             ? 'Restore'
                             : 'Delete Backup'}
                         </Text>

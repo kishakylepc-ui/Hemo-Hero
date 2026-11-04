@@ -4048,6 +4048,49 @@ export async function restoreAdminBackup(
   );
 }
 
+// Web only: the File comes from the browser's file picker.
+export async function restoreAdminBackupFile(
+  token: string,
+  file: File
+): Promise<{
+  message: string;
+  // Rows put back per table.
+  restored: Record<string, number>;
+  // Made just before the restore, to undo it.
+  safety_backup: AdminBackup;
+}> {
+  const body =
+    new FormData();
+
+  body.append(
+    'confirm',
+    'RESTORE'
+  );
+
+  body.append(
+    'backup',
+    file
+  );
+
+  const response =
+    await fetch(
+      `${API_URL}/api/admin/backups/restore-file`,
+      {
+        method:
+          'POST',
+        headers: {
+          Authorization:
+            `Bearer ${token}`,
+        },
+        body,
+      }
+    );
+
+  return parseResponse(
+    response
+  );
+}
+
 export async function deleteAdminBackup(
   token: string,
   backupId: string

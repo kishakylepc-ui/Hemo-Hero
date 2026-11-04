@@ -6,6 +6,12 @@ const {
   '../config/supabase'
 );
 
+const {
+  isSuperAdmin
+} = require(
+  '../utils/roles'
+);
+
 // ============================================================
 // DATABASE BACKUPS
 //
@@ -21,6 +27,8 @@ const {
 //   the chosen backup back in one database transaction
 //   (restore_backup function), so a failed restore changes
 //   nothing.
+// - A downloaded file can be restored too (Restore from File).
+//   It gets more checks first: see checkUploadedBackup.
 //
 // Photos and ID images stay in Supabase Storage; push tokens,
 // login lockouts and the backup list aren't backed up.
@@ -74,6 +82,10 @@ const FIRST_CHECK_DELAY_MS =
 
 const DOWNLOAD_LINK_SECONDS =
   5 * 60;
+
+// Far above a real backup (about 0.5 MB today).
+const MAX_BACKUP_FILE_BYTES =
+  50 * 1024 * 1024;
 
 const NOT_SET_UP_MESSAGE =
   'Backups are not set up yet. Run migration 20261007_notification_settings_backups.sql in Supabase.';
@@ -851,12 +863,24 @@ async function readBackupFile(
     );
   }
 
+  return parseBackup(
+    await data.text()
+  );
+}
+
+function parseBackup(
+  text
+) {
   let payload;
 
   try {
     payload =
       JSON.parse(
-        await data.text()
+        // An editor can add a byte order mark when saving.
+        String(text).replace(
+          /^\uFEFF/,
+          ''
+        )
       );
   } catch {
     throw new BackupError(
@@ -904,6 +928,62 @@ function describeRestoreError(
   return `The restore failed and nothing was changed: ${error?.message || 'unknown error'}`;
 }
 
+// Run inside runExclusive.
+async function putBackupBack(
+  payload,
+  restoredBy
+) {
+  // So this restore can be undone.
+  const safetyBackup =
+    await writeBackup({
+      kind:
+        'before_restore',
+
+      createdBy:
+        restoredBy
+    });
+
+  const {
+    data: restored,
+    error
+  } =
+    await supabaseAdmin
+      .rpc(
+        'restore_backup',
+        {
+          backup:
+            payload
+        }
+      );
+
+  if (error) {
+    console.error(
+      'RESTORE BACKUP ERROR:',
+      error
+    );
+
+    throw new BackupError(
+      describeRestoreError(
+        error
+      ),
+      isMissingTable(error) ||
+      error.code ===
+        'PGRST202'
+        ? 503
+        : 500
+    );
+  }
+
+  return {
+    restored:
+      restored ||
+      {},
+
+    safety_backup:
+      safetyBackup
+  };
+}
+
 function restoreBackup(
   backupId,
   restoredBy
@@ -921,46 +1001,11 @@ function restoreBackup(
           backup
         );
 
-      // So this restore can be undone.
-      const safetyBackup =
-        await writeBackup({
-          kind:
-            'before_restore',
-
-          createdBy:
-            restoredBy
-        });
-
-      const {
-        data: restored,
-        error
-      } =
-        await supabaseAdmin
-          .rpc(
-            'restore_backup',
-            {
-              backup:
-                payload
-            }
-          );
-
-      if (error) {
-        console.error(
-          'RESTORE BACKUP ERROR:',
-          error
+      const result =
+        await putBackupBack(
+          payload,
+          restoredBy
         );
-
-        throw new BackupError(
-          describeRestoreError(
-            error
-          ),
-          isMissingTable(error) ||
-          error.code ===
-            'PGRST202'
-            ? 503
-            : 500
-        );
-      }
 
       const restoredAt =
         new Date()
@@ -995,14 +1040,133 @@ function restoreBackup(
             null
         },
 
-        restored:
-          restored ||
-          {},
-
-        safety_backup:
-          safetyBackup
+        ...result
       };
     }
+  );
+}
+
+// A file from outside gets more checks than one from our own
+// storage: restore_backup empties any table the file leaves out,
+// and the file may have changed since it was downloaded. These
+// catch damage and mistakes. They can't prove a careful edit
+// wasn't made, so only the super admin can upload one.
+function checkUploadedBackup(
+  payload,
+  restoredBy
+) {
+  if (
+    payload.format !==
+    BACKUP_FORMAT
+  ) {
+    throw new BackupError(
+      'This backup was made by a different version of Hemo-Hero, so it cannot be restored. Nothing was changed.',
+      422
+    );
+  }
+
+  if (
+    Number.isNaN(
+      Date.parse(
+        payload.created_at
+      )
+    )
+  ) {
+    throw new BackupError(
+      'This backup file is damaged: it has no date. Nothing was changed.',
+      422
+    );
+  }
+
+  for (const table of BACKUP_TABLES) {
+    const rows =
+      payload.tables[table];
+
+    if (
+      !Array.isArray(rows) ||
+      !rows.every(
+        row =>
+          row &&
+          typeof row ===
+            'object' &&
+          !Array.isArray(row)
+      )
+    ) {
+      throw new BackupError(
+        `This backup file is missing part of its data (${table}), so it cannot be restored. Nothing was changed.`,
+        422
+      );
+    }
+
+    if (
+      payload.table_counts?.[
+        table
+      ] !== rows.length
+    ) {
+      throw new BackupError(
+        `This backup file was changed or damaged: ${table} doesn't match its row count. Nothing was changed.`,
+        422
+      );
+    }
+  }
+
+  const users =
+    payload.tables.users;
+
+  if (users.length === 0) {
+    throw new BackupError(
+      'This backup file has no accounts in it, so it cannot be restored. Nothing was changed.',
+      422
+    );
+  }
+
+  // Accounts missing from the file are kept as they are, so only
+  // the restorer's own row in the file can lock them out.
+  const restorer =
+    users.find(
+      user =>
+        user.id ===
+        restoredBy
+    );
+
+  if (
+    restorer &&
+    (!isSuperAdmin(
+      restorer.role
+    ) ||
+      restorer.is_active ===
+        false ||
+      restorer.is_locked ===
+        true)
+  ) {
+    throw new BackupError(
+      'This file would take away your Super Admin access, so it was not restored. Nothing was changed.',
+      422
+    );
+  }
+}
+
+async function restoreBackupFile(
+  text,
+  restoredBy
+) {
+  const payload =
+    parseBackup(
+      text
+    );
+
+  checkUploadedBackup(
+    payload,
+    restoredBy
+  );
+
+  return runExclusive(
+    'restore',
+    () =>
+      putBackupBack(
+        payload,
+        restoredBy
+      )
   );
 }
 
@@ -1117,13 +1281,17 @@ function startAutomaticBackups() {
 module.exports = {
   BACKUP_TABLES,
   BackupError,
+  MAX_BACKUP_FILE_BYTES,
   fileStamp,
   describeRestoreError,
+  parseBackup,
+  checkUploadedBackup,
   listBackups,
   createBackup,
   getDownloadLink,
   deleteBackup,
   restoreBackup,
+  restoreBackupFile,
   runAutomaticBackup,
   startAutomaticBackups
 };
