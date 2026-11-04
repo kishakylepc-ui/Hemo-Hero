@@ -30,8 +30,17 @@ import AdminHeader from '../../components/AdminHeader';
 import { FadeInView } from '../../components/AdminMotion';
 
 import {
+  BandChart,
+  CHART_COLORS,
+  SegmentedBar,
+  type ChartBand,
+  type ChartSeries,
+} from '../../components/AnalyticsCharts';
+
+import {
   getAdminActivityLogs,
   getAdminActivityLogSummary,
+  getAdminAnalyticsTrends,
   getAdminBloodRequests,
   getAdminBloodTypeDemand,
   getAdminDonations,
@@ -47,6 +56,7 @@ import {
   type AdminDonationSummary,
   type AdminProfile,
   type AdminReportSummary,
+  type AdminTrendWeek,
   type AdminUserSummary,
   type DonorApplicationSummary,
 } from '../../lib/api';
@@ -130,6 +140,7 @@ type SectionErrors = {
   modules: string;
   issues: string;
   donations: string;
+  trends: string;
 };
 
 const EMPTY_ERRORS: SectionErrors = {
@@ -141,7 +152,74 @@ const EMPTY_ERRORS: SectionErrors = {
   modules: '',
   issues: '',
   donations: '',
+  trends: '',
 };
+
+// Same color for the same thing on every chart.
+const REQUEST_DONATION_SERIES: ChartSeries[] = [
+  {
+    key: 'requests',
+    label: 'Requests posted',
+    color: CHART_COLORS.blue,
+  },
+  {
+    key: 'donations',
+    label: 'Donations recorded',
+    color: CHART_COLORS.orange,
+  },
+];
+
+const ACTIVITY_SERIES: ChartSeries[] = [
+  {
+    key: 'activity_successful',
+    label: 'Successful',
+    color: CHART_COLORS.green,
+  },
+  {
+    key: 'activity_failed',
+    label: 'Failed',
+    color: CHART_COLORS.red,
+  },
+];
+
+const BLOOD_SERIES: ChartSeries[] = [
+  {
+    key: 'needed',
+    label: 'Needed now',
+    color: CHART_COLORS.blue,
+  },
+  {
+    key: 'donated',
+    label: 'Donated, last 30 days',
+    color: CHART_COLORS.orange,
+  },
+];
+
+const BLOOD_TYPES = [
+  'O+',
+  'O-',
+  'A+',
+  'A-',
+  'B+',
+  'B-',
+  'AB+',
+  'AB-',
+];
+
+// "Oct 5", from a Philippine date like "2026-10-05".
+function formatWeekDay(
+  date: string
+) {
+  return new Date(
+    `${date}T00:00:00`
+  ).toLocaleDateString(
+    'en-US',
+    {
+      month: 'short',
+      day: 'numeric',
+    }
+  );
+}
 
 type ModuleStat = {
   module: string;
@@ -209,6 +287,10 @@ export default function AdminAnalyticsScreen() {
 
   const [recentDonations, setRecentDonations] =
     useState<AdminDonation[]>([]);
+
+  // Weekly counts for the charts.
+  const [trendWeeks, setTrendWeeks] =
+    useState<AdminTrendWeek[]>([]);
 
   const [errors, setErrors] =
     useState<SectionErrors>(EMPTY_ERRORS);
@@ -290,6 +372,7 @@ export default function AdminAnalyticsScreen() {
         activityLogsResult,
         issuesResult,
         donationsResult,
+        trendsResult,
       ] = await Promise.allSettled([
         getAdminUserSummary(token),
 
@@ -317,6 +400,8 @@ export default function AdminAnalyticsScreen() {
           page: 1,
           limit: 100,
         }),
+
+        getAdminAnalyticsTrends(token),
       ]);
 
       const nextErrors: SectionErrors = {
@@ -473,6 +558,26 @@ export default function AdminAnalyticsScreen() {
 
       // DONATIONS
 
+      if (trendsResult.status === 'fulfilled') {
+        setTrendWeeks(
+          trendsResult.value.weeks || []
+        );
+      } else {
+        console.log(
+          'ADMIN ANALYTICS TRENDS ERROR:',
+          trendsResult.reason
+        );
+
+        if (!live) {
+          setTrendWeeks([]);
+        }
+
+        nextErrors.trends = getErrorMessage(
+          trendsResult.reason,
+          'Unable to load the charts.'
+        );
+      }
+
       if (donationsResult.status === 'fulfilled') {
         setDonationSummary(
           donationsResult.value.summary
@@ -527,6 +632,7 @@ export default function AdminAnalyticsScreen() {
         modules: 'Unable to load analytics.',
         issues: 'Unable to load analytics.',
         donations: 'Unable to load analytics.',
+        trends: 'Unable to load analytics.',
       });
     } finally {
       if (!live) {
@@ -661,6 +767,59 @@ export default function AdminAnalyticsScreen() {
     ),
     1
   );
+
+  // CHARTS
+  const trendBands = useMemo<ChartBand[]>(
+    () =>
+      trendWeeks.map(week => ({
+        key: week.start,
+        label: formatWeekDay(week.start),
+        title: `${formatWeekDay(week.start)} to ${formatWeekDay(week.end)}`,
+        values: {
+          requests: week.requests,
+          donations: week.donations,
+          activity_successful:
+            week.activity_successful,
+          activity_failed:
+            week.activity_failed,
+        },
+      })),
+    [trendWeeks]
+  );
+
+  const bloodBands = useMemo<ChartBand[]>(() => {
+    const needed: Record<string, number> = {};
+
+    (bloodDemand?.demand || []).forEach(item => {
+      needed[item.blood_type] =
+        item.units_needed;
+    });
+
+    const donated: Record<string, number> = {};
+
+    recentDonations
+      .filter(
+        donation =>
+          donation.status !== 'rejected' &&
+          Date.parse(donation.donated_at) >= monthAgo
+      )
+      .forEach(donation => {
+        donated[donation.blood_type] =
+          (donated[donation.blood_type] || 0) +
+          (Number(donation.units_donated) || 0);
+      });
+
+    return BLOOD_TYPES.map(type => ({
+      key: type,
+      label: type,
+      title: `Type ${type}`,
+      values: {
+        needed: needed[type] || 0,
+        donated: donated[type] || 0,
+      },
+    }));
+    // monthAgo changes every render; the data sets the result.
+  }, [bloodDemand, recentDonations]);
 
   // ACTIVITY BY MODULE
 
@@ -1069,6 +1228,218 @@ export default function AdminAnalyticsScreen() {
                   </View>
 
                   {/* ============================================
+                      TRENDS
+                  ========================================================== */}
+
+                  <SectionLabel
+                    scale={s}
+                    fontScale={fs}
+                    text="TRENDS"
+                  />
+
+                  <View
+                    style={[
+                      styles.row,
+
+                      {
+                        gap: 18 * s,
+                        marginBottom: 18 * s,
+                      },
+                    ]}
+                  >
+                    <AnalyticsCard
+                      scale={s}
+                      style={{ flex: 1 }}
+                    >
+                      <CardHeader
+                        scale={s}
+                        fontScale={fs}
+                        icon="show-chart"
+                        title="Requests and Donations"
+                        description="Each week, last 12 weeks"
+                      />
+
+                      {errors.trends ? (
+                        <SectionMessage
+                          scale={s}
+                          fontScale={fs}
+                          type="error"
+                          title="Chart unavailable"
+                          text={errors.trends}
+                        />
+                      ) : (
+                        <BandChart
+                          mode="line"
+                          series={REQUEST_DONATION_SERIES}
+                          bands={trendBands}
+                          unit="records"
+                          labelEvery={2}
+                          scale={s}
+                          fontScale={fs}
+                        />
+                      )}
+                    </AnalyticsCard>
+
+                    <AnalyticsCard
+                      scale={s}
+                      style={{ flex: 1 }}
+                    >
+                      <CardHeader
+                        scale={s}
+                        fontScale={fs}
+                        icon="timeline"
+                        title="System Activity"
+                        description="Logged actions each week, last 12 weeks"
+                      />
+
+                      {errors.trends ? (
+                        <SectionMessage
+                          scale={s}
+                          fontScale={fs}
+                          type="error"
+                          title="Chart unavailable"
+                          text={errors.trends}
+                        />
+                      ) : (
+                        <BandChart
+                          mode="line"
+                          series={ACTIVITY_SERIES}
+                          bands={trendBands}
+                          unit="actions"
+                          labelEvery={2}
+                          scale={s}
+                          fontScale={fs}
+                        />
+                      )}
+                    </AnalyticsCard>
+                  </View>
+
+                  <View
+                    style={[
+                      styles.row,
+
+                      {
+                        gap: 18 * s,
+                        marginBottom: 26 * s,
+                      },
+                    ]}
+                  >
+                    <AnalyticsCard
+                      scale={s}
+                      style={{ flex: 1.35 }}
+                    >
+                      <CardHeader
+                        scale={s}
+                        fontScale={fs}
+                        icon="bloodtype"
+                        title="Bags by Blood Type"
+                        description="Needed for active requests, and donated in the last 30 days"
+                      />
+
+                      {errors.demand || errors.donations ? (
+                        <SectionMessage
+                          scale={s}
+                          fontScale={fs}
+                          type="error"
+                          title="Chart unavailable"
+                          text={errors.demand || errors.donations}
+                        />
+                      ) : (
+                        <BandChart
+                          mode="grouped"
+                          series={BLOOD_SERIES}
+                          bands={bloodBands}
+                          unit="bags"
+                          scale={s}
+                          fontScale={fs}
+                        />
+                      )}
+                    </AnalyticsCard>
+
+                    <AnalyticsCard
+                      scale={s}
+                      style={{ flex: 1 }}
+                    >
+                      <CardHeader
+                        scale={s}
+                        fontScale={fs}
+                        icon="donut-small"
+                        title="Where Things Stand"
+                        description="Every request and application so far"
+                      />
+
+                      <View
+                        style={{
+                          gap: 22 * s,
+                          marginTop: 16 * s,
+                        }}
+                      >
+                        <SegmentedBar
+                          label="Blood requests"
+                          parts={[
+                            {
+                              label: 'Active',
+                              value: requestSummary?.active ?? 0,
+                              color: CHART_COLORS.blue,
+                            },
+                            {
+                              label: 'Fulfilled',
+                              value: requestSummary?.fulfilled ?? 0,
+                              color: CHART_COLORS.green,
+                            },
+                            {
+                              label: 'Expired',
+                              value: requestSummary?.expired ?? 0,
+                              color: CHART_COLORS.orange,
+                            },
+                            {
+                              label: 'Cancelled',
+                              value: requestSummary?.cancelled ?? 0,
+                              color: CHART_COLORS.gray,
+                            },
+                          ]}
+                          scale={s}
+                          fontScale={fs}
+                        />
+
+                        <SegmentedBar
+                          label="Donor applications"
+                          parts={[
+                            {
+                              label: 'Pending',
+                              value: applicationSummary?.pending ?? 0,
+                              color: CHART_COLORS.orange,
+                            },
+                            {
+                              label: 'Approved',
+                              value: applicationSummary?.approved ?? 0,
+                              color: CHART_COLORS.green,
+                            },
+                            {
+                              label: 'Withdrawn',
+                              value: applicationSummary?.withdrawn ?? 0,
+                              color: CHART_COLORS.gray,
+                            },
+                            {
+                              label: 'Rejected',
+                              value: applicationSummary?.rejected ?? 0,
+                              color: CHART_COLORS.red,
+                            },
+                          ]}
+                          scale={s}
+                          fontScale={fs}
+                        />
+                      </View>
+                    </AnalyticsCard>
+                  </View>
+
+                  <SectionLabel
+                    scale={s}
+                    fontScale={fs}
+                    text="BREAKDOWN"
+                  />
+
+                  {/* ==========================================================
                       APPLICATIONS + USERS
                   ============================================ */}
 

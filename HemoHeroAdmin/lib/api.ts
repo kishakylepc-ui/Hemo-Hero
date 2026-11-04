@@ -3720,6 +3720,39 @@ export async function getAdminDonations(
 // GET /api/admin/donations/summary
 // ============================================================
 
+// One week on the Analytics charts (Monday to Sunday,
+// Philippine time).
+export type AdminTrendWeek = {
+  start: string;
+  end: string;
+  requests: number;
+  donations: number;
+  activity_successful: number;
+  activity_failed: number;
+};
+
+export async function getAdminAnalyticsTrends(
+  token: string,
+  weeks = 12
+): Promise<{
+  weeks: AdminTrendWeek[];
+}> {
+  const response =
+    await fetch(
+      `${API_URL}/api/admin/analytics/trends?weeks=${weeks}`,
+      {
+        headers: {
+          Authorization:
+            `Bearer ${token}`,
+        },
+      }
+    );
+
+  return parseResponse(
+    response
+  );
+}
+
 export async function getAdminDonationSummary(
   token: string
 ): Promise<{

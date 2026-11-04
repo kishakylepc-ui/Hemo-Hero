@@ -58,6 +58,9 @@ const adminDonationRoutes =
 const adminBackupRoutes =
   require('./routes/adminBackupRoutes');
 
+const adminAnalyticsRoutes =
+  require('./routes/adminAnalyticsRoutes');
+
 // ============================================================
 // APP
 // ============================================================
@@ -332,6 +335,12 @@ app.use(
 app.use(
   '/api/admin/donations',
   adminDonationRoutes
+);
+
+// Weekly counts for the Analytics charts (admin only).
+app.use(
+  '/api/admin/analytics',
+  adminAnalyticsRoutes
 );
 
 // ============================================================
