@@ -22,7 +22,11 @@ import {
 import { MaterialIcons } from '@expo/vector-icons';
 import Constants from 'expo-constants';
 import { LinearGradient } from 'expo-linear-gradient';
-import { router, useFocusEffect } from 'expo-router';
+import {
+  router,
+  useFocusEffect,
+  useLocalSearchParams,
+} from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -464,6 +468,28 @@ export default function AdminSettingsScreen() {
     setFormError('');
     setFormModal('profile');
   }
+
+  // Change Password in the header's account menu opens the form
+  // straight away.
+  const {
+    open: openForm,
+  } =
+    useLocalSearchParams<{
+      open?: string;
+    }>();
+
+  useEffect(() => {
+    if (
+      openForm ===
+      'password'
+    ) {
+      openPasswordForm();
+
+      router.setParams({
+        open: undefined,
+      });
+    }
+  }, [openForm]);
 
   function openPasswordForm() {
     setCurrentPassword('');

@@ -47,6 +47,8 @@ import {
 
 import { isSuperAdmin } from '../lib/roles';
 
+import AdminAccountMenu from './AdminAccountMenu';
+
 // ============================================================
 // COLORS
 // ============================================================
@@ -200,6 +202,52 @@ export default function AdminHeader({
 
   const bellRef =
     useRef<ViewInstance>(null);
+
+  // =====================================================
+  // ACCOUNT MENU
+  // =====================================================
+
+  const accountRef =
+    useRef<ViewInstance>(null);
+
+  const [
+    accountMenuVisible,
+    setAccountMenuVisible,
+  ] =
+    useState(false);
+
+  const [
+    accountMenuPosition,
+    setAccountMenuPosition,
+  ] =
+    useState({
+      top: 0,
+      right: 0,
+    });
+
+  // Anchored under the name, wherever the header is on
+  // screen (the web canvas is centered).
+  function openAccountMenu() {
+    accountRef.current?.measureInWindow(
+      (x, y, width, height) => {
+        setAccountMenuPosition({
+          top:
+            y +
+            height +
+            10 * scale,
+
+          right:
+            Math.max(
+              windowWidth -
+                (x + width),
+              12
+            ),
+        });
+
+        setAccountMenuVisible(true);
+      }
+    );
+  }
 
   // ==========================================================
   // UNREAD COUNT
@@ -721,10 +769,15 @@ export default function AdminHeader({
         ==================================================== */}
 
         <Pressable
-          onPress={() =>
-            router.push(
-              '/settings'
-            )
+          ref={accountRef}
+          accessibilityRole="button"
+          accessibilityLabel="Account menu"
+          accessibilityState={{
+            expanded:
+              accountMenuVisible,
+          }}
+          onPress={
+            openAccountMenu
           }
           style={({
             pressed,
@@ -818,7 +871,11 @@ export default function AdminHeader({
           </View>
 
           <MaterialIcons
-            name="keyboard-arrow-down"
+            name={
+              accountMenuVisible
+                ? 'keyboard-arrow-up'
+                : 'keyboard-arrow-down'
+            }
             size={
               20 * scale
             }
@@ -828,6 +885,25 @@ export default function AdminHeader({
           />
         </Pressable>
       </View>
+
+      <AdminAccountMenu
+        visible={
+          accountMenuVisible
+        }
+        position={
+          accountMenuPosition
+        }
+        scale={scale}
+        fontScale={fontScale}
+        profile={profile}
+        name={adminName}
+        initial={adminInitial}
+        onClose={() =>
+          setAccountMenuVisible(
+            false
+          )
+        }
+      />
 
       {/* ======================================================
           NOTIFICATION PANEL
