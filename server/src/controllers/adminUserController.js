@@ -1049,6 +1049,18 @@ async function getAdminUserSummary(
     if (superAdmin) {
       summary.admins =
         0;
+
+      // The Status row on the Admins tab.
+      summary.admin_accounts = {
+        active:
+          0,
+
+        inactive:
+          0,
+
+        locked:
+          0,
+      };
     }
 
     for (
@@ -1063,6 +1075,30 @@ async function getAdminUserSummary(
         if (superAdmin) {
           summary.admins +=
             1;
+
+          if (
+            user.is_active ===
+            false
+          ) {
+            summary.admin_accounts.inactive +=
+              1;
+          } else {
+            summary.admin_accounts.active +=
+              1;
+          }
+
+          if (
+            isUserLocked(
+              user,
+              lockoutFor(
+                lockouts,
+                user
+              )
+            )
+          ) {
+            summary.admin_accounts.locked +=
+              1;
+          }
         }
 
         continue;

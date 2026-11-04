@@ -599,6 +599,13 @@ export type AdminUserSummary = {
   // Super admin only: number of admin accounts.
   admins?: number;
 
+  // Super admin only: the Status row on the Admins tab.
+  admin_accounts?: {
+    active: number;
+    inactive: number;
+    locked: number;
+  };
+
   active: number;
 
   inactive: number;

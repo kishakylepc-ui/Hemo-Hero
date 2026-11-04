@@ -152,7 +152,7 @@ export default function AdminUsersScreen() {
   const [statusFilter, setStatusFilter] =
     useState<AdminUserStatusFilter>('all');
 
-  // Super admin: list admin accounts instead of users.
+  // Super admin: the Admins tab instead of the Users tab.
   const [showAdmins, setShowAdmins] =
     useState(false);
 
@@ -249,9 +249,7 @@ export default function AdminUsersScreen() {
           page,
           limit: PAGE_LIMIT,
           search: searchFilter || undefined,
-          status: showAdmins
-            ? 'all'
-            : statusFilter,
+          status: statusFilter,
           role: showAdmins
             ? 'admin'
             : 'user',
@@ -277,11 +275,9 @@ export default function AdminUsersScreen() {
         usersResult.pagination
       );
 
-      if (!showAdmins) {
-        setReviewCount(
-          usersResult.review_count ?? 0
-        );
-      }
+      setReviewCount(
+        usersResult.review_count ?? 0
+      );
 
       if (
         usersResult.pagination.page !==
@@ -343,14 +339,17 @@ export default function AdminUsersScreen() {
   ) {
     setSuccessMessage('');
     setPage(1);
-    setShowAdmins(false);
     setStatusFilter(status);
   }
 
-  function showAdminAccounts() {
+  // A new tab starts on All, so nothing looks filtered by accident.
+  function changeAccounts(
+    admins: boolean
+  ) {
     setSuccessMessage('');
     setPage(1);
-    setShowAdmins(true);
+    setStatusFilter('all');
+    setShowAdmins(admins);
   }
 
   function openUserDetails(
@@ -457,6 +456,25 @@ export default function AdminUsersScreen() {
   const hasFilters =
     Boolean(searchFilter) ||
     statusFilter !== 'all';
+
+  // Status counts for the open tab.
+  const statusCounts =
+    showAdmins
+      ? {
+          all: summary.admins ?? 0,
+          active:
+            summary.admin_accounts?.active ?? 0,
+          inactive:
+            summary.admin_accounts?.inactive ?? 0,
+          locked:
+            summary.admin_accounts?.locked ?? 0,
+        }
+      : {
+          all: summary.total,
+          active: summary.active,
+          inactive: summary.inactive,
+          locked: summary.locked ?? 0,
+        };
 
   // ==========================================================
   // UI
@@ -654,6 +672,46 @@ export default function AdminUsersScreen() {
               ================================================ */}
 
               <FadeInView delay={50}>
+                {/* Only the super admin manages admin accounts. */}
+                {isSuperAdmin(profile?.role) ? (
+                  <View
+                    style={[
+                      styles.accountTabs,
+
+                      {
+                        gap: 10 * s,
+                        marginBottom: 14 * s,
+                      },
+                    ]}
+                  >
+                    <AccountTab
+                      scale={s}
+                      fontScale={fs}
+                      icon="people"
+                      label="Users"
+                      hint="Accounts for the mobile app"
+                      count={summary.total}
+                      active={!showAdmins}
+                      onPress={() =>
+                        changeAccounts(false)
+                      }
+                    />
+
+                    <AccountTab
+                      scale={s}
+                      fontScale={fs}
+                      icon="admin-panel-settings"
+                      label="Admins"
+                      hint="Accounts for the Admin Portal"
+                      count={summary.admins ?? 0}
+                      active={showAdmins}
+                      onPress={() =>
+                        changeAccounts(true)
+                      }
+                    />
+                  </View>
+                ) : null}
+
                 <View
                   style={[
                     styles.toolbar,
@@ -664,12 +722,25 @@ export default function AdminUsersScreen() {
                     },
                   ]}
                 >
+                  <Text
+                    style={[
+                      styles.filterLabel,
+
+                      {
+                        fontSize: 11 * fs,
+                        marginRight: 4 * s,
+                      },
+                    ]}
+                  >
+                    STATUS
+                  </Text>
+
                   <FilterButton
                     scale={s}
                     fontScale={fs}
-                    label="All Users"
-                    count={summary.total}
-                    active={!showAdmins && statusFilter === 'all'}
+                    label="All"
+                    count={statusCounts.all}
+                    active={statusFilter === 'all'}
                     onPress={() =>
                       changeStatusFilter('all')
                     }
@@ -679,8 +750,8 @@ export default function AdminUsersScreen() {
                     scale={s}
                     fontScale={fs}
                     label="Active"
-                    count={summary.active}
-                    active={!showAdmins && statusFilter === 'active'}
+                    count={statusCounts.active}
+                    active={statusFilter === 'active'}
                     positive
                     onPress={() =>
                       changeStatusFilter('active')
@@ -691,8 +762,8 @@ export default function AdminUsersScreen() {
                     scale={s}
                     fontScale={fs}
                     label="Inactive"
-                    count={summary.inactive}
-                    active={!showAdmins && statusFilter === 'inactive'}
+                    count={statusCounts.inactive}
+                    active={statusFilter === 'inactive'}
                     alert
                     onPress={() =>
                       changeStatusFilter('inactive')
@@ -704,36 +775,26 @@ export default function AdminUsersScreen() {
                     scale={s}
                     fontScale={fs}
                     label="Locked"
-                    count={summary.locked ?? 0}
-                    active={!showAdmins && statusFilter === 'locked'}
+                    count={statusCounts.locked}
+                    active={statusFilter === 'locked'}
                     warning
                     onPress={() =>
                       changeStatusFilter('locked')
                     }
                   />
+
                   {/* Deactivated people who asked for a review */}
                   <FilterButton
                     scale={s}
                     fontScale={fs}
                     label="Review Requests"
                     count={reviewCount}
-                    active={!showAdmins && statusFilter === 'review'}
+                    active={statusFilter === 'review'}
                     warning
                     onPress={() =>
                       changeStatusFilter('review')
                     }
                   />
-
-                  {isSuperAdmin(profile?.role) ? (
-                    <FilterButton
-                      scale={s}
-                      fontScale={fs}
-                      label="Admins"
-                      count={summary.admins ?? 0}
-                      active={showAdmins}
-                      onPress={showAdminAccounts}
-                    />
-                  ) : null}
 
                   <View
                     style={[
@@ -929,7 +990,7 @@ export default function AdminUsersScreen() {
                       }
                       title={
                         showAdmins
-                          ? searchFilter
+                          ? hasFilters
                             ? 'No Matching Admins'
                             : 'No Other Admins'
                           : hasFilters
@@ -938,8 +999,8 @@ export default function AdminUsersScreen() {
                       }
                       text={
                         showAdmins
-                          ? searchFilter
-                            ? 'Try a different name or email.'
+                          ? hasFilters
+                            ? 'Try changing your search or account status.'
                             : 'Admin accounts you create will appear here.'
                           : hasFilters
                             ? 'Try changing your search or account status filter.'
@@ -1000,9 +1061,13 @@ export default function AdminUsersScreen() {
                     Page {pagination.page} of{' '}
                     {Math.max(pagination.total_pages, 1)} •{' '}
                     {pagination.total}{' '}
-                    {pagination.total === 1
-                      ? 'user'
-                      : 'users'}
+                    {showAdmins
+                      ? pagination.total === 1
+                        ? 'admin'
+                        : 'admins'
+                      : pagination.total === 1
+                        ? 'user'
+                        : 'users'}
                   </Text>
 
                   <View
@@ -1407,6 +1472,124 @@ function FilterButton({
 }
 
 // ============================================================
+// ACCOUNT TAB (Users or Admins)
+// =====================================================
+
+function AccountTab({
+  scale,
+  fontScale,
+  icon,
+  label,
+  hint,
+  count,
+  active,
+  onPress,
+}: {
+  scale: number;
+  fontScale: number;
+  icon: keyof typeof MaterialIcons.glyphMap;
+  label: string;
+  hint: string;
+  count: number;
+  active: boolean;
+  onPress: () => void;
+}) {
+  return (
+    <Pressable
+      accessibilityRole="tab"
+      accessibilityState={{
+        selected: active,
+      }}
+      onPress={onPress}
+      style={({ pressed }) => [
+        styles.accountTab,
+
+        {
+          gap: 12 * scale,
+          paddingHorizontal: 16 * scale,
+          paddingVertical: 12 * scale,
+          borderRadius: 12 * scale,
+        },
+
+        active &&
+          styles.accountTabActive,
+
+        pressed &&
+          styles.pressed,
+      ]}
+    >
+      <View
+        style={[
+          styles.accountTabIcon,
+
+          {
+            width: 40 * scale,
+            height: 40 * scale,
+            borderRadius: 10 * scale,
+          },
+
+          active &&
+            styles.accountTabIconActive,
+        ]}
+      >
+        <MaterialIcons
+          name={icon}
+          size={22 * scale}
+          color={
+            active
+              ? COLORS.white
+              : COLORS.soft
+          }
+        />
+      </View>
+
+      <View style={styles.accountTabText}>
+        <Text
+          style={[
+            styles.accountTabLabel,
+
+            {
+              fontSize: 15 * fontScale,
+            },
+          ]}
+        >
+          {label}
+        </Text>
+
+        <Text
+          numberOfLines={1}
+          style={[
+            styles.accountTabHint,
+
+            {
+              fontSize: 12 * fontScale,
+              marginTop: 1 * scale,
+            },
+          ]}
+        >
+          {hint}
+        </Text>
+      </View>
+
+      <Text
+        style={[
+          styles.accountTabCount,
+
+          {
+            fontSize: 22 * fontScale,
+          },
+
+          active &&
+            styles.accountTabCountActive,
+        ]}
+      >
+        {count}
+      </Text>
+    </Pressable>
+  );
+}
+
+// =====================================================
 // BANNER (success / error)
 // ============================================================
 
@@ -2266,6 +2449,63 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     flexWrap: 'wrap',
+  },
+
+  accountTabs: {
+    flexDirection: 'row',
+  },
+
+  accountTab: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    backgroundColor: COLORS.card,
+  },
+
+  accountTabActive: {
+    borderColor: COLORS.redBright,
+    backgroundColor: 'rgba(219,10,10,0.14)',
+  },
+
+  accountTabIcon: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: COLORS.cardLight,
+  },
+
+  accountTabIconActive: {
+    backgroundColor: COLORS.red,
+  },
+
+  accountTabText: {
+    flex: 1,
+  },
+
+  accountTabLabel: {
+    color: COLORS.white,
+    fontFamily: 'Poppins_600SemiBold',
+  },
+
+  accountTabHint: {
+    color: COLORS.muted,
+    fontFamily: 'Inter_400Regular',
+  },
+
+  accountTabCount: {
+    color: COLORS.soft,
+    fontFamily: 'Poppins_600SemiBold',
+  },
+
+  accountTabCountActive: {
+    color: COLORS.white,
+  },
+
+  filterLabel: {
+    color: COLORS.muted,
+    fontFamily: 'Inter_700Bold',
+    letterSpacing: 0.6,
   },
 
   filterButton: {
