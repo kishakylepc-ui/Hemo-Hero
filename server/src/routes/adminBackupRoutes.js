@@ -15,6 +15,7 @@ const {
   getBackups,
   postBackup,
   getBackupDownload,
+  getBackupSqlFile,
   postRestore,
   postRestoreFile,
   removeBackup
@@ -108,6 +109,29 @@ router.get(
       'data_backup'
   }),
   getBackupDownload
+);
+
+// ------------------------------------------------------------
+// GET /api/admin/backups/:id/download-sql
+//
+// Logged: the file has every user's data.
+// ------------------------------------------------------------
+
+router.get(
+  '/:id/download-sql',
+  activityLog({
+    action:
+      'DOWNLOAD_BACKUP_SQL',
+    module:
+      'Backups',
+    successDescription:
+      'Super admin downloaded a database backup as SQL.',
+    failureDescription:
+      'Database backup SQL download failed.',
+    entityType:
+      'data_backup'
+  }),
+  getBackupSqlFile
 );
 
 // ------------------------------------------------------------

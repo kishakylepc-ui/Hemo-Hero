@@ -9,6 +9,7 @@ const {
   listBackups,
   createBackup,
   getDownloadLink,
+  getBackupSql,
   deleteBackup,
   restoreBackup,
   restoreBackupFile
@@ -22,6 +23,7 @@ const {
 // GET    /api/admin/backups               list + summary
 // POST   /api/admin/backups               back up now
 // GET    /api/admin/backups/:id/download  5-minute download link
+// GET    /api/admin/backups/:id/download-sql  { file_name, sql }
 // POST   /api/admin/backups/:id/restore   body { confirm: 'RESTORE' }
 // POST   /api/admin/backups/restore-file  form: confirm, backup (file)
 // DELETE /api/admin/backups/:id
@@ -197,6 +199,45 @@ async function getBackupDownload(
   }
 }
 
+async function getBackupSqlFile(
+  req,
+  res
+) {
+  const id =
+    getBackupId(
+      req,
+      res
+    );
+
+  if (!id) {
+    return;
+  }
+
+  try {
+    const file =
+      await getBackupSql(
+        id
+      );
+
+    setActivityEntity(
+      res,
+      'data_backup',
+      id
+    );
+
+    return res
+      .status(200)
+      .json(file);
+  } catch (error) {
+    return sendError(
+      res,
+      error,
+      'BACKUP SQL ERROR',
+      'Unable to make the SQL file for this backup.'
+    );
+  }
+}
+
 async function postRestore(
   req,
   res
@@ -359,6 +400,7 @@ module.exports = {
   getBackups,
   postBackup,
   getBackupDownload,
+  getBackupSqlFile,
   postRestore,
   postRestoreFile,
   removeBackup

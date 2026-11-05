@@ -35,6 +35,7 @@ import {
   deleteAdminBackup,
   getAdminBackupDownload,
   getAdminBackups,
+  getAdminBackupSql,
   restoreAdminBackup,
   restoreAdminBackupFile,
   type AdminBackup,
@@ -64,6 +65,7 @@ import { isAdminRole, isSuperAdmin } from '../../lib/roles';
 //   GET    /api/admin/backups               list + summary
 //   POST   /api/admin/backups               back up now
 //   GET    /api/admin/backups/:id/download  download link
+//   GET    /api/admin/backups/:id/download-sql  same backup as SQL
 //   POST   /api/admin/backups/:id/restore   restore
 //   POST   /api/admin/backups/restore-file  restore from a file
 //   DELETE /api/admin/backups/:id           delete
@@ -118,6 +120,24 @@ const EMPTY_SUMMARY: AdminBackupSummary = {
   next_automatic_at: null,
   automatic_kept: 7,
 };
+
+// Web only. Saves in place, so the page stays open, and unlike a
+// new tab, a popup blocker can't stop it after waiting on the
+// server.
+function saveWebFile(
+  url: string,
+  fileName: string
+) {
+  const saveLink =
+    document.createElement('a');
+
+  saveLink.href = url;
+  saveLink.download = fileName;
+
+  document.body.appendChild(saveLink);
+  saveLink.click();
+  saveLink.remove();
+}
 
 // ============================================================
 // MODAL TYPES
@@ -190,6 +210,10 @@ export default function AdminBackupsScreen() {
 
   // Backup whose download link is being made.
   const [downloadingId, setDownloadingId] =
+    useState<string | null>(null);
+
+  // Backup whose SQL file is being made.
+  const [downloadingSqlId, setDownloadingSqlId] =
     useState<string | null>(null);
 
   const [confirm, setConfirm] =
@@ -342,7 +366,7 @@ export default function AdminBackupsScreen() {
   async function downloadBackup(
     backup: AdminBackup
   ) {
-    if (downloadingId) {
+    if (downloadingId || downloadingSqlId) {
       return;
     }
 
@@ -365,18 +389,10 @@ export default function AdminBackupsScreen() {
         );
 
       if (Platform.OS === 'web') {
-        // Saves in place. The link sends the file as a download,
-        // so the page stays open, and unlike a new tab, a popup
-        // blocker can't stop it after waiting on the server.
-        const saveLink =
-          document.createElement('a');
-
-        saveLink.href = link.url;
-        saveLink.download = link.file_name;
-
-        document.body.appendChild(saveLink);
-        saveLink.click();
-        saveLink.remove();
+        saveWebFile(
+          link.url,
+          link.file_name
+        );
 
         setMessage({
           variant: 'success',
@@ -397,6 +413,69 @@ export default function AdminBackupsScreen() {
       });
     } finally {
       setDownloadingId(null);
+    }
+  }
+
+  // Web only: the file arrives as text, not a link Safari can open.
+  async function downloadBackupSql(
+    backup: AdminBackup
+  ) {
+    if (downloadingId || downloadingSqlId) {
+      return;
+    }
+
+    try {
+      setDownloadingSqlId(backup.id);
+
+      const token =
+        await getAdminAccessToken();
+
+      if (!token) {
+        router.replace('/');
+
+        return;
+      }
+
+      const file =
+        await getAdminBackupSql(
+          token,
+          backup.id
+        );
+
+      const url =
+        URL.createObjectURL(
+          new Blob([file.sql], {
+            type: 'application/sql',
+          })
+        );
+
+      saveWebFile(
+        url,
+        file.file_name
+      );
+
+      // Long enough for the browser to start saving it.
+      setTimeout(
+        () => URL.revokeObjectURL(url),
+        60000
+      );
+
+      setMessage({
+        variant: 'success',
+        title: 'Download Started',
+        message: `Your browser is saving ${file.file_name}. Check your Downloads folder. You can run it in the Supabase SQL editor. It holds every user's personal data, so keep it somewhere safe.`,
+      });
+    } catch (error) {
+      setMessage({
+        variant: 'error',
+        title: 'Download Failed',
+        message:
+          error instanceof Error
+            ? error.message
+            : 'Unable to download this backup.',
+      });
+    } finally {
+      setDownloadingSqlId(null);
     }
   }
 
@@ -1010,6 +1089,9 @@ export default function AdminBackupsScreen() {
                         ]}
                       >
                         A backup saves all app data: accounts, donor applications, requests, offers, chats, donations, feedback, reports, notifications and the log trail. Photos and ID images stay in storage and aren’t included. An automatic backup runs every day and the newest {summary.automatic_kept} are kept; manual backups stay until you delete them.
+                        {Platform.OS === 'web'
+                          ? ' Download a backup as JSON to use with Restore from File, or as SQL to run in the Supabase SQL editor.'
+                          : ''}
                       </Text>
                     </View>
                   </FadeInView>
@@ -1108,6 +1190,13 @@ export default function AdminBackupsScreen() {
                             }
                             onDownload={() =>
                               downloadBackup(backup)
+                            }
+                            downloadingSql={
+                              downloadingSqlId ===
+                              backup.id
+                            }
+                            onDownloadSql={() =>
+                              downloadBackupSql(backup)
                             }
                             onRestore={() =>
                               openConfirm(
@@ -1701,6 +1790,8 @@ function BackupRow({
   last,
   downloading,
   onDownload,
+  downloadingSql,
+  onDownloadSql,
   onRestore,
   onDelete,
 }: {
@@ -1710,6 +1801,8 @@ function BackupRow({
   last: boolean;
   downloading: boolean;
   onDownload: () => void;
+  downloadingSql: boolean;
+  onDownloadSql: () => void;
   onRestore: () => void;
   onDelete: () => void;
 }) {
@@ -1894,10 +1987,27 @@ function BackupRow({
           scale={scale}
           fontScale={fontScale}
           icon="file-download"
-          label="Download"
+          label={
+            Platform.OS === 'web'
+              ? 'JSON'
+              : 'Download'
+          }
+          accessibilityLabel="Download as JSON"
           busy={downloading}
           onPress={onDownload}
         />
+
+        {Platform.OS === 'web' ? (
+          <RowButton
+            scale={scale}
+            fontScale={fontScale}
+            icon="file-download"
+            label="SQL"
+            accessibilityLabel="Download as SQL"
+            busy={downloadingSql}
+            onPress={onDownloadSql}
+          />
+        ) : null}
 
         <RowButton
           scale={scale}

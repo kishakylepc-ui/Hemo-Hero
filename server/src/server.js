@@ -349,7 +349,9 @@ app.use(
 // GET    /api/admin/backups
 // POST   /api/admin/backups
 // GET    /api/admin/backups/:id/download
+// GET    /api/admin/backups/:id/download-sql
 // POST   /api/admin/backups/:id/restore
+// POST   /api/admin/backups/restore-file
 // DELETE /api/admin/backups/:id
 //
 // SUPER ADMIN ONLY

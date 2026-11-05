@@ -29,6 +29,7 @@ const {
 //   nothing.
 // - A downloaded file can be restored too (Restore from File).
 //   It gets more checks first: see checkUploadedBackup.
+// - A backup can also be downloaded as a .sql file (SQL FILE).
 //
 // Photos and ID images stay in Supabase Storage; push tokens,
 // login lockouts and the backup list aren't backed up.
@@ -1171,6 +1172,286 @@ async function restoreBackupFile(
 }
 
 // ============================================================
+// SQL FILE
+//
+// The same backup as a .sql file, for the Supabase SQL editor.
+// Made when asked for and not kept. Running it does what
+// restore_backup does, in one transaction.
+// ============================================================
+
+// Postgres lists need their own form. Any other list or object
+// in a backup is a jsonb column.
+const ARRAY_COLUMNS = {
+  blood_donations: {
+    review_reasons:
+      'text'
+  }
+};
+
+// Accounts made since the backup stay, and the log trail is only
+// added to. The other tables are emptied first.
+const SQL_ON_CONFLICT = {
+  users:
+    columns =>
+      `ON CONFLICT ("id") DO UPDATE SET\n  ${columns
+        .filter(
+          column =>
+            column !== 'id'
+        )
+        .map(
+          column =>
+            `${sqlName(column)} = EXCLUDED.${sqlName(column)}`
+        )
+        .join(',\n  ')}`,
+
+  activity_logs:
+    () =>
+      'ON CONFLICT ("id") DO NOTHING'
+};
+
+function sqlName(
+  name
+) {
+  return `"${name.replace(
+    /"/g,
+    '""'
+  )}"`;
+}
+
+// Names and messages are typed by users, so this is what keeps
+// them from being read as SQL.
+function sqlString(
+  text
+) {
+  const quoted =
+    text.replace(
+      /'/g,
+      "''"
+    );
+
+  // E'' means the same whatever the server's string settings are.
+  return text.includes('\\')
+    ? `E'${quoted.replace(
+        /\\/g,
+        () => '\\\\'
+      )}'`
+    : `'${quoted}'`;
+}
+
+function sqlValue(
+  value,
+  arrayType
+) {
+  if (
+    value === null ||
+    value === undefined
+  ) {
+    return 'NULL';
+  }
+
+  if (
+    arrayType &&
+    Array.isArray(value)
+  ) {
+    return `ARRAY[${value
+      .map(
+        item =>
+          sqlValue(item)
+      )
+      .join(', ')}]::${arrayType}[]`;
+  }
+
+  if (
+    typeof value ===
+    'object'
+  ) {
+    return sqlString(
+      JSON.stringify(
+        value
+      )
+    );
+  }
+
+  if (
+    typeof value ===
+    'string'
+  ) {
+    return sqlString(
+      value
+    );
+  }
+
+  return String(value);
+}
+
+// One statement per table, because a row can point at another
+// row of the same table and Postgres checks that at the end.
+function sqlInsert(
+  table,
+  rows
+) {
+  if (rows.length === 0) {
+    return `-- ${table}: no rows\n`;
+  }
+
+  const columns = [
+    ...new Set(
+      rows.flatMap(
+        row =>
+          Object.keys(row)
+      )
+    )
+  ];
+
+  const arrayTypes =
+    ARRAY_COLUMNS[table] ||
+    {};
+
+  const values =
+    rows.map(
+      row =>
+        `  (${columns
+          .map(
+            column =>
+              sqlValue(
+                row[column],
+                arrayTypes[column]
+              )
+          )
+          .join(', ')})`
+    );
+
+  const onConflict =
+    SQL_ON_CONFLICT[table]
+      ? `\n${SQL_ON_CONFLICT[table](columns)}`
+      : '';
+
+  return `INSERT INTO public.${table} (${columns
+    .map(sqlName)
+    .join(', ')}) VALUES\n${values.join(',\n')}${onConflict};\n`;
+}
+
+function buildBackupSql(
+  payload,
+  backup
+) {
+  const rowsOf =
+    table =>
+      payload.tables[table] ||
+      [];
+
+  // Parents first, as in restore_backup.
+  const replaced =
+    BACKUP_TABLES.filter(
+      table =>
+        !SQL_ON_CONFLICT[table]
+    );
+
+  const totalRows =
+    BACKUP_TABLES.reduce(
+      (sum, table) =>
+        sum +
+        rowsOf(table).length,
+      0
+    );
+
+  const made =
+    fileStamp(
+      new Date(
+        backup.created_at
+      )
+    )
+      .replace('_', ' ')
+      .replace(
+        /(\d\d)(\d\d)$/,
+        '$1:$2'
+      );
+
+  return `${[
+    '-- Hemo-Hero database backup',
+    `-- Made: ${made} Philippine time`,
+    `-- Type: ${backup.kind}`,
+    `-- Rows: ${totalRows} in ${BACKUP_TABLES.length} tables`,
+    '--',
+    "-- This file holds every user's personal data. Keep it safe.",
+    '--',
+    '-- To put this backup back, run the whole file in the Supabase',
+    '-- SQL editor. It does the same as Restore in the Admin Portal:',
+    '-- - Requests, chats, donations, reports and notifications are',
+    '--   replaced with the ones in this file.',
+    '-- - Accounts made since the backup are kept, and the log trail',
+    '--   is only added to.',
+    '-- - It is one transaction: if anything fails, nothing changes.',
+    '--',
+    '-- Unlike Restore, it makes no backup of the current data first,',
+    '-- so use Back Up Now in the Admin Portal before running it.',
+    '-- Photos and ID images are not in this file.',
+    '',
+    "SET client_encoding = 'UTF8';",
+    '',
+    'BEGIN;',
+    '',
+    '-- Current rows out, children first.',
+    ...[...replaced]
+      .reverse()
+      .map(
+        table =>
+          `DELETE FROM public.${table};`
+      ),
+    '',
+    '-- Accounts: add or update.',
+    sqlInsert(
+      'users',
+      rowsOf('users')
+    ),
+    '-- Everything else, parents first.',
+    ...replaced.map(
+      table =>
+        sqlInsert(
+          table,
+          rowsOf(table)
+        )
+    ),
+    '-- Log trail: add back missing entries only.',
+    sqlInsert(
+      'activity_logs',
+      rowsOf('activity_logs')
+    ),
+    'COMMIT;'
+  ].join('\n')}\n`;
+}
+
+async function getBackupSql(
+  backupId
+) {
+  const backup =
+    await getBackupRow(
+      backupId
+    );
+
+  const payload =
+    await readBackupFile(
+      backup
+    );
+
+  return {
+    file_name:
+      downloadName(
+        backup
+      ).replace(
+        /\.json$/,
+        '.sql'
+      ),
+
+    sql:
+      buildBackupSql(
+        payload,
+        backup
+      )
+  };
+}
+
+// ============================================================
 // AUTOMATIC DAILY BACKUP
 // ============================================================
 
@@ -1286,9 +1567,12 @@ module.exports = {
   describeRestoreError,
   parseBackup,
   checkUploadedBackup,
+  ARRAY_COLUMNS,
+  buildBackupSql,
   listBackups,
   createBackup,
   getDownloadLink,
+  getBackupSql,
   deleteBackup,
   restoreBackup,
   restoreBackupFile,

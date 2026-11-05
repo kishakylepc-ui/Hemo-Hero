@@ -4007,6 +4007,29 @@ export async function getAdminBackupDownload(
   );
 }
 
+export async function getAdminBackupSql(
+  token: string,
+  backupId: string
+): Promise<{
+  file_name: string;
+  sql: string;
+}> {
+  const response =
+    await fetch(
+      `${API_URL}/api/admin/backups/${encodeURIComponent(backupId)}/download-sql`,
+      {
+        headers: {
+          Authorization:
+            `Bearer ${token}`,
+        },
+      }
+    );
+
+  return parseResponse(
+    response
+  );
+}
+
 export async function restoreAdminBackup(
   token: string,
   backupId: string
